@@ -1,0 +1,34 @@
+# Flutter
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+build/
+*.iml
+
+# Android
+android/.gradle/
+android/captures/
+android/local.properties
+android/key.properties
+android/app/google-services.json
+android/app/*.jks
+
+# iOS
+ios/Flutter/.last_build_id
+ios/Pods/
+ios/.symlinks/
+ios/Runner/GoogleService-Info.plist
+
+# Env / secrets
+.env
+*.env
+.dart_define
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
