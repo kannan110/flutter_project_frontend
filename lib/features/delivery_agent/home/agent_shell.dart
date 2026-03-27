@@ -9,15 +9,15 @@ class AgentShell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final loc = GoRouterState.of(context).matchedLocation;
-    int selectedIndex = 0;
-    if (loc.startsWith('/agent/deliveries')) selectedIndex = 1;
-    if (loc.startsWith('/agent/expenses'))   selectedIndex = 2;
-    if (loc.startsWith('/agent/shift/close')) selectedIndex = 3;
+    int idx = 0;
+    if (loc.startsWith('/agent/deliveries')) idx = 1;
+    if (loc.startsWith('/agent/expenses'))   idx = 2;
+    if (loc.startsWith('/agent/shift/close')) idx = 3;
 
     return Scaffold(
       body: child,
       bottomNavigationBar: BottomNavigationBar(
-        currentIndex: selectedIndex,
+        currentIndex: idx,
         onTap: (i) {
           switch (i) {
             case 0: context.go(Routes.agentHome); break;
@@ -27,10 +27,10 @@ class AgentShell extends StatelessWidget {
           }
         },
         items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home_outlined), activeIcon: Icon(Icons.home), label: 'Home'),
-          BottomNavigationBarItem(icon: Icon(Icons.delivery_dining_outlined), activeIcon: Icon(Icons.delivery_dining), label: 'Deliveries'),
-          BottomNavigationBarItem(icon: Icon(Icons.receipt_outlined), activeIcon: Icon(Icons.receipt), label: 'Expenses'),
-          BottomNavigationBarItem(icon: Icon(Icons.lock_clock_outlined), activeIcon: Icon(Icons.lock_clock), label: 'Close Shift'),
+          BottomNavigationBarItem(icon: Icon(Icons.home_outlined),            activeIcon: Icon(Icons.home),            label: 'Home'),
+          BottomNavigationBarItem(icon: Icon(Icons.delivery_dining_outlined),  activeIcon: Icon(Icons.delivery_dining),  label: 'Deliveries'),
+          BottomNavigationBarItem(icon: Icon(Icons.receipt_outlined),          activeIcon: Icon(Icons.receipt),          label: 'Expenses'),
+          BottomNavigationBarItem(icon: Icon(Icons.lock_clock_outlined),       activeIcon: Icon(Icons.lock_clock),       label: 'Close Shift'),
         ],
       ),
     );

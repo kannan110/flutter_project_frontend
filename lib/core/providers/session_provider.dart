@@ -1,12 +1,9 @@
-// lib/core/providers/session_provider.dart
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-
 import '../models/app_user.dart';
 
-final supabaseProvider = Provider<SupabaseClient>(
-  (_) => Supabase.instance.client,
-);
+final supabaseProvider =
+    Provider<SupabaseClient>((_) => Supabase.instance.client);
 
 final appUserProvider =
     StateNotifierProvider<AppUserNotifier, AsyncValue<AppUser?>>(
@@ -21,61 +18,70 @@ class AppUserNotifier extends StateNotifier<AsyncValue<AppUser?>> {
   }
 
   void _init() {
+    // Listen to auth state changes
     _client.auth.onAuthStateChange.listen((event) {
       if (event.event == AuthChangeEvent.signedIn ||
           event.event == AuthChangeEvent.tokenRefreshed) {
-        load();
+        _load();
       } else if (event.event == AuthChangeEvent.signedOut) {
         state = const AsyncValue.data(null);
       }
     });
+
+    // If already logged in, load immediately
     if (_client.auth.currentUser != null) {
-      load();
+      _load();
     } else {
+      // Not logged in — resolve immediately, never hang
       state = const AsyncValue.data(null);
     }
   }
 
-  Future<void> load() async {
-    state = const AsyncValue.loading();
+  Future<void> _load() async {
+    final user = _client.auth.currentUser;
+    if (user == null) {
+      state = const AsyncValue.data(null);
+      return;
+    }
+
     try {
-      final user = _client.auth.currentUser;
-      if (user == null) {
+      // Single query: join user_roles + traders in one shot
+      // This avoids 3 sequential RPCs that could timeout/hang
+      final roleRow = await _client
+          .from('user_roles')
+          .select(
+              'role, trader_id, is_active, traders(id, company_name, company_code, subscription_end_date)')
+          .eq('user_id', user.id)
+          .eq('is_active', true)
+          .maybeSingle()
+          .timeout(const Duration(seconds: 8));
+
+      // No role row = user exists in auth but not in user_roles
+      // Resolve with null so router redirects to login, never hangs
+      if (roleRow == null) {
         state = const AsyncValue.data(null);
         return;
       }
 
-      final roleStr =
-          await _client.rpc('current_user_role') as String?;
-      final traderId =
-          await _client.rpc('current_user_trader_id') as String?;
-      final subActive =
-          await _client.rpc('is_subscription_active') as bool? ?? false;
+      final role = UserRole.fromString(roleRow['role'] as String?);
+      final traderId = roleRow['trader_id'] as String?;
+      final traderData = roleRow['traders'] as Map<String, dynamic>?;
+      final companyName = traderData?['company_name'] as String?;
+      final companyCode = traderData?['company_code'] as String?;
+      final endStr = traderData?['subscription_end_date'] as String?;
+      final subEnd = endStr != null ? DateTime.tryParse(endStr) : null;
+      final subActive = subEnd == null || subEnd.isAfter(DateTime.now());
 
-      final role = UserRole.fromString(roleStr ?? 'trader_staff');
-
-      String? companyName, companyCode, agentId;
-      DateTime? subEnd;
-
-      if (traderId != null) {
-        final trader = await _client
-            .from('traders')
-            .select('company_name, company_code, subscription_end_date')
-            .eq('id', traderId)
-            .maybeSingle();
-        companyName = trader?['company_name'] as String?;
-        companyCode = trader?['company_code'] as String?;
-        final endStr = trader?['subscription_end_date'] as String?;
-        subEnd = endStr != null ? DateTime.tryParse(endStr) : null;
-      }
-
+      // For delivery agents, also fetch their agent record
+      String? agentId;
       if (role == UserRole.deliveryStaff && traderId != null) {
         final agent = await _client
             .from('delivery_agents')
             .select('id')
             .eq('auth_user_id', user.id)
             .eq('trader_id', traderId)
-            .maybeSingle();
+            .maybeSingle()
+            .timeout(const Duration(seconds: 5));
         agentId = agent?['id'] as String?;
       }
 
@@ -89,10 +95,14 @@ class AppUserNotifier extends StateNotifier<AsyncValue<AppUser?>> {
         subscriptionEndDate: subEnd,
         agentId: agentId,
       ));
-    } catch (e, st) {
-      state = AsyncValue.error(e, st);
+    } catch (e) {
+      // On ANY error (network, timeout, RLS) → resolve null → login screen
+      // NEVER leave the app stuck on a loading spinner
+      state = const AsyncValue.data(null);
     }
   }
+
+  Future<void> reload() => _load();
 
   Future<void> signOut() async {
     await _client.auth.signOut();
