@@ -7,6 +7,7 @@ import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_theme.dart';
 
 final _agentsProvider = FutureProvider.autoDispose.family<List<Map<String, dynamic>>, String>((ref, traderId) async {
+  if (traderId.isEmpty) return <Map<String, dynamic>>[];
   return List<Map<String, dynamic>>.from(
     await Supabase.instance.client.from('delivery_agents')
         .select('*').eq('trader_id', traderId).order('name'));
@@ -16,7 +17,9 @@ class AgentsScreen extends ConsumerWidget {
   const AgentsScreen({super.key});
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final traderId = ref.watch(appUserProvider).valueOrNull?.traderId ?? '';
+    final userAsync = ref.watch(appUserProvider);
+    if (userAsync.isLoading) return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    final traderId = userAsync.valueOrNull?.traderId ?? '';
     final async    = traderId.isNotEmpty ? ref.watch(_agentsProvider(traderId)) : const AsyncValue<List<Map<String, dynamic>>>.data([]);
     return Scaffold(
       appBar: AppBar(title: const Text('Delivery Agents')),
@@ -35,7 +38,7 @@ class AgentsScreen extends ConsumerWidget {
                 final a = agents[i];
                 final isOnline = a['is_online'] as bool? ?? false;
                 return InkWell(
-                  onTap: () => context.go('/agents/${a['id']}'),
+                  onTap: () => context.go(Routes.agentDetailPath(a['id'] as String)),
                   borderRadius: BorderRadius.circular(12),
                   child: Container(
                     padding: const EdgeInsets.all(14),

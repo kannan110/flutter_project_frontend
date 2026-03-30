@@ -9,6 +9,7 @@ import '../../../core/theme/app_theme.dart';
 
 // Outstanding per retailer
 final _ledgerProvider = FutureProvider.autoDispose.family<List<Map<String, dynamic>>, String>((ref, traderId) async {
+  if (traderId.isEmpty) return <Map<String, dynamic>>[];
   final retailers = List<Map<String, dynamic>>.from(
     await Supabase.instance.client.from('retailers').select('id,shop_name,owner_name,phone,credit_limit')
         .eq('trader_id', traderId).eq('is_active', true).order('shop_name'));
@@ -27,7 +28,9 @@ class LedgerScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final traderId = ref.watch(appUserProvider).valueOrNull?.traderId ?? '';
+    final userAsync = ref.watch(appUserProvider);
+    if (userAsync.isLoading) return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    final traderId = userAsync.valueOrNull?.traderId ?? '';
     final async    = traderId.isNotEmpty ? ref.watch(_ledgerProvider(traderId)) : const AsyncValue<List<Map<String,dynamic>>>.data([]);
 
     return Scaffold(
@@ -67,7 +70,7 @@ class LedgerScreen extends ConsumerWidget {
                           final limit = (r['credit_limit'] as num?)?.toDouble() ?? 0;
                           final pct = limit > 0 ? (outstanding / limit).clamp(0.0, 1.0) : 0.0;
                           return InkWell(
-                            onTap: () => context.go('/ledger/${r['id']}'),
+                            onTap: () => context.go(Routes.retailerLedgerPath(r['id'] as String)),
                             borderRadius: BorderRadius.circular(12),
                             child: Container(
                               padding: const EdgeInsets.all(14),

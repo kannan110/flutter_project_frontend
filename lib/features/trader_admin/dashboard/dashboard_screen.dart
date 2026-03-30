@@ -7,9 +7,23 @@ import '../../../core/providers/session_provider.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_theme.dart';
 
-final _dashProvider = FutureProvider.autoDispose.family<Map<String, dynamic>, String>((ref, id) async {
-  final res = await Supabase.instance.client.rpc('dashboard_summary', params: {'p_trader_id': id});
-  return Map<String, dynamic>.from(res as Map);
+final _dashProvider = FutureProvider.autoDispose.family<Map<String, dynamic>, String>((ref, traderId) async {
+  if (traderId.isEmpty) { print('[Dashboard] traderId is empty - skipping'); return {}; }
+  // ignore: avoid_print
+  print('[Dashboard] loading for traderId=$traderId');
+  try {
+    final res = await Supabase.instance.client
+        .rpc('dashboard_summary', params: {'p_trader_id': traderId});
+    // ignore: avoid_print
+    print('[Dashboard] success: $res');
+    return Map<String, dynamic>.from(res as Map);
+  } catch (e, st) {
+    // ignore: avoid_print
+    print('[Dashboard] ERROR: $e');
+    // ignore: avoid_print
+    print('[Dashboard] stack: $st');
+    rethrow;
+  }
 });
 
 class DashboardScreen extends ConsumerWidget {
@@ -17,9 +31,20 @@ class DashboardScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final user      = ref.watch(appUserProvider).valueOrNull;
-    final traderId  = user?.traderId ?? '';
-    final dashAsync = traderId.isNotEmpty ? ref.watch(_dashProvider(traderId)) : const AsyncValue<Map<String, dynamic>>.data({});
+    final userAsync = ref.watch(appUserProvider);
+
+    // While session is still loading, show spinner — don't fire any RPC with empty traderId
+    if (userAsync.isLoading) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    final user     = userAsync.valueOrNull;
+    final traderId = user?.traderId ?? '';
+    final dashAsync = traderId.isNotEmpty
+        ? ref.watch(_dashProvider(traderId))
+        : const AsyncValue<Map<String, dynamic>>.data({});
 
     return Scaffold(
       backgroundColor: AppTheme.bgGrey,

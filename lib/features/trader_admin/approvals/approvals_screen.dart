@@ -8,6 +8,7 @@ import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_theme.dart';
 
 final _approvalsProvider = FutureProvider.autoDispose.family<List<Map<String, dynamic>>, String>((ref, traderId) async {
+  if (traderId.isEmpty) return <Map<String, dynamic>>[];
   return List<Map<String, dynamic>>.from(
     await Supabase.instance.client.from('deliveries')
         .select('*, orders(*, retailers(id,shop_name,owner_name,phone), master_products(id,name)), delivery_agents(id,name,phone)')
@@ -21,7 +22,9 @@ class ApprovalsScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final traderId = ref.watch(appUserProvider).valueOrNull?.traderId ?? '';
+    final userAsync = ref.watch(appUserProvider);
+    if (userAsync.isLoading) return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    final traderId = userAsync.valueOrNull?.traderId ?? '';
     final async    = traderId.isNotEmpty ? ref.watch(_approvalsProvider(traderId)) : const AsyncValue<List<Map<String,dynamic>>>.data([]);
 
     return Scaffold(
@@ -45,7 +48,7 @@ class ApprovalsScreen extends ConsumerWidget {
                 final weight   = (d['delivered_total_weight'] ?? d['received_total_weight'] as num?)?.toDouble() ?? 0;
                 final date     = DateTime.tryParse(d['delivered_at'] as String? ?? '') ?? DateTime.now();
                 return InkWell(
-                  onTap: () => context.go('/approvals/${d['id']}'),
+                  onTap: () => context.go(Routes.approvalDetailPath(d['id'] as String)),
                   borderRadius: BorderRadius.circular(12),
                   child: Container(
                     padding: const EdgeInsets.all(14),

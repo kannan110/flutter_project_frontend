@@ -7,6 +7,7 @@ import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_theme.dart';
 
 final _retailersProvider = FutureProvider.autoDispose.family<List<Map<String, dynamic>>, String>((ref, traderId) async {
+  if (traderId.isEmpty) return <Map<String, dynamic>>[];
   return List<Map<String, dynamic>>.from(
     await Supabase.instance.client.from('retailers')
         .select('*')
@@ -26,7 +27,9 @@ class _RetailersScreenState extends ConsumerState<RetailersScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final traderId = ref.watch(appUserProvider).valueOrNull?.traderId ?? '';
+    final userAsync = ref.watch(appUserProvider);
+    if (userAsync.isLoading) return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    final traderId = userAsync.valueOrNull?.traderId ?? '';
     final async    = traderId.isNotEmpty ? ref.watch(_retailersProvider(traderId)) : const AsyncValue<List<Map<String, dynamic>>>.data([]);
 
     return Scaffold(
@@ -89,7 +92,7 @@ class _RetailerCard extends StatelessWidget {
     final approval = retailer['approval_status'] as String? ?? 'approved';
     final isBlocked = retailer['is_blocked'] as bool? ?? false;
     return InkWell(
-      onTap: () => context.go('/retailers/${retailer['id']}'),
+      onTap: () => context.go(Routes.retailerDetailPath(retailer['id'] as String)),
       borderRadius: BorderRadius.circular(12),
       child: Container(
         padding: const EdgeInsets.all(14),

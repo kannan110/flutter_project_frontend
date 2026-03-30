@@ -95,7 +95,7 @@ class _AgentHomeScreenState extends ConsumerState<AgentHomeScreen> {
                   ..._activeBatches.map((b) => _BatchTile(b, onTap: () {
                     final status = b['status'] as String? ?? 'assigned';
                     if (status == 'assigned') {
-                      context.go('/agent/batch/${b['id']}/pickup');
+                      context.go(Routes.agentBatchPickupPath(b['id'] as String));
                     } else {
                       context.go(Routes.agentDeliveries);
                     }

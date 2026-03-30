@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/widgets/extensions.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/providers/session_provider.dart';
@@ -38,7 +39,7 @@ class _State extends ConsumerState<ExpensesScreen> {
     final notesCtrl = TextEditingController();
     String type = 'fuel';
     final result = await showModalBottomSheet<bool>(
-      context: context, isScrollControlled: true,
+      context: context, isScrollControlled: true, useRootNavigator: true,
       builder: (ctx) => Padding(
         padding: EdgeInsets.fromLTRB(20, 20, 20, MediaQuery.of(ctx).viewInsets.bottom + 20),
         child: StatefulBuilder(builder: (ctx2, ss) => Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
@@ -75,7 +76,7 @@ class _State extends ConsumerState<ExpensesScreen> {
                 'expense_type': type, 'amount': amt,
                 'notes': notesCtrl.text.trim().isEmpty ? null : notesCtrl.text.trim(),
               });
-              if (ctx.mounted) Navigator.pop(ctx, true);
+              if (ctx.mounted) Navigator.of(ctx, rootNavigator: true).pop(true);
             },
             child: const Text('Add Expense'),
           ),
@@ -137,6 +138,4 @@ class _State extends ConsumerState<ExpensesScreen> {
   );
 }
 
-extension on String {
-  String capitalize() => isEmpty ? this : this[0].toUpperCase() + substring(1);
-}
+

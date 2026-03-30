@@ -8,6 +8,7 @@ import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_theme.dart';
 
 final _batchesProvider = FutureProvider.autoDispose.family<List<Map<String, dynamic>>, String>((ref, traderId) async {
+  if (traderId.isEmpty) return <Map<String, dynamic>>[];
   return List<Map<String, dynamic>>.from(
     await Supabase.instance.client.from('delivery_batches')
         .select('*, delivery_agents(id,name,phone,vehicle_no,is_online)')
@@ -18,6 +19,7 @@ final _batchesProvider = FutureProvider.autoDispose.family<List<Map<String, dyna
 });
 
 final _confirmedOrdersProvider = FutureProvider.autoDispose.family<List<Map<String, dynamic>>, String>((ref, traderId) async {
+  if (traderId.isEmpty) return <Map<String, dynamic>>[];
   return List<Map<String, dynamic>>.from(
     await Supabase.instance.client.from('orders')
         .select('*, retailers(id,shop_name), master_products(id,name)')
@@ -31,7 +33,9 @@ class DispatchScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final traderId = ref.watch(appUserProvider).valueOrNull?.traderId ?? '';
+    final userAsync = ref.watch(appUserProvider);
+    if (userAsync.isLoading) return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    final traderId = userAsync.valueOrNull?.traderId ?? '';
     return DefaultTabController(
       length: 2,
       child: Scaffold(
@@ -72,7 +76,7 @@ class _ActiveBatchesTab extends StatelessWidget {
               final agent  = b['delivery_agents'] as Map<String, dynamic>?;
               final status = b['status'] as String? ?? 'assigned';
               return InkWell(
-                onTap: () => context.go('/dispatch/batch/${b['id']}'),
+                onTap: () => context.go(Routes.batchDetailPath(b['id'] as String)),
                 borderRadius: BorderRadius.circular(12),
                 child: Container(
                   padding: const EdgeInsets.all(14),

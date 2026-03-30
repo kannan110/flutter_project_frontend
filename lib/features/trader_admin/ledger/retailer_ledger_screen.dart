@@ -38,7 +38,7 @@ class _RetailerLedgerScreenState extends ConsumerState<RetailerLedgerScreen> {
     final amtCtrl  = TextEditingController();
     String mode    = 'cash';
     final result = await showModalBottomSheet<bool>(
-      context: context, isScrollControlled: true,
+      context: context, isScrollControlled: true, useRootNavigator: true,
       builder: (ctx) => Padding(
         padding: EdgeInsets.fromLTRB(20, 20, 20, MediaQuery.of(ctx).viewInsets.bottom + 20),
         child: StatefulBuilder(builder: (ctx2, ss) => Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
@@ -68,7 +68,7 @@ class _RetailerLedgerScreenState extends ConsumerState<RetailerLedgerScreen> {
                 'source_type': 'payment', 'entry_date': DateFormat('yyyy-MM-dd').format(DateTime.now()),
                 'description': 'Payment received via $mode',
               });
-              if (ctx.mounted) Navigator.pop(ctx, true);
+              if (ctx.mounted) Navigator.of(ctx, rootNavigator: true).pop(true);
             },
             child: const Text('Record Payment'),
           ),

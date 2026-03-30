@@ -100,7 +100,7 @@ class _RetailerDetailScreenState extends ConsumerState<RetailerDetailScreen> {
 
         // Actions
         Row(children: [
-          Expanded(child: _ActionBtn(Icons.account_balance_wallet_outlined, 'View Ledger', () => context.go('/ledger/${widget.id}'))),
+          Expanded(child: _ActionBtn(Icons.account_balance_wallet_outlined, 'View Ledger', () => context.go(Routes.retailerLedgerPath(widget.id)))),
           const SizedBox(width: 10),
           Expanded(child: _ActionBtn(Icons.chat_outlined, 'WhatsApp', _whatsapp, color: const Color(0xFF25D366))),
         ]),

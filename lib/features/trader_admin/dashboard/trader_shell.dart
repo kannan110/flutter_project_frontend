@@ -24,21 +24,21 @@ class TraderShell extends StatelessWidget {
           }
         },
         items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home_outlined),                   activeIcon: Icon(Icons.home),                   label: 'Home'),
-          BottomNavigationBarItem(icon: Icon(Icons.shopping_cart_outlined),           activeIcon: Icon(Icons.shopping_cart),           label: 'Orders'),
-          BottomNavigationBarItem(icon: Icon(Icons.local_shipping_outlined),          activeIcon: Icon(Icons.local_shipping),          label: 'Dispatch'),
-          BottomNavigationBarItem(icon: Icon(Icons.account_balance_wallet_outlined),  activeIcon: Icon(Icons.account_balance_wallet),  label: 'Ledger'),
-          BottomNavigationBarItem(icon: Icon(Icons.more_horiz_outlined),              activeIcon: Icon(Icons.more_horiz),              label: 'More'),
+          BottomNavigationBarItem(icon: Icon(Icons.home_outlined),                  activeIcon: Icon(Icons.home),                  label: 'Home'),
+          BottomNavigationBarItem(icon: Icon(Icons.shopping_cart_outlined),          activeIcon: Icon(Icons.shopping_cart),          label: 'Orders'),
+          BottomNavigationBarItem(icon: Icon(Icons.local_shipping_outlined),         activeIcon: Icon(Icons.local_shipping),         label: 'Dispatch'),
+          BottomNavigationBarItem(icon: Icon(Icons.account_balance_wallet_outlined), activeIcon: Icon(Icons.account_balance_wallet), label: 'Ledger'),
+          BottomNavigationBarItem(icon: Icon(Icons.more_horiz_outlined),             activeIcon: Icon(Icons.more_horiz),             label: 'More'),
         ],
       ),
     );
   }
 
   int _indexFor(String loc) {
-    if (loc.startsWith('/orders'))   return 1;
-    if (loc.startsWith('/dispatch')) return 2;
-    if (loc.startsWith('/ledger'))   return 3;
-    if (loc == Routes.dashboard)     return 0;
-    return 4; // everything else: More
+    if (loc.startsWith('/t/orders'))   return 1;
+    if (loc.startsWith('/t/dispatch')) return 2;
+    if (loc.startsWith('/t/ledger'))   return 3;
+    if (loc == Routes.dashboard)       return 0;
+    return 4; // approvals, invoices, agents, retailers, rates, shifts, crates, analytics, settings
   }
 }

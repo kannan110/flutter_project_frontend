@@ -8,6 +8,7 @@ import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_theme.dart';
 
 final _ordersProvider = FutureProvider.autoDispose.family<List<Map<String, dynamic>>, String>((ref, traderId) async {
+  if (traderId.isEmpty) return <Map<String, dynamic>>[];
   return List<Map<String, dynamic>>.from(
     await Supabase.instance.client
         .from('orders')
@@ -29,7 +30,9 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final traderId = ref.watch(appUserProvider).valueOrNull?.traderId ?? '';
+    final userAsync = ref.watch(appUserProvider);
+    if (userAsync.isLoading) return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    final traderId = userAsync.valueOrNull?.traderId ?? '';
     final async    = traderId.isNotEmpty ? ref.watch(_ordersProvider(traderId)) : const AsyncValue<List<Map<String,dynamic>>>.data([]);
 
     return Scaffold(
@@ -104,7 +107,7 @@ class _OrderCard extends StatelessWidget {
     final date     = DateTime.tryParse(order['order_date'] as String? ?? '') ?? DateTime.now();
 
     return InkWell(
-      onTap: () => context.go('/orders/${order['id']}'),
+      onTap: () => context.go(Routes.orderDetailPath(order['id'] as String)),
       borderRadius: BorderRadius.circular(12),
       child: Container(
         padding: const EdgeInsets.all(14),
@@ -152,6 +155,8 @@ class _OrderCard extends StatelessWidget {
     );
   }
 }
+
+
 
 extension on String {
   String capitalize() => isEmpty ? this : this[0].toUpperCase() + substring(1);

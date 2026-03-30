@@ -106,7 +106,7 @@ class _State extends ConsumerState<AgentDeliveriesScreen> {
                             const SizedBox(width: 8),
                             Expanded(child: SizedBox(height: 36,
                               child: ElevatedButton(
-                                onPressed: () => context.go('/agent/delivery/${d['id']}/complete'),
+                                onPressed: () => context.go(Routes.agentDeliveryDonePath(d['id'] as String)),
                                 style: ElevatedButton.styleFrom(minimumSize: Size.zero, padding: EdgeInsets.zero),
                                 child: const Text('Complete', style: TextStyle(fontSize: 13)),
                               ),

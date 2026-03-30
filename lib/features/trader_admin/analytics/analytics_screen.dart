@@ -14,7 +14,9 @@ class AnalyticsScreen extends ConsumerWidget {
   const AnalyticsScreen({super.key});
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final traderId = ref.watch(appUserProvider).valueOrNull?.traderId ?? '';
+    final userAsync = ref.watch(appUserProvider);
+    if (userAsync.isLoading) return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    final traderId = userAsync.valueOrNull?.traderId ?? '';
     final async = traderId.isNotEmpty ? ref.watch(_analyticsProvider(traderId)) : const AsyncValue<Map<String,dynamic>>.data({});
     return Scaffold(
       appBar: AppBar(title: const Text('Analytics')),
