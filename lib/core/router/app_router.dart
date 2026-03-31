@@ -4,8 +4,9 @@ import 'package:go_router/go_router.dart';
 import '../models/app_user.dart';
 import '../providers/session_provider.dart';
 import '../../features/auth/login_screen.dart';
-import '../../features/trader_admin/dashboard/dashboard_screen.dart';
+import '../../features/auth/agent_link_screen.dart';
 import '../../features/trader_admin/dashboard/trader_shell.dart';
+import '../../features/trader_admin/dashboard/dashboard_screen.dart';
 import '../../features/trader_admin/orders/orders_screen.dart';
 import '../../features/trader_admin/orders/create_order_screen.dart';
 import '../../features/trader_admin/orders/order_detail_screen.dart';
@@ -29,8 +30,15 @@ import '../../features/trader_admin/shifts/shift_detail_screen.dart';
 import '../../features/trader_admin/crates/crates_screen.dart';
 import '../../features/trader_admin/analytics/analytics_screen.dart';
 import '../../features/trader_admin/settings/settings_screen.dart';
-import '../../features/delivery_agent/home/agent_home_screen.dart';
+import '../../features/trader_admin/returns/returns_screen.dart';
+import '../../features/trader_admin/stock/stock_screen.dart';
+import '../../features/trader_admin/pricing/pricing_rules_screen.dart';
+import '../../features/trader_admin/reconciliation/cash_reconciliation_screen.dart';
+import '../../features/trader_admin/day_closure/day_closure_screen.dart';
+import '../../features/trader_admin/alerts/alerts_screen.dart';
+import '../../features/trader_admin/reports/daily_report_screen.dart';
 import '../../features/delivery_agent/home/agent_shell.dart';
+import '../../features/delivery_agent/home/agent_home_screen.dart';
 import '../../features/delivery_agent/shift/shift_open_screen.dart';
 import '../../features/delivery_agent/shift/shift_close_screen.dart';
 import '../../features/delivery_agent/batch/batch_pickup_screen.dart';
@@ -38,135 +46,134 @@ import '../../features/delivery_agent/deliveries/agent_deliveries_screen.dart';
 import '../../features/delivery_agent/deliveries/delivery_complete_screen.dart';
 import '../../features/delivery_agent/expenses/expenses_screen.dart';
 
-class Routes {
-  static const login = '/login';
+abstract class R {
+  static const login          = '/login';
+  static const agentLink      = '/agent-link';
+  static const dashboard      = '/t/dashboard';
+  static const orders         = '/t/orders';
+  static const orderCreate    = '/t/orders/create';
+  static const orderDetail    = '/t/orders/:id';
+  static const dispatch       = '/t/dispatch';
+  static const batchDetail    = '/t/dispatch/batch/:id';
+  static const approvals      = '/t/approvals';
+  static const approvalDetail = '/t/approvals/:id';
+  static const invoices       = '/t/invoices';
+  static const invoiceDetail  = '/t/invoices/:id';
+  static const ledger         = '/t/ledger';
+  static const retailerLedger = '/t/ledger/:rid';
+  static const retailers      = '/t/retailers';
+  static const retailerCreate = '/t/retailers/create';
+  static const retailerDetail = '/t/retailers/:id';
+  static const agents         = '/t/agents';
+  static const agentCreate    = '/t/agents/create';
+  static const agentDetail    = '/t/agents/:id';
+  static const rates          = '/t/rates';
+  static const shifts         = '/t/shifts';
+  static const shiftDetail    = '/t/shifts/:id';
+  static const crates         = '/t/crates';
+  static const analytics      = '/t/analytics';
+  static const settings       = '/t/settings';
+  static const returns        = '/t/returns';
+  static const stock          = '/t/stock';
+  static const pricing        = '/t/pricing';
+  static const cashRecon      = '/t/reconciliation';
+  static const dayClosure     = '/t/day-closure';
+  static const alerts         = '/t/alerts';
+  static const dailyReport    = '/t/reports/daily';
+  static const agentHome      = '/a/home';
+  static const shiftOpen      = '/a/shift/open';
+  static const shiftClose     = '/a/shift/close';
+  static const batchPickup    = '/a/batch/:id/pickup';
+  static const agentDeliveries = '/a/deliveries';
+  static const deliveryDone   = '/a/delivery/:id/complete';
+  static const agentExpenses  = '/a/expenses';
 
-  // Trader / Admin — all under /t/
-  static const dashboard       = '/t/dashboard';
-  static const orders          = '/t/orders';
-  static const orderCreate     = '/t/orders/create';
-  static const orderDetail     = '/t/orders/:id';
-  static const dispatch        = '/t/dispatch';
-  static const batchDetail     = '/t/dispatch/batch/:id';
-  static const approvals       = '/t/approvals';
-  static const approvalDetail  = '/t/approvals/:id';
-  static const invoices        = '/t/invoices';
-  static const invoiceDetail   = '/t/invoices/:id';
-  static const ledger          = '/t/ledger';
-  static const retailerLedger  = '/t/ledger/:retailerId';
-  static const retailers       = '/t/retailers';
-  static const retailerCreate  = '/t/retailers/create';
-  static const retailerDetail  = '/t/retailers/:id';
-  static const agents          = '/t/agents';
-  static const agentCreate     = '/t/agents/create';
-  static const agentDetail     = '/t/agents/:id';
-  static const rates           = '/t/rates';
-  static const shifts          = '/t/shifts';
-  static const shiftDetail     = '/t/shifts/:id';
-  static const crates          = '/t/crates';
-  static const analytics       = '/t/analytics';
-  static const settings        = '/t/settings';
-
-  // Delivery Agent — all under /a/
-  static const agentHome          = '/a/home';
-  static const agentShiftOpen     = '/a/shift/open';
-  static const agentShiftClose    = '/a/shift/close';
-  static const agentBatchPickup   = '/a/batch/:id/pickup';
-  static const agentDeliveries    = '/a/deliveries';
-  static const agentDeliveryDone  = '/a/delivery/:id/complete';
-  static const agentExpenses      = '/a/expenses';
-
-  // Helpers to build parameterised paths
-  static String orderDetailPath(String id)      => '/t/orders/$id';
-  static String batchDetailPath(String id)      => '/t/dispatch/batch/$id';
-  static String approvalDetailPath(String id)   => '/t/approvals/$id';
-  static String invoiceDetailPath(String id)    => '/t/invoices/$id';
-  static String retailerLedgerPath(String id)   => '/t/ledger/$id';
-  static String retailerDetailPath(String id)   => '/t/retailers/$id';
-  static String agentDetailPath(String id)      => '/t/agents/$id';
-  static String shiftDetailPath(String id)      => '/t/shifts/$id';
-  static String agentBatchPickupPath(String id) => '/a/batch/$id/pickup';
-  static String agentDeliveryDonePath(String id) => '/a/delivery/$id/complete';
+  static String orderDetailPath(String id)     => '/t/orders/$id';
+  static String batchDetailPath(String id)     => '/t/dispatch/batch/$id';
+  static String approvalDetailPath(String id)  => '/t/approvals/$id';
+  static String invoiceDetailPath(String id)   => '/t/invoices/$id';
+  static String retailerLedgerPath(String id)  => '/t/ledger/$id';
+  static String retailerDetailPath(String id)  => '/t/retailers/$id';
+  static String agentDetailPath(String id)     => '/t/agents/$id';
+  static String shiftDetailPath(String id)     => '/t/shifts/$id';
+  static String batchPickupPath(String id)     => '/a/batch/$id/pickup';
+  static String deliveryDonePath(String id)    => '/a/delivery/$id/complete';
 }
 
-final appRouterProvider = Provider<GoRouter>((ref) {
-  return GoRouter(
-    initialLocation: Routes.login,
-    refreshListenable: _RouterRefresh(ref),
-    redirect: (context, state) {
-      final async = ref.read(appUserProvider);
-      if (async.isLoading) return null;
-
-      final user = async.valueOrNull;
-      final loc  = state.matchedLocation;
-
-      if (user == null) {
-        return loc == Routes.login ? null : Routes.login;
-      }
-      if (loc == Routes.login) {
-        return user.isDeliveryAgent ? Routes.agentHome : Routes.dashboard;
-      }
-      if (user.isDeliveryAgent && !loc.startsWith('/a/')) return Routes.agentHome;
-      if (!user.isDeliveryAgent && loc.startsWith('/a/'))  return Routes.dashboard;
-      return null;
-    },
-    routes: [
-      GoRoute(path: Routes.login, builder: (_, __) => const LoginScreen()),
-
-      // ── Trader / Admin shell ─────────────────────────────────
-      ShellRoute(
-        builder: (_, __, child) => TraderShell(child: child),
-        routes: [
-          GoRoute(path: Routes.dashboard,      builder: (_, __) => const DashboardScreen()),
-          GoRoute(path: Routes.orders,         builder: (_, __) => const OrdersScreen()),
-          GoRoute(path: Routes.orderCreate,    builder: (_, __) => const CreateOrderScreen()),
-          GoRoute(path: Routes.orderDetail,    builder: (_, s)  => OrderDetailScreen(id: s.pathParameters['id']!)),
-          GoRoute(path: Routes.dispatch,       builder: (_, __) => const DispatchScreen()),
-          GoRoute(path: Routes.batchDetail,    builder: (_, s)  => BatchDetailScreen(id: s.pathParameters['id']!)),
-          GoRoute(path: Routes.approvals,      builder: (_, __) => const ApprovalsScreen()),
-          GoRoute(path: Routes.approvalDetail, builder: (_, s)  => ApprovalDetailScreen(id: s.pathParameters['id']!)),
-          GoRoute(path: Routes.invoices,       builder: (_, __) => const InvoicesScreen()),
-          GoRoute(path: Routes.invoiceDetail,  builder: (_, s)  => InvoiceDetailScreen(id: s.pathParameters['id']!)),
-          GoRoute(path: Routes.ledger,         builder: (_, __) => const LedgerScreen()),
-          GoRoute(path: Routes.retailerLedger, builder: (_, s)  => RetailerLedgerScreen(retailerId: s.pathParameters['retailerId']!)),
-          GoRoute(path: Routes.retailers,      builder: (_, __) => const RetailersScreen()),
-          GoRoute(path: Routes.retailerCreate, builder: (_, __) => const CreateRetailerScreen()),
-          GoRoute(path: Routes.retailerDetail, builder: (_, s)  => RetailerDetailScreen(id: s.pathParameters['id']!)),
-          GoRoute(path: Routes.agents,         builder: (_, __) => const AgentsScreen()),
-          GoRoute(path: Routes.agentCreate,    builder: (_, __) => const CreateAgentScreen()),
-          GoRoute(path: Routes.agentDetail,    builder: (_, s)  => AgentDetailScreen(id: s.pathParameters['id']!)),
-          GoRoute(path: Routes.rates,          builder: (_, __) => const RatesScreen()),
-          GoRoute(path: Routes.shifts,         builder: (_, __) => const ShiftsScreen()),
-          GoRoute(path: Routes.shiftDetail,    builder: (_, s)  => ShiftDetailScreen(id: s.pathParameters['id']!)),
-          GoRoute(path: Routes.crates,         builder: (_, __) => const CratesScreen()),
-          GoRoute(path: Routes.analytics,      builder: (_, __) => const AnalyticsScreen()),
-          GoRoute(path: Routes.settings,       builder: (_, __) => const SettingsScreen()),
-        ],
-      ),
-
-      // ── Delivery Agent shell ──────────────────────────────────
-      ShellRoute(
-        builder: (_, __, child) => AgentShell(child: child),
-        routes: [
-          GoRoute(path: Routes.agentHome,          builder: (_, __) => const AgentHomeScreen()),
-          GoRoute(path: Routes.agentShiftOpen,     builder: (_, __) => const ShiftOpenScreen()),
-          GoRoute(path: Routes.agentShiftClose,    builder: (_, __) => const ShiftCloseScreen()),
-          GoRoute(path: Routes.agentBatchPickup,   builder: (_, s)  => BatchPickupScreen(batchId: s.pathParameters['id']!)),
-          GoRoute(path: Routes.agentDeliveries,    builder: (_, __) => const AgentDeliveriesScreen()),
-          GoRoute(path: Routes.agentDeliveryDone,  builder: (_, s)  => DeliveryCompleteScreen(deliveryId: s.pathParameters['id']!)),
-          GoRoute(path: Routes.agentExpenses,      builder: (_, __) => const ExpensesScreen()),
-        ],
-      ),
-    ],
-    errorBuilder: (_, state) => Scaffold(
-      appBar: AppBar(title: const Text('Page Not Found')),
-      body: Center(child: Text('No route for: ${state.uri}')),
+final appRouterProvider = Provider<GoRouter>((ref) => GoRouter(
+  initialLocation: R.login,
+  refreshListenable: _Refresh(ref),
+  redirect: (ctx, state) {
+    final async = ref.read(appUserProvider);
+    if (async.isLoading) return null;
+    final user = async.valueOrNull;
+    final loc  = state.matchedLocation;
+    if (user == null) {
+      if (loc == R.login || loc == R.agentLink) return null;
+      return R.login;
+    }
+    if (loc == R.login || loc == R.agentLink) {
+      return user.isDeliveryAgent ? R.agentHome : R.dashboard;
+    }
+    if (user.isDeliveryAgent && !loc.startsWith('/a/')) return R.agentHome;
+    if (!user.isDeliveryAgent && loc.startsWith('/a/')) return R.dashboard;
+    return null;
+  },
+  routes: [
+    GoRoute(path: R.login,     builder: (_, __) => const LoginScreen()),
+    GoRoute(path: R.agentLink, builder: (_, __) => const AgentLinkScreen()),
+    ShellRoute(
+      builder: (_, __, child) => TraderShell(child: child),
+      routes: [
+        GoRoute(path: R.dashboard,      builder: (_, __) => const DashboardScreen()),
+        GoRoute(path: R.orders,         builder: (_, __) => const OrdersScreen()),
+        GoRoute(path: R.orderCreate,    builder: (_, __) => const CreateOrderScreen()),
+        GoRoute(path: R.orderDetail,    builder: (_, s)  => OrderDetailScreen(id: s.pathParameters['id']!)),
+        GoRoute(path: R.dispatch,       builder: (_, __) => const DispatchScreen()),
+        GoRoute(path: R.batchDetail,    builder: (_, s)  => BatchDetailScreen(id: s.pathParameters['id']!)),
+        GoRoute(path: R.approvals,      builder: (_, __) => const ApprovalsScreen()),
+        GoRoute(path: R.approvalDetail, builder: (_, s)  => ApprovalDetailScreen(id: s.pathParameters['id']!)),
+        GoRoute(path: R.invoices,       builder: (_, __) => const InvoicesScreen()),
+        GoRoute(path: R.invoiceDetail,  builder: (_, s)  => InvoiceDetailScreen(id: s.pathParameters['id']!)),
+        GoRoute(path: R.ledger,         builder: (_, __) => const LedgerScreen()),
+        GoRoute(path: R.retailerLedger, builder: (_, s)  => RetailerLedgerScreen(retailerId: s.pathParameters['rid']!)),
+        GoRoute(path: R.retailers,      builder: (_, __) => const RetailersScreen()),
+        GoRoute(path: R.retailerCreate, builder: (_, __) => const CreateRetailerScreen()),
+        GoRoute(path: R.retailerDetail, builder: (_, s)  => RetailerDetailScreen(id: s.pathParameters['id']!)),
+        GoRoute(path: R.agents,         builder: (_, __) => const AgentsScreen()),
+        GoRoute(path: R.agentCreate,    builder: (_, __) => const CreateAgentScreen()),
+        GoRoute(path: R.agentDetail,    builder: (_, s)  => AgentDetailScreen(id: s.pathParameters['id']!)),
+        GoRoute(path: R.rates,          builder: (_, __) => const RatesScreen()),
+        GoRoute(path: R.shifts,         builder: (_, __) => const ShiftsScreen()),
+        GoRoute(path: R.shiftDetail,    builder: (_, s)  => ShiftDetailScreen(id: s.pathParameters['id']!)),
+        GoRoute(path: R.crates,         builder: (_, __) => const CratesScreen()),
+        GoRoute(path: R.analytics,      builder: (_, __) => const AnalyticsScreen()),
+        GoRoute(path: R.settings,       builder: (_, __) => const SettingsScreen()),
+        GoRoute(path: R.returns,        builder: (_, __) => const ReturnsScreen()),
+        GoRoute(path: R.stock,          builder: (_, __) => const StockScreen()),
+        GoRoute(path: R.pricing,        builder: (_, __) => const PricingRulesScreen()),
+        GoRoute(path: R.cashRecon,      builder: (_, __) => const CashReconciliationScreen()),
+        GoRoute(path: R.dayClosure,     builder: (_, __) => const DayClosureScreen()),
+        GoRoute(path: R.alerts,         builder: (_, __) => const AlertsScreen()),
+        GoRoute(path: R.dailyReport,    builder: (_, __) => const DailyReportScreen()),
+      ],
     ),
-  );
-});
+    ShellRoute(
+      builder: (_, __, child) => AgentShell(child: child),
+      routes: [
+        GoRoute(path: R.agentHome,       builder: (_, __) => const AgentHomeScreen()),
+        GoRoute(path: R.shiftOpen,       builder: (_, __) => const ShiftOpenScreen()),
+        GoRoute(path: R.shiftClose,      builder: (_, __) => const ShiftCloseScreen()),
+        GoRoute(path: R.batchPickup,     builder: (_, s)  => BatchPickupScreen(batchId: s.pathParameters['id']!)),
+        GoRoute(path: R.agentDeliveries, builder: (_, __) => const AgentDeliveriesScreen()),
+        GoRoute(path: R.deliveryDone,    builder: (_, s)  => DeliveryCompleteScreen(deliveryId: s.pathParameters['id']!)),
+        GoRoute(path: R.agentExpenses,   builder: (_, __) => const ExpensesScreen()),
+      ],
+    ),
+  ],
+  errorBuilder: (_, s) => Scaffold(body: Center(child: Text('404: ${s.uri}'))),
+));
 
-class _RouterRefresh extends ChangeNotifier {
-  _RouterRefresh(Ref ref) {
-    ref.listen(appUserProvider, (_, __) => notifyListeners());
-  }
+class _Refresh extends ChangeNotifier {
+  _Refresh(Ref ref) { ref.listen(appUserProvider, (_, __) => notifyListeners()); }
 }

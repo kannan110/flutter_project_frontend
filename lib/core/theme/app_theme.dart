@@ -1,233 +1,237 @@
 import 'package:flutter/material.dart';
 
+// ── Colors ────────────────────────────────────────────────────────────
+const kPrimary   = Color(0xFF1B6B3A);
+const kSecondary = Color(0xFFE8A020);
+const kError     = Color(0xFFD32F2F);
+const kBgGrey    = Color(0xFFF5F7F5);
+const kBorder    = Color(0xFFEEEEEE);
+const kTextMain  = Color(0xFF1C1C1E);
+const kTextSub   = Color(0xFF757575);
+const kTextHint  = Color(0xFF9E9E9E);
+
 class AppTheme {
-  static const Color primary   = Color(0xFF1B6B3A);
-  static const Color secondary = Color(0xFFE8A020);
-  static const Color errorRed  = Color(0xFFD32F2F);
-  static const Color bgGrey    = Color(0xFFF8FBF8);
+  // Aliases for easy access
+  static const primary   = kPrimary;
+  static const secondary = kSecondary;
+  static const errorRed  = kError;
+  static const bgGrey    = kBgGrey;
+  static const border    = kBorder;
+  static const textMain  = kTextMain;
+  static const textSub   = kTextSub;
+  static const textHint  = kTextHint;
 
   static ThemeData get light => ThemeData(
     useMaterial3: true,
-    colorScheme: ColorScheme.fromSeed(
-      seedColor: primary,
-      primary: primary,
-      secondary: secondary,
-      error: errorRed,
-      surface: bgGrey,
-    ),
-    scaffoldBackgroundColor: bgGrey,
+    colorScheme: ColorScheme.fromSeed(seedColor: kPrimary, primary: kPrimary, secondary: kSecondary, error: kError, surface: kBgGrey),
+    scaffoldBackgroundColor: kBgGrey,
     appBarTheme: const AppBarTheme(
-      backgroundColor: Colors.white,
-      foregroundColor: Color(0xFF1C1C1E),
-      elevation: 0,
-      scrolledUnderElevation: 1,
-      centerTitle: false,
-      titleTextStyle: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: Color(0xFF1C1C1E)),
+      backgroundColor: Colors.white, foregroundColor: kTextMain,
+      elevation: 0, scrolledUnderElevation: 1, centerTitle: false,
+      titleTextStyle: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: kTextMain),
     ),
     cardTheme: CardThemeData(
-      elevation: 0,
-      color: Colors.white,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: const BorderSide(color: Color(0xFFEEEEEE)),
-      ),
+      elevation: 0, color: Colors.white,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: const BorderSide(color: kBorder)),
     ),
     inputDecorationTheme: InputDecorationTheme(
-      filled: true,
-      fillColor: const Color(0xFFF3F4F6),
+      filled: true, fillColor: const Color(0xFFF3F4F6),
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
       enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
-      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: primary, width: 1.5)),
-      errorBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: errorRed)),
-      focusedErrorBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: errorRed, width: 1.5)),
+      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: kPrimary, width: 1.5)),
+      errorBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: kError)),
+      focusedErrorBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: kError, width: 1.5)),
+      labelStyle: const TextStyle(color: kTextSub),
     ),
     elevatedButtonTheme: ElevatedButtonThemeData(
       style: ElevatedButton.styleFrom(
-        backgroundColor: primary,
-        foregroundColor: Colors.white,
-        minimumSize: const Size.fromHeight(50),
-        elevation: 0,
+        backgroundColor: kPrimary, foregroundColor: Colors.white,
+        minimumSize: const Size.fromHeight(50), elevation: 0,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
       ),
     ),
     outlinedButtonTheme: OutlinedButtonThemeData(
       style: OutlinedButton.styleFrom(
-        foregroundColor: primary,
-        minimumSize: const Size.fromHeight(50),
-        side: const BorderSide(color: primary),
+        foregroundColor: kPrimary, minimumSize: const Size.fromHeight(50),
+        side: const BorderSide(color: kPrimary),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
       ),
     ),
     bottomNavigationBarTheme: const BottomNavigationBarThemeData(
-      backgroundColor: Colors.white,
-      selectedItemColor: primary,
-      unselectedItemColor: Color(0xFF9E9E9E),
-      type: BottomNavigationBarType.fixed,
-      elevation: 8,
-      showUnselectedLabels: true,
+      backgroundColor: Colors.white, selectedItemColor: kPrimary,
+      unselectedItemColor: kTextHint, type: BottomNavigationBarType.fixed, elevation: 8,
     ),
-    dividerColor: const Color(0xFFF0F0F0),
-    dividerTheme: const DividerThemeData(color: Color(0xFFF0F0F0), space: 1),
+    dividerTheme: const DividerThemeData(color: kBorder, space: 1),
+    segmentedButtonTheme: SegmentedButtonThemeData(
+      style: ButtonStyle(
+        backgroundColor: WidgetStateProperty.resolveWith((s) =>
+            s.contains(WidgetState.selected) ? kPrimary.withOpacity(0.12) : Colors.transparent),
+        foregroundColor: WidgetStateProperty.resolveWith((s) =>
+            s.contains(WidgetState.selected) ? kPrimary : kTextSub),
+      ),
+    ),
   );
 }
 
-class StatusColors {
+// ── Status Colors ─────────────────────────────────────────────────────
+class SC {
   static Color order(String s) => switch (s) {
-    'pending'           => const Color(0xFF9E9E9E),
-    'confirmed'         => const Color(0xFF1976D2),
-    'assigned'          => const Color(0xFF7B1FA2),
-    'picked_up'         => const Color(0xFFE65100),
-    'out_for_delivery'  => const Color(0xFFF57F17),
-    'delivered'         => const Color(0xFF388E3C),
-    'approved'          => const Color(0xFF1B5E20),
-    'invoiced'          => const Color(0xFF1B6B3A),
-    'cancelled'         => const Color(0xFFD32F2F),
-    _                   => const Color(0xFF9E9E9E),
-  };
-  static Color approval(String s) => switch (s) {
-    'pending'  => const Color(0xFFE65100),
-    'approved' => const Color(0xFF388E3C),
-    'rejected' => const Color(0xFFD32F2F),
-    _          => const Color(0xFF9E9E9E),
+    'pending'          => const Color(0xFF9E9E9E),
+    'confirmed'        => const Color(0xFF1976D2),
+    'assigned'         => const Color(0xFF7B1FA2),
+    'picked_up'        => const Color(0xFFE65100),
+    'out_for_delivery' => const Color(0xFFF57F17),
+    'delivered'        => const Color(0xFF388E3C),
+    'approved'         => const Color(0xFF1B5E20),
+    'invoiced'         => kPrimary,
+    'closed'           => const Color(0xFF4CAF50),
+    'cancelled'        => kError,
+    _                  => const Color(0xFF9E9E9E),
   };
   static Color shift(String s) => switch (s) {
-    'open'      => const Color(0xFF1976D2),
-    'closed'    => const Color(0xFF388E3C),
-    'cancelled' => const Color(0xFFD32F2F),
-    _           => const Color(0xFF9E9E9E),
+    'open'   => const Color(0xFF1976D2),
+    'closed' => const Color(0xFF388E3C),
+    _        => const Color(0xFF9E9E9E),
   };
 }
 
-// Reusable status badge
+// ── Format Helpers ────────────────────────────────────────────────────
+class Fmt {
+  static String amount(double v) {
+    if (v >= 100000) return '₹${(v/100000).toStringAsFixed(2)}L';
+    if (v >= 1000)   return '₹${(v/1000).toStringAsFixed(1)}K';
+    return '₹${v.toStringAsFixed(2)}';
+  }
+  static String kg(double v) => '${v.toStringAsFixed(1)} kg';
+}
+
+// ── Shared Widgets ────────────────────────────────────────────────────
 class StatusBadge extends StatelessWidget {
-  const StatusBadge(this.label, this.color, {super.key});
-  final String label;
-  final Color color;
+  const StatusBadge(this.label, this.color, {super.key, this.small = false});
+  final String label; final Color color; final bool small;
   @override
   Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+    padding: EdgeInsets.symmetric(horizontal: small ? 6 : 8, vertical: small ? 2 : 3),
     decoration: BoxDecoration(color: color.withOpacity(0.12), borderRadius: BorderRadius.circular(6)),
     child: Text(label.replaceAll('_', ' ').toUpperCase(),
-      style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: color)),
+        style: TextStyle(fontSize: small ? 9 : 10, fontWeight: FontWeight.w700, color: color)),
   );
 }
 
-// Section header
 class SectionHeader extends StatelessWidget {
   const SectionHeader(this.text, {super.key});
   final String text;
   @override
   Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.only(bottom: 8),
-    child: Text(text, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF9E9E9E), letterSpacing: 0.5)),
+    padding: const EdgeInsets.only(bottom: 10, top: 6),
+    child: Text(text, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: kTextHint, letterSpacing: 0.8)),
   );
 }
 
-// Info row for detail screens
 class InfoRow extends StatelessWidget {
   const InfoRow(this.label, this.value, {super.key, this.valueColor});
-  final String label, value;
-  final Color? valueColor;
+  final String label, value; final Color? valueColor;
   @override
   Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.symmetric(vertical: 6),
+    padding: const EdgeInsets.symmetric(vertical: 5),
     child: Row(children: [
-      SizedBox(width: 140, child: Text(label, style: const TextStyle(fontSize: 13, color: Color(0xFF757575)))),
-      Expanded(child: Text(value, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: valueColor ?? const Color(0xFF1C1C1E)))),
+      SizedBox(width: 140, child: Text(label, style: const TextStyle(fontSize: 13, color: kTextSub))),
+      Expanded(child: Text(value, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: valueColor ?? kTextMain))),
     ]),
   );
 }
 
-// Amount display
-class AmountText extends StatelessWidget {
-  const AmountText(this.amount, {super.key, this.style, this.color});
-  final double amount;
-  final TextStyle? style;
-  final Color? color;
-  static String format(double v) {
-    if (v >= 100000) return '₹${(v/100000).toStringAsFixed(2)}L';
-    if (v >= 1000) return '₹${(v/1000).toStringAsFixed(1)}K';
-    return '₹${v.toStringAsFixed(2)}';
-  }
+class KpiCard extends StatelessWidget {
+  const KpiCard(this.label, this.value, this.icon, this.color, {super.key, this.sub, this.onTap});
+  final String label, value; final IconData icon; final Color color;
+  final String? sub; final VoidCallback? onTap;
   @override
-  Widget build(BuildContext context) => Text(
-    format(amount),
-    style: (style ?? const TextStyle(fontSize: 14, fontWeight: FontWeight.w600))
-        .copyWith(color: color ?? AppTheme.primary),
-  );
-}
-
-// Empty state
-class EmptyState extends StatelessWidget {
-  const EmptyState({super.key, required this.icon, required this.message, this.sub});
-  final IconData icon;
-  final String message;
-  final String? sub;
-  @override
-  Widget build(BuildContext context) => Center(
-    child: Padding(
-      padding: const EdgeInsets.all(40),
-      child: Column(mainAxisSize: MainAxisSize.min, children: [
-        Icon(icon, size: 56, color: Colors.grey.shade300),
-        const SizedBox(height: 16),
-        Text(message, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Color(0xFF757575)), textAlign: TextAlign.center),
-        if (sub != null) ...[
-          const SizedBox(height: 8),
-          Text(sub!, style: const TextStyle(fontSize: 13, color: Color(0xFF9E9E9E)), textAlign: TextAlign.center),
-        ],
+  Widget build(BuildContext context) => InkWell(
+    onTap: onTap, borderRadius: BorderRadius.circular(12),
+    child: Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12),
+          border: const Border.fromBorderSide(BorderSide(color: kBorder))),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Icon(icon, color: color, size: 22),
+        const Spacer(),
+        Text(value, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: kTextMain)),
+        const SizedBox(height: 2),
+        Text(label, style: const TextStyle(fontSize: 11, color: kTextHint)),
+        if (sub != null) Text(sub!, style: TextStyle(fontSize: 10, color: color, fontWeight: FontWeight.w600)),
       ]),
     ),
   );
 }
 
-// Loading card shimmer
-class LoadingList extends StatelessWidget {
-  const LoadingList({super.key, this.count = 5});
-  final int count;
+class EmptyState extends StatelessWidget {
+  const EmptyState({super.key, required this.icon, required this.message, this.sub, this.onAction, this.actionLabel});
+  final IconData icon; final String message; final String? sub, actionLabel; final VoidCallback? onAction;
   @override
-  Widget build(BuildContext context) => ListView.separated(
-    padding: const EdgeInsets.all(16),
-    itemCount: count,
-    separatorBuilder: (_, __) => const SizedBox(height: 10),
-    itemBuilder: (_, __) => Container(
-      height: 80,
-      decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(12)),
-    ),
+  Widget build(BuildContext context) => Center(child: Padding(
+    padding: const EdgeInsets.all(40),
+    child: Column(mainAxisSize: MainAxisSize.min, children: [
+      Icon(icon, size: 64, color: Colors.grey.shade300),
+      const SizedBox(height: 16),
+      Text(message, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: kTextSub), textAlign: TextAlign.center),
+      if (sub != null) ...[const SizedBox(height: 8), Text(sub!, style: const TextStyle(fontSize: 13, color: kTextHint), textAlign: TextAlign.center)],
+      if (onAction != null) ...[const SizedBox(height: 20), ElevatedButton(onPressed: onAction, child: Text(actionLabel ?? 'Add'))],
+    ]),
+  ));
+}
+
+class LoadingList extends StatelessWidget {
+  const LoadingList({super.key});
+  @override
+  Widget build(BuildContext context) => const Center(child: Padding(padding: EdgeInsets.all(40), child: CircularProgressIndicator()));
+}
+
+class WhiteCard extends StatelessWidget {
+  const WhiteCard({super.key, required this.child, this.padding});
+  final Widget child; final EdgeInsets? padding;
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: padding ?? const EdgeInsets.all(16),
+    decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12),
+        border: const Border.fromBorderSide(BorderSide(color: kBorder))),
+    child: child,
   );
 }
 
-// Confirm dialog helper
-// IMPORTANT: must use rootNavigator:true so the dialog pops itself,
-// not the go_router shell route (which would empty the stack and crash).
-Future<bool> confirmDialog(BuildContext context, {required String title, required String message, String confirmText = 'Confirm', Color confirmColor = AppTheme.errorRed}) async {
+// ── Dialogs & Snackbars ───────────────────────────────────────────────
+Future<bool> confirmDialog(BuildContext ctx, {required String title, required String message,
+    String confirmText = 'Confirm', Color confirmColor = kError}) async {
   return await showDialog<bool>(
-    context: context,
-    useRootNavigator: true,   // ← key fix: targets the root navigator, not go_router's shell
-    builder: (dialogContext) => AlertDialog(
-      title: Text(title),
+    context: ctx, useRootNavigator: true,
+    builder: (c) => AlertDialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      title: Text(title, style: const TextStyle(fontWeight: FontWeight.w700)),
       content: Text(message),
       actions: [
-        TextButton(
-          onPressed: () => Navigator.of(dialogContext, rootNavigator: true).pop(false),
-          child: const Text('Cancel'),
-        ),
-        TextButton(
-          onPressed: () => Navigator.of(dialogContext, rootNavigator: true).pop(true),
-          child: Text(confirmText, style: TextStyle(color: confirmColor, fontWeight: FontWeight.w600)),
-        ),
+        TextButton(onPressed: () => Navigator.of(c, rootNavigator: true).pop(false), child: const Text('Cancel')),
+        TextButton(onPressed: () => Navigator.of(c, rootNavigator: true).pop(true),
+            child: Text(confirmText, style: TextStyle(color: confirmColor, fontWeight: FontWeight.w700))),
       ],
     ),
   ) ?? false;
 }
 
-// Snackbar helpers
-void showSuccess(BuildContext context, String msg) => ScaffoldMessenger.of(context)
+void showSuccess(BuildContext ctx, String msg) => ScaffoldMessenger.of(ctx)
   ..hideCurrentSnackBar()
-  ..showSnackBar(SnackBar(content: Text(msg), backgroundColor: AppTheme.primary));
+  ..showSnackBar(SnackBar(
+    content: Row(children: [const Icon(Icons.check_circle_outline, color: Colors.white, size: 18), const SizedBox(width: 8), Expanded(child: Text(msg))]),
+    backgroundColor: kPrimary, behavior: SnackBarBehavior.floating,
+    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+  ));
 
-void showError(BuildContext context, String msg) => ScaffoldMessenger.of(context)
+void showError(BuildContext ctx, String msg) => ScaffoldMessenger.of(ctx)
   ..hideCurrentSnackBar()
-  ..showSnackBar(SnackBar(content: Text(msg), backgroundColor: AppTheme.errorRed));
+  ..showSnackBar(SnackBar(
+    content: Row(children: [const Icon(Icons.error_outline, color: Colors.white, size: 18), const SizedBox(width: 8), Expanded(child: Text(msg.replaceAll('Exception: ', '')))]),
+    backgroundColor: kError, behavior: SnackBarBehavior.floating,
+    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+    duration: const Duration(seconds: 4),
+  ));

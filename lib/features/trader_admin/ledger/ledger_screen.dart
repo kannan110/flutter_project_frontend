@@ -7,110 +7,54 @@ import '../../../core/providers/session_provider.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_theme.dart';
 
-// Outstanding per retailer
-final _ledgerProvider = FutureProvider.autoDispose.family<List<Map<String, dynamic>>, String>((ref, traderId) async {
-  if (traderId.isEmpty) return <Map<String, dynamic>>[];
-  final retailers = List<Map<String, dynamic>>.from(
-    await Supabase.instance.client.from('retailers').select('id,shop_name,owner_name,phone,credit_limit')
-        .eq('trader_id', traderId).eq('is_active', true).order('shop_name'));
-  final result = <Map<String, dynamic>>[];
-  for (final r in retailers) {
-    final outstanding = await Supabase.instance.client
-        .rpc('get_retailer_outstanding', params: {'p_retailer_id': r['id']});
-    result.add({...r, 'outstanding': (outstanding as num?)?.toDouble() ?? 0});
-  }
-  result.sort((a, b) => (b['outstanding'] as double).compareTo(a['outstanding'] as double));
-  return result;
-});
-
-class LedgerScreen extends ConsumerWidget {
+class LedgerScreen extends ConsumerStatefulWidget {
   const LedgerScreen({super.key});
+  @override ConsumerState<LedgerScreen> createState() => _S();
+}
+class _S extends ConsumerState<LedgerScreen> {
+  final _c = Supabase.instance.client;
+  List<Map<String,dynamic>> _list = [];
+  bool _loading = true;
+  @override void initState() { super.initState(); _load(); }
+
+  Future<void> _load() async {
+    final tid = ref.read(appUserProvider).valueOrNull?.traderId;
+    if (tid == null) return;
+    setState(() => _loading = true);
+    try {
+      // retailers columns: id, shop_name, owner_name, credit_limit (NOT outstanding_balance — no such column)
+      // We get outstanding via get_retailer_outstanding RPC per retailer, but for list we just show retailers
+      final data = await _c.from('retailers')
+          .select('id,shop_name,owner_name,credit_limit,risk_level')
+          .eq('trader_id', tid).eq('is_active', true).order('shop_name');
+      if (mounted) setState(() { _list = List<Map<String,dynamic>>.from(data); _loading = false; });
+    } catch (_) { if (mounted) setState(() => _loading = false); }
+  }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final userAsync = ref.watch(appUserProvider);
-    if (userAsync.isLoading) return const Scaffold(body: Center(child: CircularProgressIndicator()));
-    final traderId = userAsync.valueOrNull?.traderId ?? '';
-    final async    = traderId.isNotEmpty ? ref.watch(_ledgerProvider(traderId)) : const AsyncValue<List<Map<String,dynamic>>>.data([]);
-
-    return Scaffold(
-      appBar: AppBar(title: const Text('Ledger')),
-      body: async.when(
-        loading: () => const LoadingList(),
-        error:   (e, _) => Center(child: Text('Error: $e')),
-        data:    (retailers) {
-          final totalOutstanding = retailers.fold<double>(0, (s, r) => s + (r['outstanding'] as double));
-          return Column(children: [
-            Container(
-              margin: const EdgeInsets.all(16),
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(color: AppTheme.primary, borderRadius: BorderRadius.circular(12)),
-              child: Row(children: [
-                const Icon(Icons.account_balance_wallet_outlined, color: Colors.white, size: 28),
-                const SizedBox(width: 14),
-                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  const Text('Total Outstanding', style: TextStyle(color: Colors.white70, fontSize: 12)),
-                  Text(AmountText.format(totalOutstanding),
-                      style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w700)),
-                ]),
-              ]),
-            ),
-            Expanded(
-              child: retailers.isEmpty
-                  ? const EmptyState(icon: Icons.account_balance_wallet_outlined, message: 'No retailers yet')
-                  : RefreshIndicator(
-                      onRefresh: () => ref.refresh(_ledgerProvider(traderId).future),
-                      child: ListView.separated(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        itemCount: retailers.length,
-                        separatorBuilder: (_, __) => const SizedBox(height: 8),
-                        itemBuilder: (_, i) {
-                          final r = retailers[i];
-                          final outstanding = r['outstanding'] as double;
-                          final limit = (r['credit_limit'] as num?)?.toDouble() ?? 0;
-                          final pct = limit > 0 ? (outstanding / limit).clamp(0.0, 1.0) : 0.0;
-                          return InkWell(
-                            onTap: () => context.go(Routes.retailerLedgerPath(r['id'] as String)),
-                            borderRadius: BorderRadius.circular(12),
-                            child: Container(
-                              padding: const EdgeInsets.all(14),
-                              decoration: BoxDecoration(
-                                color: Colors.white, borderRadius: BorderRadius.circular(12),
-                                border: Border.all(color: outstanding > limit * 0.9 ? Colors.red.shade200 : const Color(0xFFEEEEEE)),
-                              ),
-                              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                                Row(children: [
-                                  Expanded(child: Text(r['shop_name'] as String, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600))),
-                                  Text(AmountText.format(outstanding),
-                                      style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700,
-                                          color: outstanding > 0 ? Colors.orange.shade700 : Colors.green)),
-                                ]),
-                                if (r['owner_name'] != null) ...[
-                                  const SizedBox(height: 2),
-                                  Text(r['owner_name'] as String, style: const TextStyle(fontSize: 12, color: Color(0xFF9E9E9E))),
-                                ],
-                                const SizedBox(height: 8),
-                                ClipRRect(
-                                  borderRadius: BorderRadius.circular(4),
-                                  child: LinearProgressIndicator(
-                                    value: pct, minHeight: 5,
-                                    backgroundColor: Colors.grey.shade100,
-                                    valueColor: AlwaysStoppedAnimation<Color>(pct > 0.9 ? Colors.red : pct > 0.7 ? Colors.orange : AppTheme.primary),
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                Text('${(pct * 100).toStringAsFixed(0)}% of ₹${(limit/1000).toStringAsFixed(0)}K limit',
-                                    style: const TextStyle(fontSize: 10, color: Color(0xFF9E9E9E))),
-                              ]),
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-            ),
-          ]);
-        },
-      ),
-    );
-  }
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(title: const Text('Ledger'), actions: [IconButton(icon: const Icon(Icons.refresh), onPressed: _load)]),
+    body: _loading ? const LoadingList() : _list.isEmpty ? const EmptyState(icon: Icons.account_balance_wallet_outlined, message: 'No retailers')
+        : RefreshIndicator(onRefresh: _load, child: ListView.separated(
+            padding: const EdgeInsets.all(16), itemCount: _list.length,
+            separatorBuilder: (_, __) => const SizedBox(height: 8),
+            itemBuilder: (_, i) {
+              final r = _list[i];
+              final risk = r['risk_level'] as String? ?? 'low';
+              return InkWell(
+                onTap: () => context.go(R.retailerLedgerPath(r['id'])),
+                borderRadius: BorderRadius.circular(12),
+                child: WhiteCard(child: Row(children: [
+                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text(r['shop_name'] as String, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
+                    if (r['owner_name'] != null) Text(r['owner_name'] as String, style: const TextStyle(fontSize: 12, color: kTextSub)),
+                  ])),
+                  if (risk == 'high') const StatusBadge('high risk', Colors.red, small: true)
+                  else if (risk == 'medium') const StatusBadge('medium risk', Colors.orange, small: true),
+                  const SizedBox(width: 8),
+                  const Icon(Icons.chevron_right, color: kTextHint, size: 18),
+                ])),
+              );
+            })),
+  );
 }

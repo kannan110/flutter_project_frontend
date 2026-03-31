@@ -18,7 +18,7 @@ enum UserRole {
     UserRole.retailerUser  => 'retailer_user',
   };
 
-  String get displayName => switch (this) {
+  String get label => switch (this) {
     UserRole.superAdmin    => 'Super Admin',
     UserRole.traderAdmin   => 'Trader Admin',
     UserRole.traderStaff   => 'Staff',
@@ -36,7 +36,6 @@ class AppUser {
   final bool isSubscriptionActive;
   final DateTime? subscriptionEndDate;
   final String? agentId;
-  final String? retailerId;
 
   const AppUser({
     required this.userId,
@@ -47,19 +46,11 @@ class AppUser {
     this.isSubscriptionActive = true,
     this.subscriptionEndDate,
     this.agentId,
-    this.retailerId,
   });
 
-  bool get isSuperAdmin    => role == UserRole.superAdmin;
-  bool get isTraderAdmin   => role == UserRole.traderAdmin;
-  bool get isTraderStaff   => role == UserRole.traderStaff;
   bool get isDeliveryAgent => role == UserRole.deliveryStaff;
-  bool get isRetailer      => role == UserRole.retailerUser;
-  bool get canManageOrders    => isTraderAdmin || isTraderStaff || isSuperAdmin;
-  bool get canApprove         => isTraderAdmin || isSuperAdmin;
-  bool get canManageAgents    => isTraderAdmin || isSuperAdmin;
-  bool get canSetRates        => isTraderAdmin || isSuperAdmin;
-  bool get canViewLedger      => !isDeliveryAgent;
-  bool get canViewAnalytics   => isTraderAdmin || isSuperAdmin;
-  bool get canManageRetailers => isTraderAdmin || isSuperAdmin;
+  bool get isTraderAdmin   => role == UserRole.traderAdmin;
+  bool get isSuperAdmin    => role == UserRole.superAdmin;
+  bool get canApprove      => isTraderAdmin || isSuperAdmin;
+  bool get canManageAgents => isTraderAdmin || isSuperAdmin;
 }

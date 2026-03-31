@@ -1,64 +1,90 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/providers/session_provider.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_theme.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final user = ref.watch(appUserProvider).valueOrNull;
     return Scaffold(
       appBar: AppBar(title: const Text('More')),
       body: ListView(padding: const EdgeInsets.all(16), children: [
-        // Profile
-        Container(padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(color:AppTheme.primary,borderRadius:BorderRadius.circular(14)),
+        Container(padding: const EdgeInsets.all(16), margin: const EdgeInsets.only(bottom: 16),
+          decoration: BoxDecoration(color: kPrimary, borderRadius: BorderRadius.circular(16)),
           child: Row(children: [
-            CircleAvatar(backgroundColor:Colors.white24,radius:24,
-              child: Text(user?.companyName?.substring(0,1).toUpperCase() ?? 'R',
-                style: const TextStyle(color:Colors.white,fontSize:20,fontWeight:FontWeight.w700))),
-            const SizedBox(width:14),
-            Expanded(child: Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
-              Text(user?.companyName ?? 'Rooster Trader', style: const TextStyle(color:Colors.white,fontSize:16,fontWeight:FontWeight.w700)),
-              Text(user?.role.displayName ?? '—', style: const TextStyle(color:Colors.white70,fontSize:13)),
+            Container(width: 52, height: 52, decoration: BoxDecoration(color: Colors.white.withOpacity(0.2), shape: BoxShape.circle), child: const Center(child: Text('🐓', style: TextStyle(fontSize: 26)))),
+            const SizedBox(width: 14),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(user?.companyName ?? 'Rooster Trader', style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: Colors.white)),
+              Text(user?.role.label ?? '—', style: const TextStyle(fontSize: 12, color: Colors.white70)),
             ])),
           ])),
-        const SizedBox(height:20),
-        const SectionHeader('MANAGEMENT'),
-        _Tile(Icons.store_outlined,          'Retailers',  'Manage your retail network',    () => context.go(Routes.retailers)),
-        _Tile(Icons.person_outlined,         'Agents',     'Manage delivery agents',         () => context.go(Routes.agents)),
-        _Tile(Icons.price_change_outlined,   'Set Rates',  'Set daily product rates',        () => context.go(Routes.rates)),
-        _Tile(Icons.schedule_outlined,       'Shifts',     'Review agent shift reports',    () => context.go(Routes.shifts)),
-        _Tile(Icons.inventory_2_outlined,    'Crates',     'Track crate balances',           () => context.go(Routes.crates)),
-        const SizedBox(height:12),
-        const SectionHeader('REPORTS'),
-        _Tile(Icons.approval_outlined,       'Approvals',  'Review pending deliveries',      () => context.go(Routes.approvals)),
-        _Tile(Icons.receipt_long_outlined,   'Invoices',   'All issued invoices',            () => context.go(Routes.invoices)),
-        _Tile(Icons.bar_chart_outlined,      'Analytics',  'Business performance charts',   () => context.go(Routes.analytics)),
-        const SizedBox(height:12),
-        const SectionHeader('ACCOUNT'),
-        _Tile(Icons.logout_outlined, 'Sign Out', 'Log out of this account', () async {
-          final confirmed = await confirmDialog(context, title:'Sign Out', message:'Are you sure you want to sign out?', confirmText:'Sign Out');
-          if (confirmed) ref.read(appUserProvider.notifier).signOut();
-        }, color: AppTheme.errorRed),
-        const SizedBox(height:20),
-        Center(child: Text('Rooster Trader v2.0', style: TextStyle(fontSize:12,color:Colors.grey.shade400))),
+        if (user?.companyCode != null) Container(margin: const EdgeInsets.only(bottom: 14), child: WhiteCard(child: Row(children: [
+          const Icon(Icons.qr_code, color: kPrimary, size: 22), const SizedBox(width: 12),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            const Text('Company Code — share with delivery agents', style: TextStyle(fontSize: 11, color: kTextHint)),
+            Text(user!.companyCode!, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: kPrimary, letterSpacing: 2)),
+          ])),
+        ]))),
+        _section(context, 'OPERATIONS', [
+          _tile(context, Icons.analytics_outlined, 'Analytics', R.analytics),
+          _tile(context, Icons.receipt_long_outlined, 'Daily Report', R.dailyReport),
+          _tile(context, Icons.account_balance_outlined, 'Cash Reconciliation', R.cashRecon),
+          _tile(context, Icons.lock_clock_outlined, 'Day Closure', R.dayClosure),
+        ]),
+        const SizedBox(height: 8),
+        _section(context, 'CATALOGUE', [
+          _tile(context, Icons.store_outlined, 'Retailers', R.retailers),
+          _tile(context, Icons.delivery_dining_outlined, 'Delivery Agents', R.agents),
+          _tile(context, Icons.price_change_outlined, 'Rates', R.rates),
+          _tile(context, Icons.rule_outlined, 'Pricing Rules', R.pricing),
+        ]),
+        const SizedBox(height: 8),
+        _section(context, 'INVENTORY', [
+          _tile(context, Icons.inventory_outlined, 'Stock', R.stock),
+          _tile(context, Icons.inventory_2_outlined, 'Crates', R.crates),
+          _tile(context, Icons.assignment_return_outlined, 'Returns', R.returns),
+        ]),
+        const SizedBox(height: 8),
+        _section(context, 'REPORTS', [
+          _tile(context, Icons.receipt_long_outlined, 'Invoices', R.invoices),
+          _tile(context, Icons.account_balance_wallet_outlined, 'Ledger', R.ledger),
+          _tile(context, Icons.schedule_outlined, 'Shifts', R.shifts),
+          _tile(context, Icons.warning_amber_outlined, 'Alerts', R.alerts),
+        ]),
+        const SizedBox(height: 16),
+        OutlinedButton.icon(
+          onPressed: () async {
+            final ok = await confirmDialog(context, title: 'Sign Out', message: 'Sign out of Rooster Trader?');
+            if (ok && context.mounted) ref.read(appUserProvider.notifier).signOut();
+          },
+          icon: const Icon(Icons.logout, size: 18),
+          label: const Text('Sign Out'),
+          style: OutlinedButton.styleFrom(foregroundColor: kError, side: const BorderSide(color: kError)),
+        ),
+        const SizedBox(height: 16),
+        const Center(child: Text('Rooster Trader PTOS v2.0', style: TextStyle(fontSize: 11, color: kTextHint))),
       ]),
     );
   }
-}
-class _Tile extends StatelessWidget {
-  const _Tile(this.icon, this.title, this.subtitle, this.onTap, {this.color = AppTheme.primary});
-  final IconData icon; final String title, subtitle; final VoidCallback onTap; final Color color;
-  @override Widget build(BuildContext context) => ListTile(
-    onTap: onTap, contentPadding: const EdgeInsets.symmetric(vertical:2,horizontal:4),
-    leading: Container(width:40,height:40,decoration:BoxDecoration(color:color.withOpacity(0.1),borderRadius:BorderRadius.circular(10)),
-      child: Icon(icon,color:color,size:20)),
-    title: Text(title, style: const TextStyle(fontSize:14,fontWeight:FontWeight.w600)),
-    subtitle: Text(subtitle, style: const TextStyle(fontSize:12,color:Color(0xFF9E9E9E))),
-    trailing: Icon(Icons.chevron_right,color:Colors.grey.shade400,size:18),
-  );
+
+  Widget _section(BuildContext ctx, String title, List<Widget> tiles) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+    SectionHeader(title),
+    Container(decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), border: const Border.fromBorderSide(BorderSide(color: kBorder))), child: Column(children: tiles)),
+  ]);
+
+  Widget _tile(BuildContext ctx, IconData icon, String label, String route) => InkWell(
+    onTap: () => ctx.go(route), borderRadius: BorderRadius.circular(12),
+    child: Padding(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13), child: Row(children: [
+      Icon(icon, size: 20, color: kPrimary), const SizedBox(width: 14),
+      Expanded(child: Text(label, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500))),
+      const Icon(Icons.chevron_right, size: 18, color: kTextHint),
+    ])));
 }

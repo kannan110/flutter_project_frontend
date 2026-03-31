@@ -1,95 +1,60 @@
 import 'package:flutter/material.dart';
-import '../../../core/router/app_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/providers/session_provider.dart';
+import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_theme.dart';
 
-final _shiftsProvider = FutureProvider.autoDispose.family<List<Map<String, dynamic>>, String>((ref, traderId) async {
-  if (traderId.isEmpty) return <Map<String, dynamic>>[];
-  return List<Map<String, dynamic>>.from(
-    await Supabase.instance.client.from('delivery_shifts')
-        .select('*, delivery_agents(id,name,phone)')
-        .eq('trader_id', traderId)
-        .order('shift_start_at', ascending: false)
-        .limit(50),
-  );
-});
-
-class ShiftsScreen extends ConsumerWidget {
+class ShiftsScreen extends ConsumerStatefulWidget {
   const ShiftsScreen({super.key});
+  @override ConsumerState<ShiftsScreen> createState() => _S();
+}
+class _S extends ConsumerState<ShiftsScreen> {
+  final _c = Supabase.instance.client;
+  List<Map<String,dynamic>> _shifts = [];
+  bool _loading = true;
+  @override void initState() { super.initState(); _load(); }
+
+  Future<void> _load() async {
+    final tid = ref.read(appUserProvider).valueOrNull?.traderId;
+    if (tid == null) return;
+    setState(() => _loading = true);
+    try {
+      // delivery_shifts: id,status,shift_start_at,total_cash_collected,total_orders,total_birds_delivered
+      final data = await _c.from('delivery_shifts')
+          .select('id,status,shift_start_at,total_cash_collected,total_orders,delivery_agents(name)')
+          .eq('trader_id', tid).order('shift_start_at', ascending: false).limit(100);
+      if (mounted) setState(() { _shifts = List<Map<String,dynamic>>.from(data); _loading = false; });
+    } catch (_) { if (mounted) setState(() => _loading = false); }
+  }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final userAsync = ref.watch(appUserProvider);
-    if (userAsync.isLoading) return const Scaffold(body: Center(child: CircularProgressIndicator()));
-    final traderId = userAsync.valueOrNull?.traderId ?? '';
-    final async = traderId.isNotEmpty
-        ? ref.watch(_shiftsProvider(traderId))
-        : const AsyncValue<List<Map<String, dynamic>>>.data([]);
-
-    return Scaffold(
-      appBar: AppBar(title: const Text('Agent Shifts')),
-      body: async.when(
-        loading: () => const LoadingList(),
-        error: (e, _) => Center(child: Text('Error: $e')),
-        data: (shifts) {
-          if (shifts.isEmpty) {
-            return const EmptyState(icon: Icons.schedule_outlined, message: 'No shifts yet');
-          }
-          return RefreshIndicator(
-            onRefresh: () => ref.refresh(_shiftsProvider(traderId).future),
-            child: ListView.separated(
-              padding: const EdgeInsets.all(12),
-              itemCount: shifts.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 8),
-              itemBuilder: (_, i) {
-                final s      = shifts[i];
-                final agent  = s['delivery_agents'] as Map<String, dynamic>?;
-                final status = s['status'] as String? ?? 'open';
-                final approval = s['shift_approval_status'] as String? ?? 'pending';
-                final start  = DateTime.tryParse(s['shift_start_at'] as String? ?? '') ?? DateTime.now();
-                final totalOrders = s['total_orders'] as int? ?? 0;
-                final totalWt     = (s['total_weight_kg'] as num?)?.toDouble() ?? 0;
-
-                return InkWell(
-                  onTap: () => context.go(Routes.shiftDetailPath(s['id'] as String)),
-                  borderRadius: BorderRadius.circular(12),
-                  child: Container(
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(12),
-                      border: const Border.fromBorderSide(BorderSide(color: Color(0xFFEEEEEE))),
-                    ),
-                    child: Row(children: [
-                      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                        Text(agent?['name'] as String? ?? 'Unknown',
-                            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
-                        Text(DateFormat('d MMM y, HH:mm').format(start),
-                            style: const TextStyle(fontSize: 12, color: Color(0xFF9E9E9E))),
-                        if (status == 'closed')
-                          Text('$totalOrders orders · ${totalWt.toStringAsFixed(1)} kg',
-                              style: const TextStyle(fontSize: 11, color: Color(0xFF757575))),
-                      ])),
-                      Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-                        StatusBadge(status, StatusColors.shift(status)),
-                        if (status == 'closed' && approval == 'pending')
-                          const Padding(
-                            padding: EdgeInsets.only(top: 4),
-                            child: StatusBadge('Needs Review', Colors.orange),
-                          ),
-                      ]),
-                    ]),
-                  ),
-                );
-              },
-            ),
-          );
-        },
-      ),
-    );
-  }
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(title: const Text('Delivery Shifts'), actions: [IconButton(icon: const Icon(Icons.refresh), onPressed: _load)]),
+    body: _loading ? const LoadingList() : _shifts.isEmpty ? const EmptyState(icon: Icons.schedule_outlined, message: 'No shifts yet')
+        : RefreshIndicator(onRefresh: _load, child: ListView.separated(
+            padding: const EdgeInsets.all(16), itemCount: _shifts.length,
+            separatorBuilder: (_, __) => const SizedBox(height: 8),
+            itemBuilder: (_, i) {
+              final s = _shifts[i];
+              final a = s['delivery_agents'] as Map<String,dynamic>?;
+              final status = s['status'] as String? ?? 'open';
+              final date = DateTime.tryParse(s['shift_start_at'] as String? ?? '');
+              return InkWell(
+                onTap: () => context.go(R.shiftDetailPath(s['id'])),
+                borderRadius: BorderRadius.circular(12),
+                child: WhiteCard(child: Row(children: [
+                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text(a?['name'] as String? ?? '—', style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
+                    if (date != null) Text(DateFormat('d MMM y, h:mm a').format(date), style: const TextStyle(fontSize: 11, color: kTextHint)),
+                    Text('${s['total_orders'] ?? 0} orders · ${Fmt.amount((s['total_cash_collected'] as num?)?.toDouble() ?? 0)} collected', style: const TextStyle(fontSize: 11, color: kTextSub)),
+                  ])),
+                  StatusBadge(status, SC.shift(status)),
+                  const SizedBox(width: 4), const Icon(Icons.chevron_right, color: kTextHint, size: 18),
+                ])),
+              );
+            })),
+  );
 }

@@ -1,73 +1,66 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:fl_chart/fl_chart.dart';
+import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/providers/session_provider.dart';
+import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_theme.dart';
 
-final _analyticsProvider = FutureProvider.autoDispose.family<Map<String,dynamic>,String>((ref,traderId) async {
-  final res = await Supabase.instance.client.rpc('analytics_summary',params:{'p_trader_id':traderId});
-  return Map<String,dynamic>.from(res as Map);
-});
-
-class AnalyticsScreen extends ConsumerWidget {
+class AnalyticsScreen extends ConsumerStatefulWidget {
   const AnalyticsScreen({super.key});
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final userAsync = ref.watch(appUserProvider);
-    if (userAsync.isLoading) return const Scaffold(body: Center(child: CircularProgressIndicator()));
-    final traderId = userAsync.valueOrNull?.traderId ?? '';
-    final async = traderId.isNotEmpty ? ref.watch(_analyticsProvider(traderId)) : const AsyncValue<Map<String,dynamic>>.data({});
-    return Scaffold(
-      appBar: AppBar(title: const Text('Analytics')),
-      body: async.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e,_) => Center(child: Text('Error: \$e')),
-        data: (d) {
-          final revenue = _parsePoints(d['revenue_trend']);
-          final orders  = _parsePoints(d['orders_trend']);
-          return RefreshIndicator(
-            onRefresh: () => ref.refresh(_analyticsProvider(traderId).future),
-            child: ListView(padding: const EdgeInsets.all(16), children: [
-              _ChartCard('Revenue (30 days)', revenue, AppTheme.primary),
-              const SizedBox(height:16),
-              _ChartCard('Orders (14 days)', orders, Colors.blue),
-            ]),
-          );
-        },
-      ),
-    );
-  }
-  List<FlSpot> _parsePoints(dynamic raw) {
-    if (raw == null) return [];
-    final list = raw as List;
-    return List.generate(list.length, (i) => FlSpot(i.toDouble(), (list[i]['value'] as num?)?.toDouble() ?? 0));
-  }
+  @override ConsumerState<AnalyticsScreen> createState() => _S();
 }
+class _S extends ConsumerState<AnalyticsScreen> {
+  final _c = Supabase.instance.client;
+  Map<String,dynamic>? _d;
+  bool _loading = true;
+  @override void initState() { super.initState(); _load(); }
 
-class _ChartCard extends StatelessWidget {
-  const _ChartCard(this.title, this.spots, this.color);
-  final String title; final List<FlSpot> spots; final Color color;
+  Future<void> _load() async {
+    final tid = ref.read(appUserProvider).valueOrNull?.traderId;
+    if (tid == null) return;
+    setState(() => _loading = true);
+    try {
+      final res = await _c.rpc('analytics_summary', params: {'p_trader_id': tid});
+      if (mounted) setState(() { _d = res != null ? Map<String,dynamic>.from(res as Map) : {}; _loading = false; });
+    } catch (_) { if (mounted) setState(() => _loading = false); }
+  }
+
   @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.all(16),
-    decoration: BoxDecoration(color:Colors.white,borderRadius:BorderRadius.circular(12),border:const Border.fromBorderSide(BorderSide(color:Color(0xFFEEEEEE)))),
-    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Text(title, style: const TextStyle(fontSize:14,fontWeight:FontWeight.w600)),
-      const SizedBox(height:16),
-      SizedBox(height:160, child: spots.isEmpty
-        ? const Center(child: Text('No data', style: TextStyle(color:Color(0xFF9E9E9E))))
-        : LineChart(LineChartData(
-            gridData: const FlGridData(show:false),
-            titlesData: const FlTitlesData(show:false),
-            borderData: FlBorderData(show:false),
-            lineBarsData: [LineChartBarData(
-              spots: spots, isCurved: true, color: color,
-              barWidth: 2.5,
-              belowBarData: BarAreaData(show:true, color: color.withOpacity(0.1)),
-              dotData: const FlDotData(show:false),
-            )],
-          ))),
-    ]),
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(title: const Text('Analytics'), actions: [IconButton(icon: const Icon(Icons.refresh), onPressed: _load)]),
+    body: _loading ? const LoadingList() : _d == null ? const EmptyState(icon: Icons.analytics_outlined, message: 'No analytics data')
+        : RefreshIndicator(onRefresh: _load, child: ListView(padding: const EdgeInsets.all(16), children: [
+            const SectionHeader('REVENUE'),
+            GridView.count(crossAxisCount: 2, shrinkWrap: true, physics: const NeverScrollableScrollPhysics(), crossAxisSpacing: 10, mainAxisSpacing: 10, childAspectRatio: 1.4,
+              children: [
+                KpiCard('Today', Fmt.amount((_d!['today_revenue'] as num?)?.toDouble() ?? 0), Icons.today_outlined, kPrimary),
+                KpiCard('This Week', Fmt.amount((_d!['week_revenue'] as num?)?.toDouble() ?? 0), Icons.date_range_outlined, Colors.blue),
+                KpiCard('This Month', Fmt.amount((_d!['month_revenue'] as num?)?.toDouble() ?? 0), Icons.calendar_month_outlined, Colors.purple),
+                KpiCard('Outstanding', Fmt.amount((_d!['total_outstanding'] as num?)?.toDouble() ?? 0), Icons.account_balance_wallet_outlined, Colors.orange),
+              ]),
+            const SizedBox(height: 16),
+            const SectionHeader('VOLUME'),
+            GridView.count(crossAxisCount: 2, shrinkWrap: true, physics: const NeverScrollableScrollPhysics(), crossAxisSpacing: 10, mainAxisSpacing: 10, childAspectRatio: 1.4,
+              children: [
+                KpiCard('Today Birds', '${_d!['today_birds'] ?? 0}', Icons.countertops_outlined, kPrimary),
+                KpiCard('Month Birds', '${_d!['month_birds'] ?? 0}', Icons.calendar_month_outlined, Colors.teal),
+                KpiCard('Today Weight', Fmt.kg((_d!['today_weight'] as num?)?.toDouble() ?? 0), Icons.scale_outlined, Colors.indigo),
+                KpiCard('Month Weight', Fmt.kg((_d!['month_weight'] as num?)?.toDouble() ?? 0), Icons.stacked_bar_chart, Colors.cyan),
+              ]),
+            const SizedBox(height: 16),
+            WhiteCard(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              const SectionHeader('OPERATIONS'),
+              _r('Pending Orders', '${_d!['pending_orders'] ?? 0}', Colors.orange),
+              _r('Active Deliveries', '${_d!['active_deliveries'] ?? 0}', Colors.blue),
+              _r('Pending Approvals', '${_d!['pending_approvals'] ?? 0}', Colors.purple),
+              _r('Open Shifts', '${_d!['open_shifts'] ?? 0}', (_d!['open_shifts'] as int? ?? 0) > 0 ? Colors.orange : null),
+              _r('Active Retailers', '${_d!['active_retailers'] ?? 0}', kPrimary),
+            ])),
+          ])),
   );
+
+  Widget _r(String l, String v, [Color? color]) => Padding(padding: const EdgeInsets.symmetric(vertical: 4),
+    child: Row(children: [Expanded(child: Text(l, style: const TextStyle(fontSize: 12, color: kTextSub))), Text(v, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: color ?? kTextMain))]));
 }

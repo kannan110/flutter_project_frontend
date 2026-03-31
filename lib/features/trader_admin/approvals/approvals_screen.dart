@@ -7,82 +7,69 @@ import '../../../core/providers/session_provider.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_theme.dart';
 
-final _approvalsProvider = FutureProvider.autoDispose.family<List<Map<String, dynamic>>, String>((ref, traderId) async {
-  if (traderId.isEmpty) return <Map<String, dynamic>>[];
-  return List<Map<String, dynamic>>.from(
-    await Supabase.instance.client.from('deliveries')
-        .select('*, orders(*, retailers(id,shop_name,owner_name,phone), master_products(id,name)), delivery_agents(id,name,phone)')
-        .eq('trader_id', traderId).eq('status', 'delivered').eq('approval_status', 'pending')
-        .order('delivered_at', ascending: false),
-  );
-});
-
-class ApprovalsScreen extends ConsumerWidget {
+class ApprovalsScreen extends ConsumerStatefulWidget {
   const ApprovalsScreen({super.key});
+  @override ConsumerState<ApprovalsScreen> createState() => _S();
+}
+class _S extends ConsumerState<ApprovalsScreen> {
+  final _c = Supabase.instance.client;
+  List<Map<String,dynamic>> _items = [];
+  bool _loading = true;
+  @override void initState() { super.initState(); _load(); }
+
+  Future<void> _load() async {
+    final tid = ref.read(appUserProvider).valueOrNull?.traderId;
+    if (tid == null) return;
+    setState(() => _loading = true);
+    try {
+      // deliveries: status=delivered, approval_status=pending
+      final data = await _c.from('deliveries')
+          .select('id,delivered_total_weight,received_total_weight,collected_amount,created_at,orders(retailers(shop_name)),delivery_agents(name)')
+          .eq('trader_id', tid).eq('status','delivered').eq('approval_status','pending')
+          .order('created_at', ascending: false);
+      if (mounted) setState(() { _items = List<Map<String,dynamic>>.from(data); _loading = false; });
+    } catch (_) { if (mounted) setState(() => _loading = false); }
+  }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final userAsync = ref.watch(appUserProvider);
-    if (userAsync.isLoading) return const Scaffold(body: Center(child: CircularProgressIndicator()));
-    final traderId = userAsync.valueOrNull?.traderId ?? '';
-    final async    = traderId.isNotEmpty ? ref.watch(_approvalsProvider(traderId)) : const AsyncValue<List<Map<String,dynamic>>>.data([]);
-
-    return Scaffold(
-      appBar: AppBar(title: const Text('Pending Approvals')),
-      body: async.when(
-        loading: () => const LoadingList(),
-        error:   (e, _) => Center(child: Text('Error: $e')),
-        data:    (items) {
-          if (items.isEmpty) return const EmptyState(icon: Icons.approval_outlined, message: 'No pending approvals', sub: 'All deliveries have been processed');
-          return RefreshIndicator(
-            onRefresh: () => ref.refresh(_approvalsProvider(traderId).future),
-            child: ListView.separated(
-              padding: const EdgeInsets.all(12),
-              itemCount: items.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 8),
-              itemBuilder: (_, i) {
-                final d = items[i];
-                final order    = d['orders'] as Map<String, dynamic>?;
-                final retailer = order?['retailers'] as Map<String, dynamic>?;
-                final agent    = d['delivery_agents'] as Map<String, dynamic>?;
-                final weight   = (d['delivered_total_weight'] ?? d['received_total_weight'] as num?)?.toDouble() ?? 0;
-                final date     = DateTime.tryParse(d['delivered_at'] as String? ?? '') ?? DateTime.now();
-                return InkWell(
-                  onTap: () => context.go(Routes.approvalDetailPath(d['id'] as String)),
-                  borderRadius: BorderRadius.circular(12),
-                  child: Container(
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      color: Colors.white, borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.orange.withOpacity(0.3)),
-                    ),
-                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Row(children: [
-                        const Icon(Icons.pending_actions, size: 16, color: Colors.orange),
-                        const SizedBox(width: 6),
-                        Expanded(child: Text(retailer?['shop_name'] ?? '—', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600))),
-                        Text(DateFormat('d MMM').format(date), style: const TextStyle(fontSize: 12, color: Color(0xFF9E9E9E))),
-                      ]),
-                      const SizedBox(height: 6),
-                      Row(children: [
-                        Icon(Icons.person_outline, size: 13, color: Colors.grey.shade500),
-                        const SizedBox(width: 4),
-                        Text('Agent: ${agent?['name'] ?? '—'}', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
-                        const SizedBox(width: 16),
-                        Icon(Icons.scale_outlined, size: 13, color: Colors.grey.shade500),
-                        const SizedBox(width: 4),
-                        Text('${weight.toStringAsFixed(2)} kg', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
-                      ]),
-                      const SizedBox(height: 6),
-                      const Text('Tap to review & approve', style: TextStyle(fontSize: 11, color: Colors.orange, fontWeight: FontWeight.w500)),
-                    ]),
-                  ),
-                );
-              },
-            ),
-          );
-        },
-      ),
-    );
-  }
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(
+      title: Row(children: [
+        const Text('Pending Approvals'),
+        if (_items.isNotEmpty) ...[const SizedBox(width: 8),
+          Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2), decoration: BoxDecoration(color: Colors.orange, borderRadius: BorderRadius.circular(10)),
+            child: Text('${_items.length}', style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700)))],
+      ]),
+      actions: [IconButton(icon: const Icon(Icons.refresh), onPressed: _load)],
+    ),
+    body: _loading ? const LoadingList() : _items.isEmpty
+        ? const EmptyState(icon: Icons.fact_check_outlined, message: 'No pending approvals')
+        : RefreshIndicator(onRefresh: _load, child: ListView.separated(
+            padding: const EdgeInsets.all(16), itemCount: _items.length,
+            separatorBuilder: (_, __) => const SizedBox(height: 10),
+            itemBuilder: (_, i) {
+              final d = _items[i];
+              final o = d['orders'] as Map<String,dynamic>?;
+              final r = o?['retailers'] as Map<String,dynamic>?;
+              final a = d['delivery_agents'] as Map<String,dynamic>?;
+              // weight: received_total_weight preferred, fallback to delivered_total_weight
+              final w = ((d['received_total_weight'] ?? d['delivered_total_weight']) as num?)?.toDouble() ?? 0;
+              return InkWell(
+                onTap: () => context.go(R.approvalDetailPath(d['id'])),
+                borderRadius: BorderRadius.circular(12),
+                child: Container(padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.orange.shade200, width: 1.5)),
+                  child: Row(children: [
+                    Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text(r?['shop_name'] as String? ?? '—', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
+                      const SizedBox(height: 4),
+                      Text('${w.toStringAsFixed(1)} kg · Agent: ${a?['name'] ?? '—'}', style: const TextStyle(fontSize: 12, color: kTextSub)),
+                    ])),
+                    const StatusBadge('review', Colors.orange),
+                    const SizedBox(width: 4),
+                    const Icon(Icons.chevron_right, color: kTextHint, size: 18),
+                  ])),
+              );
+            })),
+  );
 }

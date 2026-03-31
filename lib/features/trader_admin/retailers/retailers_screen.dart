@@ -1,143 +1,67 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/providers/session_provider.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_theme.dart';
 
-final _retailersProvider = FutureProvider.autoDispose.family<List<Map<String, dynamic>>, String>((ref, traderId) async {
-  if (traderId.isEmpty) return <Map<String, dynamic>>[];
-  return List<Map<String, dynamic>>.from(
-    await Supabase.instance.client.from('retailers')
-        .select('*')
-        .eq('trader_id', traderId)
-        .order('shop_name'),
-  );
-});
-
 class RetailersScreen extends ConsumerStatefulWidget {
   const RetailersScreen({super.key});
-  @override
-  ConsumerState<RetailersScreen> createState() => _RetailersScreenState();
+  @override ConsumerState<RetailersScreen> createState() => _S();
 }
+class _S extends ConsumerState<RetailersScreen> {
+  final _c = Supabase.instance.client;
+  List<Map<String,dynamic>> _list = [];
+  bool _loading = true;
+  @override void initState() { super.initState(); _load(); }
 
-class _RetailersScreenState extends ConsumerState<RetailersScreen> {
-  String _search = '';
+  Future<void> _load() async {
+    final tid = ref.read(appUserProvider).valueOrNull?.traderId;
+    if (tid == null) return;
+    setState(() => _loading = true);
+    try {
+      // retailers columns: id,shop_name,owner_name,phone,address,credit_limit,is_active,is_blocked,risk_level
+      // NO outstanding_balance column — that's computed
+      final data = await _c.from('retailers')
+          .select('id,shop_name,owner_name,phone,address,risk_level,is_active,is_blocked')
+          .eq('trader_id', tid).order('shop_name');
+      if (mounted) setState(() { _list = List<Map<String,dynamic>>.from(data); _loading = false; });
+    } catch (_) { if (mounted) setState(() => _loading = false); }
+  }
 
   @override
-  Widget build(BuildContext context) {
-    final userAsync = ref.watch(appUserProvider);
-    if (userAsync.isLoading) return const Scaffold(body: Center(child: CircularProgressIndicator()));
-    final traderId = userAsync.valueOrNull?.traderId ?? '';
-    final async    = traderId.isNotEmpty ? ref.watch(_retailersProvider(traderId)) : const AsyncValue<List<Map<String, dynamic>>>.data([]);
-
-    return Scaffold(
-      appBar: AppBar(title: const Text('Retailers')),
-      body: Column(children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
-          child: TextField(
-            decoration: const InputDecoration(
-              hintText: 'Search retailers…',
-              prefixIcon: Icon(Icons.search, size: 20),
-              isDense: true,
-            ),
-            onChanged: (v) => setState(() => _search = v.toLowerCase()),
-          ),
-        ),
-        Expanded(
-          child: async.when(
-            loading: () => const LoadingList(),
-            error:   (e, _) => Center(child: Text('Error: $e')),
-            data:    (all) {
-              final list = _search.isEmpty
-                  ? all
-                  : all.where((r) =>
-                      (r['shop_name'] as String).toLowerCase().contains(_search) ||
-                      ((r['owner_name'] as String?) ?? '').toLowerCase().contains(_search) ||
-                      ((r['phone'] as String?) ?? '').contains(_search)).toList();
-
-              if (list.isEmpty) return const EmptyState(icon: Icons.store_outlined, message: 'No retailers found');
-
-              return RefreshIndicator(
-                onRefresh: () => ref.refresh(_retailersProvider(traderId).future),
-                child: ListView.separated(
-                  padding: const EdgeInsets.all(12),
-                  itemCount: list.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 8),
-                  itemBuilder: (_, i) => _RetailerCard(list[i]),
-                ),
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(title: const Text('Retailers'), actions: [IconButton(icon: const Icon(Icons.refresh), onPressed: _load)]),
+    floatingActionButton: FloatingActionButton.extended(onPressed: () => context.go(R.retailerCreate), icon: const Icon(Icons.add), label: const Text('Add Retailer')),
+    body: _loading ? const LoadingList() : _list.isEmpty
+        ? EmptyState(icon: Icons.store_outlined, message: 'No retailers yet', onAction: () => context.go(R.retailerCreate), actionLabel: 'Add Retailer')
+        : RefreshIndicator(onRefresh: _load, child: ListView.separated(
+            padding: const EdgeInsets.all(16), itemCount: _list.length,
+            separatorBuilder: (_, __) => const SizedBox(height: 8),
+            itemBuilder: (_, i) {
+              final r = _list[i];
+              final risk = r['risk_level'] as String? ?? 'low';
+              final blocked = r['is_blocked'] as bool? ?? false;
+              return InkWell(
+                onTap: () => context.go(R.retailerDetailPath(r['id'])),
+                borderRadius: BorderRadius.circular(12),
+                child: WhiteCard(child: Row(children: [
+                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Row(children: [
+                      Text(r['shop_name'] as String, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
+                      if (blocked) ...[const SizedBox(width: 6), const StatusBadge('blocked', Colors.red, small: true)],
+                    ]),
+                    if (r['owner_name'] != null) Text(r['owner_name'] as String, style: const TextStyle(fontSize: 12, color: kTextSub)),
+                    if (r['address'] != null) Text(r['address'] as String, style: const TextStyle(fontSize: 11, color: kTextHint), maxLines: 1, overflow: TextOverflow.ellipsis),
+                  ])),
+                  if (risk == 'high') const StatusBadge('high risk', Colors.red, small: true)
+                  else if (risk == 'medium') const StatusBadge('mid risk', Colors.orange, small: true),
+                  const SizedBox(width: 4),
+                  const Icon(Icons.chevron_right, color: kTextHint, size: 18),
+                ])),
               );
-            },
-          ),
-        ),
-      ]),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => context.go(Routes.retailerCreate),
-        backgroundColor: AppTheme.primary,
-        icon: const Icon(Icons.add, color: Colors.white),
-        label: const Text('Add Retailer', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
-      ),
-    );
-  }
-}
-
-class _RetailerCard extends StatelessWidget {
-  const _RetailerCard(this.retailer);
-  final Map<String, dynamic> retailer;
-
-  @override
-  Widget build(BuildContext context) {
-    final approval = retailer['approval_status'] as String? ?? 'approved';
-    final isBlocked = retailer['is_blocked'] as bool? ?? false;
-    return InkWell(
-      onTap: () => context.go(Routes.retailerDetailPath(retailer['id'] as String)),
-      borderRadius: BorderRadius.circular(12),
-      child: Container(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: isBlocked ? Colors.red.shade200 : const Color(0xFFEEEEEE)),
-        ),
-        child: Row(children: [
-          Container(
-            width: 42, height: 42,
-            decoration: BoxDecoration(
-              color: AppTheme.primary.withOpacity(0.1),
-              shape: BoxShape.circle,
-            ),
-            child: Center(
-              child: Text(
-                (retailer['shop_name'] as String).substring(0, 1).toUpperCase(),
-                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: AppTheme.primary),
-              ),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(retailer['shop_name'] as String,
-                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
-            if (retailer['owner_name'] != null)
-              Text(retailer['owner_name'] as String,
-                  style: const TextStyle(fontSize: 12, color: Color(0xFF757575))),
-            if (retailer['phone'] != null)
-              Text(retailer['phone'] as String,
-                  style: const TextStyle(fontSize: 12, color: Color(0xFF9E9E9E))),
-          ])),
-          Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-            if (isBlocked)
-              const StatusBadge('Blocked', Colors.red)
-            else if (approval == 'pending')
-              const StatusBadge('Pending', Colors.orange)
-            else
-              const StatusBadge('Active', Colors.green),
-            const SizedBox(height: 4),
-            Icon(Icons.chevron_right, color: Colors.grey.shade400, size: 18),
-          ]),
-        ]),
-      ),
-    );
-  }
+            })),
+  );
 }

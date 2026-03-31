@@ -1,105 +1,107 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../../core/providers/session_provider.dart';
+import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_theme.dart';
 
 class BatchDetailScreen extends ConsumerStatefulWidget {
   const BatchDetailScreen({super.key, required this.id});
   final String id;
-  @override
-  ConsumerState<BatchDetailScreen> createState() => _BatchDetailScreenState();
+  @override ConsumerState<BatchDetailScreen> createState() => _S();
 }
-
-class _BatchDetailScreenState extends ConsumerState<BatchDetailScreen> {
-  final _client = Supabase.instance.client;
-  Map<String, dynamic>? _batch;
-  List<Map<String, dynamic>> _deliveries = [];
-  bool _loading = true;
-
-  @override
-  void initState() { super.initState(); _load(); }
+class _S extends ConsumerState<BatchDetailScreen> {
+  final _c = Supabase.instance.client;
+  Map<String,dynamic>? _batch;
+  List<Map<String,dynamic>> _deliveries = [];
+  List<Map<String,dynamic>> _confirmedOrders = [];
+  bool _loading = true, _submitting = false;
+  @override void initState() { super.initState(); _load(); }
 
   Future<void> _load() async {
+    final tid = ref.read(appUserProvider).valueOrNull?.traderId;
     setState(() => _loading = true);
-    final b = await _client.from('delivery_batches').select('*, delivery_agents(id,name,phone,vehicle_no), delivery_challans(*)').eq('id', widget.id).maybeSingle();
-    final d = List<Map<String, dynamic>>.from(await _client.from('deliveries')
-        .select('*, orders(*, retailers(id,shop_name,owner_name,phone))').eq('batch_id', widget.id).order('assigned_at'));
-    if (mounted) setState(() { _batch = b; _deliveries = d; _loading = false; });
+    final b = await _c.from('delivery_batches').select('*,delivery_agents(name,vehicle_no,phone)').eq('id', widget.id).maybeSingle();
+    final d = await _c.from('deliveries').select('id,status,orders(id,estimated_birds,retailers(shop_name))').eq('batch_id', widget.id);
+    // confirmed orders not yet in this batch
+    final co = await _c.from('orders').select('id,estimated_birds,retailers(shop_name)').eq('trader_id', tid!).eq('status','confirmed');
+    if (mounted) setState(() { _batch = b; _deliveries = List<Map<String,dynamic>>.from(d); _confirmedOrders = List<Map<String,dynamic>>.from(co); _loading = false; });
+  }
+
+  Future<void> _addOrder(String orderId) async {
+    final tid = ref.read(appUserProvider).valueOrNull?.traderId;
+    try {
+      // deliveries: trader_id, order_id, delivery_agent_id, batch_id, status
+      await _c.from('deliveries').insert({
+        'batch_id': widget.id, 'trader_id': tid,
+        'order_id': orderId, 'delivery_agent_id': _batch?['delivery_agent_id'],
+        'status': 'assigned',
+      });
+      _load();
+    } catch (e) { if (mounted) showError(context, e.toString()); }
+  }
+
+  Future<void> _start() async {
+    if (_deliveries.isEmpty) { showError(context, 'Add at least one order'); return; }
+    final ok = await confirmDialog(context, title: 'Start Delivery', message: 'Start all ${_deliveries.length} deliveries?', confirmText: 'Start', confirmColor: kPrimary);
+    if (!ok) return;
+    setState(() => _submitting = true);
+    try {
+      await _c.rpc('start_batch_delivery', params: {'p_batch_id': widget.id});
+      _load();
+      if (mounted) showSuccess(context, 'Batch started ✓');
+    } catch (e) { if (mounted) showError(context, e.toString()); }
+    finally { if (mounted) setState(() => _submitting = false); }
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_loading) return const Scaffold(body: Center(child: CircularProgressIndicator()));
-    if (_batch == null) return Scaffold(appBar: AppBar(), body: const Center(child: Text('Batch not found')));
-    final agent  = _batch!['delivery_agents'] as Map<String, dynamic>?;
+    if (_loading) return const Scaffold(body: LoadingList());
+    if (_batch == null) return Scaffold(appBar: AppBar(), body: const Center(child: Text('Not found')));
+    final a = _batch!['delivery_agents'] as Map<String,dynamic>?;
     final status = _batch!['status'] as String? ?? 'assigned';
-    final challans = _batch!['delivery_challans'] as List? ?? [];
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Batch Detail'), actions: [
-        IconButton(icon: const Icon(Icons.refresh), onPressed: _load),
-      ]),
+      appBar: AppBar(title: const Text('Batch Detail'), actions: [IconButton(icon: const Icon(Icons.refresh), onPressed: _load)]),
       body: ListView(padding: const EdgeInsets.all(16), children: [
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12),
-              border: const Border.fromBorderSide(BorderSide(color: Color(0xFFEEEEEE)))),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Row(children: [
-              StatusBadge(status.replaceAll('_', ' '), StatusColors.order(status)),
-              const Spacer(),
-              Text(DateFormat('d MMM HH:mm').format(DateTime.tryParse(_batch!['created_at'] as String? ?? '') ?? DateTime.now()),
-                  style: const TextStyle(fontSize: 12, color: Color(0xFF9E9E9E))),
-            ]),
-            const SizedBox(height: 10),
-            InfoRow('Agent',        agent?['name'] ?? '—'),
-            InfoRow('Vehicle',      agent?['vehicle_no'] ?? '—'),
-            InfoRow('Total Orders', '${_batch!['total_orders']} orders'),
-            InfoRow('Total Weight', '${(_batch!['total_weight'] as num?)?.toStringAsFixed(2) ?? 0} kg'),
-            InfoRow('Total Amount', '₹${(_batch!['total_amount'] as num?)?.toStringAsFixed(2) ?? 0}', valueColor: AppTheme.primary),
-            if (_batch!['farm_name'] != null) InfoRow('Farm', _batch!['farm_name'] as String),
-          ]),
-        ),
-        if (challans.isNotEmpty) ...[
-          const SizedBox(height: 16),
-          const SectionHeader('DELIVERY CHALLAN'),
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12),
-                border: const Border.fromBorderSide(BorderSide(color: Color(0xFFEEEEEE)))),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              InfoRow('DC Number',   (challans.first as Map)['dc_number'] as String? ?? '—'),
-              InfoRow('Farmer',      (challans.first as Map)['farmer_name'] as String? ?? '—'),
-              InfoRow('Gross Wt',   '${((challans.first as Map)['gross_weight'] as num?)?.toStringAsFixed(2) ?? 0} kg'),
-              InfoRow('Net Wt',     '${((challans.first as Map)['net_weight'] as num?)?.toStringAsFixed(2) ?? 0} kg'),
-              InfoRow('Bird Count', '${(challans.first as Map)['bird_count'] ?? 0}'),
-            ]),
-          ),
-        ],
-        const SizedBox(height: 16),
-        const SectionHeader('DELIVERIES'),
+        WhiteCard(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [Expanded(child: Text(a?['name'] as String? ?? '—', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700))), StatusBadge(status, SC.order(status))]),
+          if (a?['vehicle_no'] != null) Text('Vehicle: ${a!['vehicle_no']}', style: const TextStyle(fontSize: 12, color: kTextSub)),
+        ])),
+        const SizedBox(height: 14),
+        const SectionHeader('DELIVERIES IN BATCH'),
+        if (_deliveries.isEmpty) const Center(child: Padding(padding: EdgeInsets.all(16), child: Text('No orders assigned yet', style: TextStyle(color: kTextHint)))),
         ..._deliveries.map((d) {
-          final order    = d['orders'] as Map<String, dynamic>?;
-          final retailer = order?['retailers'] as Map<String, dynamic>?;
-          final dStatus  = d['status'] as String? ?? 'assigned';
-          return Container(
-            margin: const EdgeInsets.only(bottom: 8),
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(10),
-                border: const Border.fromBorderSide(BorderSide(color: Color(0xFFEEEEEE)))),
+          final o = d['orders'] as Map<String,dynamic>?;
+          final r = o?['retailers'] as Map<String,dynamic>?;
+          return Container(margin: const EdgeInsets.only(bottom: 8), child: WhiteCard(padding: const EdgeInsets.all(12),
             child: Row(children: [
-              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(retailer?['shop_name'] ?? '—', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-                Text(retailer?['phone'] as String? ?? '—', style: const TextStyle(fontSize: 11, color: Color(0xFF9E9E9E))),
-                if ((d['delivered_total_weight'] as num?) != null)
-                  Text('${(d['delivered_total_weight'] as num).toStringAsFixed(2)} kg delivered',
-                      style: const TextStyle(fontSize: 11, color: AppTheme.primary)),
-              ])),
-              StatusBadge(dStatus.replaceAll('_', ' '), StatusColors.order(dStatus)),
-            ]),
-          );
+              Expanded(child: Text(r?['shop_name'] as String? ?? '—', style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13))),
+              Text('${o?['estimated_birds'] ?? 0} birds', style: const TextStyle(fontSize: 12, color: kTextSub)),
+              const SizedBox(width: 8),
+              StatusBadge(d['status'] as String? ?? '—', SC.order(d['status'] as String? ?? ''), small: true),
+            ])));
         }),
+        // unassigned confirmed orders
+        if (status == 'assigned' && _confirmedOrders.isNotEmpty) ...[
+          const SizedBox(height: 10),
+          const SectionHeader('ADD FROM CONFIRMED ORDERS'),
+          ..._confirmedOrders.where((o) => !_deliveries.any((d) => (d['orders'] as Map?)?['id'] == o['id'])).map((o) {
+            final r = o['retailers'] as Map<String,dynamic>?;
+            return ListTile(dense: true,
+              title: Text(r?['shop_name'] as String? ?? '—', style: const TextStyle(fontSize: 13)),
+              subtitle: Text('${o['estimated_birds'] ?? 0} birds'),
+              trailing: IconButton(icon: const Icon(Icons.add_circle_outline, color: kPrimary), onPressed: () => _addOrder(o['id'])));
+          }),
+        ],
+        const SizedBox(height: 20),
+        if (status == 'assigned') ElevatedButton.icon(
+          onPressed: _submitting ? null : _start,
+          icon: _submitting ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.play_arrow),
+          label: const Text('Start Deliveries'),
+        ),
       ]),
     );
   }
