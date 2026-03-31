@@ -21,7 +21,11 @@ class _S extends ConsumerState<AgentHomeScreen> {
 
   Future<void> _load() async {
     final user = ref.read(appUserProvider).valueOrNull;
-    if (user?.agentId == null) return;
+    if (user?.agentId == null) {
+      // FIX Bug #8: show error instead of silent blank screen
+      if (mounted) setState(() => _loading = false);
+      return;
+    }
     setState(() => _loading = true);
     try {
       final s = await _c.rpc('get_agent_summary', params: {'p_agent_id': user!.agentId});
@@ -43,7 +47,8 @@ class _S extends ConsumerState<AgentHomeScreen> {
       appBar: AppBar(
         title: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           const Text('Agent Dashboard', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
-          Text('Hello, ${user?.companyName ?? ''}!', style: const TextStyle(fontSize: 11, color: kTextSub, fontWeight: FontWeight.w400)),
+          // FIX Bug #2: show agent's own name (agentName), not trader's company name
+          Text('Hello, ${user?.agentName ?? user?.companyName ?? ''}!', style: const TextStyle(fontSize: 11, color: kTextSub, fontWeight: FontWeight.w400)),
         ]),
         actions: [
           IconButton(icon: const Icon(Icons.refresh), onPressed: _load),
@@ -53,7 +58,27 @@ class _S extends ConsumerState<AgentHomeScreen> {
           }),
         ],
       ),
-      body: _loading ? const LoadingList() : RefreshIndicator(onRefresh: _load, child: ListView(padding: const EdgeInsets.all(16), children: [
+      body: _loading
+          ? const LoadingList()
+          // FIX Bug #8: show actionable error when agent profile not linked
+          : (ref.watch(appUserProvider).valueOrNull?.agentId == null)
+              ? Center(child: Padding(
+                  padding: const EdgeInsets.all(32),
+                  child: Column(mainAxisSize: MainAxisSize.min, children: [
+                    const Icon(Icons.link_off, size: 56, color: Colors.orange),
+                    const SizedBox(height: 16),
+                    const Text('Agent Profile Not Linked', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+                    const SizedBox(height: 8),
+                    const Text('Your account is signed in but not linked to a delivery agent profile. Please contact your admin or re-link your account.', textAlign: TextAlign.center, style: TextStyle(color: kTextSub, fontSize: 13, height: 1.5)),
+                    const SizedBox(height: 20),
+                    OutlinedButton.icon(
+                      onPressed: () => context.go(R.agentLink),
+                      icon: const Icon(Icons.link),
+                      label: const Text('Link Agent Account'),
+                    ),
+                  ]),
+                ))
+              : RefreshIndicator(onRefresh: _load, child: ListView(padding: const EdgeInsets.all(16), children: [
         // Shift status
         Container(padding: const EdgeInsets.all(14), decoration: BoxDecoration(
             color: hasShift ? kPrimary.withOpacity(0.07) : Colors.orange.shade50, borderRadius: BorderRadius.circular(12),
@@ -96,7 +121,7 @@ class _S extends ConsumerState<AgentHomeScreen> {
         ],
         const SizedBox(height: 12),
         OutlinedButton.icon(onPressed: () => context.go(R.agentDeliveries), icon: const Icon(Icons.list_outlined, size: 18), label: const Text('All Deliveries')),
-      ])),
+      ])),  // closes ListView children, ListView, RefreshIndicator (ternary branch)
     );
   }
 }
