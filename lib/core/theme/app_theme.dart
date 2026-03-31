@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-// ── Colors ────────────────────────────────────────────────────────────
 const kPrimary   = Color(0xFF1B6B3A);
 const kSecondary = Color(0xFFE8A020);
 const kError     = Color(0xFFD32F2F);
@@ -11,7 +10,6 @@ const kTextSub   = Color(0xFF757575);
 const kTextHint  = Color(0xFF9E9E9E);
 
 class AppTheme {
-  // Aliases for easy access
   static const primary   = kPrimary;
   static const secondary = kSecondary;
   static const errorRed  = kError;
@@ -25,58 +23,20 @@ class AppTheme {
     useMaterial3: true,
     colorScheme: ColorScheme.fromSeed(seedColor: kPrimary, primary: kPrimary, secondary: kSecondary, error: kError, surface: kBgGrey),
     scaffoldBackgroundColor: kBgGrey,
-    appBarTheme: const AppBarTheme(
-      backgroundColor: Colors.white, foregroundColor: kTextMain,
-      elevation: 0, scrolledUnderElevation: 1, centerTitle: false,
-      titleTextStyle: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: kTextMain),
-    ),
-    cardTheme: CardThemeData(
-      elevation: 0, color: Colors.white,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: const BorderSide(color: kBorder)),
-    ),
-    inputDecorationTheme: InputDecorationTheme(
-      filled: true, fillColor: const Color(0xFFF3F4F6),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
-      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
-      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: kPrimary, width: 1.5)),
-      errorBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: kError)),
-      focusedErrorBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: kError, width: 1.5)),
-      labelStyle: const TextStyle(color: kTextSub),
-    ),
-    elevatedButtonTheme: ElevatedButtonThemeData(
-      style: ElevatedButton.styleFrom(
-        backgroundColor: kPrimary, foregroundColor: Colors.white,
-        minimumSize: const Size.fromHeight(50), elevation: 0,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
-      ),
-    ),
-    outlinedButtonTheme: OutlinedButtonThemeData(
-      style: OutlinedButton.styleFrom(
-        foregroundColor: kPrimary, minimumSize: const Size.fromHeight(50),
-        side: const BorderSide(color: kPrimary),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
-      ),
-    ),
-    bottomNavigationBarTheme: const BottomNavigationBarThemeData(
-      backgroundColor: Colors.white, selectedItemColor: kPrimary,
-      unselectedItemColor: kTextHint, type: BottomNavigationBarType.fixed, elevation: 8,
-    ),
+    appBarTheme: const AppBarTheme(backgroundColor: Colors.white, foregroundColor: kTextMain, elevation: 0, scrolledUnderElevation: 1, centerTitle: false, titleTextStyle: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: kTextMain)),
+    cardTheme: CardThemeData(elevation: 0, color: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: const BorderSide(color: kBorder))),
+    inputDecorationTheme: InputDecorationTheme(filled: true, fillColor: const Color(0xFFF3F4F6), contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14), border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none), enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none), focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: kPrimary, width: 1.5)), errorBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: kError)), focusedErrorBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: kError, width: 1.5)), labelStyle: const TextStyle(color: kTextSub)),
+    elevatedButtonTheme: ElevatedButtonThemeData(style: ElevatedButton.styleFrom(backgroundColor: kPrimary, foregroundColor: Colors.white, minimumSize: const Size.fromHeight(50), elevation: 0, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)), textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600))),
+    outlinedButtonTheme: OutlinedButtonThemeData(style: OutlinedButton.styleFrom(foregroundColor: kPrimary, minimumSize: const Size.fromHeight(50), side: const BorderSide(color: kPrimary), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)), textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600))),
+    bottomNavigationBarTheme: const BottomNavigationBarThemeData(backgroundColor: Colors.white, selectedItemColor: kPrimary, unselectedItemColor: kTextHint, type: BottomNavigationBarType.fixed, elevation: 8),
     dividerTheme: const DividerThemeData(color: kBorder, space: 1),
-    segmentedButtonTheme: SegmentedButtonThemeData(
-      style: ButtonStyle(
-        backgroundColor: WidgetStateProperty.resolveWith((s) =>
-            s.contains(WidgetState.selected) ? kPrimary.withOpacity(0.12) : Colors.transparent),
-        foregroundColor: WidgetStateProperty.resolveWith((s) =>
-            s.contains(WidgetState.selected) ? kPrimary : kTextSub),
-      ),
-    ),
+    segmentedButtonTheme: SegmentedButtonThemeData(style: ButtonStyle(
+      backgroundColor: WidgetStateProperty.resolveWith((s) => s.contains(WidgetState.selected) ? kPrimary.withOpacity(0.12) : Colors.transparent),
+      foregroundColor: WidgetStateProperty.resolveWith((s) => s.contains(WidgetState.selected) ? kPrimary : kTextSub),
+    )),
   );
 }
 
-// ── Status Colors ─────────────────────────────────────────────────────
 class SC {
   static Color order(String s) => switch (s) {
     'pending'          => const Color(0xFF9E9E9E),
@@ -98,7 +58,7 @@ class SC {
   };
 }
 
-// ── Format Helpers ────────────────────────────────────────────────────
+// ── Number format helpers ──────────────────────────────────────────────
 class Fmt {
   static String amount(double v) {
     if (v >= 100000) return '₹${(v/100000).toStringAsFixed(2)}L';
@@ -106,9 +66,26 @@ class Fmt {
     return '₹${v.toStringAsFixed(2)}';
   }
   static String kg(double v) => '${v.toStringAsFixed(1)} kg';
+
+  /// Parse user input: supports 1.0K, 1.5L, 1000, 1,000
+  static double? parseNum(String s) {
+    final clean = s.trim().replaceAll(',', '');
+    if (clean.isEmpty) return null;
+    final upper = clean.toUpperCase();
+    if (upper.endsWith('L')) {
+      final n = double.tryParse(upper.replaceAll('L', ''));
+      return n != null ? n * 100000 : null;
+    }
+    if (upper.endsWith('K')) {
+      final n = double.tryParse(upper.replaceAll('K', ''));
+      return n != null ? n * 1000 : null;
+    }
+    return double.tryParse(clean);
+  }
+  static int? parseInt(String s) => parseNum(s)?.round();
 }
 
-// ── Shared Widgets ────────────────────────────────────────────────────
+// ── Shared widgets ─────────────────────────────────────────────────────
 class StatusBadge extends StatelessWidget {
   const StatusBadge(this.label, this.color, {super.key, this.small = false});
   final String label; final Color color; final bool small;
@@ -116,8 +93,7 @@ class StatusBadge extends StatelessWidget {
   Widget build(BuildContext context) => Container(
     padding: EdgeInsets.symmetric(horizontal: small ? 6 : 8, vertical: small ? 2 : 3),
     decoration: BoxDecoration(color: color.withOpacity(0.12), borderRadius: BorderRadius.circular(6)),
-    child: Text(label.replaceAll('_', ' ').toUpperCase(),
-        style: TextStyle(fontSize: small ? 9 : 10, fontWeight: FontWeight.w700, color: color)),
+    child: Text(label.replaceAll('_', ' ').toUpperCase(), style: TextStyle(fontSize: small ? 9 : 10, fontWeight: FontWeight.w700, color: color)),
   );
 }
 
@@ -146,15 +122,13 @@ class InfoRow extends StatelessWidget {
 
 class KpiCard extends StatelessWidget {
   const KpiCard(this.label, this.value, this.icon, this.color, {super.key, this.sub, this.onTap});
-  final String label, value; final IconData icon; final Color color;
-  final String? sub; final VoidCallback? onTap;
+  final String label, value; final IconData icon; final Color color; final String? sub; final VoidCallback? onTap;
   @override
   Widget build(BuildContext context) => InkWell(
     onTap: onTap, borderRadius: BorderRadius.circular(12),
     child: Container(
       padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12),
-          border: const Border.fromBorderSide(BorderSide(color: kBorder))),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), border: const Border.fromBorderSide(BorderSide(color: kBorder))),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Icon(icon, color: color, size: 22),
         const Spacer(),
@@ -174,8 +148,7 @@ class EmptyState extends StatelessWidget {
   Widget build(BuildContext context) => Center(child: Padding(
     padding: const EdgeInsets.all(40),
     child: Column(mainAxisSize: MainAxisSize.min, children: [
-      Icon(icon, size: 64, color: Colors.grey.shade300),
-      const SizedBox(height: 16),
+      Icon(icon, size: 64, color: Colors.grey.shade300), const SizedBox(height: 16),
       Text(message, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: kTextSub), textAlign: TextAlign.center),
       if (sub != null) ...[const SizedBox(height: 8), Text(sub!, style: const TextStyle(fontSize: 13, color: kTextHint), textAlign: TextAlign.center)],
       if (onAction != null) ...[const SizedBox(height: 20), ElevatedButton(onPressed: onAction, child: Text(actionLabel ?? 'Add'))],
@@ -185,8 +158,7 @@ class EmptyState extends StatelessWidget {
 
 class LoadingList extends StatelessWidget {
   const LoadingList({super.key});
-  @override
-  Widget build(BuildContext context) => const Center(child: Padding(padding: EdgeInsets.all(40), child: CircularProgressIndicator()));
+  @override Widget build(BuildContext context) => const Center(child: Padding(padding: EdgeInsets.all(40), child: CircularProgressIndicator()));
 }
 
 class WhiteCard extends StatelessWidget {
@@ -195,17 +167,33 @@ class WhiteCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
     padding: padding ?? const EdgeInsets.all(16),
-    decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12),
-        border: const Border.fromBorderSide(BorderSide(color: kBorder))),
+    decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), border: const Border.fromBorderSide(BorderSide(color: kBorder))),
     child: child,
   );
 }
 
-// ── Dialogs & Snackbars ───────────────────────────────────────────────
+// Smart numeric field — accepts K/L notation
+class SmartNumField extends StatelessWidget {
+  const SmartNumField({super.key, required this.controller, required this.label, this.suffix, this.hint, this.onChanged, this.validator, this.isInt = false});
+  final TextEditingController controller;
+  final String label;
+  final String? suffix, hint;
+  final void Function(String)? onChanged;
+  final String? Function(String?)? validator;
+  final bool isInt;
+  @override
+  Widget build(BuildContext context) => TextFormField(
+    controller: controller,
+    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+    decoration: InputDecoration(labelText: label, suffixText: suffix, helperText: hint),
+    onChanged: onChanged,
+    validator: validator,
+  );
+}
+
 Future<bool> confirmDialog(BuildContext ctx, {required String title, required String message,
     String confirmText = 'Confirm', Color confirmColor = kError}) async {
-  return await showDialog<bool>(
-    context: ctx, useRootNavigator: true,
+  return await showDialog<bool>(context: ctx, useRootNavigator: true,
     builder: (c) => AlertDialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       title: Text(title, style: const TextStyle(fontWeight: FontWeight.w700)),
@@ -230,8 +218,8 @@ void showSuccess(BuildContext ctx, String msg) => ScaffoldMessenger.of(ctx)
 void showError(BuildContext ctx, String msg) => ScaffoldMessenger.of(ctx)
   ..hideCurrentSnackBar()
   ..showSnackBar(SnackBar(
-    content: Row(children: [const Icon(Icons.error_outline, color: Colors.white, size: 18), const SizedBox(width: 8), Expanded(child: Text(msg.replaceAll('Exception: ', '')))]),
+    content: Row(children: [const Icon(Icons.error_outline, color: Colors.white, size: 18), const SizedBox(width: 8), Expanded(child: Text(msg.replaceAll('Exception: ', '').replaceAll('PostgrestException(message: ', '')))]),
     backgroundColor: kError, behavior: SnackBarBehavior.floating,
     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-    duration: const Duration(seconds: 4),
+    duration: const Duration(seconds: 5),
   ));

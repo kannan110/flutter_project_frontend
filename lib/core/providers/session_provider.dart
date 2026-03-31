@@ -1,6 +1,3 @@
-// session_provider.dart — AppUserNotifier + Riverpod provider
-// FIX Bug #2: fetch agentName from delivery_agents alongside agentId
-
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/app_user.dart';
@@ -37,7 +34,7 @@ class AppUserNotifier extends StateNotifier<AsyncValue<AppUser?>> {
     _log('Loading uid=${user.id}');
     state = const AsyncValue.loading();
     try {
-      // Single join — user_roles RLS: user_id = auth.uid() only (no recursion)
+      // Single join — user_roles RLS is now: user_id = auth.uid() only (no recursion)
       final row = await _c
           .from('user_roles')
           .select('role, trader_id, is_active, traders(id, company_name, company_code, subscription_end_date)')
@@ -84,18 +81,13 @@ class AppUserNotifier extends StateNotifier<AsyncValue<AppUser?>> {
       final sub      = _pd(tMap?['subscription_end_date']);
 
       String? agentId;
-      String? agentName; // FIX Bug #2: fetch agent's display name
       if (role == UserRole.deliveryStaff && traderId != null) {
         final a = await _c.from('delivery_agents')
-            .select('id, name')           // added 'name' to the select
-            .eq('auth_user_id', user.id)
-            .eq('trader_id', traderId)
-            .eq('is_active', true)
-            .maybeSingle()
-            .timeout(const Duration(seconds: 5));
-        agentId   = a?['id']   as String?;
-        agentName = a?['name'] as String?; // FIX Bug #2
-        _log('agentId=$agentId agentName=$agentName');
+            .select('id').eq('auth_user_id', user.id)
+            .eq('trader_id', traderId).eq('is_active', true)
+            .maybeSingle().timeout(const Duration(seconds: 5));
+        agentId = a?['id'] as String?;
+        _log('agentId=$agentId');
       }
 
       state = AsyncValue.data(AppUser(
@@ -103,9 +95,7 @@ class AppUserNotifier extends StateNotifier<AsyncValue<AppUser?>> {
         companyName: tMap?['company_name'] as String?,
         companyCode: tMap?['company_code'] as String?,
         isSubscriptionActive: sub == null || sub.isAfter(DateTime.now()),
-        subscriptionEndDate: sub,
-        agentId:   agentId,
-        agentName: agentName, // FIX Bug #2
+        subscriptionEndDate: sub, agentId: agentId,
       ));
       _log('Session OK ✓ role=${role.dbValue}');
     } catch (e, st) {
@@ -115,10 +105,6 @@ class AppUserNotifier extends StateNotifier<AsyncValue<AppUser?>> {
   }
 
   DateTime? _pd(dynamic v) => v == null ? null : DateTime.tryParse(v as String);
-
-  /// FIX Bug #1 — called from AgentLinkScreen after successful link
-  /// so the router redirect picks up the new delivery_staff role immediately.
   Future<void> reload() => _load();
-
   Future<void> signOut() async { await _c.auth.signOut(); state = const AsyncValue.data(null); }
 }

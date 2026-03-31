@@ -48,7 +48,7 @@ import '../../features/delivery_agent/expenses/expenses_screen.dart';
 
 abstract class R {
   static const login          = '/login';
-  static const agentLink      = '/agent-link';
+  static const agentLink      = '/agent-link'; // accessible even when signed in
   static const dashboard      = '/t/dashboard';
   static const orders         = '/t/orders';
   static const orderCreate    = '/t/orders/create';
@@ -105,23 +105,44 @@ final appRouterProvider = Provider<GoRouter>((ref) => GoRouter(
   refreshListenable: _Refresh(ref),
   redirect: (ctx, state) {
     final async = ref.read(appUserProvider);
+
+    // While loading session — don't redirect, show splash
     if (async.isLoading) return null;
+
     final user = async.valueOrNull;
     final loc  = state.matchedLocation;
+
+    // ── Not signed in ─────────────────────────────────────────────
     if (user == null) {
+      // Allow login and agent-link when signed out
       if (loc == R.login || loc == R.agentLink) return null;
       return R.login;
     }
-    if (loc == R.login || loc == R.agentLink) {
+
+    // ── Signed in ─────────────────────────────────────────────────
+
+    // IMPORTANT FIX: /agent-link is allowed even when signed in
+    // An agent may be signed in but not yet linked — let them link!
+    if (loc == R.agentLink) return null;
+
+    // Redirect away from login if already signed in
+    if (loc == R.login) {
       return user.isDeliveryAgent ? R.agentHome : R.dashboard;
     }
+
+    // Keep delivery agents in /a/* routes
     if (user.isDeliveryAgent && !loc.startsWith('/a/')) return R.agentHome;
+
+    // Keep trader admin in /t/* routes
     if (!user.isDeliveryAgent && loc.startsWith('/a/')) return R.dashboard;
+
     return null;
   },
   routes: [
     GoRoute(path: R.login,     builder: (_, __) => const LoginScreen()),
     GoRoute(path: R.agentLink, builder: (_, __) => const AgentLinkScreen()),
+
+    // ── Trader Admin Shell ──────────────────────────────────────
     ShellRoute(
       builder: (_, __, child) => TraderShell(child: child),
       routes: [
@@ -158,20 +179,28 @@ final appRouterProvider = Provider<GoRouter>((ref) => GoRouter(
         GoRoute(path: R.dailyReport,    builder: (_, __) => const DailyReportScreen()),
       ],
     ),
+
+    // ── Delivery Agent Shell ────────────────────────────────────
     ShellRoute(
       builder: (_, __, child) => AgentShell(child: child),
       routes: [
-        GoRoute(path: R.agentHome,       builder: (_, __) => const AgentHomeScreen()),
-        GoRoute(path: R.shiftOpen,       builder: (_, __) => const ShiftOpenScreen()),
-        GoRoute(path: R.shiftClose,      builder: (_, __) => const ShiftCloseScreen()),
-        GoRoute(path: R.batchPickup,     builder: (_, s)  => BatchPickupScreen(batchId: s.pathParameters['id']!)),
-        GoRoute(path: R.agentDeliveries, builder: (_, __) => const AgentDeliveriesScreen()),
-        GoRoute(path: R.deliveryDone,    builder: (_, s)  => DeliveryCompleteScreen(deliveryId: s.pathParameters['id']!)),
-        GoRoute(path: R.agentExpenses,   builder: (_, __) => const ExpensesScreen()),
+        GoRoute(path: R.agentHome,        builder: (_, __) => const AgentHomeScreen()),
+        GoRoute(path: R.shiftOpen,        builder: (_, __) => const ShiftOpenScreen()),
+        GoRoute(path: R.shiftClose,       builder: (_, __) => const ShiftCloseScreen()),
+        GoRoute(path: R.batchPickup,      builder: (_, s)  => BatchPickupScreen(batchId: s.pathParameters['id']!)),
+        GoRoute(path: R.agentDeliveries,  builder: (_, __) => const AgentDeliveriesScreen()),
+        GoRoute(path: R.deliveryDone,     builder: (_, s)  => DeliveryCompleteScreen(deliveryId: s.pathParameters['id']!)),
+        GoRoute(path: R.agentExpenses,    builder: (_, __) => const ExpensesScreen()),
       ],
     ),
   ],
-  errorBuilder: (_, s) => Scaffold(body: Center(child: Text('404: ${s.uri}'))),
+  errorBuilder: (_, s) => Scaffold(
+    body: Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+      const Icon(Icons.error_outline, size: 48, color: Colors.red),
+      const SizedBox(height: 12),
+      Text('Page not found: ${s.uri}', textAlign: TextAlign.center),
+    ])),
+  ),
 ));
 
 class _Refresh extends ChangeNotifier {

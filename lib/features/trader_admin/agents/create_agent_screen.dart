@@ -62,26 +62,13 @@ class _S extends ConsumerState<CreateAgentScreen> {
           TextFormField(controller: _vehicle, textCapitalization: TextCapitalization.characters,
               decoration: const InputDecoration(labelText: 'Vehicle Number', prefixIcon: Icon(Icons.directions_car_outlined, size: 20))),
           const SizedBox(height: 12),
-          // FIX Bug #7: Added 'truck' which was missing from DB CHECK constraint options
-          // DB allows: two_wheeler, auto, mini_truck, truck
-          Wrap(
-            spacing: 8,
-            children: [
-              for (final v in [
-                ('two_wheeler', Icons.two_wheeler,        '2-Wheeler'),
-                ('auto',        Icons.electric_rickshaw,  'Auto'),
-                ('mini_truck',  Icons.local_shipping,     'Mini Truck'),
-                ('truck',       Icons.fire_truck,         'Truck'),
-              ])
-                ChoiceChip(
-                  avatar: Icon(v.$2, size: 16),
-                  label: Text(v.$3),
-                  selected: _vehicleType == v.$1,
-                  onSelected: (_) => setState(() => _vehicleType = v.$1),
-                  selectedColor: kPrimary.withOpacity(0.15),
-                ),
+          SegmentedButton<String>(
+            segments: const [
+              ButtonSegment(value:'two_wheeler', icon: Icon(Icons.two_wheeler, size: 14), label: Text('2-Wheeler')),
+              ButtonSegment(value:'auto', icon: Icon(Icons.electric_rickshaw, size: 14), label: Text('Auto')),
+              ButtonSegment(value:'mini_truck', icon: Icon(Icons.local_shipping, size: 14), label: Text('Mini Truck')),
             ],
-          ),
+            selected: {_vehicleType}, onSelectionChanged: (s) => setState(() => _vehicleType = s.first)),
           const SizedBox(height: 28),
           ElevatedButton(onPressed: _submitting ? null : _save,
               child: _submitting ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Text('Add Agent')),
