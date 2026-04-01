@@ -1,10 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
-import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/providers/session_provider.dart';
-import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_theme.dart';
 
 class CratesScreen extends ConsumerStatefulWidget {
@@ -19,10 +16,11 @@ class _S extends ConsumerState<CratesScreen> {
 
   Future<void> _load() async {
     final tid = ref.read(appUserProvider).valueOrNull?.traderId;
-    if (tid == null) return;
-    setState(() => _loading = true);
+    if (tid == null || !mounted) return;
+    if (mounted) setState(() => _loading = true);
     try {
       final res = await _c.rpc('get_crate_summary', params: {'p_trader_id': tid});
+      if (!mounted) return;
       if (mounted) setState(() { _summary = res != null ? Map<String,dynamic>.from(res as Map) : {}; _loading = false; });
     } catch (_) { if (mounted) setState(() => _loading = false); }
   }
@@ -32,7 +30,8 @@ class _S extends ConsumerState<CratesScreen> {
     final ctrl = TextEditingController(text: '${_summary?['total_crates'] ?? 0}');
     final result = await showDialog<int>(context: context, builder: (ctx) => AlertDialog(
       title: const Text('Set Total Crates'),
-      content: TextField(controller: ctrl, keyboardType: TextInputType.number, autofocus: true, decoration: const InputDecoration(labelText: 'Total Crates', suffixText: 'crates')),
+      content: TextField(controller: ctrl, keyboardType: TextInputType.number, autofocus: true,
+          decoration: const InputDecoration(labelText: 'Total Crates', suffixText: 'crates')),
       actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
         ElevatedButton(onPressed: () { final v = int.tryParse(ctrl.text); if (v != null && v >= 0) Navigator.pop(ctx, v); }, child: const Text('Set'))],
     ));
@@ -40,7 +39,8 @@ class _S extends ConsumerState<CratesScreen> {
     if (result == null) return;
     try {
       await _c.rpc('set_crate_inventory', params: {'p_trader_id': tid, 'p_total_crates': result});
-      _load(); if (mounted) showSuccess(context, 'Inventory set ✓');
+      _load();
+      if (mounted) showSuccess(context, 'Crate inventory updated ✓');
     } catch (e) { if (mounted) showError(context, e.toString()); }
   }
 
@@ -49,9 +49,9 @@ class _S extends ConsumerState<CratesScreen> {
     final uid = ref.read(appUserProvider).valueOrNull?.userId;
     final adjCtrl = TextEditingController(); final notesCtrl = TextEditingController();
     final result = await showDialog<int>(context: context, builder: (ctx) => AlertDialog(
-      title: Text('Adjust: $entityName'),
+      title: Text('Adjust Crates — $entityName'),
       content: Column(mainAxisSize: MainAxisSize.min, children: [
-        TextField(controller: adjCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Adjustment (+ add / - remove)')),
+        TextField(controller: adjCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Adjustment (+/-)', helperText: 'Positive = add, Negative = remove')),
         const SizedBox(height: 8),
         TextField(controller: notesCtrl, decoration: const InputDecoration(labelText: 'Notes')),
       ]),
@@ -63,28 +63,28 @@ class _S extends ConsumerState<CratesScreen> {
     if (result == null) return;
     try {
       await _c.rpc('adjust_crate_balance', params: {'p_trader_id': tid, 'p_entity_type': entityType, 'p_entity_id': entityId, 'p_adjustment': result, 'p_notes': notes.isEmpty ? null : notes, 'p_adjusted_by': uid});
-      _load(); if (mounted) showSuccess(context, 'Adjusted ✓');
+      _load();
+      if (mounted) showSuccess(context, 'Adjusted ✓');
     } catch (e) { if (mounted) showError(context, e.toString()); }
   }
 
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(title: const Text('Crate Management'), actions: [
-      IconButton(icon: const Icon(Icons.settings_outlined), onPressed: _setInventory, tooltip: 'Set Total Inventory'),
+      IconButton(icon: const Icon(Icons.settings_outlined), onPressed: _setInventory, tooltip: 'Set inventory'),
       IconButton(icon: const Icon(Icons.refresh), onPressed: _load),
     ]),
     body: _loading ? const LoadingList() : _summary == null ? const EmptyState(icon: Icons.inventory_2_outlined, message: 'No crate data')
         : RefreshIndicator(onRefresh: _load, child: ListView(padding: const EdgeInsets.all(16), children: [
             GridView.count(crossAxisCount: 3, shrinkWrap: true, physics: const NeverScrollableScrollPhysics(),
-              crossAxisSpacing: 10, mainAxisSpacing: 10, childAspectRatio: 1.2,
-              children: [
-                KpiCard('Total', '${_summary!['total_crates'] ?? 0}', Icons.inventory_2_outlined, kPrimary),
-                KpiCard('With Agents', '${_summary!['with_agents'] ?? 0}', Icons.delivery_dining, Colors.orange),
-                KpiCard('With Retailers', '${_summary!['with_retailers'] ?? 0}', Icons.store_outlined, Colors.purple),
-              ]),
-            const SizedBox(height: 16),
+              crossAxisSpacing: 10, mainAxisSpacing: 10, childAspectRatio: 1.2, children: [
+              KpiCard('Total', '${_summary!['total_crates'] ?? 0}', Icons.inventory_2_outlined, kPrimary),
+              KpiCard('With Agents', '${_summary!['with_agents'] ?? 0}', Icons.delivery_dining, Colors.orange),
+              KpiCard('With Retailers', '${_summary!['with_retailers'] ?? 0}', Icons.store_outlined, Colors.purple),
+            ]),
+            const SizedBox(height: 14),
             if ((_summary!['agent_balances'] as List?)?.isNotEmpty == true) ...[
-              const SectionHeader('CRATES WITH AGENTS'),
+              const SectionHeader('WITH AGENTS'),
               ...(_summary!['agent_balances'] as List).map((b) {
                 final row = b as Map<String,dynamic>;
                 return Container(margin: const EdgeInsets.only(bottom: 8), child: WhiteCard(padding: const EdgeInsets.all(12),
@@ -98,7 +98,7 @@ class _S extends ConsumerState<CratesScreen> {
               }),
             ],
             if ((_summary!['retailer_balances'] as List?)?.isNotEmpty == true) ...[
-              const SectionHeader('CRATES WITH RETAILERS'),
+              const SectionHeader('WITH RETAILERS'),
               ...(_summary!['retailer_balances'] as List).map((b) {
                 final row = b as Map<String,dynamic>;
                 return Container(margin: const EdgeInsets.only(bottom: 8), child: WhiteCard(padding: const EdgeInsets.all(12),

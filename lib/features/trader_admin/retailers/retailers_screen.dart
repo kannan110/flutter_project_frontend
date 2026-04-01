@@ -20,7 +20,7 @@ class _S extends ConsumerState<RetailersScreen> {
   Future<void> _load() async {
     final tid = ref.read(appUserProvider).valueOrNull?.traderId;
     if (tid == null) return;
-    setState(() => _loading = true);
+    if (mounted) setState(() => _loading = true);
     try {
       // retailers columns: id,shop_name,owner_name,phone,address,credit_limit,is_active,is_blocked,risk_level
       // NO outstanding_balance column — that's computed
@@ -34,9 +34,9 @@ class _S extends ConsumerState<RetailersScreen> {
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(title: const Text('Retailers'), actions: [IconButton(icon: const Icon(Icons.refresh), onPressed: _load)]),
-    floatingActionButton: FloatingActionButton.extended(onPressed: () => context.go(R.retailerCreate), icon: const Icon(Icons.add), label: const Text('Add Retailer')),
+    floatingActionButton: FloatingActionButton.extended(onPressed: () => context.push(R.retailerCreate), icon: const Icon(Icons.add), label: const Text('Add Retailer')),
     body: _loading ? const LoadingList() : _list.isEmpty
-        ? EmptyState(icon: Icons.store_outlined, message: 'No retailers yet', onAction: () => context.go(R.retailerCreate), actionLabel: 'Add Retailer')
+        ? EmptyState(icon: Icons.store_outlined, message: 'No retailers yet', onAction: () => context.push(R.retailerCreate), actionLabel: 'Add Retailer')
         : RefreshIndicator(onRefresh: _load, child: ListView.separated(
             padding: const EdgeInsets.all(16), itemCount: _list.length,
             separatorBuilder: (_, __) => const SizedBox(height: 8),
@@ -45,7 +45,7 @@ class _S extends ConsumerState<RetailersScreen> {
               final risk = r['risk_level'] as String? ?? 'low';
               final blocked = r['is_blocked'] as bool? ?? false;
               return InkWell(
-                onTap: () => context.go(R.retailerDetailPath(r['id'])),
+                onTap: () => context.push(R.retailerDetailPath(r['id'])),
                 borderRadius: BorderRadius.circular(12),
                 child: WhiteCard(child: Row(children: [
                   Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [

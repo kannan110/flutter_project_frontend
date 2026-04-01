@@ -27,7 +27,7 @@ class _S extends ConsumerState<DayClosureScreen> {
   Future<void> _load() async {
     final tid = ref.read(appUserProvider).valueOrNull?.traderId;
     if (tid == null) return;
-    setState(() => _loading = true);
+    if (mounted) setState(() => _loading = true);
     try {
       // Get day closure status
       final st = await _c.rpc('get_day_closure_status', params: {'p_trader_id': tid, 'p_date': _dateStr});
@@ -41,7 +41,7 @@ class _S extends ConsumerState<DayClosureScreen> {
           .order('shift_start_at');
 
       if (mounted) setState(() {
-        _status = st != null ? Map<String,dynamic>.from(st as Map) : {};
+        _status = st != null ? Map<String,dynamic>.from(((st as Map?)?.cast<String,dynamic>()) ?? {}) : {};
         _shifts = List<Map<String,dynamic>>.from(shifts);
         _loading = false;
       });
@@ -114,7 +114,7 @@ class _S extends ConsumerState<DayClosureScreen> {
   Future<void> _runCheck() async {
     final tid = ref.read(appUserProvider).valueOrNull?.traderId;
     final uid = ref.read(appUserProvider).valueOrNull?.userId;
-    setState(() => _submitting = true);
+    if (mounted) setState(() => _submitting = true);
     try {
       await _c.rpc('run_cross_check', params: {'p_trader_id': tid, 'p_date': _dateStr, 'p_run_by': uid});
       _load();
@@ -136,7 +136,7 @@ class _S extends ConsumerState<DayClosureScreen> {
     } else {
       final ok = await confirmDialog(context,
           title: 'Close Day — $_dateStr',
-          message: 'This will lock the day.\nNo new orders or records can be created after this.',
+          message: 'This will mark today as closed for reconciliation.\nYou can still create orders if needed.',
           confirmText: 'Close Day',
           confirmColor: kError);
       if (!ok) return;
@@ -144,7 +144,7 @@ class _S extends ConsumerState<DayClosureScreen> {
 
     final tid = ref.read(appUserProvider).valueOrNull?.traderId;
     final uid = ref.read(appUserProvider).valueOrNull?.userId;
-    setState(() => _submitting = true);
+    if (mounted) setState(() => _submitting = true);
     try {
       final res = await _c.rpc('initiate_day_closure',
           params: {'p_trader_id': tid, 'p_date': _dateStr, 'p_closed_by': uid});
@@ -252,7 +252,7 @@ class _S extends ConsumerState<DayClosureScreen> {
                 Container(
                   width: 42, height: 42,
                   decoration: BoxDecoration(
-                    color: isOpen ? Colors.orange.withOpacity(0.1) : Colors.green.withOpacity(0.1),
+                    color: isOpen ? Colors.orange.withValues(alpha: 0.1) : Colors.green.withValues(alpha: 0.1),
                     shape: BoxShape.circle,
                   ),
                   child: Icon(Icons.delivery_dining, color: isOpen ? Colors.orange : Colors.green, size: 22),

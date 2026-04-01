@@ -21,11 +21,11 @@ class _S extends ConsumerState<ShiftDetailScreen> {
 
   Future<void> _load() async {
     if (!mounted) return;
-    setState(() => _loading = true);
+    if (mounted) setState(() => _loading = true);
     try {
       final res = await _c.rpc('get_shift_summary', params: {'p_shift_id': widget.id});
       if (!mounted) return;
-      if (mounted) setState(() { _summary = res != null ? Map<String,dynamic>.from(res as Map) : null; _loading = false; });
+      if (mounted) setState(() { _summary = res != null ? Map<String,dynamic>.from(((res as Map?)?.cast<String,dynamic>()) ?? {}) : null; _loading = false; });
     } catch (e) {
       if (!mounted) return;
       if (mounted) setState(() => _loading = false);

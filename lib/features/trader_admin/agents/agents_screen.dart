@@ -22,7 +22,7 @@ class _S extends ConsumerState<AgentsScreen> {
   Future<void> _load() async {
     final tid = ref.read(appUserProvider).valueOrNull?.traderId;
     if (tid == null) return;
-    setState(() => _loading = true);
+    if (mounted) setState(() => _loading = true);
     try {
       final data = await _c.from('delivery_agents')
           .select('id,name,phone,vehicle_no,vehicle_type,is_active,auth_user_id,notes')
@@ -45,7 +45,7 @@ class _S extends ConsumerState<AgentsScreen> {
           // Company Code
           Container(
             padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(color: kPrimary.withOpacity(0.08), borderRadius: BorderRadius.circular(12), border: Border.all(color: kPrimary.withOpacity(0.2))),
+            decoration: BoxDecoration(color: kPrimary.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(12), border: Border.all(color: kPrimary.withValues(alpha: 0.2))),
             child: Row(children: [
               Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 const Text('Company Code', style: TextStyle(fontSize: 11, color: kTextHint)),
@@ -116,7 +116,7 @@ class _S extends ConsumerState<AgentsScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text('Delivery Agents'), actions: [IconButton(icon: const Icon(Icons.refresh), onPressed: _load)]),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => context.go(R.agentCreate),
+        onPressed: () => context.push(R.agentCreate),
         icon: const Icon(Icons.person_add_outlined),
         label: const Text('Add Agent')),
       body: Column(children: [
@@ -151,7 +151,7 @@ class _S extends ConsumerState<AgentsScreen> {
         const Divider(height: 1),
 
         Expanded(child: _loading ? const LoadingList() : _agents.isEmpty
-            ? EmptyState(icon: Icons.delivery_dining_outlined, message: 'No agents yet', sub: 'Add your delivery agents and share the Company Code with them', onAction: () => context.go(R.agentCreate), actionLabel: 'Add Agent')
+            ? EmptyState(icon: Icons.delivery_dining_outlined, message: 'No agents yet', sub: 'Add your delivery agents and share the Company Code with them', onAction: () => context.push(R.agentCreate), actionLabel: 'Add Agent')
             : RefreshIndicator(onRefresh: _load, child: ListView.separated(
                 padding: const EdgeInsets.all(16), itemCount: _agents.length,
                 separatorBuilder: (_, __) => const SizedBox(height: 10),
@@ -172,7 +172,7 @@ class _S extends ConsumerState<AgentsScreen> {
                         Container(
                           width: 46, height: 46,
                           decoration: BoxDecoration(
-                            color: linked ? kPrimary.withOpacity(0.1) : Colors.orange.withOpacity(0.1),
+                            color: linked ? kPrimary.withValues(alpha: 0.1) : Colors.orange.withValues(alpha: 0.1),
                             shape: BoxShape.circle),
                           child: Icon(linked ? Icons.delivery_dining : Icons.person_add_outlined,
                               color: linked ? kPrimary : Colors.orange, size: 24)),
@@ -189,7 +189,7 @@ class _S extends ConsumerState<AgentsScreen> {
                         Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
                           StatusBadge(linked ? 'linked ✓' : 'not linked', linked ? Colors.green : Colors.orange),
                           const SizedBox(height: 4),
-                          InkWell(onTap: () => context.go(R.agentDetailPath(a['id'])), child: const Text('Details ›', style: TextStyle(fontSize: 11, color: kPrimary, fontWeight: FontWeight.w600))),
+                          InkWell(onTap: () => context.push(R.agentDetailPath(a['id'])), child: const Text('Details ›', style: TextStyle(fontSize: 11, color: kPrimary, fontWeight: FontWeight.w600))),
                         ]),
                       ])),
 

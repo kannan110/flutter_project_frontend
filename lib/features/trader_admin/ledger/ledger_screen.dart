@@ -20,7 +20,7 @@ class _S extends ConsumerState<LedgerScreen> {
   Future<void> _load() async {
     final tid = ref.read(appUserProvider).valueOrNull?.traderId;
     if (tid == null) return;
-    setState(() => _loading = true);
+    if (mounted) setState(() => _loading = true);
     try {
       // retailers columns: id, shop_name, owner_name, credit_limit (NOT outstanding_balance — no such column)
       // We get outstanding via get_retailer_outstanding RPC per retailer, but for list we just show retailers
@@ -42,7 +42,7 @@ class _S extends ConsumerState<LedgerScreen> {
               final r = _list[i];
               final risk = r['risk_level'] as String? ?? 'low';
               return InkWell(
-                onTap: () => context.go(R.retailerLedgerPath(r['id'])),
+                onTap: () => context.push(R.retailerLedgerPath(r['id'])),
                 borderRadius: BorderRadius.circular(12),
                 child: WhiteCard(child: Row(children: [
                   Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [

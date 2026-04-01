@@ -20,12 +20,12 @@ class _S extends ConsumerState<AgentDetailScreen> {
   @override void initState() { super.initState(); _load(); }
 
   Future<void> _load() async {
-    setState(() => _loading = true);
+    if (mounted) setState(() => _loading = true);
     final a = await _c.from('delivery_agents').select('*').eq('id', widget.id).maybeSingle();
     Map<String,dynamic>? s;
     try {
       final res = await _c.rpc('get_agent_summary', params: {'p_agent_id': widget.id});
-      s = res != null ? Map<String,dynamic>.from(res as Map) : null;
+      s = res != null ? Map<String,dynamic>.from(((res as Map?)?.cast<String,dynamic>()) ?? {}) : null;
     } catch (_) {}
     if (mounted) setState(() { _agent = a; _summary = s; _loading = false; });
   }

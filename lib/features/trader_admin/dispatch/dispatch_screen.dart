@@ -20,7 +20,7 @@ class _S extends ConsumerState<DispatchScreen> {
   Future<void> _load() async {
     final tid = ref.read(appUserProvider).valueOrNull?.traderId;
     if (tid == null) return;
-    setState(() => _loading = true);
+    if (mounted) setState(() => _loading = true);
     try {
       // delivery_batches columns: id,trader_id,delivery_agent_id,shift_id,status,total_orders,total_birds,created_at
       final data = await _c.from('delivery_batches')
@@ -77,10 +77,10 @@ class _S extends ConsumerState<DispatchScreen> {
               final a = b['delivery_agents'] as Map<String,dynamic>?;
               final date = DateTime.tryParse(b['created_at'] as String? ?? '');
               return InkWell(
-                onTap: () => context.go(R.batchDetailPath(b['id'])),
+                onTap: () => context.push(R.batchDetailPath(b['id'])),
                 borderRadius: BorderRadius.circular(12),
                 child: WhiteCard(child: Row(children: [
-                  Container(width: 42, height: 42, decoration: BoxDecoration(color: kPrimary.withOpacity(0.1), shape: BoxShape.circle),
+                  Container(width: 42, height: 42, decoration: BoxDecoration(color: kPrimary.withValues(alpha: 0.1), shape: BoxShape.circle),
                       child: const Icon(Icons.local_shipping_outlined, color: kPrimary, size: 20)),
                   const SizedBox(width: 12),
                   Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [

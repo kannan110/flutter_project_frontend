@@ -37,9 +37,9 @@ class _LoginState extends ConsumerState<LoginScreen> with TickerProviderStateMix
 
   Future<void> _signIn() async {
     if (_siEmail.text.trim().isEmpty || _siPass.text.isEmpty) {
-      setState(() => _err = 'Enter email and password'); return;
+      if (mounted) setState(() => _err = 'Enter email and password'); return;
     }
-    setState(() { _busy = true; _err = null; });
+    if (mounted) setState(() { _busy = true; _err = null; });
     try {
       await Supabase.instance.client.auth.signInWithPassword(
         email: _siEmail.text.trim(), password: _siPass.text);
@@ -53,10 +53,10 @@ class _LoginState extends ConsumerState<LoginScreen> with TickerProviderStateMix
   Future<void> _signUp() async {
     final email = _suEmail.text.trim();
     final pass  = _suPass.text;
-    if (email.isEmpty) { setState(() => _err = 'Enter email'); return; }
-    if (pass.length < 6) { setState(() => _err = 'Password must be 6+ characters'); return; }
-    if (pass != _suPassC.text) { setState(() => _err = 'Passwords do not match'); return; }
-    setState(() { _busy = true; _err = null; });
+    if (email.isEmpty) { if (mounted) setState(() => _err = 'Enter email'); return; }
+    if (pass.length < 6) { if (mounted) setState(() => _err = 'Password must be 6+ characters'); return; }
+    if (pass != _suPassC.text) { if (mounted) setState(() => _err = 'Passwords do not match'); return; }
+    if (mounted) setState(() { _busy = true; _err = null; });
     try {
       final res = await Supabase.instance.client.auth.signUp(email: email, password: pass);
       if (mounted) {
@@ -67,7 +67,7 @@ class _LoginState extends ConsumerState<LoginScreen> with TickerProviderStateMix
           _siEmail.text = email;
           if (mounted) setState(() {});
         } else {
-          setState(() => _err = 'Check your email to confirm your account, then sign in.');
+          if (mounted) setState(() => _err = 'Check your email to confirm your account, then sign in.');
         }
       }
     } on AuthException catch (e) {
@@ -102,7 +102,7 @@ class _LoginState extends ConsumerState<LoginScreen> with TickerProviderStateMix
                   colors: [Color(0xFF1B6B3A), Color(0xFF2E8B57)],
                   begin: Alignment.topLeft, end: Alignment.bottomRight),
                 borderRadius: BorderRadius.circular(20),
-                boxShadow: [BoxShadow(color: kPrimary.withOpacity(0.3), blurRadius: 16, offset: const Offset(0, 6))],
+                boxShadow: [BoxShadow(color: kPrimary.withValues(alpha: 0.3), blurRadius: 16, offset: const Offset(0, 6))],
               ),
               child: const Center(child: Text('🐓', style: TextStyle(fontSize: 38))),
             ),
@@ -116,7 +116,7 @@ class _LoginState extends ConsumerState<LoginScreen> with TickerProviderStateMix
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(16),
-                boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.07), blurRadius: 20, offset: const Offset(0, 4))],
+                boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.07), blurRadius: 20, offset: const Offset(0, 4))],
               ),
               clipBehavior: Clip.antiAlias,
               child: Column(mainAxisSize: MainAxisSize.min, children: [
@@ -257,9 +257,9 @@ class _LoginState extends ConsumerState<LoginScreen> with TickerProviderStateMix
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: kPrimary.withOpacity(0.05),
+                color: kPrimary.withValues(alpha: 0.05),
                 borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: kPrimary.withOpacity(0.2)),
+                border: Border.all(color: kPrimary.withValues(alpha: 0.2)),
               ),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 const Row(children: [
@@ -300,7 +300,7 @@ class _LoginState extends ConsumerState<LoginScreen> with TickerProviderStateMix
     child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Container(
         width: 20, height: 20, margin: const EdgeInsets.only(right: 8, top: 1),
-        decoration: BoxDecoration(color: kPrimary.withOpacity(0.15), borderRadius: BorderRadius.circular(10)),
+        decoration: BoxDecoration(color: kPrimary.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(10)),
         child: Center(child: Text(n, style: const TextStyle(fontSize: 10, color: kPrimary, fontWeight: FontWeight.w800))),
       ),
       Expanded(child: Text(text, style: const TextStyle(fontSize: 12, color: kTextMain, height: 1.4))),

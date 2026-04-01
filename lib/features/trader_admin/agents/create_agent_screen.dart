@@ -25,7 +25,7 @@ class _S extends ConsumerState<CreateAgentScreen> {
   Future<void> _save() async {
     if (!_form.currentState!.validate()) return;
     final tid = ref.read(appUserProvider).valueOrNull?.traderId;
-    setState(() => _submitting = true);
+    if (mounted) setState(() => _submitting = true);
     try {
       // delivery_agents: trader_id, name, phone, vehicle_no, vehicle_type, is_active
       // auth_user_id is intentionally NULL — agent links it themselves
@@ -35,7 +35,7 @@ class _S extends ConsumerState<CreateAgentScreen> {
         'vehicle_no': _vehicle.text.trim().isEmpty ? null : _vehicle.text.trim(),
         'vehicle_type': _vehicleType, 'is_active': true,
       });
-      if (mounted) { showSuccess(context, 'Agent added! Share your Company Code with them.'); context.go(R.agents); }
+      if (mounted) { showSuccess(context, 'Agent added! Share your Company Code with them.'); if (context.canPop()) context.pop(); else context.go(R.agents); }
     } catch (e) { if (mounted) showError(context, e.toString()); }
     finally { if (mounted) setState(() => _submitting = false); }
   }

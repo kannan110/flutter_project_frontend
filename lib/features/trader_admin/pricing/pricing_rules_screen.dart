@@ -20,7 +20,7 @@ class _S extends ConsumerState<PricingRulesScreen> {
   Future<void> _load() async {
     final tid = ref.read(appUserProvider).valueOrNull?.traderId;
     if (tid == null) return;
-    setState(() => _loading = true);
+    if (mounted) setState(() => _loading = true);
     try {
       // pricing_rules: id,rule_type,rate_per_kg,discount_pct,discount_amount,min_quantity_kg,is_active,created_at
       // rule_type CHECK: flat, percentage_discount, absolute_discount, bulk_tier

@@ -20,7 +20,7 @@ class _S extends ConsumerState<ApprovalsScreen> {
   Future<void> _load() async {
     final tid = ref.read(appUserProvider).valueOrNull?.traderId;
     if (tid == null) return;
-    setState(() => _loading = true);
+    if (mounted) setState(() => _loading = true);
     try {
       // deliveries: status=delivered, approval_status=pending
       final data = await _c.from('deliveries')
@@ -55,7 +55,7 @@ class _S extends ConsumerState<ApprovalsScreen> {
               // weight: received_total_weight preferred, fallback to delivered_total_weight
               final w = ((d['received_total_weight'] ?? d['delivered_total_weight']) as num?)?.toDouble() ?? 0;
               return InkWell(
-                onTap: () => context.go(R.approvalDetailPath(d['id'])),
+                onTap: () => context.push(R.approvalDetailPath(d['id'])),
                 borderRadius: BorderRadius.circular(12),
                 child: Container(padding: const EdgeInsets.all(14),
                   decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.orange.shade200, width: 1.5)),

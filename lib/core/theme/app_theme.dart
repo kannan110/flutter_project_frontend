@@ -31,7 +31,7 @@ class AppTheme {
     bottomNavigationBarTheme: const BottomNavigationBarThemeData(backgroundColor: Colors.white, selectedItemColor: kPrimary, unselectedItemColor: kTextHint, type: BottomNavigationBarType.fixed, elevation: 8),
     dividerTheme: const DividerThemeData(color: kBorder, space: 1),
     segmentedButtonTheme: SegmentedButtonThemeData(style: ButtonStyle(
-      backgroundColor: WidgetStateProperty.resolveWith((s) => s.contains(WidgetState.selected) ? kPrimary.withOpacity(0.12) : Colors.transparent),
+      backgroundColor: WidgetStateProperty.resolveWith((s) => s.contains(WidgetState.selected) ? kPrimary.withValues(alpha: 0.12) : Colors.transparent),
       foregroundColor: WidgetStateProperty.resolveWith((s) => s.contains(WidgetState.selected) ? kPrimary : kTextSub),
     )),
   );
@@ -92,7 +92,7 @@ class StatusBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
     padding: EdgeInsets.symmetric(horizontal: small ? 6 : 8, vertical: small ? 2 : 3),
-    decoration: BoxDecoration(color: color.withOpacity(0.12), borderRadius: BorderRadius.circular(6)),
+    decoration: BoxDecoration(color: color.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(6)),
     child: Text(label.replaceAll('_', ' ').toUpperCase(), style: TextStyle(fontSize: small ? 9 : 10, fontWeight: FontWeight.w700, color: color)),
   );
 }

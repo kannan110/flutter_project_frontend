@@ -21,7 +21,7 @@ class _S extends ConsumerState<RatesScreen> {
   Future<void> _load() async {
     final tid = ref.read(appUserProvider).valueOrNull?.traderId;
     if (tid == null) return;
-    setState(() => _loading = true);
+    if (mounted) setState(() => _loading = true);
     try {
       final products = await _c.from('master_products').select('id,name').eq('is_active', true).order('name');
       // rate_history: id, trader_id, product_id, rate_per_kg, effective_date, created_at

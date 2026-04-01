@@ -2,61 +2,81 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../../core/models/dashboard_models.dart';
 import '../../../core/providers/session_provider.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_theme.dart';
 
 final langProvider = StateProvider<String>((ref) => 'en');
 
-class L {
+class _L {
+  static String g(String lang, String k) => _t[lang]?[k] ?? _t['en']![k] ?? k;
   static const _t = {
     'en': {
-      'new_order':'New Order','all_orders':'All Orders','add_stock':'Add Chicken Stock',
-      'approve':'Approve Delivery','dispatch':'Dispatch','collect':'Collect Money',
+      'today':'Today Overview','new_order':'New Order','orders':'Orders',
+      'approve':'Approve','dispatch':'Dispatch','collect':'Collect Cash',
       'customers':'Customers','agents':'Agents','rate':'Set Rate','returns':'Returns',
-      'reconcile':'Check Cash','analytics':'Summary','close_day':'Close Day',
-      'alerts':'Alerts','report':'Daily Report','crates':'Crates','invoices':'Bills',
-      'stock':'Today Stock','finance':'Accounts','quick':'QUICK ACTIONS',
-      'today_view':'Today Overview','remaining':'Remaining','purchased':'Purchased',
-      'delivered':'Delivered','returned':'Returns','cash':'Cash','outstanding':'To Collect',
+      'reconcile':'Check Cash','close_day':'Close Day','alerts':'Alerts',
+      'report':'Report','crates':'Crates','invoices':'Bills','shifts':'Shifts',
+      'stock_in':'Purchased','delivered':'Delivered','returned':'Returns',
+      'remaining':'Remaining','add_stock':'Add Stock','outstanding':'To Collect',
+      'cash':'Cash','upi':'UPI',
     },
     'ta': {
-      'new_order':'புது ஆர்டர்','all_orders':'ஆர்டர்கள்','add_stock':'கோழி சேர்',
-      'approve':'டெலிவரி அனுமதி','dispatch':'அனுப்பு','collect':'பணம் வசூல்',
-      'customers':'வாடிக்கையாளர்','agents':'ஏஜெண்ட்','rate':'விலை நிர்ணயம்','returns':'திருப்பம்',
-      'reconcile':'கேஷ் சரிபார்','analytics':'சுருக்கம்','close_day':'நாள் முடி',
-      'alerts':'எச்சரிக்கை','report':'அறிக்கை','crates':'கிரேட்','invoices':'பில்',
-      'stock':'இன்றைய கோழி','finance':'கணக்கு','quick':'விரைவு செயல்கள்',
-      'today_view':'இன்றைய நிலை','remaining':'மீதம்','purchased':'வாங்கியது',
-      'delivered':'டெலிவரி','returned':'திரும்பியது','cash':'பணம்','outstanding':'வசூல் செய்யவேண்டியது',
+      'today':'இன்றைய நிலை','new_order':'புது ஆர்டர்','orders':'ஆர்டர்',
+      'approve':'அனுமதி','dispatch':'அனுப்பு','collect':'பணம் வசூல்',
+      'customers':'வாடிக்கையாளர்','agents':'ஏஜெண்ட்','rate':'விலை','returns':'திருப்பம்',
+      'reconcile':'கேஷ் சரிபார்','close_day':'நாள் முடி','alerts':'எச்சரிக்கை',
+      'report':'அறிக்கை','crates':'கிரேட்','invoices':'பில்','shifts':'ஷிஃப்ட்',
+      'stock_in':'வாங்கியது','delivered':'டெலிவரி','returned':'திருப்பம்',
+      'remaining':'மீதம்','add_stock':'கோழி சேர்','outstanding':'வசூல் செய்ய',
+      'cash':'கேஷ்','upi':'UPI',
     },
   };
-  static String g(String lang, String k) => _t[lang]?[k] ?? _t['en']![k] ?? k;
+}
+
+// Top-level model — not nested inside a class
+class _QA {
+  final IconData icon;
+  final String label;
+  final Color color;
+  final VoidCallback onTap;
+  final bool wide;
+  const _QA(this.icon, this.label, this.color, this.onTap, {this.wide = false});
 }
 
 class DashboardScreen extends ConsumerStatefulWidget {
   const DashboardScreen({super.key});
-  @override ConsumerState<DashboardScreen> createState() => _S();
+  @override ConsumerState<DashboardScreen> createState() => _DashboardScreenState();
 }
-class _S extends ConsumerState<DashboardScreen> {
-  final _c = Supabase.instance.client;
-  Map<String,dynamic>? _d;
+
+class _DashboardScreenState extends ConsumerState<DashboardScreen> {
+  DashboardData? _data;
+  List<StockPosition> _stock = [];
   bool _loading = true;
+  String? _error;
 
   @override void initState() { super.initState(); _load(); }
 
   Future<void> _load() async {
     final tid = ref.read(appUserProvider).valueOrNull?.traderId;
-    if (tid == null) return;
-    if (!mounted) return;
-    setState(() => _loading = true);
+    if (tid == null || !mounted) return;
+    if (mounted) setState(() { _loading = true; _error = null; });
     try {
-      final res = await _c.rpc('dashboard_summary', params: {'p_trader_id': tid});
+      final dashRes   = await Supabase.instance.client.rpc('dashboard_summary',   params: {'p_trader_id': tid});
+      final stockRes  = await Supabase.instance.client.rpc('get_available_stock', params: {'p_trader_id': tid});
       if (!mounted) return;
-      if (mounted) setState(() { _d = res != null ? Map<String,dynamic>.from(res as Map) : {}; _loading = false; });
+      final dashMap   = dashRes  as Map<String,dynamic>?;
+      final stockList = stockRes as List?;
+      if (!mounted) return;
+      if (mounted) setState(() {
+        _data  = dashMap  != null ? DashboardData.fromMap(dashMap) : const DashboardData();
+        _stock = (stockList ?? []).map((s) => StockPosition.fromMap(s as Map<String,dynamic>)).toList();
+        _loading = false;
+      });
     } catch (e) {
       if (!mounted) return;
-      if (mounted) setState(() => _loading = false);
+      if (mounted) setState(() { _error = e.toString().replaceAll('Exception: ', ''); _loading = false; });
     }
   }
 
@@ -64,13 +84,17 @@ class _S extends ConsumerState<DashboardScreen> {
   Widget build(BuildContext context) {
     final user = ref.watch(appUserProvider).valueOrNull;
     final lang = ref.watch(langProvider);
-    final t    = (String k) => L.g(lang, k);
+    final t    = (String k) => _L.g(lang, k);
 
     return Scaffold(
+      backgroundColor: const Color(0xFFF0F4F0),
       appBar: AppBar(
+        backgroundColor: Colors.white,
         title: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(user?.companyName ?? 'Dashboard', style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
-          Text(t('today_view'), style: const TextStyle(fontSize: 11, color: kTextHint, fontWeight: FontWeight.w400)),
+          Text(user?.companyName ?? 'Dashboard',
+              style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
+          Text(t('today'),
+              style: const TextStyle(fontSize: 11, color: kTextHint, fontWeight: FontWeight.w400)),
         ]),
         actions: [
           GestureDetector(
@@ -78,175 +102,291 @@ class _S extends ConsumerState<DashboardScreen> {
             child: Container(
               margin: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(color: kPrimary.withOpacity(0.1), borderRadius: BorderRadius.circular(20), border: Border.all(color: kPrimary.withOpacity(0.3))),
-              child: Text(lang == 'en' ? 'தமிழ்' : 'EN', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: kPrimary)),
-            ),
-          ),
-          IconButton(icon: const Icon(Icons.notifications_outlined), onPressed: () => context.go(R.alerts)),
+              decoration: BoxDecoration(
+                  color: kPrimary.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: kPrimary.withValues(alpha: 0.3))),
+              child: Text(lang == 'en' ? 'தமிழ்' : 'EN',
+                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: kPrimary)))),
+          if ((_data?.unreadAlerts ?? 0) > 0)
+            Stack(children: [
+              IconButton(icon: const Icon(Icons.notifications_outlined), onPressed: () => context.go(R.alerts)),
+              Positioned(right: 8, top: 8, child: Container(width: 8, height: 8,
+                  decoration: const BoxDecoration(color: Colors.red, shape: BoxShape.circle))),
+            ])
+          else
+            IconButton(icon: const Icon(Icons.notifications_outlined), onPressed: () => context.go(R.alerts)),
           IconButton(icon: const Icon(Icons.refresh), onPressed: _load),
         ],
       ),
       body: _loading ? const LoadingList()
-          : RefreshIndicator(onRefresh: _load, child: _body(context, lang)),
+          : _error != null ? _errorView()
+          : RefreshIndicator(
+              onRefresh: _load,
+              child: ListView(padding: const EdgeInsets.all(12), children: [
+                ..._buildAlerts(t),
+                _section('📦 Live Deliveries', [
+                  Row(children: [
+                    _kpi(t('orders'),   '${_data?.pendingOrders ?? 0}',   Colors.orange, () => context.go(R.orders)),
+                    const SizedBox(width: 10),
+                    _kpi(t('dispatch'), '${_data?.activeDeliveries ?? 0}', Colors.blue,  () => context.go(R.dispatch)),
+                    const SizedBox(width: 10),
+                    _kpi(t('approve'),  '${_data?.pendingApprovals ?? 0}',
+                        (_data?.pendingApprovals ?? 0) == 0 ? Colors.green : Colors.red,
+                        () => context.go(R.approvals)),
+                  ]),
+                ]),
+                _section('🐓 Stock Intelligence', [
+                  if (_stock.isEmpty)
+                    _alertTile('No stock recorded. Add opening stock or create a DC.',
+                        Colors.orange, Icons.warning_amber_rounded, onTap: () => context.go(R.stock))
+                  else
+                    ..._stock.map(_stockCard),
+                  if (_stock.any((s) => s.isNegative))
+                    _alertTile('NEGATIVE STOCK detected! Check stock entries.', Colors.red, Icons.error_outline),
+                ]),
+                if ((_data?.todayDcCount ?? 0) > 0)
+                  _section('🚛 Today\'s DC (Farm Purchases)', [
+                    Row(children: [
+                      _stat2('DCs',    '${_data?.todayDcCount ?? 0}',  kPrimary),
+                      _stat2('Birds',  '${_data?.todayDcBirds ?? 0}',  Colors.blue),
+                      _stat2('Weight', '${(_data?.todayDcWeight ?? 0).toStringAsFixed(0)} kg', Colors.teal),
+                    ]),
+                  ]),
+                _section('💰 Financial Overview', [
+                  Row(children: [
+                    _kpi(t('outstanding'), _fmt(_data?.totalOutstanding), Colors.orange, () => context.go(R.ledger)),
+                    const SizedBox(width: 10),
+                    _kpi(t('collect'),     _fmt(_data?.todayCollected),   kPrimary,      () => context.go(R.invoices)),
+                  ]),
+                  const SizedBox(height: 8),
+                  Row(children: [
+                    Expanded(child: _payRow(t('cash'), _data?.todayCashCollected ?? 0, Colors.green)),
+                    const SizedBox(width: 10),
+                    Expanded(child: _payRow(t('upi'),  _data?.todayUpiCollected  ?? 0, Colors.blue)),
+                  ]),
+                ]),
+                _section('👤 Shifts Today', [
+                  Row(children: [
+                    _stat2('Open',   '${_data?.openShifts ?? 0}',  (_data?.openShifts ?? 0) == 0 ? Colors.green : Colors.orange),
+                    _stat2('Agents', '${_data?.activeAgents ?? 0}', kPrimary),
+                    _stat2('Batches','${_data?.activeBatches ?? 0}', Colors.blue),
+                  ]),
+                  if ((_data?.openShifts ?? 0) > 0) ...[
+                    const SizedBox(height: 8),
+                    _alertTile('${_data?.openShifts} shift(s) still open', Colors.orange,
+                        Icons.schedule_outlined, onTap: () => context.go(R.shifts)),
+                  ],
+                ]),
+                if ((_data?.todayReturnsBirds ?? 0) > 0 || (_data?.pendingReturns ?? 0) > 0)
+                  _section('↩️ Returns', [
+                    if ((_data?.todayReturnsBirds ?? 0) > 0)
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(color: Colors.purple.shade50, borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.purple.shade200)),
+                        child: Row(children: [
+                          Icon(Icons.assignment_return_outlined, color: Colors.purple.shade600, size: 18),
+                          const SizedBox(width: 8),
+                          Expanded(child: Text(
+                            '${_data!.todayReturnsBirds} birds (${_data!.todayReturnsKg.toStringAsFixed(1)} kg) returned to stock today ✓',
+                            style: TextStyle(fontSize: 12, color: Colors.purple.shade700, fontWeight: FontWeight.w600))),
+                        ])),
+                    if ((_data?.pendingReturns ?? 0) > 0) ...[
+                      const SizedBox(height: 6),
+                      _alertTile('${_data?.pendingReturns} pending returns', Colors.orange,
+                          Icons.pending_outlined, onTap: () => context.go(R.returns)),
+                    ],
+                  ]),
+                _section('✅ Reconciliation', [
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: (_data?.allClear ?? false) ? Colors.green.shade50 : Colors.orange.shade50,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: (_data?.allClear ?? false) ? Colors.green.shade200 : Colors.orange.shade200)),
+                    child: Row(children: [
+                      Icon((_data?.allClear ?? false) ? Icons.check_circle_outline : Icons.pending_actions_outlined,
+                          color: (_data?.allClear ?? false) ? Colors.green : Colors.orange, size: 20),
+                      const SizedBox(width: 10),
+                      Expanded(child: Text(
+                        (_data?.allClear ?? false)
+                            ? 'All clear — ready to close day ✓'
+                            : '${_data?.pendingApprovals ?? 0} approvals · ${_data?.pendingReturns ?? 0} returns pending',
+                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600,
+                            color: (_data?.allClear ?? false) ? Colors.green.shade700 : Colors.orange.shade800))),
+                      if (_data?.allClear ?? false)
+                        TextButton(onPressed: () => context.go(R.dayClosure), child: const Text('Close Day')),
+                    ])),
+                ]),
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: Text('⚡ QUICK ACTIONS',
+                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700,
+                          color: Colors.grey.shade500, letterSpacing: 0.8))),
+                _qaGrid([
+                  _QA(Icons.add_circle,                          t('new_order'),  Colors.green,    () => context.go(R.orderCreate), wide: true),
+                  _QA(Icons.list_alt_outlined,                   t('orders'),     Colors.blue,     () => context.go(R.orders)),
+                  _QA(Icons.fact_check_rounded,                  t('approve'),    Colors.orange,   () => context.go(R.approvals)),
+                  _QA(Icons.local_shipping_outlined,             t('dispatch'),   kPrimary,        () => context.go(R.dispatch)),
+                  _QA(Icons.inventory_outlined,                  t('add_stock'),  Colors.teal,     () => context.go(R.stock)),
+                  _QA(Icons.account_balance_wallet_outlined,     t('collect'),    Colors.purple,   () => context.go(R.ledger)),
+                  _QA(Icons.receipt_long_outlined,               t('invoices'),   Colors.indigo,   () => context.go(R.invoices)),
+                  _QA(Icons.price_change_outlined,               t('rate'),       Colors.cyan,     () => context.go(R.rates)),
+                  _QA(Icons.store_outlined,                      t('customers'),  Colors.brown,    () => context.go(R.retailers)),
+                  _QA(Icons.delivery_dining_outlined,            t('agents'),     Colors.blueGrey, () => context.go(R.agents)),
+                  _QA(Icons.assignment_return_outlined,          t('returns'),    Colors.red,      () => context.go(R.returns)),
+                  _QA(Icons.schedule_outlined,                   t('shifts'),     Colors.indigo,   () => context.go(R.shifts)),
+                  _QA(Icons.account_balance_outlined,            t('reconcile'),  Colors.green,    () => context.go(R.cashRecon)),
+                  _QA(Icons.lock_clock_outlined,                 t('close_day'),  Colors.red,      () => context.go(R.dayClosure)),
+                  _QA(Icons.warning_amber_outlined,              t('alerts'),     Colors.orange,   () => context.go(R.alerts)),
+                  _QA(Icons.summarize_outlined,                  t('report'),     kPrimary,        () => context.go(R.dailyReport)),
+                ]),
+                const SizedBox(height: 20),
+              ])),
     );
   }
 
-  Widget _body(BuildContext ctx, String lang) {
-    final t = (String k) => L.g(lang, k);
-    final d = _d ?? {};
-
-    // Use correct dashboard keys from fixed RPC
-    final rev        = (d['today_revenue']        as num?)?.toDouble() ?? 0;
-    final pend       = d['pending_orders']        ?? 0;
-    final live       = d['active_deliveries']     ?? 0;
-    final appr       = d['pending_approvals']     ?? 0;
-    final stockBirds = (d['stock_birds']          as num?)?.toInt() ?? 0;
-    final remaining  = (d['remaining_birds']      as num?)?.toInt() ?? 0;
-    final remainKg   = (d['remaining_kg']         as num?)?.toDouble() ?? 0;
-    final purchased  = (d['stock_birds']          as num?)?.toInt() ?? 0;
-    final delivered  = (d['today_delivered']      as num?)?.toInt() ?? 0;
-    final returns    = (d['today_returns_birds']  as num?)?.toInt() ?? 0;
-    final returnsKg  = (d['today_returns_kg']     as num?)?.toDouble() ?? 0;
-    final outstanding= (d['total_outstanding']    as num?)?.toDouble() ?? 0;
-    final collected  = (d['today_collected']      as num?)?.toDouble() ?? 0;
-    final cash       = (d['today_cash_collected'] as num?)?.toDouble() ?? 0;
-    final openShifts = d['open_shifts']           ?? 0;
-
-    return ListView(padding: const EdgeInsets.all(14), children: [
-
-      // ── No stock warning ─────────────────────────────────────────
-      if (stockBirds == 0) Container(
-        margin: const EdgeInsets.only(bottom: 12), padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(color: Colors.orange.shade50, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.orange.shade200)),
-        child: Row(children: [
-          Icon(Icons.warning_amber_rounded, color: Colors.orange.shade700, size: 22), const SizedBox(width: 10),
-          Expanded(child: Text(lang == 'ta' ? 'இன்று கோழி சேர்க்கவில்லை!' : 'No stock added today!',
-              style: TextStyle(fontSize: 13, color: Colors.orange.shade800, fontWeight: FontWeight.w600))),
-          ElevatedButton(onPressed: () => ctx.go(R.stock),
-              style: ElevatedButton.styleFrom(minimumSize: const Size(0, 34), backgroundColor: Colors.orange),
-              child: Text(t('add_stock'), style: const TextStyle(fontSize: 11))),
-        ])),
-
-      // ── KPI cards ─────────────────────────────────────────────────
-      GridView.count(crossAxisCount: 2, shrinkWrap: true, physics: const NeverScrollableScrollPhysics(),
-        crossAxisSpacing: 10, mainAxisSpacing: 10, childAspectRatio: 1.35,
-        children: [
-          KpiCard(t('all_orders'), Fmt.amount(rev), Icons.currency_rupee, kPrimary, onTap: () => ctx.go(R.invoices)),
-          KpiCard(t('all_orders'), '$pend', Icons.shopping_bag_outlined, Colors.orange, onTap: () => ctx.go(R.orders)),
-          KpiCard(t('dispatch'), '$live', Icons.local_shipping_outlined, Colors.blue, onTap: () => ctx.go(R.dispatch)),
-          KpiCard(t('approve'), '$appr', Icons.fact_check_outlined, appr > 0 ? Colors.red : Colors.green, onTap: () => ctx.go(R.approvals)),
-        ]),
-      const SizedBox(height: 12),
-
-      // ── Stock panel ───────────────────────────────────────────────
-      WhiteCard(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [
-          Text(t('stock'), style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
-          const Spacer(),
-          TextButton(onPressed: () => ctx.go(R.stock), child: Text(t('add_stock'), style: const TextStyle(fontSize: 11))),
-        ]),
-        const Divider(height: 10),
-        Row(children: [
-          _stat(t('purchased'), '$purchased', Colors.blue),
-          _stat(t('delivered'), '$delivered', kPrimary),
-          _stat(t('returned'), '$returns', Colors.purple),
-          _stat(t('remaining'), '$remaining', remaining < 50 ? Colors.red : Colors.green),
-        ]),
-        if (returnsKg > 0) Padding(padding: const EdgeInsets.only(top: 6),
-          child: Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: Colors.purple.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.purple.shade200)),
-            child: Row(children: [
-              Icon(Icons.assignment_return_outlined, color: Colors.purple.shade600, size: 16), const SizedBox(width: 6),
-              Text('${returnsKg.toStringAsFixed(1)} kg returned to stock today ✓', style: TextStyle(fontSize: 11, color: Colors.purple.shade700, fontWeight: FontWeight.w600)),
-            ]))),
-      ])),
-      const SizedBox(height: 10),
-
-      // ── Finance panel ─────────────────────────────────────────────
-      WhiteCard(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [
-          Text(t('finance'), style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
-          const Spacer(),
-          TextButton(onPressed: () => ctx.go(R.ledger), child: const Text('Ledger', style: TextStyle(fontSize: 11))),
-        ]),
-        const Divider(height: 10),
-        Row(children: [
-          _stat(t('outstanding'), Fmt.amount(outstanding), outstanding > 0 ? Colors.orange : Colors.green),
-          _stat(t('collect'),     Fmt.amount(collected), kPrimary),
-          _stat(t('cash'),        Fmt.amount(cash), Colors.green),
-          _stat('Shifts', '$openShifts', openShifts > 0 ? Colors.red : Colors.green),
-        ]),
-      ])),
-      const SizedBox(height: 14),
-
-      // ── Quick actions ─────────────────────────────────────────────
-      Text(t('quick'), style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: kTextHint, letterSpacing: 0.8)),
-      const SizedBox(height: 8),
-      Row(children: [
-        _qa(Icons.add_circle,             t('new_order'),  Colors.green,    () => ctx.go(R.orderCreate), flex: 2),
-        const SizedBox(width: 8),
-        _qa(Icons.list_alt_outlined,      t('all_orders'), Colors.blue,     () => ctx.go(R.orders)),
-      ]),
-      const SizedBox(height: 8),
-      Row(children: [
-        _qa(Icons.fact_check_rounded,     t('approve'),    Colors.orange,   () => ctx.go(R.approvals)),
-        const SizedBox(width: 8),
-        _qa(Icons.local_shipping_outlined,t('dispatch'),   kPrimary,        () => ctx.go(R.dispatch)),
-        const SizedBox(width: 8),
-        _qa(Icons.inventory_outlined,     t('add_stock'),  Colors.teal,     () => ctx.go(R.stock)),
-      ]),
-      const SizedBox(height: 8),
-      Row(children: [
-        _qa(Icons.account_balance_wallet_outlined, t('collect'),  Colors.purple,  () => ctx.go(R.ledger)),
-        const SizedBox(width: 8),
-        _qa(Icons.receipt_long_outlined,           t('invoices'), Colors.indigo,  () => ctx.go(R.invoices)),
-        const SizedBox(width: 8),
-        _qa(Icons.price_change_outlined,           t('rate'),     Colors.cyan,    () => ctx.go(R.rates)),
-      ]),
-      const SizedBox(height: 8),
-      Row(children: [
-        _qa(Icons.store_outlined,                  t('customers'),Colors.brown,   () => ctx.go(R.retailers)),
-        const SizedBox(width: 8),
-        _qa(Icons.delivery_dining_outlined,        t('agents'),   Colors.blueGrey,() => ctx.go(R.agents)),
-        const SizedBox(width: 8),
-        _qa(Icons.assignment_return_outlined,      t('returns'),  Colors.red,     () => ctx.go(R.returns)),
-      ]),
-      const SizedBox(height: 8),
-      Row(children: [
-        _qa(Icons.schedule_outlined,               'Shifts',      Colors.indigo,  () => ctx.go(R.shifts)),
-        const SizedBox(width: 8),
-        _qa(Icons.account_balance_outlined,        t('reconcile'),Colors.green,   () => ctx.go(R.cashRecon)),
-        const SizedBox(width: 8),
-        _qa(Icons.lock_clock_outlined,             t('close_day'),Colors.red,     () => ctx.go(R.dayClosure)),
-      ]),
-      const SizedBox(height: 8),
-      Row(children: [
-        _qa(Icons.warning_amber_outlined,          t('alerts'),   Colors.orange,  () => ctx.go(R.alerts)),
-        const SizedBox(width: 8),
-        _qa(Icons.bar_chart_outlined,              t('analytics'),Colors.blue,    () => ctx.go(R.analytics)),
-        const SizedBox(width: 8),
-        _qa(Icons.summarize_outlined,              t('report'),   kPrimary,       () => ctx.go(R.dailyReport)),
-      ]),
-      const SizedBox(height: 20),
-    ]);
+  List<Widget> _buildAlerts(String Function(String) t) {
+    final d = _data;
+    final out = <Widget>[];
+    if (d == null) return out;
+    void add(String msg, Color c, IconData icon, {VoidCallback? onTap}) =>
+        out.add(Padding(padding: const EdgeInsets.only(bottom: 8),
+            child: _alertTile(msg, c, icon, onTap: onTap)));
+    if (d.isDayClosed) add('Day is closed. No new records.', Colors.grey, Icons.lock);
+    if (d.remainingBirds < 0) add('CRITICAL: Negative stock! Check entries.', Colors.red, Icons.error, onTap: () => context.go(R.stock));
+    if (d.remainingBirds < 50 && d.stockBirds > 0) add('Low stock: only ${d.remainingBirds} birds remaining', Colors.orange, Icons.inventory_outlined, onTap: () => context.go(R.stock));
+    if (d.pendingApprovals > 0) add('${d.pendingApprovals} deliveries need approval', Colors.orange, Icons.fact_check_outlined, onTap: () => context.go(R.approvals));
+    return out;
   }
 
-  Widget _stat(String label, String value, Color color) => Expanded(child: Column(children: [
-    Text(value, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: color)),
-    const SizedBox(height: 2),
-    Text(label, style: const TextStyle(fontSize: 10, color: kTextHint), textAlign: TextAlign.center, maxLines: 2),
+  Widget _section(String title, List<Widget> children) => Container(
+    margin: const EdgeInsets.only(bottom: 12),
+    padding: const EdgeInsets.all(14),
+    decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14),
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8, offset: const Offset(0,2))]),
+    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Text(title, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: kTextMain)),
+      const SizedBox(height: 10),
+      ...children,
+    ]));
+
+  Widget _kpi(String label, String value, Color color, VoidCallback onTap) =>
+      Expanded(child: InkWell(onTap: onTap, borderRadius: BorderRadius.circular(10),
+          child: Container(padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(color: color.withValues(alpha: 0.07), borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: color.withValues(alpha: 0.2))),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(value, style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: color)),
+                Text(label, style: const TextStyle(fontSize: 11, color: kTextSub)),
+              ]))));
+
+  Widget _stockCard(StockPosition s) => Container(
+      margin: const EdgeInsets.only(bottom: 8), padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+          color: s.isNegative ? Colors.red.shade50 : s.hasLowStock ? Colors.orange.shade50 : Colors.green.shade50,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: s.isNegative ? Colors.red.shade200 : s.hasLowStock ? Colors.orange.shade200 : Colors.green.shade200)),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Expanded(child: Text(s.productName, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700))),
+          Icon(s.isNegative ? Icons.error : s.hasLowStock ? Icons.warning_amber_rounded : Icons.check_circle_outline,
+              color: s.isNegative ? Colors.red : s.hasLowStock ? Colors.orange : Colors.green, size: 18),
+        ]),
+        const SizedBox(height: 8),
+        Row(children: [
+          _sstat(_L.g(ref.read(langProvider), 'stock_in'), '${s.totalInBirds}',   Colors.blue),
+          _sstat(_L.g(ref.read(langProvider), 'delivered'), '${s.todayDelivered}', kPrimary),
+          _sstat(_L.g(ref.read(langProvider), 'returned'),  '${s.returnedBirds}',  Colors.purple),
+          _sstat(_L.g(ref.read(langProvider), 'remaining'), '${s.availableBirds}',
+              s.isNegative ? Colors.red : s.hasLowStock ? Colors.orange : Colors.green),
+        ]),
+      ]));
+
+  Widget _sstat(String l, String v, Color c) => Expanded(child: Column(children: [
+    Text(v, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: c)),
+    Text(l, style: const TextStyle(fontSize: 9, color: kTextHint), textAlign: TextAlign.center),
   ]));
 
-  Widget _qa(IconData icon, String label, Color color, VoidCallback onTap, {int flex = 1}) =>
-      Expanded(flex: flex, child: InkWell(
-        onTap: onTap, borderRadius: BorderRadius.circular(10),
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
-          decoration: BoxDecoration(color: color.withOpacity(0.08), borderRadius: BorderRadius.circular(10), border: Border.all(color: color.withOpacity(0.2))),
+  Widget _stat2(String l, String v, Color c) => Expanded(child: Column(children: [
+    Text(v, style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: c)),
+    Text(l, style: const TextStyle(fontSize: 10, color: kTextHint)),
+  ]));
+
+  Widget _payRow(String label, double amount, Color color) => Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(color: color.withValues(alpha: 0.07), borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: color.withValues(alpha: 0.2))),
+      child: Row(children: [
+        Icon(Icons.currency_rupee, color: color, size: 14), const SizedBox(width: 4),
+        Expanded(child: Text(label, style: TextStyle(fontSize: 11, color: color))),
+        Text(_fmt(amount), style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: color)),
+      ]));
+
+  Widget _alertTile(String msg, Color color, IconData icon, {VoidCallback? onTap}) =>
+      GestureDetector(onTap: onTap, child: Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(color: color.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: color.withValues(alpha: 0.3))),
+          child: Row(children: [
+            Icon(icon, color: color, size: 18), const SizedBox(width: 8),
+            Expanded(child: Text(msg, style: TextStyle(fontSize: 12, color: color, fontWeight: FontWeight.w600))),
+            if (onTap != null) Icon(Icons.chevron_right, color: color, size: 16),
+          ])));
+
+  Widget _errorView() => Center(child: Padding(padding: const EdgeInsets.all(24),
+      child: Column(mainAxisSize: MainAxisSize.min, children: [
+        const Icon(Icons.cloud_off_outlined, size: 48, color: kTextHint),
+        const SizedBox(height: 12),
+        Text(_error ?? 'Error', style: const TextStyle(color: kTextSub, fontSize: 13), textAlign: TextAlign.center),
+        const SizedBox(height: 16),
+        ElevatedButton(onPressed: _load, child: const Text('Retry')),
+      ])));
+
+  Widget _qaGrid(List<_QA> actions) {
+    final rows = <Widget>[];
+    int i = 0;
+    while (i < actions.length) {
+      final a = actions[i];
+      if (a.wide && i + 1 < actions.length) {
+        rows.add(Row(children: [
+          Expanded(flex: 2, child: _qaBtn(a)),
+          const SizedBox(width: 8),
+          Expanded(child: _qaBtn(actions[i + 1])),
+        ]));
+        i += 2;
+      } else {
+        final count = (i + 3 <= actions.length) ? 3 : actions.length - i;
+        final row = actions.sublist(i, i + count);
+        rows.add(Row(children: [
+          for (int j = 0; j < row.length; j++) ...[
+            if (j > 0) const SizedBox(width: 8),
+            Expanded(child: _qaBtn(row[j])),
+          ],
+        ]));
+        i += count;
+      }
+      if (i < actions.length) rows.add(const SizedBox(height: 8));
+    }
+    return Column(children: rows);
+  }
+
+  Widget _qaBtn(_QA a) => InkWell(onTap: a.onTap, borderRadius: BorderRadius.circular(10),
+      child: Container(padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 6),
+          decoration: BoxDecoration(color: a.color.withValues(alpha: 0.07), borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: a.color.withValues(alpha: 0.2))),
           child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-            Icon(icon, size: 22, color: color),
+            Icon(a.icon, size: 22, color: a.color),
             const SizedBox(height: 4),
-            Text(label, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: color), textAlign: TextAlign.center, maxLines: 2),
-          ]),
-        ),
-      ));
+            Text(a.label, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: a.color),
+                textAlign: TextAlign.center, maxLines: 2, overflow: TextOverflow.ellipsis),
+          ])));
+
+  String _fmt(double? v) {
+    if (v == null) return '₹0';
+    if (v >= 100000) return '₹${(v / 100000).toStringAsFixed(1)}L';
+    if (v >= 1000)   return '₹${(v / 1000).toStringAsFixed(1)}K';
+    return '₹${v.toStringAsFixed(0)}';
+  }
 }

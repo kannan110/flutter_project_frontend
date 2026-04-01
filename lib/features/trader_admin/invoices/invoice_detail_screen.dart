@@ -17,7 +17,7 @@ class _S extends State<InvoiceDetailScreen> {
   @override void initState() { super.initState(); _load(); }
 
   Future<void> _load() async {
-    setState(() => _loading = true);
+    if (mounted) setState(() => _loading = true);
     final inv = await _c.from('invoices')
         .select('*,retailers(shop_name,owner_name,phone,address),traders(company_name,phone,gst_number)')
         .eq('id', widget.id).maybeSingle();

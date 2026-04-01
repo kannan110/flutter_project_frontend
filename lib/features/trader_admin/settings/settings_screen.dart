@@ -19,7 +19,7 @@ class SettingsScreen extends ConsumerWidget {
         Container(padding: const EdgeInsets.all(16), margin: const EdgeInsets.only(bottom: 16),
           decoration: BoxDecoration(color: kPrimary, borderRadius: BorderRadius.circular(16)),
           child: Row(children: [
-            Container(width: 52, height: 52, decoration: BoxDecoration(color: Colors.white.withOpacity(0.2), shape: BoxShape.circle), child: const Center(child: Text('🐓', style: TextStyle(fontSize: 26)))),
+            Container(width: 52, height: 52, decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.2), shape: BoxShape.circle), child: const Center(child: Text('🐓', style: TextStyle(fontSize: 26)))),
             const SizedBox(width: 14),
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(user?.companyName ?? 'Rooster Trader', style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: Colors.white)),

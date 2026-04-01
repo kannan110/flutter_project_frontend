@@ -23,7 +23,7 @@ class _S extends ConsumerState<OrdersScreen> {
   Future<void> _load() async {
     final tid = ref.read(appUserProvider).valueOrNull?.traderId;
     if (tid == null) return;
-    setState(() => _loading = true);
+    if (mounted) setState(() => _loading = true);
     try {
       // orders: estimated_birds (NOT total_birds), total_amount, status, created_at
       var q = _c.from('orders')
@@ -39,7 +39,7 @@ class _S extends ConsumerState<OrdersScreen> {
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(title: const Text('Orders'), actions: [IconButton(icon: const Icon(Icons.refresh), onPressed: _load)]),
     floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => context.go(R.orderCreate),
+        onPressed: () => context.push(R.orderCreate),
         icon: const Icon(Icons.add), label: const Text('New Order')),
     body: Column(children: [
       SizedBox(height: 48, child: ListView.separated(
@@ -49,11 +49,11 @@ class _S extends ConsumerState<OrdersScreen> {
             final s = _statuses[i];
             return ChoiceChip(
               label: Text(s == 'all' ? 'All' : s.replaceAll('_', ' '), style: const TextStyle(fontSize: 11)),
-              selected: _filter == s, onSelected: (_) { setState(() => _filter = s); _load(); });
+              selected: _filter == s, onSelected: (_) { if (mounted) setState(() => _filter = s); _load(); });
           })),
       const Divider(height: 1),
       Expanded(child: _loading ? const LoadingList() : _orders.isEmpty
-          ? EmptyState(icon: Icons.shopping_bag_outlined, message: 'No orders', onAction: () => context.go(R.orderCreate), actionLabel: 'New Order')
+          ? EmptyState(icon: Icons.shopping_bag_outlined, message: 'No orders', onAction: () => context.push(R.orderCreate), actionLabel: 'New Order')
           : RefreshIndicator(onRefresh: _load, child: ListView.separated(
               padding: const EdgeInsets.all(16), itemCount: _orders.length,
               separatorBuilder: (_, __) => const SizedBox(height: 8),
@@ -64,7 +64,7 @@ class _S extends ConsumerState<OrdersScreen> {
                 final date = DateTime.tryParse(o['created_at'] as String? ?? '');
                 final amt = (o['total_amount'] as num?)?.toDouble() ?? 0;
                 return InkWell(
-                  onTap: () => context.go(R.orderDetailPath(o['id'])),
+                  onTap: () => context.push(R.orderDetailPath(o['id'])),
                   borderRadius: BorderRadius.circular(12),
                   child: Container(
                     padding: const EdgeInsets.all(14),

@@ -22,7 +22,7 @@ class _S extends ConsumerState<OrderDetailScreen> {
   @override void initState() { super.initState(); _load(); }
 
   Future<void> _load() async {
-    setState(() => _loading = true);
+    if (mounted) setState(() => _loading = true);
     final o = await _c.from('orders')
         .select('*,retailers(shop_name,owner_name,phone,address)')
         .eq('id', widget.id).maybeSingle();
@@ -144,7 +144,7 @@ class _S extends ConsumerState<OrderDetailScreen> {
         if (hasInv) ...[
           const SizedBox(height: 10),
           OutlinedButton.icon(
-            onPressed: () => context.go(R.invoiceDetailPath(_invoice!['id'])),
+            onPressed: () => context.push(R.invoiceDetailPath(_invoice!['id'])),
             icon: const Icon(Icons.receipt_long_outlined, size: 18),
             label: Text('View Invoice ${_invoice!['invoice_number'] ?? ''}'),
           ),
@@ -160,7 +160,7 @@ class _S extends ConsumerState<OrderDetailScreen> {
             if (ok) _updateStatus('cancelled');
           }, style: OutlinedButton.styleFrom(foregroundColor: kError, side: const BorderSide(color: kError)), child: const Text('Cancel Order')),
         ] else if (status == 'confirmed') ...[
-          OutlinedButton.icon(onPressed: () => context.go(R.dispatch), icon: const Icon(Icons.local_shipping_outlined, size: 18), label: const Text('Assign to Batch → Dispatch')),
+          OutlinedButton.icon(onPressed: () { context.go(R.dispatch); }, icon: const Icon(Icons.local_shipping_outlined, size: 18), label: const Text('Assign to Batch → Dispatch')),
         ],
       ]),
     );

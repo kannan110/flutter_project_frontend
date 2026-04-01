@@ -33,7 +33,7 @@ class _S extends ConsumerState<ApprovalDetailScreen> {
   }
 
   Future<void> _load() async {
-    setState(() => _loading = true);
+    if (mounted) setState(() => _loading = true);
     try {
       final d = await _c.from('deliveries')
           .select('*,orders(retailers(shop_name,owner_name,phone),order_items(rate_per_kg,total_weight,bird_count),total_quantity,estimated_birds),delivery_agents(name)')
@@ -66,7 +66,7 @@ class _S extends ConsumerState<ApprovalDetailScreen> {
           if (p != null) _invoiceDate = p;
         }
       }
-      setState(() { _delivery = d; _loading = false; });
+      if (mounted) setState(() { _delivery = d; _loading = false; });
     } catch (e) { if (mounted) setState(() => _loading = false); }
   }
 
@@ -87,7 +87,7 @@ class _S extends ConsumerState<ApprovalDetailScreen> {
       initialDate: _invoiceDate,
       firstDate: DateTime.now().subtract(const Duration(days: 90)),
       lastDate: DateTime.now());
-    if (d != null && mounted) if (mounted) setState(() => _invoiceDate = d);
+    if (d != null && mounted) setState(() => _invoiceDate = d);
   }
 
   Future<void> _approve() async {
@@ -104,7 +104,7 @@ class _S extends ConsumerState<ApprovalDetailScreen> {
       confirmColor: kPrimary);
     if (!ok) return;
 
-    setState(() => _submitting = true);
+    if (mounted) setState(() => _submitting = true);
     try {
       await _c.rpc('approve_delivery_and_order', params: {
         'p_delivery_id':    widget.id,
@@ -112,8 +112,6 @@ class _S extends ConsumerState<ApprovalDetailScreen> {
         'p_approved_by':    ref.read(appUserProvider).valueOrNull?.userId,
         'p_approval_notes': _notesCtrl.text.trim().isEmpty ? null : _notesCtrl.text.trim(),
         'p_invoice_date':   _invoiceDate.toIso8601String().split('T')[0],
-        'p_weight_kg':      _weight,
-        'p_bird_count':     _birds > 0 ? _birds : null,
       });
       if (mounted) { showSuccess(context, 'Approved! Bill created ✓'); context.go(R.approvals); }
     } catch (e) {
@@ -174,7 +172,7 @@ class _S extends ConsumerState<ApprovalDetailScreen> {
             const Text('Delivery Details', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
             if (_agentWeight > 0)
               Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(color: Colors.green.withOpacity(0.1), borderRadius: BorderRadius.circular(6)),
+                decoration: BoxDecoration(color: Colors.green.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(6)),
                 child: Text('Agent recorded: ${_agentWeight.toStringAsFixed(2)} kg',
                     style: const TextStyle(fontSize: 10, color: Colors.green, fontWeight: FontWeight.w600))),
           ]),
@@ -264,9 +262,9 @@ class _S extends ConsumerState<ApprovalDetailScreen> {
             Container(
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
-                color: kPrimary.withOpacity(0.07),
+                color: kPrimary.withValues(alpha: 0.07),
                 borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: kPrimary.withOpacity(0.2))),
+                border: Border.all(color: kPrimary.withValues(alpha: 0.2))),
               child: Column(children: [
                 Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
                   Text('${_weight.toStringAsFixed(2)} kg  ×  ₹${_rateCtrl.text}/kg',

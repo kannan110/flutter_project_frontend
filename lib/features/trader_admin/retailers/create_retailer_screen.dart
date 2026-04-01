@@ -25,7 +25,7 @@ class _S extends ConsumerState<CreateRetailerScreen> {
   Future<void> _save() async {
     if (!_form.currentState!.validate()) return;
     final tid = ref.read(appUserProvider).valueOrNull?.traderId;
-    setState(() => _submitting = true);
+    if (mounted) setState(() => _submitting = true);
     try {
       // retailers columns: trader_id, shop_name, owner_name, phone, address, credit_limit, is_active
       await _c.from('retailers').insert({
@@ -37,7 +37,7 @@ class _S extends ConsumerState<CreateRetailerScreen> {
         'credit_limit': double.tryParse(_creditLimit.text.trim()) ?? 100000,
         'is_active': true,
       });
-      if (mounted) { showSuccess(context, '${_shopName.text.trim()} added ✓'); context.go(R.retailers); }
+      if (mounted) { showSuccess(context, '${_shopName.text.trim()} added ✓'); if (context.canPop()) context.pop(); else context.go(R.retailers); }
     } catch (e) { if (mounted) showError(context, e.toString()); }
     finally { if (mounted) setState(() => _submitting = false); }
   }

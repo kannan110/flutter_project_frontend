@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../models/app_user.dart';
 import '../providers/session_provider.dart';
+import '../../features/splash_screen.dart';
 import '../../features/auth/login_screen.dart';
 import '../../features/auth/agent_link_screen.dart';
 import '../../features/trader_admin/dashboard/trader_shell.dart';
@@ -47,6 +48,7 @@ import '../../features/delivery_agent/deliveries/delivery_complete_screen.dart';
 import '../../features/delivery_agent/expenses/expenses_screen.dart';
 
 abstract class R {
+  static const splash         = '/';
   static const login          = '/login';
   static const agentLink      = '/agent-link'; // accessible even when signed in
   static const dashboard      = '/t/dashboard';
@@ -101,7 +103,7 @@ abstract class R {
 }
 
 final appRouterProvider = Provider<GoRouter>((ref) => GoRouter(
-  initialLocation: R.login,
+  initialLocation: R.splash,
   refreshListenable: _Refresh(ref),
   redirect: (ctx, state) {
     final async = ref.read(appUserProvider);
@@ -115,7 +117,7 @@ final appRouterProvider = Provider<GoRouter>((ref) => GoRouter(
     // ── Not signed in ─────────────────────────────────────────────
     if (user == null) {
       // Allow login and agent-link when signed out
-      if (loc == R.login || loc == R.agentLink) return null;
+      if (loc == R.splash || loc == R.login || loc == R.agentLink) return null;
       return R.login;
     }
 
@@ -139,6 +141,7 @@ final appRouterProvider = Provider<GoRouter>((ref) => GoRouter(
     return null;
   },
   routes: [
+    GoRoute(path: R.splash,     builder: (_, __) => const SplashScreen()),
     GoRoute(path: R.login,     builder: (_, __) => const LoginScreen()),
     GoRoute(path: R.agentLink, builder: (_, __) => const AgentLinkScreen()),
 

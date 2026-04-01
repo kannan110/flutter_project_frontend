@@ -63,7 +63,7 @@ class _S extends ConsumerState<CreateOrderScreen> {
     final tid = ref.read(appUserProvider).valueOrNull?.traderId;
     final kg = _totalKg > 0 ? _totalKg : (int.tryParse(_birdsCtrl.text) ?? 0) * 1.8;
     if (kg <= 0) return;
-    setState(() => _rateLoading = true);
+    if (mounted) setState(() => _rateLoading = true);
     try {
       final res = await _c.rpc('get_effective_rate_v2', params: {
         'p_trader_id': tid, 'p_retailer_id': _selRetailer!['id'],
@@ -93,7 +93,7 @@ class _S extends ConsumerState<CreateOrderScreen> {
     final totalKg = _totalKg;
     final rate   = _rate;
 
-    setState(() => _saving = true);
+    if (mounted) setState(() => _saving = true);
     try {
       // Insert order
       final order = await _c.from('orders').insert({
@@ -123,7 +123,7 @@ class _S extends ConsumerState<CreateOrderScreen> {
 
       if (mounted) {
         showSuccess(context, 'Order created ✓');
-        context.go(R.orders);
+        if (context.canPop()) context.pop(); else context.go(R.orders);
       }
     } catch (e) {
       if (mounted) showError(context, e.toString().replaceAll('Exception: ', '').replaceAll('PostgrestException(message: ', ''));
@@ -251,9 +251,9 @@ class _S extends ConsumerState<CreateOrderScreen> {
           Container(
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
-              color: kPrimary.withOpacity(0.07),
+              color: kPrimary.withValues(alpha: 0.07),
               borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: kPrimary.withOpacity(0.2))),
+              border: Border.all(color: kPrimary.withValues(alpha: 0.2))),
             child: Column(children: [
               Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
                 const Text('Estimated Bill', style: TextStyle(fontSize: 12, color: kTextSub, fontWeight: FontWeight.w600)),
