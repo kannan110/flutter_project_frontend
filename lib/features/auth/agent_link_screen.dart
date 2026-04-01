@@ -27,12 +27,12 @@ class _AgentLinkState extends State<AgentLinkScreen> {
     setState(() { _checking = true; _traderName = null; _err = null; });
     try {
       final res = await _c.rpc('get_trader_by_code', params: {'p_company_code': code});
-      setState(() {
+      if (mounted) setState(() {
         _traderName = (res != null && res['found'] == true) ? res['company_name'] as String? : null;
         _err = _traderName == null ? 'Code "$code" not found. Ask your admin.' : null;
         _checking = false;
       });
-    } catch (_) { setState(() { _err = 'Network error. Try again.'; _checking = false; }); }
+    } catch (_) { if (mounted) setState(() { _err = 'Network error. Try again.'; _checking = false; }); }
   }
 
   Future<void> _link() async {

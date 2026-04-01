@@ -33,7 +33,7 @@ class _S extends ConsumerState<DailyReportScreen> {
     appBar: AppBar(title: const Text('Daily Report'), actions: [
       TextButton.icon(onPressed: () async {
         final d = await showDatePicker(context: context, initialDate: _date, firstDate: DateTime.now().subtract(const Duration(days: 365)), lastDate: DateTime.now());
-        if (d != null) { setState(() => _date = d); _load(); }
+        if (d != null) { if (mounted) setState(() => _date = d); _load(); }
       }, icon: const Icon(Icons.calendar_today_outlined, size: 16), label: Text(DateFormat('d MMM').format(_date))),
       IconButton(icon: const Icon(Icons.refresh), onPressed: _load),
     ]),

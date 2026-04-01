@@ -87,7 +87,7 @@ class _S extends ConsumerState<ApprovalDetailScreen> {
       initialDate: _invoiceDate,
       firstDate: DateTime.now().subtract(const Duration(days: 90)),
       lastDate: DateTime.now());
-    if (d != null && mounted) setState(() => _invoiceDate = d);
+    if (d != null && mounted) if (mounted) setState(() => _invoiceDate = d);
   }
 
   Future<void> _approve() async {
@@ -127,7 +127,7 @@ class _S extends ConsumerState<ApprovalDetailScreen> {
     if (_rejectCtrl.text.trim().isEmpty) { showError(context, 'Enter reason for rejection'); return; }
     final ok = await confirmDialog(context, title: 'Reject', message: 'Reject this delivery?');
     if (!ok) return;
-    setState(() => _submitting = true);
+    if (mounted) setState(() => _submitting = true);
     try {
       await _c.from('deliveries').update({
         'approval_status':  'rejected',

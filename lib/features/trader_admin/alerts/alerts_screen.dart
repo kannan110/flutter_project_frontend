@@ -31,7 +31,7 @@ class _S extends ConsumerState<AlertsScreen> {
 
   Future<void> _dismiss(String id) async {
     await _c.from('alerts').update({'is_read': true}).eq('id', id);
-    setState(() => _alerts.removeWhere((a) => a['id'] == id));
+    if (mounted) setState(() => _alerts.removeWhere((a) => a['id'] == id));
   }
 
   Color _color(String type) => switch(type) {
@@ -55,7 +55,7 @@ class _S extends ConsumerState<AlertsScreen> {
         if (_alerts.isNotEmpty) TextButton(onPressed: () async {
           final tid = ref.read(appUserProvider).valueOrNull?.traderId;
           await _c.from('alerts').update({'is_read': true}).eq('trader_id', tid!).eq('is_read', false);
-          setState(() => _alerts.clear());
+          if (mounted) setState(() => _alerts.clear());
         }, child: const Text('Dismiss All')),
         IconButton(icon: const Icon(Icons.refresh), onPressed: _load),
       ],

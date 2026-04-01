@@ -47,7 +47,7 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
         .select('*,orders(estimated_birds,total_quantity,product_id,retailers(shop_name,address,phone))')
         .eq('id', widget.deliveryId).maybeSingle();
     if (!mounted || d == null) return;
-    setState(() => _delivery = d);
+    if (mounted) setState(() => _delivery = d);
 
     final o = d['orders'] as Map<String,dynamic>?;
     _birdsCtrl.text   = '${d['expected_bird_count'] ?? o?['estimated_birds'] ?? ''}';

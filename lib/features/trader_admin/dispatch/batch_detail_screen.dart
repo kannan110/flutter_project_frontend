@@ -55,7 +55,7 @@ class _S extends ConsumerState<BatchDetailScreen> {
     if (_deliveries.isEmpty) { showError(context, 'Add at least one order first'); return; }
     final ok = await confirmDialog(context, title: 'Start Deliveries', message: 'Start all ${_deliveries.length} deliveries?', confirmText: 'Start', confirmColor: kPrimary);
     if (!ok) return;
-    setState(() => _submitting = true);
+    if (mounted) setState(() => _submitting = true);
     try {
       await _c.rpc('start_batch_delivery', params: {'p_batch_id': widget.id});
       _load();

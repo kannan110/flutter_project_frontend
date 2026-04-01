@@ -218,7 +218,7 @@ class _S extends ConsumerState<BatchPickupScreen> {
             onTap: () async {
               final d = await showDatePicker(context: context, initialDate: _dcDate,
                   firstDate: DateTime.now().subtract(const Duration(days: 7)), lastDate: DateTime.now());
-              if (d != null) setState(() => _dcDate = d);
+              if (d != null) if (mounted) setState(() => _dcDate = d);
             },
             child: Container(padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
               decoration: BoxDecoration(color: const Color(0xFFF3F4F6), borderRadius: BorderRadius.circular(10)),

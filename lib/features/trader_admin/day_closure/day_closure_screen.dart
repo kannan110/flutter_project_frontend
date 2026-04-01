@@ -172,7 +172,7 @@ class _S extends ConsumerState<DayClosureScreen> {
             onPressed: () async {
               final d = await showDatePicker(context: context, initialDate: _date,
                   firstDate: DateTime.now().subtract(const Duration(days: 30)), lastDate: DateTime.now());
-              if (d != null) { setState(() { _date = d; _status = null; _shifts = []; }); _load(); }
+              if (d != null) { if (mounted) setState(() { _date = d; _status = null; _shifts = []; }); _load(); }
             },
             icon: const Icon(Icons.calendar_today_outlined, size: 16),
             label: Text(DateFormat('d MMM').format(_date)),

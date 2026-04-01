@@ -48,7 +48,7 @@ class _S extends ConsumerState<RatesScreen> {
     try {
       // rate_history: trader_id, product_id, rate_per_kg, effective_date
       await _c.from('rate_history').insert({'trader_id': tid, 'product_id': product['id'], 'rate_per_kg': result, 'effective_date': DateTime.now().toIso8601String().split('T')[0]});
-      setState(() => _rates[product['id'] as String] = result);
+      if (mounted) setState(() => _rates[product['id'] as String] = result);
       if (mounted) showSuccess(context, 'Rate updated ✓');
     } catch (e) { if (mounted) showError(context, e.toString()); }
   }

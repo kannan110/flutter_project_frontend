@@ -65,7 +65,7 @@ class _LoginState extends ConsumerState<LoginScreen> with TickerProviderStateMix
           showSuccess(context, 'Account created! Now tap "Link Agent Account" below.');
           _tab.animateTo(0);
           _siEmail.text = email;
-          setState(() {});
+          if (mounted) setState(() {});
         } else {
           setState(() => _err = 'Check your email to confirm your account, then sign in.');
         }

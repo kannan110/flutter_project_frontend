@@ -34,7 +34,7 @@ class _S extends ConsumerState<ShiftCloseScreen> {
     if (_shift == null) { showError(context, 'No active shift found'); return; }
     final ok = await confirmDialog(context, title: 'Close Shift', message: 'Close shift? Ensure all deliveries are complete.', confirmText: 'Close Shift', confirmColor: kPrimary);
     if (!ok) return;
-    setState(() => _loading = true);
+    if (mounted) setState(() => _loading = true);
     try {
       // close_delivery_shift(p_shift_id, p_odometer_end, p_odometer_end_photo, p_closing_bird_count, p_closing_weight, p_expenses)
       await _c.rpc('close_delivery_shift', params: {

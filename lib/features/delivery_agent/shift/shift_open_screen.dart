@@ -29,7 +29,7 @@ class _S extends ConsumerState<ShiftOpenScreen> {
   Future<void> _open() async {
     if (_odo.text.trim().isEmpty) { showError(context, 'Enter odometer reading'); return; }
     final user = ref.read(appUserProvider).valueOrNull;
-    setState(() => _loading = true);
+    if (mounted) setState(() => _loading = true);
     try {
       // delivery_shifts: trader_id, delivery_agent_id, status, odometer_start, shift_start_at
       // NO shift_date column — use shift_start_at timestamp
