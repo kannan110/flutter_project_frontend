@@ -1,11 +1,15 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/models/dashboard_models.dart';
 import '../../../core/providers/session_provider.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_theme.dart';
+import '../weighment/weighment_sheet.dart';
+import '../weighment/weighment_service.dart';
 
 class DeliveryCompleteScreen extends ConsumerStatefulWidget {
   const DeliveryCompleteScreen({super.key, required this.deliveryId});
@@ -34,11 +38,51 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
   Map<String,dynamic>? _delivery;
   StockPosition? _stock;
   String _deliveryStatus = '';
-  bool _hasOpenShift     = false;
+  bool   _hasOpenShift   = false;
 
-  // DC totals for pre-fill
-  int    _dcBirds  = 0;
-  double _dcWeight = 0;
+  // DC / loss data
+  int    _dcBirds       = 0;
+  double _dcWeight      = 0;
+  double _avgBirdWeightG = 0; // grams per bird from DC
+
+  // Image proofs
+  File? _mortalityImage;
+  File? _deliveryImage;
+  bool  _uploadingMortality = false;
+  bool  _uploadingDelivery  = false;
+  String? _mortalityProofUrl;
+  String? _deliveryProofUrl;
+
+  final _picker = ImagePicker();
+
+  // Weighment result — filled when agent uses Bluetooth scale
+  WeighmentResult? _weighmentResult;
+
+  // ── Open Bluetooth weighment sheet ──────────────────────────────
+  Future<void> _openWeighment() async {
+    final result = await WeighmentSheet.show(
+      context,
+      deliveryId:    widget.deliveryId,
+      prefillBirds:  _dcBirds,
+      prefillWeight: _dcWeight,
+    );
+    if (result != null && mounted) {
+      setState(() {
+        _weighmentResult = result;
+        // Auto-fill delivery fields from weighment
+        _birdsCtrl.text     = '${result.totalBirds}';
+        _weightCtrl.text    = result.totalNetWt.toStringAsFixed(2);
+        _rcvBirdsCtrl.text  = '${result.totalBirds}';
+        _rcvWeightCtrl.text = result.totalNetWt.toStringAsFixed(2);
+        _crateDropCtrl.text = '${result.totalLoadCages}';
+        _crateBackCtrl.text = '${result.totalEmptyCages}';
+      });
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Weighment applied: ${result.totalBirds} birds · ${result.totalNetWt.toStringAsFixed(2)} kg · Avg ${result.avgBirdWtG.toStringAsFixed(0)}g/bird'),
+        backgroundColor: Colors.green,
+        duration: const Duration(seconds: 3)));
+    }
+  }
 
   @override void initState() { super.initState(); _load(); }
   @override void dispose() {
@@ -53,42 +97,46 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
   Future<void> _load() async {
     final user = ref.read(appUserProvider).valueOrNull;
     try {
-      // FIX: load delivery + DC challans to get actual farm birds/weight
       final d = await Supabase.instance.client.from('deliveries')
           .select('*,'
                   'orders(id,estimated_birds,total_quantity,product_id,retailers(shop_name,address,phone)),'
-                  'delivery_batches(id,delivery_challans(bird_count,net_weight,crates_count))')
+                  'delivery_batches(id,delivery_challans(bird_count,net_weight,crates_count,avg_bird_weight))')
           .eq('id', widget.deliveryId)
           .maybeSingle();
 
-      if (!mounted) return;
-      if (d == null) return;
+      if (!mounted || d == null) return;
 
       final o       = d['orders'] as Map<String,dynamic>?;
       final batch   = d['delivery_batches'] as Map<String,dynamic>?;
       final challans = (batch?['delivery_challans'] as List? ?? []).cast<Map<String,dynamic>>();
 
-      // FIX: Sum DC birds/weight across all challans in the batch
       _dcBirds  = challans.fold(0,   (s, c) => s + ((c['bird_count']  as num?)?.toInt()    ?? 0));
       _dcWeight = challans.fold(0.0, (s, c) => s + ((c['net_weight']  as num?)?.toDouble() ?? 0));
 
+      // Avg bird weight in grams from DC
+      if (_dcBirds > 0 && _dcWeight > 0) {
+        final avgKg = _dcWeight / _dcBirds;
+        _avgBirdWeightG = avgKg * 1000;
+      } else if (challans.isNotEmpty) {
+        final firstAvg = (challans.first['avg_bird_weight'] as num?)?.toDouble() ?? 0;
+        _avgBirdWeightG = firstAvg * 1000;
+      }
+
       final orderBirds  = (o?['estimated_birds'] as num?)?.toInt()    ?? 0;
       final orderWeight = (o?['total_quantity']  as num?)?.toDouble() ?? 0;
+      final fillBirds   = _dcBirds  > 0 ? _dcBirds  : orderBirds;
+      final fillWeight  = _dcWeight > 0 ? _dcWeight  : orderWeight;
 
-      // FIX: pre-fill from DC actual data first, then order estimate as fallback
-      final fillBirds  = _dcBirds  > 0 ? _dcBirds  : orderBirds;
-      final fillWeight = _dcWeight > 0 ? _dcWeight  : orderWeight;
+      _birdsCtrl.text     = fillBirds  > 0 ? '$fillBirds'                   : '';
+      _weightCtrl.text    = fillWeight > 0 ? fillWeight.toStringAsFixed(2)   : '';
+      _rcvBirdsCtrl.text  = fillBirds  > 0 ? '$fillBirds'                   : '';
+      _rcvWeightCtrl.text = fillWeight > 0 ? fillWeight.toStringAsFixed(2)   : '';
 
-      _birdsCtrl.text     = fillBirds  > 0 ? '$fillBirds'                             : '';
-      _weightCtrl.text    = fillWeight > 0 ? fillWeight.toStringAsFixed(2)             : '';
-      _rcvBirdsCtrl.text  = fillBirds  > 0 ? '$fillBirds'                             : '';
-      _rcvWeightCtrl.text = fillWeight > 0 ? fillWeight.toStringAsFixed(2)             : '';
-
-      // Check if delivery is in correct status AND agent has open shift
+      // Check shift
       final dStatus = d['status'] as String? ?? '';
       bool openShift = false;
       try {
-        final agentId = ref.read(appUserProvider).valueOrNull?.agentId;
+        final agentId = user?.agentId;
         if (agentId != null) {
           final s = await Supabase.instance.client
               .from('delivery_shifts')
@@ -107,69 +155,117 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
         _loaded         = true;
       });
 
-      // Load live stock position
+      // Load stock position
       final productId = o?['product_id'] as String?;
       if (user?.traderId != null && productId != null) {
         try {
           final stockRes = await Supabase.instance.client.rpc('get_available_stock', params: {
-            'p_trader_id': user!.traderId,
-            'p_product_id': productId,
+            'p_trader_id': user!.traderId, 'p_product_id': productId,
           });
           if (!mounted) return;
           final list = (stockRes as List? ?? []);
           if (list.isNotEmpty && mounted) {
             setState(() => _stock = StockPosition.fromMap(list.first as Map<String,dynamic>));
           }
-        } catch (_) {} // stock load is non-fatal
+        } catch (_) {}
       }
     } catch (e) {
       if (mounted) showError(context, e.toString().replaceAll('Exception: ', ''));
     }
   }
 
-  int    get _deliveryBirds  => int.tryParse(_birdsCtrl.text)   ?? 0;
-  double get _deliveryWeight => double.tryParse(_weightCtrl.text) ?? 0;
-  bool   get _stockWarning   => _stock != null && _deliveryBirds > _stock!.availableBirds && _stock!.availableBirds > 0;
-  bool   get _stockCritical  => _stock != null && _stock!.availableBirds <= 0;
+  // ── Image picking ───────────────────────────────────────────────
+  Future<void> _pickImage(bool isMortality) async {
+    try {
+      final picked = await _picker.pickImage(
+          source: ImageSource.camera,
+          imageQuality: 70,
+          maxWidth: 1200);
+      if (picked == null) return;
+      final file = File(picked.path);
+      if (mounted) setState(() {
+        if (isMortality) { _mortalityImage = file; _uploadingMortality = true; }
+        else             { _deliveryImage  = file; _uploadingDelivery  = true; }
+      });
+      try {
+        final bucket  = isMortality ? 'delivery-proofs' : 'delivery-proofs';
+        final path    = '${isMortality ? 'mortality' : 'delivery'}/${DateTime.now().millisecondsSinceEpoch}.jpg';
+        await Supabase.instance.client.storage.from(bucket).upload(path, file);
+        final url = Supabase.instance.client.storage.from(bucket).getPublicUrl(path);
+        if (mounted) setState(() {
+          if (isMortality) { _mortalityProofUrl = url; _uploadingMortality = false; }
+          else             { _deliveryProofUrl  = url; _uploadingDelivery  = false; }
+        });
+      } catch (e) {
+        if (mounted) setState(() {
+          if (isMortality) _uploadingMortality = false;
+          else             _uploadingDelivery  = false;
+        });
+        if (mounted) showError(context, 'Upload failed: ${e.toString().replaceAll('Exception: ', '')}');
+      }
+    } catch (_) {}
+  }
+
+  // ── Live loss calculations ───────────────────────────────────────
+  int    get _deliveryBirds   => int.tryParse(_birdsCtrl.text)     ?? 0;
+  double get _deliveryWeight  => double.tryParse(_weightCtrl.text) ?? 0;
+  int    get _mortalityBirds  => int.tryParse(_mortalityCtrl.text) ?? 0;
+  double get _mortalityWtKg   => _avgBirdWeightG > 0
+      ? (_mortalityBirds * _avgBirdWeightG / 1000)
+      : (double.tryParse(_shrinkKgCtrl.text) ?? 0);
+  double get _transportLossKg => (_dcWeight > 0 && _deliveryWeight > 0)
+      ? (_dcWeight - _deliveryWeight).clamp(0, double.infinity) : 0;
+  double get _totalLossKg     => _transportLossKg + _mortalityWtKg;
+  double get _lossPct         => _dcWeight > 0 ? (_totalLossKg / _dcWeight * 100) : 0;
+  bool   get _isHighLoss      => _lossPct >= 2.0;
+  bool   get _stockWarning    => _stock != null && _deliveryBirds > _stock!.availableBirds && _stock!.availableBirds > 0;
+  bool   get _stockCritical   => _stock != null && _stock!.availableBirds <= 0;
 
   Future<void> _submit() async {
     if (!_form.currentState!.validate()) return;
     final weight = double.tryParse(_weightCtrl.text.trim()) ?? 0;
     if (weight <= 0) { showError(context, 'Enter delivered weight'); return; }
 
+    // Validate delivery status
+    if (_deliveryStatus != 'out_for_delivery') {
+      showError(context,
+        'Status is "$_deliveryStatus". Must be "out_for_delivery".\nAsk admin to check batch.');
+      return;
+    }
+    if (!_hasOpenShift) {
+      showError(context, 'No active shift. Open a shift first.');
+      return;
+    }
+
+    // Mortality image mandatory if mortality > 0
+    if (_mortalityBirds > 0 && _mortalityProofUrl == null) {
+      showError(context, 'Mortality recorded ($_mortalityBirds birds). Photo proof is mandatory — tap the camera icon.');
+      return;
+    }
+
     if (_stockCritical) {
       final ok = await confirmDialog(context,
-          title: 'No Stock Available',
-          message: 'Available stock: ${_stock?.availableBirds ?? 0} birds.\n'
-                   'Delivery will be blocked unless admin has added stock.',
-          confirmText: 'Proceed Anyway', confirmColor: Colors.orange);
+          title: 'No Stock', message: 'No stock available. Proceed anyway?',
+          confirmText: 'Proceed', confirmColor: Colors.orange);
       if (!ok || !mounted) return;
     } else if (_stockWarning) {
       final ok = await confirmDialog(context,
           title: 'Stock Warning',
-          message: 'Available: ${_stock!.availableBirds} birds\n'
-                   'Delivering: $_deliveryBirds birds\n\n'
-                   'Continuing will reduce stock below zero.',
+          message: 'Available: ${_stock!.availableBirds} birds\nDelivering: $_deliveryBirds birds',
           confirmText: 'Proceed', confirmColor: Colors.orange);
       if (!ok || !mounted) return;
     }
 
-    // Validate delivery is in correct state
-    if (_deliveryStatus != 'out_for_delivery') {
-      showError(context,
-        'Delivery status is "$_deliveryStatus". '
-        'Status must be "out_for_delivery" before completing.\n\n'
-        'Please ask admin to check batch status.');
-      return;
-    }
-
-    // Validate shift is open
-    if (!_hasOpenShift) {
-      showError(context,
-        'No active shift found.\n\n'
-        'You must have an open shift to complete deliveries. '
-        'Please open a shift first.');
-      return;
+    // High loss warning
+    if (_isHighLoss) {
+      final ok = await confirmDialog(context,
+          title: '⚠️ High Loss Alert',
+          message: 'Loss: ${_lossPct.toStringAsFixed(1)}% (${_totalLossKg.toStringAsFixed(2)} kg)\n\n'
+              'Transport loss: ${_transportLossKg.toStringAsFixed(2)} kg\n'
+              'Mortality loss: ${_mortalityWtKg.toStringAsFixed(2)} kg\n\n'
+              'This will be flagged for trader review.',
+          confirmText: 'Submit Anyway', confirmColor: Colors.orange);
+      if (!ok || !mounted) return;
     }
 
     if (mounted) setState(() => _submitting = true);
@@ -181,7 +277,7 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
         'p_received_bird_count':    int.tryParse(_rcvBirdsCtrl.text),
         'p_received_total_weight':  double.tryParse(_rcvWeightCtrl.text),
         'p_rejected_birds':         int.tryParse(_rejectedCtrl.text)  ?? 0,
-        'p_mortality_birds':        int.tryParse(_mortalityCtrl.text) ?? 0,
+        'p_mortality_birds':        _mortalityBirds,
         'p_crates_dropped':         int.tryParse(_crateDropCtrl.text) ?? 0,
         'p_crates_collected':       int.tryParse(_crateBackCtrl.text) ?? 0,
         'p_crates_returned':        0,
@@ -192,9 +288,18 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
         'p_returned_weight':        double.tryParse(_returnWtCtrl.text) ?? 0,
         'p_shrinkage_kg':           double.tryParse(_shrinkKgCtrl.text) ?? 0,
         'p_shrinkage_birds':        0,
+        // New loss tracking params
+        'p_dc_weight_kg':           _dcWeight,
+        'p_avg_bird_weight_g':      _avgBirdWeightG,
+        'p_mortality_proof_url':    _mortalityProofUrl,
+        'p_delivery_photo_url':     _deliveryProofUrl,
+        'p_diesel_cost':            0,
+        'p_allowance':              0,
       });
       if (!mounted) return;
-      showSuccess(context, 'Delivery completed ✓');
+      showSuccess(context, _isHighLoss
+          ? '⚠️ Delivery completed — High loss flagged for review'
+          : 'Delivery completed ✓');
       context.go(R.agentDeliveries);
     } catch (e) {
       if (!mounted) return;
@@ -206,211 +311,209 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
 
   @override
   Widget build(BuildContext context) {
-    if (!_loaded) return const Scaffold(body: LoadingList());
-    final o = _delivery?['orders'] as Map<String,dynamic>?;
-    final r = o?['retailers'] as Map<String,dynamic>?;
+    if (!_loaded) return Scaffold(
+      appBar: AppBar(
+        leading: IconButton(icon: const Icon(Icons.arrow_back),
+            onPressed: () { if (context.canPop()) context.pop(); else context.go(R.agentDeliveries); }),
+        title: const Text('Complete Delivery')),
+      body: const LoadingList());
 
-    // Show blocked screen if delivery not ready or no open shift
-    final isReady = _deliveryStatus == 'out_for_delivery';
+    final o        = _delivery?['orders'] as Map<String,dynamic>?;
+    final r        = o?['retailers'] as Map<String,dynamic>?;
     final shopName = r?['shop_name'] as String? ?? 'Delivery';
 
+    // Blocked state
+    final isReady = _deliveryStatus == 'out_for_delivery';
     if (!isReady || !_hasOpenShift) {
       return Scaffold(
         appBar: AppBar(
-          leading: IconButton(
-            icon: const Icon(Icons.arrow_back),
-            onPressed: () {
-              if (context.canPop()) context.pop();
-              else context.go(R.agentDeliveries);
-            }),
+          leading: IconButton(icon: const Icon(Icons.arrow_back),
+              onPressed: () { if (context.canPop()) context.pop(); else context.go(R.agentDeliveries); }),
           title: Text(shopName)),
         body: Center(child: Padding(padding: const EdgeInsets.all(24), child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(!isReady ? Icons.pending_actions_outlined : Icons.schedule_outlined,
-                size: 64, color: Colors.orange),
+          mainAxisSize: MainAxisSize.min, children: [
+            Icon(!isReady ? Icons.pending_actions_outlined : Icons.schedule_outlined, size: 64, color: Colors.orange),
             const SizedBox(height: 16),
-            Text(
-              !isReady
-                  ? 'Delivery Not Ready'
-                  : 'No Active Shift',
-              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
+            Text(!isReady ? 'Not Ready for Delivery' : 'No Active Shift',
+                style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
             const SizedBox(height: 8),
-            Text(
-              !isReady
-                  ? 'Current status: "$_deliveryStatus"\n\n'
-                    'Delivery must be "Out for Delivery" before completing.\n'
-                    'Ask admin to check the batch status.'
-                  : 'You must have an open shift to complete deliveries.\n\n'
-                    'Open a shift first, then come back.',
-              textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 13, color: kTextSub, height: 1.5)),
+            Text(!isReady
+                ? 'Status: "$_deliveryStatus"\nMust be "out_for_delivery". Ask admin.'
+                : 'Open a shift first, then come back.',
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 13, color: kTextSub, height: 1.5)),
             const SizedBox(height: 24),
-            if (!_hasOpenShift)
-              ElevatedButton.icon(
+            if (!_hasOpenShift) ElevatedButton.icon(
                 onPressed: () => context.go(R.shiftOpen),
-                icon: const Icon(Icons.access_time),
-                label: const Text('Open Shift')),
+                icon: const Icon(Icons.access_time), label: const Text('Open Shift')),
             const SizedBox(height: 12),
             OutlinedButton(
-              onPressed: () {
-                if (context.canPop()) context.pop();
-                else context.go(R.agentDeliveries);
-              },
-              child: const Text('← Back to Deliveries')),
-          ],
-        ))));
+                onPressed: () { if (context.canPop()) context.pop(); else context.go(R.agentDeliveries); },
+                child: const Text('← Back to Deliveries')),
+          ]))));
     }
 
     return Scaffold(
       appBar: AppBar(
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
-          onPressed: () {
-            if (context.canPop()) context.pop();
-            else context.go(R.agentDeliveries);
-          }),
-        title: Text(r?['shop_name'] as String? ?? 'Complete Delivery')),
+          onPressed: () { if (context.canPop()) context.pop(); else context.go(R.agentDeliveries); }),
+        title: Text(shopName)),
       body: Form(key: _form, child: ListView(padding: const EdgeInsets.all(16), children: [
 
         // Shop header
         if (r != null) Container(
-          padding: const EdgeInsets.all(12),
-          margin: const EdgeInsets.only(bottom: 12),
-          decoration: BoxDecoration(
-              color: kPrimary.withValues(alpha: 0.07),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: kPrimary.withValues(alpha: 0.2))),
+          padding: const EdgeInsets.all(12), margin: const EdgeInsets.only(bottom: 12),
+          decoration: BoxDecoration(color: kPrimary.withValues(alpha: 0.07),
+              borderRadius: BorderRadius.circular(12), border: Border.all(color: kPrimary.withValues(alpha: 0.2))),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(r['shop_name'] as String,
-                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: kPrimary)),
-            if (r['address'] != null) ...[
-              const SizedBox(height: 2),
-              Text(r['address'] as String, style: const TextStyle(fontSize: 11, color: kTextSub)),
-            ],
-            if (r['phone'] != null) ...[
-              const SizedBox(height: 2),
-              Text(r['phone'] as String, style: const TextStyle(fontSize: 11, color: kTextHint)),
-            ],
+            Text(r['shop_name'] as String, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: kPrimary)),
+            if (r['address'] != null) Text(r['address'] as String, style: const TextStyle(fontSize: 11, color: kTextSub)),
+            if (r['phone'] != null) Text(r['phone'] as String, style: const TextStyle(fontSize: 11, color: kTextHint)),
           ])),
 
-        // FIX: DC source info banner — shows what was loaded from farm
+        // DC source info
         if (_dcBirds > 0 || _dcWeight > 0) Container(
-          padding: const EdgeInsets.all(10),
-          margin: const EdgeInsets.only(bottom: 12),
-          decoration: BoxDecoration(
-              color: Colors.blue.shade50,
-              borderRadius: BorderRadius.circular(10),
+          padding: const EdgeInsets.all(10), margin: const EdgeInsets.only(bottom: 12),
+          decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(10),
               border: Border.all(color: Colors.blue.shade200)),
           child: Row(children: [
-            const Icon(Icons.receipt_long_outlined, color: Colors.blue, size: 18),
-            const SizedBox(width: 8),
+            const Icon(Icons.receipt_long_outlined, color: Colors.blue, size: 18), const SizedBox(width: 8),
             Expanded(child: Text(
-              'From DC: $_dcBirds birds · ${_dcWeight.toStringAsFixed(1)} kg loaded from farm',
+              'From Farm DC: $_dcBirds birds · ${_dcWeight.toStringAsFixed(1)} kg loaded'
+              '${_avgBirdWeightG > 0 ? ' · Avg ${_avgBirdWeightG.toStringAsFixed(0)}g/bird' : ''}',
               style: const TextStyle(fontSize: 12, color: Colors.blue, fontWeight: FontWeight.w600))),
           ])),
 
-        // Stock banner
-        _stockBanner(),
+        // ── WEIGHMENT BUTTON ──────────────────────────────────────
+        _weighmentButton(),
 
-        // ── DELIVERED ─────────────────────────────────────────────
+        // Stock banner
+        if (_stock != null) _stockBanner(),
+
+        // ── DELIVERED ──────────────────────────────────────────────
         const SectionHeader('DELIVERED TO SHOP'),
         Row(children: [
-          Expanded(child: TextFormField(
-            controller: _birdsCtrl,
-            keyboardType: TextInputType.number,
-            decoration: const InputDecoration(labelText: 'Birds *', suffixText: 'birds'),
-            onChanged: (_) { if (mounted) setState(() {}); },
-            validator: (v) => v!.isEmpty ? 'Required' : null)),
+          Expanded(child: TextFormField(controller: _birdsCtrl, keyboardType: TextInputType.number,
+              decoration: const InputDecoration(labelText: 'Birds *', suffixText: 'birds'),
+              onChanged: (_) { if (mounted) setState(() {}); },
+              validator: (v) => v!.isEmpty ? 'Required' : null)),
           const SizedBox(width: 12),
-          Expanded(child: TextFormField(
-            controller: _weightCtrl,
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            decoration: const InputDecoration(labelText: 'Weight (kg) *', suffixText: 'kg'),
-            validator: (v) => (double.tryParse(v ?? '') ?? 0) <= 0 ? 'Enter weight' : null)),
+          Expanded(child: TextFormField(controller: _weightCtrl,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              decoration: const InputDecoration(labelText: 'Weight (kg) *', suffixText: 'kg'),
+              onChanged: (_) { if (mounted) setState(() {}); },
+              validator: (v) => (double.tryParse(v ?? '') ?? 0) <= 0 ? 'Enter weight' : null)),
         ]),
 
-        // FIX: Live amount preview when rate is known
-        if (_deliveryWeight > 0) Padding(
-          padding: const EdgeInsets.only(top: 6, bottom: 2),
-          child: Text(
-            'Delivering: $_deliveryBirds birds · ${_deliveryWeight.toStringAsFixed(2)} kg',
-            style: const TextStyle(fontSize: 12, color: kPrimary, fontWeight: FontWeight.w600))),
+        // ── LIVE LOSS CALCULATION ──────────────────────────────────
+        if (_dcWeight > 0 && _deliveryWeight > 0) ...[
+          const SizedBox(height: 10),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+                color: _isHighLoss ? Colors.red.shade50 : Colors.green.shade50,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: _isHighLoss ? Colors.red.shade200 : Colors.green.shade200)),
+            child: Column(children: [
+              Row(children: [
+                Icon(_isHighLoss ? Icons.warning_amber_rounded : Icons.check_circle_outline,
+                    color: _isHighLoss ? Colors.red : Colors.green, size: 16),
+                const SizedBox(width: 6),
+                Text(_isHighLoss ? '⚠️ High Loss — ${_lossPct.toStringAsFixed(1)}%' : 'Loss: ${_lossPct.toStringAsFixed(1)}%',
+                    style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13,
+                        color: _isHighLoss ? Colors.red : Colors.green)),
+              ]),
+              const SizedBox(height: 8),
+              Row(children: [
+                _lossStat('DC Wt', '${_dcWeight.toStringAsFixed(1)} kg', Colors.blue),
+                _lossStat('Delivered', '${_deliveryWeight.toStringAsFixed(1)} kg', kPrimary),
+                _lossStat('Transport\nLoss', '${_transportLossKg.toStringAsFixed(2)} kg', Colors.orange),
+                _lossStat('Total\nLoss', '${_totalLossKg.toStringAsFixed(2)} kg',
+                    _isHighLoss ? Colors.red : Colors.orange),
+              ]),
+            ])),
+        ],
+        const SizedBox(height: 10),
 
-        const SizedBox(height: 12),
-
-        // ── RETAILER CONFIRMED ────────────────────────────────────
-        const SectionHeader('RETAILER CONFIRMED (received)'),
+        // ── RETAILER CONFIRMED ─────────────────────────────────────
+        const SectionHeader('RETAILER CONFIRMED'),
         Row(children: [
-          Expanded(child: TextFormField(
-            controller: _rcvBirdsCtrl,
-            keyboardType: TextInputType.number,
-            decoration: const InputDecoration(labelText: 'Birds confirmed'))),
+          Expanded(child: TextFormField(controller: _rcvBirdsCtrl, keyboardType: TextInputType.number,
+              decoration: const InputDecoration(labelText: 'Birds confirmed'))),
           const SizedBox(width: 12),
-          Expanded(child: TextFormField(
-            controller: _rcvWeightCtrl,
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            decoration: const InputDecoration(labelText: 'Weight confirmed (kg)'))),
+          Expanded(child: TextFormField(controller: _rcvWeightCtrl,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              decoration: const InputDecoration(labelText: 'Weight confirmed (kg)'))),
         ]),
-        const SizedBox(height: 12),
+        const SizedBox(height: 10),
 
-        // ── LOSSES ────────────────────────────────────────────────
-        const SectionHeader('LOSSES (if any)'),
+        // ── MORTALITY ─────────────────────────────────────────────
+        const SectionHeader('MORTALITY & LOSSES'),
         Row(children: [
-          Expanded(child: TextFormField(
-            controller: _mortalityCtrl,
-            keyboardType: TextInputType.number,
-            decoration: const InputDecoration(labelText: 'Dead birds', suffixText: 'birds'))),
+          Expanded(child: TextFormField(controller: _mortalityCtrl, keyboardType: TextInputType.number,
+              decoration: const InputDecoration(labelText: 'Dead birds', suffixText: 'birds'),
+              onChanged: (_) { if (mounted) setState(() {}); })),
           const SizedBox(width: 8),
-          Expanded(child: TextFormField(
-            controller: _rejectedCtrl,
-            keyboardType: TextInputType.number,
-            decoration: const InputDecoration(labelText: 'Rejected birds'))),
+          Expanded(child: TextFormField(controller: _rejectedCtrl, keyboardType: TextInputType.number,
+              decoration: const InputDecoration(labelText: 'Rejected birds'))),
           const SizedBox(width: 8),
-          Expanded(child: TextFormField(
-            controller: _shrinkKgCtrl,
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            decoration: const InputDecoration(labelText: 'Shrinkage (kg)', suffixText: 'kg'))),
+          Expanded(child: TextFormField(controller: _shrinkKgCtrl,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              decoration: const InputDecoration(labelText: 'Shrinkage (kg)'))),
         ]),
-        const SizedBox(height: 12),
 
-        // ── RETURNS ───────────────────────────────────────────────
-        const SectionHeader('RETURNED TO STOCK (unsold)'),
+        // Mortality weight calculation display
+        if (_mortalityBirds > 0) Padding(
+          padding: const EdgeInsets.only(top: 6),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(color: Colors.red.shade50, borderRadius: BorderRadius.circular(8)),
+            child: Text(
+              'Mortality weight ≈ ${_mortalityWtKg.toStringAsFixed(2)} kg'
+              '${_avgBirdWeightG > 0 ? ' (${_mortalityBirds} × ${_avgBirdWeightG.toStringAsFixed(0)}g)' : ''}',
+              style: const TextStyle(fontSize: 12, color: Colors.red, fontWeight: FontWeight.w600)))),
+
+        // Mortality image upload — mandatory if mortality > 0
+        const SizedBox(height: 10),
+        _imageUploadTile(
+          label: 'Mortality Proof Photo',
+          required: _mortalityBirds > 0,
+          image: _mortalityImage,
+          uploading: _uploadingMortality,
+          uploaded: _mortalityProofUrl != null,
+          onTap: () => _pickImage(true)),
+
+        const SizedBox(height: 10),
+
+        // ── RETURNS ────────────────────────────────────────────────
+        const SectionHeader('RETURNED TO STOCK'),
         Row(children: [
-          Expanded(child: TextFormField(
-            controller: _returnBirdsCtrl,
-            keyboardType: TextInputType.number,
-            decoration: const InputDecoration(labelText: 'Return birds'))),
+          Expanded(child: TextFormField(controller: _returnBirdsCtrl, keyboardType: TextInputType.number,
+              decoration: const InputDecoration(labelText: 'Return birds'))),
           const SizedBox(width: 12),
-          Expanded(child: TextFormField(
-            controller: _returnWtCtrl,
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            decoration: const InputDecoration(labelText: 'Return weight (kg)'))),
+          Expanded(child: TextFormField(controller: _returnWtCtrl,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              decoration: const InputDecoration(labelText: 'Return weight (kg)'))),
         ]),
-        const SizedBox(height: 12),
+        const SizedBox(height: 10),
 
-        // ── CRATES ────────────────────────────────────────────────
+        // ── CRATES ─────────────────────────────────────────────────
         const SectionHeader('CRATES'),
         Row(children: [
-          Expanded(child: TextFormField(
-            controller: _crateDropCtrl,
-            keyboardType: TextInputType.number,
-            decoration: const InputDecoration(labelText: 'Given'))),
+          Expanded(child: TextFormField(controller: _crateDropCtrl, keyboardType: TextInputType.number,
+              decoration: const InputDecoration(labelText: 'Given'))),
           const SizedBox(width: 12),
-          Expanded(child: TextFormField(
-            controller: _crateBackCtrl,
-            keyboardType: TextInputType.number,
-            decoration: const InputDecoration(labelText: 'Received back'))),
+          Expanded(child: TextFormField(controller: _crateBackCtrl, keyboardType: TextInputType.number,
+              decoration: const InputDecoration(labelText: 'Received back'))),
         ]),
-        const SizedBox(height: 12),
+        const SizedBox(height: 10),
 
-        // ── PAYMENT ───────────────────────────────────────────────
+        // ── PAYMENT ────────────────────────────────────────────────
         const SectionHeader('CASH COLLECTION'),
-        TextFormField(
-          controller: _cashCtrl,
-          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-          decoration: const InputDecoration(
-              labelText: 'Amount Collected (₹)', prefixText: '₹')),
+        TextFormField(controller: _cashCtrl,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            decoration: const InputDecoration(labelText: 'Amount Collected (₹)', prefixText: '₹')),
         const SizedBox(height: 8),
         SegmentedButton<String>(
           segments: const [
@@ -423,53 +526,140 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
           onSelectionChanged: (s) => setState(() => _payMode = s.first)),
         const SizedBox(height: 12),
 
-        TextFormField(
-          controller: _notesCtrl,
-          maxLines: 2,
-          decoration: const InputDecoration(
-              labelText: 'Notes (optional)', alignLabelWithHint: true)),
+        // Delivery photo (optional)
+        _imageUploadTile(
+          label: 'Delivery Proof Photo (Optional)',
+          required: false,
+          image: _deliveryImage,
+          uploading: _uploadingDelivery,
+          uploaded: _deliveryProofUrl != null,
+          onTap: () => _pickImage(false)),
+
+        const SizedBox(height: 12),
+        TextFormField(controller: _notesCtrl, maxLines: 2,
+            decoration: const InputDecoration(labelText: 'Notes (optional)', alignLabelWithHint: true)),
         const SizedBox(height: 24),
 
         ElevatedButton(
-          onPressed: _submitting ? null : _submit,
-          style: _stockWarning
+          onPressed: (_submitting || _uploadingMortality || _uploadingDelivery) ? null : _submit,
+          style: _isHighLoss
               ? ElevatedButton.styleFrom(backgroundColor: Colors.orange)
               : null,
           child: _submitting
               ? const SizedBox(width: 22, height: 22,
                   child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white))
               : Text(
-                  _stockWarning ? '⚠  Mark Delivered (Low Stock)' : 'Mark as Delivered',
+                  _isHighLoss
+                      ? '⚠️ Submit (High Loss ${_lossPct.toStringAsFixed(1)}%)'
+                      : 'Mark as Delivered',
                   style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700))),
         const SizedBox(height: 20),
       ])),
     );
   }
 
+  Widget _imageUploadTile({
+    required String label,
+    required bool required,
+    required File? image,
+    required bool uploading,
+    required bool uploaded,
+    required VoidCallback onTap,
+  }) {
+    final Color c = uploaded ? Colors.green : (required ? Colors.red : kTextHint);
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+            color: uploaded ? Colors.green.shade50 : (required ? Colors.red.shade50 : Colors.grey.shade50),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: c.withValues(alpha: 0.4))),
+        child: Row(children: [
+          if (image != null)
+            ClipRRect(borderRadius: BorderRadius.circular(6),
+                child: Image.file(image, width: 48, height: 48, fit: BoxFit.cover))
+          else
+            Icon(Icons.camera_alt_outlined, size: 36, color: c),
+          const SizedBox(width: 12),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(label, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: c)),
+            Text(
+              uploading ? 'Uploading...' :
+              uploaded  ? '✓ Photo uploaded' :
+              required  ? 'Required — tap to take photo' :
+              'Tap to take photo (optional)',
+              style: TextStyle(fontSize: 11, color: c)),
+          ])),
+          if (uploading) const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)),
+          if (uploaded && !uploading) const Icon(Icons.check_circle, color: Colors.green, size: 20),
+        ])),
+    );
+  }
+
+  // ── Weighment button widget ─────────────────────────────────────
+  Widget _weighmentButton() => GestureDetector(
+    onTap: _openWeighment,
+    child: Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: _weighmentResult != null
+              ? [Colors.green.shade600, Colors.green.shade400]
+              : [Colors.blue.shade700, Colors.blue.shade500],
+          begin: Alignment.centerLeft, end: Alignment.centerRight),
+        borderRadius: BorderRadius.circular(12)),
+      child: Row(children: [
+        const Icon(Icons.bluetooth, color: Colors.white, size: 22),
+        const SizedBox(width: 12),
+        Expanded(child: _weighmentResult == null
+            ? const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text('Use Bluetooth Scale', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: Colors.white)),
+                Text('Tap to connect scale & record load/empty weights', style: TextStyle(fontSize: 11, color: Colors.white70)),
+              ])
+            : Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                const Text('Weighment Applied ✓', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: Colors.white)),
+                Text(
+                  '${_weighmentResult!.totalBirds} birds · '
+                  '${_weighmentResult!.totalNetWt.toStringAsFixed(2)} kg net · '
+                  'Avg ${_weighmentResult!.avgBirdWtG.toStringAsFixed(0)}g/bird',
+                  style: const TextStyle(fontSize: 11, color: Colors.white)),
+              ])),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.2),
+            borderRadius: BorderRadius.circular(8)),
+          child: Text(
+            _weighmentResult != null ? 'Re-weigh' : 'Open',
+            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.white))),
+      ]),
+    ));
+
   Widget _stockBanner() {
     if (_stock == null) return const SizedBox.shrink();
     final avail = _stock!.availableBirds;
     final over  = _deliveryBirds > avail && avail > 0;
     final zero  = avail <= 0;
-    Color c = zero ? Colors.red : over ? Colors.orange : Colors.green;
+    final c     = zero ? Colors.red : over ? Colors.orange : Colors.green;
     return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-          color: c.withValues(alpha: 0.1),
-          borderRadius: BorderRadius.circular(10),
+      margin: const EdgeInsets.only(bottom: 12), padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(color: c.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(10),
           border: Border.all(color: c.withValues(alpha: 0.3))),
       child: Row(children: [
         Icon(zero ? Icons.error : over ? Icons.inventory_outlined : Icons.check_circle_outline,
-            color: c, size: 18),
-        const SizedBox(width: 8),
+            color: c, size: 18), const SizedBox(width: 8),
         Expanded(child: Text(
-          zero
-              ? 'No stock available! Ask admin to add a DC/purchase.'
-              : over
-                  ? 'Stock: $avail birds available · Delivering: $_deliveryBirds birds'
-                  : 'Stock OK: $avail birds available ✓',
+          zero ? 'No stock. Ask admin to add DC.' :
+          over ? 'Stock: $avail birds available · Delivering: $_deliveryBirds' :
+          'Stock OK: $avail birds ✓',
           style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: c))),
       ]));
   }
+
+  Widget _lossStat(String l, String v, Color c) => Expanded(child: Column(children: [
+    Text(v, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: c), textAlign: TextAlign.center),
+    Text(l, style: const TextStyle(fontSize: 9, color: kTextHint), textAlign: TextAlign.center),
+  ]));
 }

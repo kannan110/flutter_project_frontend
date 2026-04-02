@@ -1,6 +1,8 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/providers/session_provider.dart';
@@ -29,12 +31,14 @@ class _S extends ConsumerState<BatchPickupScreen> {
   final _farmRate = TextEditingController();
 
   DateTime _dcDate  = DateTime.now();
-  // FIX: source type toggle for ALL DCs (first and additional)
   String _srcType   = 'farm';
-  bool _loading = false, _dataLoading = true;
+  bool _loading = false, _dataLoading = true, _uploadingDcImage = false;
   Map<String,dynamic>? _batch, _shift;
   List<Map<String,dynamic>> _existingDCs = [];
   List<Map<String,dynamic>> _deliveries  = [];
+  File?   _dcImage;
+  String? _dcImageUrl;
+  final   _picker = ImagePicker();
 
   @override void initState() { super.initState(); _load(); }
   @override void dispose() {
@@ -119,11 +123,31 @@ class _S extends ConsumerState<BatchPickupScreen> {
   double get _expectedWeight => _deliveries.where((d) => d['status'] != 'cancelled')
       .fold(0.0, (s, d) => s + (((d['orders'] as Map?)?.cast<String,dynamic>()?['total_quantity'] as num?)?.toDouble() ?? 0));
 
+  Future<void> _takeDcPhoto() async {
+    try {
+      final picked = await _picker.pickImage(
+          source: ImageSource.camera, imageQuality: 70, maxWidth: 1200);
+      if (picked == null || !mounted) return;
+      final file = File(picked.path);
+      if (mounted) setState(() { _dcImage = file; _uploadingDcImage = true; });
+      try {
+        final path = 'dc/${DateTime.now().millisecondsSinceEpoch}.jpg';
+        await Supabase.instance.client.storage.from('dc-images').upload(path, file);
+        final url = Supabase.instance.client.storage.from('dc-images').getPublicUrl(path);
+        if (mounted) setState(() { _dcImageUrl = url; _uploadingDcImage = false; });
+      } catch (e) {
+        if (mounted) setState(() => _uploadingDcImage = false);
+        if (mounted) showError(context, 'DC photo upload failed — check connection');
+      }
+    } catch (_) {}
+  }
+
   Future<void> _saveDC() async {
     if (!_form.currentState!.validate()) return;
     if (_dcNum.text.trim().isEmpty)  { showError(context, 'Enter DC number'); return; }
     if (_farmer.text.trim().isEmpty) { showError(context, 'Enter ${_srcType == "farm" ? "Farmer" : "Source"} name'); return; }
     if (_grossWtVal <= 0)            { showError(context, 'Enter gross weight (must be > 0)'); return; }
+    if (_dcImageUrl == null)         { showError(context, 'DC photo is mandatory — tap the camera button above'); return; }
 
     final bStatus      = _batch?['status'] as String? ?? 'assigned';
     final isFirstPickup = bStatus == 'assigned';
@@ -161,7 +185,7 @@ class _S extends ConsumerState<BatchPickupScreen> {
           'p_farm_rate':      _farmRate.text.trim().isEmpty ? null : double.tryParse(_farmRate.text.trim()),
           'p_in_time':        null,
           'p_out_time':       null,
-          'p_dc_photo_url':   null,
+          'p_dc_photo_url':   _dcImageUrl,
         });
 
         // Step 2: CRITICAL — advance all deliveries picked_up → out_for_delivery
@@ -386,6 +410,53 @@ class _S extends ConsumerState<BatchPickupScreen> {
             selected: {_srcType},
             onSelectionChanged: (s) => setState(() => _srcType = s.first)),
           const SizedBox(height: 12),
+
+          // ── DC Image (mandatory) ─────────────────────────
+          const Text('DC PHOTO *', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700,
+              color: kTextHint, letterSpacing: 0.5)),
+          const SizedBox(height: 6),
+          GestureDetector(
+            onTap: _uploadingDcImage ? null : _takeDcPhoto,
+            child: Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                  color: _dcImage != null ? Colors.green.shade50 : Colors.red.shade50,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: _dcImage != null ? Colors.green.shade300 : Colors.red.shade300,
+                      width: _dcImage != null ? 1 : 1.5)),
+              child: Row(children: [
+                if (_dcImage != null)
+                  ClipRRect(borderRadius: BorderRadius.circular(8),
+                      child: Image.file(_dcImage!, width: 60, height: 60, fit: BoxFit.cover))
+                else
+                  Column(children: [
+                    const Icon(Icons.camera_alt, size: 40, color: Colors.red),
+                    const SizedBox(height: 2),
+                    const Text('Required', style: TextStyle(fontSize: 9, color: Colors.red, fontWeight: FontWeight.w700)),
+                  ]),
+                const SizedBox(width: 14),
+                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text(_dcImage != null ? 'DC Photo Captured ✓' : 'Take DC Photo (Mandatory)',
+                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800,
+                          color: _dcImage != null ? Colors.green : Colors.red)),
+                  const SizedBox(height: 4),
+                  Text(_uploadingDcImage ? 'Uploading...' :
+                      _dcImageUrl != null ? 'Uploaded & linked to DC ✓' :
+                      'Take a clear photo of the farm goods / challan',
+                      style: TextStyle(fontSize: 11,
+                          color: _dcImageUrl != null ? Colors.green : Colors.red.shade400)),
+                ])),
+                if (_uploadingDcImage)
+                  const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2))
+                else if (_dcImageUrl != null)
+                  const Icon(Icons.check_circle, color: Colors.green, size: 26)
+                else
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: const BoxDecoration(color: Colors.red, shape: BoxShape.circle),
+                    child: const Icon(Icons.camera_alt, color: Colors.white, size: 18)),
+              ]))),
+          const SizedBox(height: 14),
 
           // ── DC Number + Date ─────────────────────────────────
           Row(children: [

@@ -62,25 +62,47 @@ class _LoginState extends ConsumerState<LoginScreen> with TickerProviderStateMix
       if (mounted) {
         _busy = false;
         if (res.user != null) {
-          showSuccess(context, 'Account created! Now tap "Link Agent Account" below.');
+          // Account created — go to sign in tab
+          showSuccess(context, 'Account created! Go to Sign In tab and sign in.');
           _tab.animateTo(0);
           _siEmail.text = email;
           if (mounted) setState(() {});
         } else {
-          if (mounted) setState(() => _err = 'Check your email to confirm your account, then sign in.');
+          // User exists but unconfirmed — try to sign in directly
+          if (mounted) setState(() => _err =
+            'Account may already exist. Try Sign In with the same email and password.');
         }
       }
     } on AuthException catch (e) {
-      if (mounted) setState(() { _err = _friendlyErr(e.message); _busy = false; });
+      final msg = e.message.toLowerCase();
+      if (msg.contains('rate limit') || msg.contains('too many') || msg.contains('over_email_send_rate_limit')) {
+        // Rate limited — account may already exist, guide user to sign in
+        if (mounted) setState(() {
+          _err = 'Sign-up limit reached for this email.\n\n'
+              'If you already signed up before, go to Sign In tab and use the same email and password.\n\n'
+              'Tamil: இந்த மின்னஞ்சல் Sign Up வரம்பை தாண்டியது. ஏற்கெனவே Sign Up செய்திருந்தால், Sign In tab இல் உள்நுழையவும்.';
+          _busy = false;
+        });
+      } else {
+        if (mounted) setState(() { _err = _friendlyErr(e.message); _busy = false; });
+      }
     } catch (_) {
-      if (mounted) setState(() { _err = 'Connection failed.'; _busy = false; });
+      if (mounted) setState(() { _err = 'Connection failed. Check internet.'; _busy = false; });
     }
   }
 
   String _friendlyErr(String m) {
-    if (m.contains('rate limit') || m.contains('too many')) return 'Too many attempts. Wait a few minutes.';
-    if (m.contains('already registered')) return 'Email already registered. Use Sign In.';
-    if (m.contains('Invalid login') || m.contains('credentials')) return 'Wrong email or password.';
+    final lower = m.toLowerCase();
+    if (lower.contains('rate limit') || lower.contains('too many') || lower.contains('over_email'))
+      return 'Too many attempts. Wait a few minutes, or try Sign In if you already have an account.';
+    if (lower.contains('already registered') || lower.contains('already exists'))
+      return 'Email already registered. Use Sign In tab.';
+    if (lower.contains('invalid login') || lower.contains('credentials') || lower.contains('invalid_credentials'))
+      return 'Wrong email or password. Check and try again.';
+    if (lower.contains('email not confirmed'))
+      return 'Email not confirmed. Ask admin or try Sign In directly.';
+    if (lower.contains('network') || lower.contains('connection'))
+      return 'Connection error. Check your internet.';
     return m;
   }
 
