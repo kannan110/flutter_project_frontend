@@ -70,8 +70,19 @@ class AppUserNotifier extends StateNotifier<AsyncValue<AppUser?>> {
           ));
           return;
         }
-        _log('No trader found → login screen');
-        state = const AsyncValue.data(null);
+        _log('No trader found — orphaned auth user, sending to link screen');
+        // Return a minimal AppUser with unknown role so router sends to agent link
+        // instead of login (prevents infinite signedIn → null → login loop)
+        state = AsyncValue.data(AppUser(
+          userId: user.id,
+          traderId: null,
+          role: UserRole.unknown,
+          companyName: null,
+          companyCode: null,
+          isSubscriptionActive: false,
+          subscriptionEndDate: null,
+          agentId: null,
+        ));
         return;
       }
 

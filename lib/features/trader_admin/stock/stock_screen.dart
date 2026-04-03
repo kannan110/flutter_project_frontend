@@ -195,9 +195,11 @@ class _S extends ConsumerState<StockScreen> {
                   color: p.isNegative ? Colors.red : p.hasLowStock ? Colors.orange : Colors.green)),
           const SizedBox(width: 12),
           Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            const Text('birds available', style: TextStyle(fontSize: 13, color: kTextSub)),
-            Text('${p.availableKg.toStringAsFixed(1)} kg',
+            const Text('birds available now', style: TextStyle(fontSize: 13, color: kTextSub)),
+            Text('${p.availableKg.toStringAsFixed(1)} kg available',
                 style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: kTextMain)),
+            Text('Today DC: +${p.todayPurchased} birds',
+                style: const TextStyle(fontSize: 11, color: Colors.blue)),
           ]),
         ])),
       // Breakdown grid

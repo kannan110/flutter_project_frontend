@@ -74,6 +74,11 @@ class DashboardData {
   final int unreadAlerts;
   final String dayStatus;
   final bool allClear;
+  // Loss tracking
+  final int todayHighLossCount;
+  final double todayTotalLossKg;
+  final double todayDcWeightTotal;
+  final int todayMortalityBirds;
 
   const DashboardData({
     this.pendingOrders=0, this.activeDeliveries=0, this.todayDelivered=0,
@@ -87,6 +92,8 @@ class DashboardData {
     this.activeAgents=0, this.openShifts=0, this.activeBatches=0,
     this.totalRetailers=0, this.unreadAlerts=0,
     this.dayStatus='open', this.allClear=false,
+    this.todayHighLossCount=0, this.todayTotalLossKg=0,
+    this.todayDcWeightTotal=0, this.todayMortalityBirds=0,
   });
 
   factory DashboardData.fromMap(Map<String,dynamic> m) => DashboardData(
@@ -117,8 +124,12 @@ class DashboardData {
     activeBatches:     (m['active_batches']       as num?)?.toInt() ?? 0,
     totalRetailers:    (m['total_retailers']      as num?)?.toInt() ?? 0,
     unreadAlerts:      (m['unread_alerts']        as num?)?.toInt() ?? 0,
-    dayStatus:         m['day_status'] as String? ?? 'open',
-    allClear:          m['all_clear'] as bool? ?? false,
+    dayStatus:          m['day_status'] as String? ?? 'open',
+    allClear:           m['all_clear'] as bool? ?? false,
+    todayHighLossCount: (m['today_high_loss_count'] as num?)?.toInt() ?? 0,
+    todayTotalLossKg:   (m['today_total_loss_kg']   as num?)?.toDouble() ?? 0,
+    todayDcWeightTotal: (m['today_dc_weight_total'] as num?)?.toDouble() ?? 0,
+    todayMortalityBirds:(m['today_mortality_birds'] as num?)?.toInt() ?? 0,
   );
 
   bool get isDayClosed => dayStatus == 'closed' || dayStatus == 'locked';

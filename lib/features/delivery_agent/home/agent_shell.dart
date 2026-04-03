@@ -12,7 +12,7 @@ class AgentShell extends ConsumerWidget {
     final loc = GoRouterState.of(context).matchedLocation;
 
     // Screens that are "sub-screens" — show back button, hide bottom nav
-    final isSubScreen = loc.startsWith('/a/batch/') ||    // batch pickup
+    final isSubScreen = loc.startsWith('/a/batch/') ||    // batch pickup + DC view
                         loc.startsWith('/a/delivery/');   // delivery complete
 
     int idx = 0;

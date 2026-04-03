@@ -39,6 +39,7 @@ import '../../features/trader_admin/day_closure/day_closure_screen.dart';
 import '../../features/trader_admin/alerts/alerts_screen.dart';
 import '../../features/trader_admin/reports/daily_report_screen.dart';
 import '../../features/delivery_agent/home/agent_shell.dart';
+import '../../features/delivery_agent/batch/dc_view_screen.dart';
 import '../../features/delivery_agent/home/agent_home_screen.dart';
 import '../../features/delivery_agent/shift/shift_open_screen.dart';
 import '../../features/delivery_agent/shift/shift_close_screen.dart';
@@ -86,6 +87,7 @@ abstract class R {
   static const shiftOpen      = '/a/shift/open';
   static const shiftClose     = '/a/shift/close';
   static const batchPickup    = '/a/batch/:id/pickup';
+  static const dcView         = '/a/batch/:id/dc';
   static const agentDeliveries = '/a/deliveries';
   static const deliveryDone   = '/a/delivery/:id/complete';
   static const agentExpenses  = '/a/expenses';
@@ -99,6 +101,7 @@ abstract class R {
   static String agentDetailPath(String id)     => '/t/agents/$id';
   static String shiftDetailPath(String id)     => '/t/shifts/$id';
   static String batchPickupPath(String id)     => '/a/batch/$id/pickup';
+  static String dcViewPath(String id)          => '/a/batch/$id/dc';
   static String deliveryDonePath(String id)    => '/a/delivery/$id/complete';
 }
 
@@ -191,6 +194,7 @@ final appRouterProvider = Provider<GoRouter>((ref) => GoRouter(
         GoRoute(path: R.shiftOpen,        builder: (_, __) => const ShiftOpenScreen()),
         GoRoute(path: R.shiftClose,       builder: (_, __) => const ShiftCloseScreen()),
         GoRoute(path: R.batchPickup,      builder: (_, s)  => BatchPickupScreen(batchId: s.pathParameters['id']!)),
+        GoRoute(path: R.dcView,           builder: (_, s)  => DcViewScreen(batchId: s.pathParameters['id']!)),
         GoRoute(path: R.agentDeliveries,  builder: (_, __) => const AgentDeliveriesScreen()),
         GoRoute(path: R.deliveryDone,     builder: (_, s)  => DeliveryCompleteScreen(deliveryId: s.pathParameters['id']!)),
         GoRoute(path: R.agentExpenses,    builder: (_, __) => const ExpensesScreen()),

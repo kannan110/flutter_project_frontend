@@ -14,7 +14,15 @@ dependencies:
   supabase_flutter: ^2.5.0
   intl: ^0.19.0
   image_picker: ^1.1.2
-  flutter_blue_plus: ^1.32.0   # Bluetooth weighing scale integration
+  flutter_blue_plus: ^1.32.12        # Keep for future BLE features
+  flutter_bluetooth_serial: ^0.4.0   # Bluetooth Classic for weighing scale (SPP)
+  sqflite: ^2.3.0                    # Local SQLite - offline crash-safe storage
+  path: ^1.9.0                       # Path utils for sqflite
+  path_provider: ^2.1.2              # App/downloads directory
+  share_plus: ^7.2.1                 # Native share sheet (WhatsApp, Gmail etc.)
+  printing: ^5.12.0                  # PDF print dialog
+  pdf: ^3.10.8                       # PDF document builder
+  permission_handler: ^11.3.0        # Runtime permissions (BT, storage)
 
 dev_dependencies:
   flutter_test:

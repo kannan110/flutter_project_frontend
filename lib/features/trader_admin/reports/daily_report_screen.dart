@@ -38,7 +38,8 @@ class _S extends ConsumerState<DailyReportScreen> {
                   'total_loss_kg,loss_percentage,is_high_loss,'
                   'collected_amount,payment_mode,mortality_proof_url,delivery_agent_id,'
                   'orders(retailers(shop_name)),'
-                  'delivery_batches(delivery_challans(dc_number,farmer_name))')
+                  'delivery_batches(delivery_challans(dc_number,farmer_name)),'
+                  'delivery_agents(name)')
           .eq('trader_id', tid)
           .eq('status', 'delivered')
           .gte('delivered_at', '${dateStr}T00:00:00')
@@ -224,14 +225,20 @@ class _S extends ConsumerState<DailyReportScreen> {
       const SizedBox(height: 14),
       WhiteCard(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         const SectionHeader('FINANCIAL'),
-        _row('Gross Revenue',   Fmt.amount((d['gross_revenue']   as num?)?.toDouble() ?? 0), kPrimary),
-        _row('Cash Collected',  Fmt.amount((d['cash_collected']  as num?)?.toDouble() ?? 0), Colors.green),
-        _row('Farm Cost',       Fmt.amount((d['farm_cost']       as num?)?.toDouble() ?? 0), Colors.orange),
-        _row('Expenses',        Fmt.amount((d['total_expenses']  as num?)?.toDouble() ?? 0), Colors.red),
+        _rowInfo('Gross Revenue', 'Invoice value of approved orders today',
+            Fmt.amount((d['gross_revenue']   as num?)?.toDouble() ?? 0), kPrimary),
+        _rowInfo('Cash Collected', 'Payments received from retailers (cash+UPI+bank)',
+            Fmt.amount((d['cash_collected']  as num?)?.toDouble() ?? 0), Colors.green),
+        _rowInfo('Farm Cost', 'DC purchase cost (farm rate × net weight)',
+            Fmt.amount((d['farm_cost']       as num?)?.toDouble() ?? 0), Colors.orange),
+        _rowInfo('Delivery Expenses', 'Agent fuel, toll, misc expenses (NOT deducted from collection)',
+            Fmt.amount((d['total_expenses']  as num?)?.toDouble() ?? 0), Colors.red),
         const Divider(height: 14),
-        _row('Net Profit',      Fmt.amount((d['net_profit']      as num?)?.toDouble() ?? 0),
+        _rowInfo('Net Profit', 'Gross Revenue − Farm Cost − Delivery Expenses',
+            Fmt.amount((d['net_profit']      as num?)?.toDouble() ?? 0),
             ((d['net_profit'] as num?)?.toDouble() ?? 0) >= 0 ? kPrimary : Colors.red),
-        _row('Outstanding',     Fmt.amount((d['total_outstanding'] as num?)?.toDouble() ?? 0), Colors.orange),
+        _rowInfo('Total Outstanding', 'All unpaid retailer balances (ledger)',
+            Fmt.amount((d['total_outstanding'] as num?)?.toDouble() ?? 0), Colors.orange),
       ])),
       const SizedBox(height: 10),
       WhiteCard(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -276,7 +283,6 @@ class _S extends ConsumerState<DailyReportScreen> {
         final r       = o?['retailers'] as Map<String,dynamic>?;
         final isHigh  = d['is_high_loss'] == true;
         final lossPct = (d['loss_percentage'] as num?)?.toDouble() ?? 0;
-        final agent   = (d['delivery_agents'] as Map?)?['name'] as String? ?? '—';
         final birds   = (d['delivered_bird_count'] as num?)?.toInt() ?? 0;
         final weight  = (d['delivered_total_weight'] as num?)?.toDouble() ?? 0;
         final collected = (d['collected_amount'] as num?)?.toDouble() ?? 0;
@@ -431,6 +437,16 @@ class _S extends ConsumerState<DailyReportScreen> {
     Text(v, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: Colors.white)),
     Text(l, style: const TextStyle(fontSize: 10, color: Colors.white60)),
   ]);
+
+  Widget _rowInfo(String label, String subtitle, String value, Color color) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 4),
+    child: Row(children: [
+      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: kTextMain)),
+        Text(subtitle, style: const TextStyle(fontSize: 10, color: kTextHint)),
+      ])),
+      Text(value, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: color)),
+    ]));
 
   Widget _row(String l, String v, [Color? c]) => Padding(
     padding: const EdgeInsets.symmetric(vertical: 3),

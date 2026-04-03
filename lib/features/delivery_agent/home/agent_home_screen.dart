@@ -312,6 +312,19 @@ class _S extends ConsumerState<AgentHomeScreen> {
           final o = d['orders'] as Map<String,dynamic>?;
           return sum + ((o?['total_quantity'] as num?)?.toDouble() ?? 0);
         });
+    // Remaining (not yet delivered)
+    final int remainBirds = deliveries
+        .where((d) => !['delivered','cancelled'].contains(d['status']))
+        .fold(0, (sum, d) {
+          final o = d['orders'] as Map<String,dynamic>?;
+          return sum + ((o?['estimated_birds'] as num?)?.toInt() ?? 0);
+        });
+    final double remainWeight = deliveries
+        .where((d) => !['delivered','cancelled'].contains(d['status']))
+        .fold(0.0, (sum, d) {
+          final o = d['orders'] as Map<String,dynamic>?;
+          return sum + ((o?['total_quantity'] as num?)?.toDouble() ?? 0);
+        });
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -322,9 +335,12 @@ class _S extends ConsumerState<AgentHomeScreen> {
           Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
             Text('$doneCount / $totalCount delivered',
                 style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: kTextSub)),
-            if (totalBirds > 0)
-              Text('$totalBirds birds · ${totalWeight.toStringAsFixed(0)} kg',
-                  style: const TextStyle(fontSize: 11, color: kTextHint)),
+            if (remainBirds > 0)
+              Text('Pending: $remainBirds birds · ${remainWeight.toStringAsFixed(0)} kg',
+                  style: const TextStyle(fontSize: 11, color: Colors.orange, fontWeight: FontWeight.w600))
+            else if (totalBirds > 0)
+              Text('Done: $totalBirds birds · ${totalWeight.toStringAsFixed(0)} kg',
+                  style: const TextStyle(fontSize: 11, color: Colors.green, fontWeight: FontWeight.w600)),
           ]),
         ]),
         const SizedBox(height: 8),
@@ -375,6 +391,12 @@ class _S extends ConsumerState<AgentHomeScreen> {
                 label: Text(status == 'assigned' ? 'Add DC & Pickup' : '+ Add DC',
                     style: const TextStyle(fontSize: 12)),
                 style: OutlinedButton.styleFrom(minimumSize: const Size(0, 36)))),
+            const SizedBox(width: 8),
+            OutlinedButton.icon(
+                onPressed: () => context.push(R.dcViewPath(b['id'])),
+                icon: const Icon(Icons.visibility_outlined, size: 14),
+                label: const Text('DCs', style: TextStyle(fontSize: 12)),
+                style: OutlinedButton.styleFrom(minimumSize: const Size(0, 36))),
             const SizedBox(width: 8),
           ],
           if (status != 'assigned')

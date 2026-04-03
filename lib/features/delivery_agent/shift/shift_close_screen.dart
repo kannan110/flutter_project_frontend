@@ -18,7 +18,6 @@ class _S extends ConsumerState<ShiftCloseScreen> {
   final _odoEnd   = TextEditingController();
   final _birds    = TextEditingController(text: '0');
   final _weight   = TextEditingController(text: '0');
-  final _expenses = TextEditingController(text: '0');
 
   bool _loading = false, _checking = true, _uploading = false;
   Map<String,dynamic>? _shift;
@@ -27,9 +26,22 @@ class _S extends ConsumerState<ShiftCloseScreen> {
   String? _odoEndPhotoUrl;
   final   _picker = ImagePicker();
 
+  // Multi-expense entries
+  final List<Map<String,dynamic>> _expenses = [];
+  final _expAmtCtrl  = TextEditingController();
+  final _expNoteCtrl = TextEditingController();
+  final _dieselCtrl  = TextEditingController(text: '0');
+  final _allowanceCtrl = TextEditingController(text: '0');
+  String _expType    = 'fuel';
+  double get _totalExpenses => _expenses.fold(0.0, (s, e) => s + ((e['amount'] as num?)?.toDouble() ?? 0))
+      + (double.tryParse(_dieselCtrl.text) ?? 0)
+      + (double.tryParse(_allowanceCtrl.text) ?? 0);
+
   @override void initState() { super.initState(); _loadShift(); }
   @override void dispose()   {
-    _odoEnd.dispose(); _birds.dispose(); _weight.dispose(); _expenses.dispose();
+    _odoEnd.dispose(); _birds.dispose(); _weight.dispose();
+    _expAmtCtrl.dispose(); _expNoteCtrl.dispose();
+    _dieselCtrl.dispose(); _allowanceCtrl.dispose();
     super.dispose();
   }
 
@@ -122,13 +134,40 @@ class _S extends ConsumerState<ShiftCloseScreen> {
 
     if (mounted) setState(() => _loading = true);
     try {
+      // Insert each expense into delivery_expenses table first
+      final tid = ref.read(appUserProvider).valueOrNull?.traderId;
+      // Diesel cost as a separate expense entry
+      final dieselAmt = double.tryParse(_dieselCtrl.text.trim()) ?? 0;
+      if (dieselAmt > 0) {
+        await _c.from('delivery_expenses').insert({
+          'shift_id': _shift!['id'], 'trader_id': tid,
+          'expense_type': 'diesel', 'amount': dieselAmt, 'notes': 'Diesel cost',
+        });
+      }
+      // Allowance as a separate entry
+      final allowAmt = double.tryParse(_allowanceCtrl.text.trim()) ?? 0;
+      if (allowAmt > 0) {
+        await _c.from('delivery_expenses').insert({
+          'shift_id': _shift!['id'], 'trader_id': tid,
+          'expense_type': 'allowance', 'amount': allowAmt, 'notes': 'Agent allowance',
+        });
+      }
+      for (final exp in _expenses) {
+        await _c.from('delivery_expenses').insert({
+          'shift_id':    _shift!['id'],
+          'trader_id':   tid,
+          'expense_type': exp['type'],
+          'amount':      exp['amount'],
+          'notes':       exp['notes'],
+        });
+      }
       await _c.rpc('close_delivery_shift', params: {
         'p_shift_id':            _shift!['id'],
         'p_odometer_end':        double.tryParse(_odoEnd.text.trim()) ?? 0,
         'p_odometer_end_photo':  _odoEndPhotoUrl,
         'p_closing_bird_count':  int.tryParse(_birds.text.trim())    ?? 0,
         'p_closing_weight':      double.tryParse(_weight.text.trim()) ?? 0,
-        'p_expenses':            double.tryParse(_expenses.text.trim()) ?? 0,
+        'p_expenses':            _totalExpenses,
       });
       if (mounted) {
         showSuccess(context, 'Shift closed ✓ — great work today!');
@@ -291,14 +330,96 @@ class _S extends ConsumerState<ShiftCloseScreen> {
                   ]),
                   const SizedBox(height: 16),
 
-                  // ── Expenses ───────────────────────────────────────
-                  const SectionHeader('EXPENSES (FUEL / TOLL / MISC)'),
-                  TextField(
-                    controller: _expenses,
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                    decoration: const InputDecoration(
-                        labelText: 'Total Expenses (₹)', prefixText: '₹',
-                        helperText: 'Enter diesel + toll + any other expenses')),
+                  // ── Diesel & Allowance ───────────────────────────
+                  const SectionHeader('DIESEL & ALLOWANCE'),
+                  Row(children: [
+                    Expanded(child: TextField(
+                      controller: _dieselCtrl,
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      onChanged: (_) { if (mounted) setState(() {}); },
+                      decoration: const InputDecoration(
+                          labelText: '⛽ Diesel Cost (₹)',
+                          prefixText: '₹',
+                          prefixIcon: Icon(Icons.local_gas_station_outlined, size: 18)))),
+                    const SizedBox(width: 12),
+                    Expanded(child: TextField(
+                      controller: _allowanceCtrl,
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      onChanged: (_) { if (mounted) setState(() {}); },
+                      decoration: const InputDecoration(
+                          labelText: '💰 Allowance (₹)',
+                          prefixText: '₹',
+                          prefixIcon: Icon(Icons.payments_outlined, size: 18)))),
+                  ]),
+                  const SizedBox(height: 16),
+
+                  // ── Expenses (multi-entry) ────────────────────────
+                  const SectionHeader('OTHER EXPENSES'),
+                  if (_expenses.isNotEmpty) ...[
+                    ..._expenses.asMap().entries.map((e) {
+                      final idx = e.key; final exp = e.value;
+                      return Container(
+                        margin: const EdgeInsets.only(bottom: 6),
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        decoration: BoxDecoration(
+                            color: Colors.green.shade50, borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.green.shade200)),
+                        child: Row(children: [
+                          const Icon(Icons.check_circle_outline, color: Colors.green, size: 16),
+                          const SizedBox(width: 8),
+                          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                            Text('${exp['type']} — ₹${(exp['amount'] as double).toStringAsFixed(0)}',
+                                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                            if ((exp['notes'] as String?)?.isNotEmpty == true)
+                              Text(exp['notes'] as String, style: const TextStyle(fontSize: 11, color: kTextSub)),
+                          ])),
+                          GestureDetector(
+                            onTap: () => setState(() => _expenses.removeAt(idx)),
+                            child: const Icon(Icons.remove_circle_outline, color: Colors.red, size: 20)),
+                        ]));
+                    }),
+                    Padding(padding: const EdgeInsets.only(bottom: 8),
+                      child: Text('Total Expenses: ₹${_totalExpenses.toStringAsFixed(0)}',
+                          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: kPrimary))),
+                  ],
+                  // Add expense row
+                  Row(children: [
+                    Expanded(flex: 2, child: DropdownButtonFormField<String>(
+                      value: _expType,
+                      decoration: const InputDecoration(labelText: 'Type', contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10)),
+                      items: const [
+                        DropdownMenuItem(value: 'fuel',      child: Text('⛽ Fuel')),
+                        DropdownMenuItem(value: 'toll',      child: Text('🚧 Toll')),
+                        DropdownMenuItem(value: 'parking',   child: Text('🅿️ Parking')),
+                        DropdownMenuItem(value: 'food',      child: Text('🍽 Food')),
+                        DropdownMenuItem(value: 'misc',      child: Text('📦 Misc')),
+                      ],
+                      onChanged: (v) => setState(() => _expType = v!))),
+                    const SizedBox(width: 8),
+                    Expanded(flex: 2, child: TextField(
+                      controller: _expAmtCtrl,
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      decoration: const InputDecoration(labelText: 'Amount (₹)', prefixText: '₹'))),
+                    const SizedBox(width: 8),
+                    Expanded(flex: 2, child: TextField(
+                      controller: _expNoteCtrl,
+                      decoration: const InputDecoration(labelText: 'Note (opt.)'))),
+                    const SizedBox(width: 8),
+                    ElevatedButton(
+                      style: ElevatedButton.styleFrom(minimumSize: const Size(44, 44), padding: EdgeInsets.zero),
+                      onPressed: () {
+                        final amt = double.tryParse(_expAmtCtrl.text.trim()) ?? 0;
+                        if (amt <= 0) return;
+                        setState(() {
+                          _expenses.add({
+                            'type': _expType, 'amount': amt,
+                            'notes': _expNoteCtrl.text.trim(),
+                          });
+                          _expAmtCtrl.clear(); _expNoteCtrl.clear();
+                        });
+                      },
+                      child: const Icon(Icons.add, size: 20)),
+                  ]),
                   const SizedBox(height: 28),
 
                   ElevatedButton.icon(

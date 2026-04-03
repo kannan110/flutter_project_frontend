@@ -1,5 +1,6 @@
 enum UserRole {
-  superAdmin, traderAdmin, traderStaff, deliveryStaff, retailerUser;
+  superAdmin, traderAdmin, traderStaff, deliveryStaff, retailerUser,
+  unknown; // signed-in but not yet linked to a trader/agent
 
   static UserRole fromString(String? s) => switch (s) {
     'super_admin'    => superAdmin,
@@ -7,7 +8,7 @@ enum UserRole {
     'trader_staff'   => traderStaff,
     'delivery_staff' => deliveryStaff,
     'retailer_user'  => retailerUser,
-    _                => traderStaff,
+    _                => unknown,
   };
 
   String get dbValue => switch (this) {
@@ -16,6 +17,7 @@ enum UserRole {
     UserRole.traderStaff   => 'trader_staff',
     UserRole.deliveryStaff => 'delivery_staff',
     UserRole.retailerUser  => 'retailer_user',
+    UserRole.unknown       => 'unknown',
   };
 
   String get label => switch (this) {
@@ -24,6 +26,7 @@ enum UserRole {
     UserRole.traderStaff   => 'Staff',
     UserRole.deliveryStaff => 'Delivery Agent',
     UserRole.retailerUser  => 'Retailer',
+    UserRole.unknown       => 'Unlinked',
   };
 }
 
@@ -53,4 +56,5 @@ class AppUser {
   bool get isSuperAdmin    => role == UserRole.superAdmin;
   bool get canApprove      => isTraderAdmin || isSuperAdmin;
   bool get canManageAgents => isTraderAdmin || isSuperAdmin;
+  bool get isUnlinked      => role == UserRole.unknown || traderId == null;
 }

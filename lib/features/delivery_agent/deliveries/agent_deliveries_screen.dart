@@ -25,10 +25,15 @@ class _S extends ConsumerState<AgentDeliveriesScreen> {
     if (mounted) setState(() => _loading = true);
     try {
       // FIX: fetch delivery with DC birds/weight from challans for accurate stock display
+      // FIX: removed broken nested delivery_batches->delivery_challans select
+      // PostgREST can't traverse deliveries->delivery_batches->delivery_challans
+      // DC data loaded separately only in delivery_complete_screen where needed
       var q = _c.from('deliveries')
           .select('id,status,collected_amount,payment_mode,delivered_at,'
-                  'orders(id,estimated_birds,total_quantity,retailers(shop_name,address,phone)),'
-                  'delivery_batches(id,delivery_challans(bird_count,net_weight))')
+                  'delivered_bird_count,delivered_total_weight,'
+                  'dc_weight_kg,total_loss_kg,loss_percentage,is_high_loss,'
+                  'mortality_birds,approval_status,'
+                  'orders(id,estimated_birds,total_quantity,retailers(shop_name,address,phone))')
           .eq('delivery_agent_id', agentId);
 
       if (_filter == 'active')
@@ -87,20 +92,19 @@ class _S extends ConsumerState<AgentDeliveriesScreen> {
   Widget _deliveryCard(Map<String,dynamic> d) {
     final o          = d['orders'] as Map<String,dynamic>?;
     final r          = o?['retailers'] as Map<String,dynamic>?;
-    final status     = d['status'] as String? ?? '—';
-    final isActive   = ['assigned', 'picked_up', 'out_for_delivery'].contains(status);
-    final collected  = (d['collected_amount'] as num?)?.toDouble() ?? 0;
-
-    // FIX: show actual DC birds/weight if available, else fall back to order estimate
-    final batch      = d['delivery_batches'] as Map<String,dynamic>?;
-    final challans   = (batch?['delivery_challans'] as List? ?? []).cast<Map<String,dynamic>>();
-    final dcBirds    = challans.fold(0,   (s, c) => s + ((c['bird_count']  as num?)?.toInt()    ?? 0));
-    final dcWeight   = challans.fold(0.0, (s, c) => s + ((c['net_weight']  as num?)?.toDouble() ?? 0));
-    final orderBirds  = (o?['estimated_birds'] as num?)?.toInt()    ?? 0;
-    final orderWeight = (o?['total_quantity']  as num?)?.toDouble() ?? 0;
-
-    final showDcBirds   = dcBirds  > 0;
-    final showDcWeight  = dcWeight > 0;
+    final status       = d['status'] as String? ?? '—';
+    final isActive     = ['assigned', 'picked_up', 'out_for_delivery'].contains(status);
+    final isDelivered  = status == 'delivered';
+    final collected    = (d['collected_amount'] as num?)?.toDouble() ?? 0;
+    final isHighLoss   = d['is_high_loss'] == true;
+    final lossPct      = (d['loss_percentage'] as num?)?.toDouble() ?? 0;
+    final approvalSt   = d['approval_status'] as String? ?? '';
+    final delivBirds   = (d['delivered_bird_count'] as num?)?.toInt() ?? 0;
+    final delivWeight  = (d['delivered_total_weight'] as num?)?.toDouble() ?? 0;
+    final dcWt         = (d['dc_weight_kg'] as num?)?.toDouble() ?? 0;
+    final orderBirds   = (o?['estimated_birds'] as num?)?.toInt() ?? 0;
+    final orderWeight  = (o?['total_quantity']  as num?)?.toDouble() ?? 0;
+    final showDelivered = isDelivered && delivBirds > 0;
 
     return Container(
       padding: const EdgeInsets.all(14),
@@ -108,8 +112,9 @@ class _S extends ConsumerState<AgentDeliveriesScreen> {
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-            color: isActive ? kPrimary.withValues(alpha: 0.3) : kBorder,
-            width: isActive ? 1.5 : 1)),
+            color: isHighLoss ? Colors.orange.shade300
+                : isActive ? kPrimary.withValues(alpha: 0.3) : kBorder,
+            width: isActive || isHighLoss ? 1.5 : 1)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         // Shop name + status
         Row(children: [
@@ -140,55 +145,81 @@ class _S extends ConsumerState<AgentDeliveriesScreen> {
 
         const SizedBox(height: 8),
 
-        // Birds / weight — show DC actual vs order estimate
+        // Birds / weight row
         Row(children: [
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            // FIX: show DC stock if available, else show order estimate
             Row(children: [
               const Icon(Icons.set_meal_outlined, size: 14, color: kPrimary),
               const SizedBox(width: 4),
               Text(
-                showDcBirds
-                    ? '$dcBirds birds (DC actual)'
-                    : '$orderBirds birds (order est.)',
-                style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: showDcBirds ? kPrimary : kTextSub)),
+                showDelivered ? '$delivBirds birds delivered' : '$orderBirds birds (est.)',
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600,
+                    color: showDelivered ? kPrimary : kTextSub)),
             ]),
             Row(children: [
               const Icon(Icons.balance_outlined, size: 12, color: kTextHint),
               const SizedBox(width: 4),
               Text(
-                showDcWeight
-                    ? '${dcWeight.toStringAsFixed(1)} kg (DC)'
+                showDelivered
+                    ? '${delivWeight.toStringAsFixed(1)} kg delivered'
                     : '${orderWeight.toStringAsFixed(1)} kg (est.)',
-                style: TextStyle(fontSize: 11, color: showDcWeight ? kTextSub : kTextHint)),
+                style: TextStyle(fontSize: 11, color: showDelivered ? kTextSub : kTextHint)),
             ]),
+            if (dcWt > 0 && isDelivered)
+              Text('DC: ${dcWt.toStringAsFixed(1)} kg loaded',
+                  style: const TextStyle(fontSize: 10, color: kTextHint)),
           ])),
-          if (collected > 0)
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                  color: Colors.green.shade50, borderRadius: BorderRadius.circular(6)),
-              child: Row(children: [
-                const Icon(Icons.currency_rupee, size: 12, color: Colors.green),
-                Text(Fmt.amount(collected),
-                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Colors.green)),
-              ])),
+          Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+            if (collected > 0)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                    color: Colors.green.shade50, borderRadius: BorderRadius.circular(6)),
+                child: Row(children: [
+                  const Icon(Icons.currency_rupee, size: 12, color: Colors.green),
+                  Text(Fmt.amount(collected),
+                      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Colors.green)),
+                ])),
+            if (isHighLoss) const SizedBox(height: 4),
+            if (isHighLoss) Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                decoration: BoxDecoration(color: Colors.orange.shade100, borderRadius: BorderRadius.circular(6)),
+                child: Text('⚠️ Loss ${lossPct.toStringAsFixed(1)}%',
+                    style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: Colors.deepOrange))),
+            if (isDelivered && !isHighLoss && lossPct > 0) const SizedBox(height: 4),
+            if (isDelivered && !isHighLoss && lossPct > 0)
+              Text('Loss: ${lossPct.toStringAsFixed(1)}%',
+                  style: const TextStyle(fontSize: 10, color: kTextHint)),
+          ]),
         ]),
 
-        // Complete button for active deliveries
+        // Status-aware action row
         if (isActive) ...[
           const SizedBox(height: 10),
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(
               onPressed: () => context.push(R.deliveryDonePath(d['id'])),
-              style: ElevatedButton.styleFrom(minimumSize: const Size(0, 40)),
-              child: const Text('Complete Delivery ✓',
-                  style: TextStyle(fontWeight: FontWeight.w700)))),
+              style: ElevatedButton.styleFrom(minimumSize: const Size(0, 40),
+                  backgroundColor: status == 'out_for_delivery' ? kPrimary : Colors.grey),
+              child: Text(
+                  status == 'out_for_delivery' ? 'Mark as Delivered ✓'
+                  : status == 'picked_up' ? 'Waiting — out for delivery...'
+                  : 'Assigned',
+                  style: const TextStyle(fontWeight: FontWeight.w700)))),
         ],
+        if (isDelivered) Padding(
+          padding: const EdgeInsets.only(top: 8),
+          child: Row(children: [
+            Icon(approvalSt == 'approved' ? Icons.verified_outlined
+                : Icons.pending_outlined,
+                size: 13,
+                color: approvalSt == 'approved' ? Colors.green : Colors.orange),
+            const SizedBox(width: 4),
+            Text(approvalSt == 'approved' ? 'Approved ✓' : 'Pending approval',
+                style: TextStyle(fontSize: 11,
+                    color: approvalSt == 'approved' ? Colors.green : Colors.orange)),
+          ])),
       ]),
     );
   }
