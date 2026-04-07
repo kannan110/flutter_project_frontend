@@ -84,6 +84,7 @@ class _S extends ConsumerState<ShiftsScreen> {
                       const SizedBox(width: 4),
                       const Icon(Icons.chevron_right, color: kTextHint, size: 18),
                     ])),
+
                 );
               }),
     );

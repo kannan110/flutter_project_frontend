@@ -73,6 +73,7 @@ abstract class R {
   static const retailerCreate = '/t/retailers/create';
   static const retailerDetail = '/t/retailers/:id';
   static const agents         = '/t/agents';
+  static const userMgmt         = '/t/agents';
   static const agentCreate    = '/t/agents/create';
   static const agentDetail    = '/t/agents/:id';
   static const rates          = '/t/rates';
@@ -98,7 +99,6 @@ abstract class R {
   static const agentDeliveries = '/a/deliveries';
   static const deliveryDone   = '/a/delivery/:id/complete';
   static const agentExpenses  = '/a/expenses';
-  static const userMgmt  = '/a/userMgmt';
 
   static String orderDetailPath(String id)     => '/t/orders/$id';
   static String batchDetailPath(String id)     => '/t/dispatch/batch/$id';

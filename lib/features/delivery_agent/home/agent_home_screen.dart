@@ -384,14 +384,12 @@ class _S extends ConsumerState<AgentHomeScreen> {
             ]));
         }),
         const SizedBox(height: 8),
-        // Row 1: action buttons
+        // Row 1: DC actions
         if (status == 'picked_up' || status == 'out_for_delivery' || status == 'assigned')
           Row(children: [
             Expanded(child: OutlinedButton.icon(
                 onPressed: () => context.push(R.batchPickupPath(b['id'])),
-                icon: Icon(status == 'assigned'
-                    ? Icons.add_circle_outline
-                    : Icons.add_circle_outline, size: 15),
+                icon: const Icon(Icons.add_circle_outline, size: 15),
                 label: Text(status == 'assigned' ? 'Add DC & Pickup' : '+ Add DC',
                     style: const TextStyle(fontSize: 11)),
                 style: OutlinedButton.styleFrom(minimumSize: const Size(0, 36)))),
@@ -402,7 +400,21 @@ class _S extends ConsumerState<AgentHomeScreen> {
                 label: const Text('View DCs', style: TextStyle(fontSize: 11)),
                 style: OutlinedButton.styleFrom(minimumSize: const Size(0, 36)))),
           ]),
-        // Row 2: navigation button
+        // Row 2: Transfer Birds — only after pickup
+        if (status == 'picked_up' || status == 'out_for_delivery') ...[
+          const SizedBox(height: 6),
+          SizedBox(width: double.infinity,
+            child: OutlinedButton.icon(
+                onPressed: () => context.push(R.birdTransferPath(b['id'])),
+                icon: const Icon(Icons.swap_horiz, size: 16, color: Colors.deepPurple),
+                label: const Text('Transfer Birds to Another Agent',
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700,
+                        color: Colors.deepPurple)),
+                style: OutlinedButton.styleFrom(
+                    minimumSize: const Size(0, 38),
+                    side: const BorderSide(color: Colors.deepPurple, width: 1.5)))),
+        ],
+        // Row 3: Go to Deliveries
         if (status != 'assigned') ...[
           const SizedBox(height: 6),
           SizedBox(width: double.infinity,
