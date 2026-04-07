@@ -43,6 +43,7 @@ class SettingsScreen extends ConsumerWidget {
         _section(context, 'CATALOGUE', [
           _tile(context, Icons.store_outlined, 'Retailers', R.retailers),
           _tile(context, Icons.delivery_dining_outlined, 'Delivery Agents', R.agents),
+          _tile(context, Icons.manage_accounts_outlined, 'User Management', R.userMgmt),
           _tile(context, Icons.price_change_outlined, 'Rates', R.rates),
           _tile(context, Icons.rule_outlined, 'Pricing Rules', R.pricing),
         ]),

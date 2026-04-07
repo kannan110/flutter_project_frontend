@@ -58,14 +58,18 @@ class _S extends ConsumerState<BatchDetailScreen> {
   Future<void> _addOrder(String orderId) async {
     final tid = ref.read(appUserProvider).valueOrNull?.traderId;
     try {
-      await _c.from('deliveries').insert({
-        'batch_id': widget.id, 'trader_id': tid,
-        'order_id': orderId, 'delivery_agent_id': _batch?['delivery_agent_id'],
-        'status': 'assigned',
+      // FIX: use add_order_to_batch RPC — updates order status to 'assigned'
+      await _c.rpc('add_order_to_batch', params: {
+        'p_batch_id':  widget.id,
+        'p_order_id':  orderId,
+        'p_trader_id': tid,
       });
       _load();
       if (mounted) showSuccess(context, 'Order added to batch ✓');
-    } catch (e) { if (mounted) showError(context, e.toString()); }
+    } catch (e) {
+      if (mounted) showError(context,
+        e.toString().replaceAll('Exception: ', '').replaceAll('PostgrestException(message: ', ''));
+    }
   }
 
   Future<void> _removeDelivery(String deliveryId, String shopName) async {
@@ -74,11 +78,34 @@ class _S extends ConsumerState<BatchDetailScreen> {
         message: 'Remove "$shopName" from this batch? Order returns to Confirmed status.',
         confirmText: 'Remove', confirmColor: Colors.red);
     if (!ok) return;
+    final tid = ref.read(appUserProvider).valueOrNull?.traderId;
     try {
-      // Set delivery to cancelled and order back to confirmed
-      await _c.from('deliveries').update({'status': 'cancelled'}).eq('id', deliveryId);
+      // Get the order_id for this delivery first
+      final del = await _c.from('deliveries')
+          .select('order_id')
+          .eq('id', deliveryId)
+          .maybeSingle();
+      final orderId = del?['order_id'] as String?;
+
+      // FIX: use remove_order_from_batch RPC — resets order status to 'confirmed'
+      if (orderId != null && tid != null) {
+        await _c.rpc('remove_order_from_batch', params: {
+          'p_batch_id':  widget.id,
+          'p_order_id':  orderId,
+          'p_trader_id': tid,
+        });
+      } else {
+        // Fallback: manual update
+        await _c.from('deliveries').update({'status': 'cancelled'}).eq('id', deliveryId);
+        if (orderId != null) {
+          await _c.from('orders').update({'status': 'confirmed', 'batch_id': null}).eq('id', orderId);
+        }
+      }
       if (mounted) { showSuccess(context, 'Removed ✓'); _load(); }
-    } catch (e) { if (mounted) showError(context, e.toString()); }
+    } catch (e) {
+      if (mounted) showError(context,
+        e.toString().replaceAll('Exception: ', '').replaceAll('PostgrestException(message: ', ''));
+    }
   }
 
   Future<void> _reassignAgent() async {

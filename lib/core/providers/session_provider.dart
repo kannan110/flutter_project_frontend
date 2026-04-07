@@ -34,10 +34,10 @@ class AppUserNotifier extends StateNotifier<AsyncValue<AppUser?>> {
     _log('Loading uid=${user.id}');
     state = const AsyncValue.loading();
     try {
-      // Single join — user_roles RLS is now: user_id = auth.uid() only (no recursion)
+      // Step 1: get user_roles row (RLS: user_id = auth.uid() — no join, no recursion)
       final row = await _c
           .from('user_roles')
-          .select('role, trader_id, is_active, traders(id, company_name, company_code, subscription_end_date)')
+          .select('role, trader_id, is_active')
           .eq('user_id', user.id)
           .eq('is_active', true)
           .maybeSingle()
@@ -88,8 +88,19 @@ class AppUserNotifier extends StateNotifier<AsyncValue<AppUser?>> {
 
       final role     = UserRole.fromString(row['role'] as String?);
       final traderId = row['trader_id'] as String?;
-      final tMap     = row['traders'] as Map<String, dynamic>?;
-      final sub      = _pd(tMap?['subscription_end_date']);
+
+      // Step 2: fetch trader separately (avoids nested join RLS blocking)
+      Map<String, dynamic>? tMap;
+      if (traderId != null) {
+        try {
+          tMap = await _c.from('traders')
+              .select('id, company_name, company_code, subscription_end_date')
+              .eq('id', traderId)
+              .maybeSingle()
+              .timeout(const Duration(seconds: 5));
+        } catch (e) { _log('Trader fetch non-fatal: $e'); }
+      }
+      final sub = _pd(tMap?['subscription_end_date']);
 
       String? agentId;
       if (role == UserRole.deliveryStaff && traderId != null) {

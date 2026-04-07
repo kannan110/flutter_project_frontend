@@ -289,6 +289,7 @@ class _S extends ConsumerState<AgentHomeScreen> {
                   _qaBtn(Icons.list_outlined,    'All Deliveries', Colors.blue,   () => context.go(R.agentDeliveries)),
                   const SizedBox(width: 10),
                   _qaBtn(Icons.receipt_outlined, 'Expenses',       Colors.orange, () => context.go(R.agentExpenses)),
+                  _qaBtn(Icons.swap_horiz,      'Transfers',      Colors.purple, () => context.push(R.transferHistory)),
                 ]),
               ])),
     );
@@ -383,28 +384,35 @@ class _S extends ConsumerState<AgentHomeScreen> {
             ]));
         }),
         const SizedBox(height: 8),
-        Row(children: [
-          if (status == 'picked_up' || status == 'out_for_delivery' || status == 'assigned') ...[
+        // Row 1: action buttons
+        if (status == 'picked_up' || status == 'out_for_delivery' || status == 'assigned')
+          Row(children: [
             Expanded(child: OutlinedButton.icon(
                 onPressed: () => context.push(R.batchPickupPath(b['id'])),
-                icon: const Icon(Icons.add_circle_outline, size: 16),
+                icon: Icon(status == 'assigned'
+                    ? Icons.add_circle_outline
+                    : Icons.add_circle_outline, size: 15),
                 label: Text(status == 'assigned' ? 'Add DC & Pickup' : '+ Add DC',
-                    style: const TextStyle(fontSize: 12)),
+                    style: const TextStyle(fontSize: 11)),
                 style: OutlinedButton.styleFrom(minimumSize: const Size(0, 36)))),
-            const SizedBox(width: 8),
-            OutlinedButton.icon(
+            const SizedBox(width: 6),
+            Expanded(child: OutlinedButton.icon(
                 onPressed: () => context.push(R.dcViewPath(b['id'])),
-                icon: const Icon(Icons.visibility_outlined, size: 14),
-                label: const Text('DCs', style: TextStyle(fontSize: 12)),
-                style: OutlinedButton.styleFrom(minimumSize: const Size(0, 36))),
-            const SizedBox(width: 8),
-          ],
-          if (status != 'assigned')
-            Expanded(child: ElevatedButton(
+                icon: const Icon(Icons.receipt_long_outlined, size: 15),
+                label: const Text('View DCs', style: TextStyle(fontSize: 11)),
+                style: OutlinedButton.styleFrom(minimumSize: const Size(0, 36)))),
+          ]),
+        // Row 2: navigation button
+        if (status != 'assigned') ...[
+          const SizedBox(height: 6),
+          SizedBox(width: double.infinity,
+            child: ElevatedButton.icon(
                 onPressed: () => context.go(R.agentDeliveries),
-                style: ElevatedButton.styleFrom(minimumSize: const Size(0, 36)),
-                child: const Text('Go to Deliveries', style: TextStyle(fontSize: 12)))),
-        ]),
+                icon: const Icon(Icons.local_shipping_outlined, size: 15),
+                style: ElevatedButton.styleFrom(minimumSize: const Size(0, 38)),
+                label: const Text('Go to Deliveries',
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)))),
+        ],
       ])));
   }
 

@@ -40,6 +40,37 @@ class _S extends ConsumerState<OrderDetailScreen> {
     catch (e) { if (mounted) showError(context, e.toString()); }
   }
 
+  Future<void> _cancelOrder() async {
+    final reasonCtrl = TextEditingController();
+    final reason = await showDialog<String>(context: context, builder: (ctx) => AlertDialog(
+      title: const Text('Cancel Order'),
+      content: Column(mainAxisSize: MainAxisSize.min, children: [
+        const Text('This will cancel the order at any stage and adjust stock if already dispatched.',
+            style: TextStyle(fontSize: 13, color: Colors.orange)),
+        const SizedBox(height: 12),
+        TextField(controller: reasonCtrl,
+            decoration: const InputDecoration(labelText: 'Reason (optional)', hintText: 'e.g. Customer request')),
+      ]),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Back')),
+        ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, reasonCtrl.text.trim().isEmpty ? 'Cancelled by trader' : reasonCtrl.text.trim()),
+            style: ElevatedButton.styleFrom(backgroundColor: kError),
+            child: const Text('Cancel Order')),
+      ],
+    ));
+    if (reason == null || !mounted) return;
+    try {
+      await _c.rpc('cancel_order', params: {
+        'p_order_id': widget.id,
+        'p_reason':   reason,
+      });
+      if (mounted) { showSuccess(context, 'Order cancelled ✓'); _load(); }
+    } catch (e) {
+      if (mounted) showError(context, e.toString().replaceAll('Exception: ', ''));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_loading) return const Scaffold(body: LoadingList());
@@ -152,15 +183,21 @@ class _S extends ConsumerState<OrderDetailScreen> {
         const SizedBox(height: 16),
 
         // Actions
-        if (status == 'pending') ...[
-          ElevatedButton(onPressed: () => _updateStatus('confirmed'), child: const Text('Confirm Order')),
-          const SizedBox(height: 10),
-          OutlinedButton(onPressed: () async {
-            final ok = await confirmDialog(context, title: 'Cancel Order', message: 'Cancel this order?');
-            if (ok) _updateStatus('cancelled');
-          }, style: OutlinedButton.styleFrom(foregroundColor: kError, side: const BorderSide(color: kError)), child: const Text('Cancel Order')),
-        ] else if (status == 'confirmed') ...[
-          OutlinedButton.icon(onPressed: () { context.go(R.dispatch); }, icon: const Icon(Icons.local_shipping_outlined, size: 18), label: const Text('Assign to Batch → Dispatch')),
+        if (!['cancelled','invoiced','closed'].contains(status)) ...[
+          if (status == 'confirmed')
+            OutlinedButton.icon(
+              onPressed: () => context.go(R.dispatch),
+              icon: const Icon(Icons.local_shipping_outlined, size: 18),
+              label: const Text('Assign to Batch → Dispatch'),
+              style: OutlinedButton.styleFrom(minimumSize: const Size(double.infinity, 46))),
+          if (status == 'confirmed') const SizedBox(height: 10),
+          OutlinedButton.icon(
+            onPressed: _cancelOrder,
+            icon: const Icon(Icons.cancel_outlined, size: 18, color: kError),
+            label: const Text('Cancel Order'),
+            style: OutlinedButton.styleFrom(foregroundColor: kError,
+                side: const BorderSide(color: kError),
+                minimumSize: const Size(double.infinity, 46))),
         ],
       ]),
     );

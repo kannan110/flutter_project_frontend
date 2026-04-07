@@ -31,6 +31,7 @@ import '../../features/trader_admin/shifts/shift_detail_screen.dart';
 import '../../features/trader_admin/crates/crates_screen.dart';
 import '../../features/trader_admin/analytics/analytics_screen.dart';
 import '../../features/trader_admin/settings/settings_screen.dart';
+import '../../features/trader_admin/settings/user_management_screen.dart';
 import '../../features/trader_admin/returns/returns_screen.dart';
 import '../../features/trader_admin/stock/stock_screen.dart';
 import '../../features/trader_admin/pricing/pricing_rules_screen.dart';
@@ -39,7 +40,10 @@ import '../../features/trader_admin/day_closure/day_closure_screen.dart';
 import '../../features/trader_admin/alerts/alerts_screen.dart';
 import '../../features/trader_admin/reports/daily_report_screen.dart';
 import '../../features/delivery_agent/home/agent_shell.dart';
+import '../../features/auth/trader_setup_screen.dart';
 import '../../features/delivery_agent/batch/dc_view_screen.dart';
+import '../../features/delivery_agent/batch/bird_transfer_screen.dart';
+import '../../features/delivery_agent/batch/transfer_history_screen.dart';
 import '../../features/delivery_agent/home/agent_home_screen.dart';
 import '../../features/delivery_agent/shift/shift_open_screen.dart';
 import '../../features/delivery_agent/shift/shift_close_screen.dart';
@@ -51,7 +55,8 @@ import '../../features/delivery_agent/expenses/expenses_screen.dart';
 abstract class R {
   static const splash         = '/';
   static const login          = '/login';
-  static const agentLink      = '/agent-link'; // accessible even when signed in
+  static const agentLink      = '/agent-link';
+  static const traderSetup    = '/trader-setup'; // accessible even when signed in
   static const dashboard      = '/t/dashboard';
   static const orders         = '/t/orders';
   static const orderCreate    = '/t/orders/create';
@@ -87,10 +92,13 @@ abstract class R {
   static const shiftOpen      = '/a/shift/open';
   static const shiftClose     = '/a/shift/close';
   static const batchPickup    = '/a/batch/:id/pickup';
-  static const dcView         = '/a/batch/:id/dc';
+  static const dcView          = '/a/batch/:id/dc';
+  static const birdTransfer    = '/a/batch/:id/transfer';
+  static const transferHistory = '/a/transfers';
   static const agentDeliveries = '/a/deliveries';
   static const deliveryDone   = '/a/delivery/:id/complete';
   static const agentExpenses  = '/a/expenses';
+  static const userMgmt  = '/a/userMgmt';
 
   static String orderDetailPath(String id)     => '/t/orders/$id';
   static String batchDetailPath(String id)     => '/t/dispatch/batch/$id';
@@ -102,6 +110,7 @@ abstract class R {
   static String shiftDetailPath(String id)     => '/t/shifts/$id';
   static String batchPickupPath(String id)     => '/a/batch/$id/pickup';
   static String dcViewPath(String id)          => '/a/batch/$id/dc';
+  static String birdTransferPath(String id)    => '/a/batch/$id/transfer';
   static String deliveryDonePath(String id)    => '/a/delivery/$id/complete';
 }
 
@@ -129,6 +138,13 @@ final appRouterProvider = Provider<GoRouter>((ref) => GoRouter(
     // IMPORTANT FIX: /agent-link is allowed even when signed in
     // An agent may be signed in but not yet linked — let them link!
     if (loc == R.agentLink) return null;
+
+    // Unlinked: signed in but not assigned to any trader or agent yet
+    // Send them to the trader setup screen
+    if (user.isUnlinked) {
+      if (loc == R.traderSetup || loc == R.agentLink) return null;
+      return R.traderSetup;
+    }
 
     // Redirect away from login if already signed in
     if (loc == R.login) {
@@ -175,6 +191,7 @@ final appRouterProvider = Provider<GoRouter>((ref) => GoRouter(
         GoRoute(path: R.shiftDetail,    builder: (_, s)  => ShiftDetailScreen(id: s.pathParameters['id']!)),
         GoRoute(path: R.crates,         builder: (_, __) => const CratesScreen()),
         GoRoute(path: R.analytics,      builder: (_, __) => const AnalyticsScreen()),
+        GoRoute(path: R.userMgmt,   builder: (_, __) => const UserManagementScreen()),
         GoRoute(path: R.settings,       builder: (_, __) => const SettingsScreen()),
         GoRoute(path: R.returns,        builder: (_, __) => const ReturnsScreen()),
         GoRoute(path: R.stock,          builder: (_, __) => const StockScreen()),
@@ -194,7 +211,9 @@ final appRouterProvider = Provider<GoRouter>((ref) => GoRouter(
         GoRoute(path: R.shiftOpen,        builder: (_, __) => const ShiftOpenScreen()),
         GoRoute(path: R.shiftClose,       builder: (_, __) => const ShiftCloseScreen()),
         GoRoute(path: R.batchPickup,      builder: (_, s)  => BatchPickupScreen(batchId: s.pathParameters['id']!)),
-        GoRoute(path: R.dcView,           builder: (_, s)  => DcViewScreen(batchId: s.pathParameters['id']!)),
+        GoRoute(path: R.dcView,          builder: (_, s)  => DcViewScreen(batchId: s.pathParameters['id']!)),
+        GoRoute(path: R.birdTransfer,    builder: (_, s)  => BirdTransferScreen(batchId: s.pathParameters['id']!)),
+        GoRoute(path: R.transferHistory, builder: (_, __) => const TransferHistoryScreen()),
         GoRoute(path: R.agentDeliveries,  builder: (_, __) => const AgentDeliveriesScreen()),
         GoRoute(path: R.deliveryDone,     builder: (_, s)  => DeliveryCompleteScreen(deliveryId: s.pathParameters['id']!)),
         GoRoute(path: R.agentExpenses,    builder: (_, __) => const ExpensesScreen()),
