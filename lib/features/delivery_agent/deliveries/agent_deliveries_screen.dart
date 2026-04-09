@@ -32,6 +32,7 @@ class _S extends ConsumerState<AgentDeliveriesScreen> {
           .select('id,status,collected_amount,payment_mode,delivered_at,'
                   'delivered_bird_count,delivered_total_weight,'
                   'dc_weight_kg,total_loss_kg,loss_percentage,is_high_loss,'
+                  'is_partial_delivery,partial_birds,partial_quantity,order_id,'
                   'mortality_birds,approval_status,'
                   'orders(id,estimated_birds,total_quantity,retailers(shop_name,address,phone))')
           .eq('delivery_agent_id', agentId);
@@ -210,7 +211,38 @@ class _S extends ConsumerState<AgentDeliveriesScreen> {
         ],
         if (isDelivered) Padding(
           padding: const EdgeInsets.only(top: 8),
-          child: Row(children: [
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            // Partial delivery indicator
+            if (d['is_partial_delivery'] == true) Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(color: Colors.orange.shade50,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.orange.shade300)),
+                child: Row(children: [
+                  const Icon(Icons.splitscreen_outlined, size: 14, color: Colors.orange),
+                  const SizedBox(width: 6),
+                  Expanded(child: Text(
+                    'Partial — ${(d['partial_birds'] as num?)?.toInt() ?? 0} birds · '
+                    '${(d['partial_quantity'] as num?)?.toStringAsFixed(1) ?? '0'} kg remaining',
+                    style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.orange))),
+                ]))),
+            // View history button
+            Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Row(children: [
+                Expanded(child: OutlinedButton.icon(
+                  onPressed: () {
+                    final orderId =   (d['order_id'] ?? (d['orders'] as Map?)?['id']) as String?;
+                    if (orderId != null) context.push(R.deliveryDonePath(orderId));
+                  },
+                  icon: const Icon(Icons.history, size: 14),
+                  label: const Text('View History', style: TextStyle(fontSize: 12)),
+                  style: OutlinedButton.styleFrom(minimumSize: const Size(0, 36)))),
+              ])),
+            Row(children: [
             Icon(approvalSt == 'approved' ? Icons.verified_outlined
                 : Icons.pending_outlined,
                 size: 13,
@@ -219,7 +251,8 @@ class _S extends ConsumerState<AgentDeliveriesScreen> {
             Text(approvalSt == 'approved' ? 'Approved ✓' : 'Pending approval',
                 style: TextStyle(fontSize: 11,
                     color: approvalSt == 'approved' ? Colors.green : Colors.orange)),
-          ])),
+          ]),           // close Row([Icon, Text])
+          ])),          // close Column + Padding
       ]),
     );
   }

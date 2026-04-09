@@ -76,7 +76,7 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
       // FIX: fetch delivery without broken nested delivery_batches->delivery_challans
       final d = await Supabase.instance.client.from('deliveries')
           .select('*,'
-                  'orders(id,estimated_birds,total_quantity,product_id,retailers(shop_name,address,phone))')
+          'orders(id,estimated_birds,total_quantity,product_id,retailers(shop_name,address,phone))')
           .eq('id', widget.deliveryId)
           .maybeSingle();
 
@@ -199,28 +199,28 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
     final o = _delivery?['orders'] as Map<String,dynamic>?;
     final r = o?['retailers'] as Map<String,dynamic>?;
     await Navigator.push(context, MaterialPageRoute(builder: (_) =>
-      WeighmentScreen(
-        deliveryId:      widget.deliveryId,
-        shopName:        r?['shop_name'] as String? ?? 'Delivery',
-        expectedBirds:   _dcBirds > 0 ? _dcBirds : ((o?['estimated_birds'] as num?)?.toInt() ?? 0),
-        expectedWeight:  _dcWeight > 0 ? _dcWeight : ((o?['total_quantity'] as num?)?.toDouble() ?? 0),
-        onComplete: (result) {
-          // Pre-fill delivery complete form with weighment data
-          _birdsCtrl.text     = '${result.totalBirds}';
-          _weightCtrl.text    = result.totalNetWt.toStringAsFixed(3);
-          _rcvBirdsCtrl.text  = '${result.totalBirds}';
-          _rcvWeightCtrl.text = result.totalNetWt.toStringAsFixed(3);
-          _avgBirdWeightG     = result.avgBirdWtG;
-          _weighmentSource    = result.source;
-          _weighmentDone      = true;
-          Navigator.pop(context); // close weighment, return to this screen
-          if (mounted) setState(() {});
-          showSuccess(context,
-            '✓ Weight loaded: ${result.totalNetWt.toStringAsFixed(2)} kg · '
-            '${result.avgBirdWtG.toStringAsFixed(1)}g/bird · '
-            '${result.source == 'bluetooth' ? '🔵 Bluetooth' : '✏️ Manual'}');
-        },
-      )));
+        WeighmentScreen(
+          deliveryId:      widget.deliveryId,
+          shopName:        r?['shop_name'] as String? ?? 'Delivery',
+          expectedBirds:   _dcBirds > 0 ? _dcBirds : ((o?['estimated_birds'] as num?)?.toInt() ?? 0),
+          expectedWeight:  _dcWeight > 0 ? _dcWeight : ((o?['total_quantity'] as num?)?.toDouble() ?? 0),
+          onComplete: (result) {
+            // Pre-fill delivery complete form with weighment data
+            _birdsCtrl.text     = '${result.totalBirds}';
+            _weightCtrl.text    = result.totalNetWt.toStringAsFixed(3);
+            _rcvBirdsCtrl.text  = '${result.totalBirds}';
+            _rcvWeightCtrl.text = result.totalNetWt.toStringAsFixed(3);
+            _avgBirdWeightG     = result.avgBirdWtG;
+            _weighmentSource    = result.source;
+            _weighmentDone      = true;
+            Navigator.pop(context); // close weighment, return to this screen
+            if (mounted) setState(() {});
+            showSuccess(context,
+                '✓ Weight loaded: ${result.totalNetWt.toStringAsFixed(2)} kg · '
+                    '${result.avgBirdWtG.toStringAsFixed(1)}g/bird · '
+                    '${result.source == 'bluetooth' ? '🔵 Bluetooth' : '✏️ Manual'}');
+          },
+        )));
   }
 
   // ── Live loss calculations ───────────────────────────────────────
@@ -249,7 +249,7 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
     // Validate delivery status
     if (_deliveryStatus != 'out_for_delivery') {
       showError(context,
-        'Status is "$_deliveryStatus". Must be "out_for_delivery".\nAsk admin to check batch.');
+          'Status is "$_deliveryStatus". Must be "out_for_delivery".\nAsk admin to check batch.');
       return;
     }
     if (!_hasOpenShift) {
@@ -333,11 +333,11 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
   @override
   Widget build(BuildContext context) {
     if (!_loaded) return Scaffold(
-      appBar: AppBar(
-        leading: IconButton(icon: const Icon(Icons.arrow_back),
-            onPressed: () { if (context.canPop()) context.pop(); else context.go(R.agentDeliveries); }),
-        title: const Text('Complete Delivery')),
-      body: const LoadingList());
+        appBar: AppBar(
+            leading: IconButton(icon: const Icon(Icons.arrow_back),
+                onPressed: () { if (context.canPop()) context.pop(); else context.go(R.agentDeliveries); }),
+            title: const Text('Complete Delivery')),
+        body: const LoadingList());
 
     final o        = _delivery?['orders'] as Map<String,dynamic>?;
     final r        = o?['retailers'] as Map<String,dynamic>?;
@@ -347,12 +347,12 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
     final isReady = _deliveryStatus == 'out_for_delivery';
     if (!isReady || !_hasOpenShift) {
       return Scaffold(
-        appBar: AppBar(
-          leading: IconButton(icon: const Icon(Icons.arrow_back),
-              onPressed: () { if (context.canPop()) context.pop(); else context.go(R.agentDeliveries); }),
-          title: Text(shopName)),
-        body: Center(child: Padding(padding: const EdgeInsets.all(24), child: Column(
-          mainAxisSize: MainAxisSize.min, children: [
+          appBar: AppBar(
+              leading: IconButton(icon: const Icon(Icons.arrow_back),
+                  onPressed: () { if (context.canPop()) context.pop(); else context.go(R.agentDeliveries); }),
+              title: Text(shopName)),
+          body: Center(child: Padding(padding: const EdgeInsets.all(24), child: Column(
+              mainAxisSize: MainAxisSize.min, children: [
             Icon(!isReady ? Icons.pending_actions_outlined : Icons.schedule_outlined, size: 64, color: Colors.orange),
             const SizedBox(height: 16),
             Text(!isReady ? 'Not Ready for Delivery' : 'No Active Shift',
@@ -376,84 +376,84 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () { if (context.canPop()) context.pop(); else context.go(R.agentDeliveries); }),
-        title: Text(shopName)),
+          leading: IconButton(
+              icon: const Icon(Icons.arrow_back),
+              onPressed: () { if (context.canPop()) context.pop(); else context.go(R.agentDeliveries); }),
+          title: Text(shopName)),
       body: Form(key: _form, child: ListView(padding: const EdgeInsets.all(16), children: [
 
         // Shop header
         if (r != null) Container(
-          padding: const EdgeInsets.all(12), margin: const EdgeInsets.only(bottom: 12),
-          decoration: BoxDecoration(color: kPrimary.withValues(alpha: 0.07),
-              borderRadius: BorderRadius.circular(12), border: Border.all(color: kPrimary.withValues(alpha: 0.2))),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(r['shop_name'] as String, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: kPrimary)),
-            if (r['address'] != null) Text(r['address'] as String, style: const TextStyle(fontSize: 11, color: kTextSub)),
-            if (r['phone'] != null) Text(r['phone'] as String, style: const TextStyle(fontSize: 11, color: kTextHint)),
-          ])),
+            padding: const EdgeInsets.all(12), margin: const EdgeInsets.only(bottom: 12),
+            decoration: BoxDecoration(color: kPrimary.withValues(alpha: 0.07),
+                borderRadius: BorderRadius.circular(12), border: Border.all(color: kPrimary.withValues(alpha: 0.2))),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(r['shop_name'] as String, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: kPrimary)),
+              if (r['address'] != null) Text(r['address'] as String, style: const TextStyle(fontSize: 11, color: kTextSub)),
+              if (r['phone'] != null) Text(r['phone'] as String, style: const TextStyle(fontSize: 11, color: kTextHint)),
+            ])),
 
         // Order expected — what was ordered for THIS retailer
         if (_orderBirds > 0 || _orderWeight > 0) Container(
-          padding: const EdgeInsets.all(10), margin: const EdgeInsets.only(bottom: 8),
-          decoration: BoxDecoration(color: Colors.purple.shade50, borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: Colors.purple.shade200)),
-          child: Row(children: [
-            const Icon(Icons.shopping_cart_outlined, color: Colors.purple, size: 18), const SizedBox(width: 8),
-            Expanded(child: Text(
-              'Order: $_orderBirds birds · ${_orderWeight.toStringAsFixed(1)} kg expected for this shop',
-              style: const TextStyle(fontSize: 12, color: Colors.purple, fontWeight: FontWeight.w600))),
-          ])),
+            padding: const EdgeInsets.all(10), margin: const EdgeInsets.only(bottom: 8),
+            decoration: BoxDecoration(color: Colors.purple.shade50, borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: Colors.purple.shade200)),
+            child: Row(children: [
+              const Icon(Icons.shopping_cart_outlined, color: Colors.purple, size: 18), const SizedBox(width: 8),
+              Expanded(child: Text(
+                  'Order: $_orderBirds birds · ${_orderWeight.toStringAsFixed(1)} kg expected for this shop',
+                  style: const TextStyle(fontSize: 12, color: Colors.purple, fontWeight: FontWeight.w600))),
+            ])),
 
         // DC source info — full batch pickup weight (for loss reference)
         if (_dcBirds > 0 || _dcWeight > 0) Container(
-          padding: const EdgeInsets.all(10), margin: const EdgeInsets.only(bottom: 12),
-          decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: Colors.blue.shade200)),
-          child: Row(children: [
-            const Icon(Icons.receipt_long_outlined, color: Colors.blue, size: 18), const SizedBox(width: 8),
-            Expanded(child: Text(
-              'DC loaded: $_dcBirds birds · ${_dcWeight.toStringAsFixed(1)} kg total batch'
-              '${_avgBirdWeightG > 0 ? ' · Avg ${_avgBirdWeightG.toStringAsFixed(0)}g/bird' : ''}',
-              style: const TextStyle(fontSize: 12, color: Colors.blue, fontWeight: FontWeight.w600))),
-          ])),
+            padding: const EdgeInsets.all(10), margin: const EdgeInsets.only(bottom: 12),
+            decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: Colors.blue.shade200)),
+            child: Row(children: [
+              const Icon(Icons.receipt_long_outlined, color: Colors.blue, size: 18), const SizedBox(width: 8),
+              Expanded(child: Text(
+                  'DC loaded: $_dcBirds birds · ${_dcWeight.toStringAsFixed(1)} kg total batch'
+                      '${_avgBirdWeightG > 0 ? ' · Avg ${_avgBirdWeightG.toStringAsFixed(0)}g/bird' : ''}',
+                  style: const TextStyle(fontSize: 12, color: Colors.blue, fontWeight: FontWeight.w600))),
+            ])),
 
         // Weighment button — primary data entry method
         Container(
-          margin: const EdgeInsets.only(bottom: 12),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(colors: [kPrimary, Colors.teal.shade600]),
-            borderRadius: BorderRadius.circular(12)),
-          child: InkWell(
-            onTap: _launchWeighment,
-            borderRadius: BorderRadius.circular(12),
-            child: Padding(padding: const EdgeInsets.all(14), child: Row(children: [
-              const Icon(Icons.scale_outlined, color: Colors.white, size: 24),
-              const SizedBox(width: 12),
-              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(_weighmentDone
-                    ? '✓ Weighment Complete — tap to re-weigh'
-                    : '🔵 Use Weighment Machine',
-                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 14)),
-                Text(_weighmentDone
-                    ? 'Weight: ${_weightCtrl.text} kg · Avg: ${_avgBirdWeightG.toStringAsFixed(1)}g/bird · '
-                      '${_weighmentSource == 'bluetooth' ? 'Bluetooth' : 'Manual'}'
-                    : 'Connect Bluetooth scale or enter manually — recommended for accuracy',
-                    style: const TextStyle(color: Colors.white70, fontSize: 11)),
-              ])),
-              const Icon(Icons.chevron_right, color: Colors.white, size: 20),
-            ])))),
+            margin: const EdgeInsets.only(bottom: 12),
+            decoration: BoxDecoration(
+                gradient: LinearGradient(colors: [kPrimary, Colors.teal.shade600]),
+                borderRadius: BorderRadius.circular(12)),
+            child: InkWell(
+                onTap: _launchWeighment,
+                borderRadius: BorderRadius.circular(12),
+                child: Padding(padding: const EdgeInsets.all(14), child: Row(children: [
+                  const Icon(Icons.scale_outlined, color: Colors.white, size: 24),
+                  const SizedBox(width: 12),
+                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text(_weighmentDone
+                        ? '✓ Weighment Complete — tap to re-weigh'
+                        : '🔵 Use Weighment Machine',
+                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 14)),
+                    Text(_weighmentDone
+                        ? 'Weight: ${_weightCtrl.text} kg · Avg: ${_avgBirdWeightG.toStringAsFixed(1)}g/bird · '
+                        '${_weighmentSource == 'bluetooth' ? 'Bluetooth' : 'Manual'}'
+                        : 'Connect Bluetooth scale or enter manually — recommended for accuracy',
+                        style: const TextStyle(color: Colors.white70, fontSize: 11)),
+                  ])),
+                  const Icon(Icons.chevron_right, color: Colors.white, size: 20),
+                ])))),
 
         // OR divider
         Padding(
-          padding: const EdgeInsets.symmetric(vertical: 8),
-          child: Row(children: [
-            const Expanded(child: Divider()),
-            Padding(padding: const EdgeInsets.symmetric(horizontal: 10),
-                child: Text('or enter manually below',
-                    style: TextStyle(fontSize: 11, color: kTextHint))),
-            const Expanded(child: Divider()),
-          ])),
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Row(children: [
+              const Expanded(child: Divider()),
+              Padding(padding: const EdgeInsets.symmetric(horizontal: 10),
+                  child: Text('or enter manually below',
+                      style: TextStyle(fontSize: 11, color: kTextHint))),
+              const Expanded(child: Divider()),
+            ])),
 
         // Stock banner
         if (_stock != null) _stockBanner(),
@@ -477,29 +477,29 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
         if (_orderExpectedWt > 0 && _deliveryWeight > 0) ...[
           const SizedBox(height: 10),
           Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-                color: _isHighLoss ? Colors.red.shade50 : Colors.green.shade50,
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: _isHighLoss ? Colors.red.shade200 : Colors.green.shade200)),
-            child: Column(children: [
-              Row(children: [
-                Icon(_isHighLoss ? Icons.warning_amber_rounded : Icons.check_circle_outline,
-                    color: _isHighLoss ? Colors.red : Colors.green, size: 16),
-                const SizedBox(width: 6),
-                Text(_isHighLoss ? '⚠️ High Loss — ${_lossPct.toStringAsFixed(1)}%' : 'Loss: ${_lossPct.toStringAsFixed(1)}%',
-                    style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13,
-                        color: _isHighLoss ? Colors.red : Colors.green)),
-              ]),
-              const SizedBox(height: 8),
-              Row(children: [
-                _lossStat('Order Wt', '${_orderExpectedWt.toStringAsFixed(1)} kg', Colors.blue),
-                _lossStat('Delivered', '${_deliveryWeight.toStringAsFixed(1)} kg', kPrimary),
-                _lossStat('Transport\nLoss', '${_transportLossKg.toStringAsFixed(2)} kg', Colors.orange),
-                _lossStat('Total\nLoss', '${_totalLossKg.toStringAsFixed(2)} kg',
-                    _isHighLoss ? Colors.red : Colors.orange),
-              ]),
-            ])),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                  color: _isHighLoss ? Colors.red.shade50 : Colors.green.shade50,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: _isHighLoss ? Colors.red.shade200 : Colors.green.shade200)),
+              child: Column(children: [
+                Row(children: [
+                  Icon(_isHighLoss ? Icons.warning_amber_rounded : Icons.check_circle_outline,
+                      color: _isHighLoss ? Colors.red : Colors.green, size: 16),
+                  const SizedBox(width: 6),
+                  Text(_isHighLoss ? '⚠️ High Loss — ${_lossPct.toStringAsFixed(1)}%' : 'Loss: ${_lossPct.toStringAsFixed(1)}%',
+                      style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13,
+                          color: _isHighLoss ? Colors.red : Colors.green)),
+                ]),
+                const SizedBox(height: 8),
+                Row(children: [
+                  _lossStat('Order Wt', '${_orderExpectedWt.toStringAsFixed(1)} kg', Colors.blue),
+                  _lossStat('Delivered', '${_deliveryWeight.toStringAsFixed(1)} kg', kPrimary),
+                  _lossStat('Transport\nLoss', '${_transportLossKg.toStringAsFixed(2)} kg', Colors.orange),
+                  _lossStat('Total\nLoss', '${_totalLossKg.toStringAsFixed(2)} kg',
+                      _isHighLoss ? Colors.red : Colors.orange),
+                ]),
+              ])),
         ],
         const SizedBox(height: 10),
 
@@ -532,24 +532,24 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
 
         // Mortality weight calculation display
         if (_mortalityBirds > 0) Padding(
-          padding: const EdgeInsets.only(top: 6),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            decoration: BoxDecoration(color: Colors.red.shade50, borderRadius: BorderRadius.circular(8)),
-            child: Text(
-              'Mortality weight ≈ ${_mortalityWtKg.toStringAsFixed(2)} kg'
-              '${_avgBirdWeightG > 0 ? ' (${_mortalityBirds} × ${_avgBirdWeightG.toStringAsFixed(0)}g)' : ''}',
-              style: const TextStyle(fontSize: 12, color: Colors.red, fontWeight: FontWeight.w600)))),
+            padding: const EdgeInsets.only(top: 6),
+            child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(color: Colors.red.shade50, borderRadius: BorderRadius.circular(8)),
+                child: Text(
+                    'Mortality weight ≈ ${_mortalityWtKg.toStringAsFixed(2)} kg'
+                        '${_avgBirdWeightG > 0 ? ' (${_mortalityBirds} × ${_avgBirdWeightG.toStringAsFixed(0)}g)' : ''}',
+                    style: const TextStyle(fontSize: 12, color: Colors.red, fontWeight: FontWeight.w600)))),
 
         // Mortality image upload — mandatory if mortality > 0
         const SizedBox(height: 10),
         _imageUploadTile(
-          label: 'Mortality Proof Photo',
-          required: _mortalityBirds > 0,
-          image: _mortalityImage,
-          uploading: _uploadingMortality,
-          uploaded: _mortalityProofUrl != null,
-          onTap: () => _pickImage(true)),
+            label: 'Mortality Proof Photo',
+            required: _mortalityBirds > 0,
+            image: _mortalityImage,
+            uploading: _uploadingMortality,
+            uploaded: _mortalityProofUrl != null,
+            onTap: () => _pickImage(true)),
 
         const SizedBox(height: 10),
 
@@ -583,24 +583,24 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
             decoration: const InputDecoration(labelText: 'Amount Collected (₹)', prefixText: '₹')),
         const SizedBox(height: 8),
         SegmentedButton<String>(
-          segments: const [
-            ButtonSegment(value: 'cash',   label: Text('Cash')),
-            ButtonSegment(value: 'upi',    label: Text('UPI')),
-            ButtonSegment(value: 'credit', label: Text('Credit')),
-            ButtonSegment(value: 'bank',   label: Text('Bank')),
-          ],
-          selected: {_payMode},
-          onSelectionChanged: (s) => setState(() => _payMode = s.first)),
+            segments: const [
+              ButtonSegment(value: 'cash',   label: Text('Cash')),
+              ButtonSegment(value: 'upi',    label: Text('UPI')),
+              ButtonSegment(value: 'credit', label: Text('Credit')),
+              ButtonSegment(value: 'bank',   label: Text('Bank')),
+            ],
+            selected: {_payMode},
+            onSelectionChanged: (s) => setState(() => _payMode = s.first)),
         const SizedBox(height: 12),
 
         // Delivery photo (optional)
         _imageUploadTile(
-          label: 'Delivery Proof Photo (Optional)',
-          required: false,
-          image: _deliveryImage,
-          uploading: _uploadingDelivery,
-          uploaded: _deliveryProofUrl != null,
-          onTap: () => _pickImage(false)),
+            label: 'Delivery Proof Photo (Optional)',
+            required: false,
+            image: _deliveryImage,
+            uploading: _uploadingDelivery,
+            uploaded: _deliveryProofUrl != null,
+            onTap: () => _pickImage(false)),
 
         const SizedBox(height: 12),
         TextFormField(controller: _notesCtrl, maxLines: 2,
@@ -608,18 +608,18 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
         const SizedBox(height: 24),
 
         ElevatedButton(
-          onPressed: (_submitting || _uploadingMortality || _uploadingDelivery) ? null : _submit,
-          style: _isHighLoss
-              ? ElevatedButton.styleFrom(backgroundColor: Colors.orange)
-              : null,
-          child: _submitting
-              ? const SizedBox(width: 22, height: 22,
-                  child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white))
-              : Text(
-                  _isHighLoss
-                      ? '⚠️ Submit (High Loss ${_lossPct.toStringAsFixed(1)}%)'
-                      : 'Mark as Delivered',
-                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700))),
+            onPressed: (_submitting || _uploadingMortality || _uploadingDelivery) ? null : _submit,
+            style: _isHighLoss
+                ? ElevatedButton.styleFrom(backgroundColor: Colors.orange)
+                : null,
+            child: _submitting
+                ? const SizedBox(width: 22, height: 22,
+                child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white))
+                : Text(
+                _isHighLoss
+                    ? '⚠️ Submit (High Loss ${_lossPct.toStringAsFixed(1)}%)'
+                    : 'Mark as Delivered',
+                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700))),
         const SizedBox(height: 20),
       ])),
     );
@@ -637,30 +637,30 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-            color: uploaded ? Colors.green.shade50 : (required ? Colors.red.shade50 : Colors.grey.shade50),
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: c.withValues(alpha: 0.4))),
-        child: Row(children: [
-          if (image != null)
-            ClipRRect(borderRadius: BorderRadius.circular(6),
-                child: Image.file(image, width: 48, height: 48, fit: BoxFit.cover))
-          else
-            Icon(Icons.camera_alt_outlined, size: 36, color: c),
-          const SizedBox(width: 12),
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(label, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: c)),
-            Text(
-              uploading ? 'Uploading...' :
-              uploaded  ? '✓ Photo uploaded' :
-              required  ? 'Required — tap to take photo' :
-              'Tap to take photo (optional)',
-              style: TextStyle(fontSize: 11, color: c)),
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+              color: uploaded ? Colors.green.shade50 : (required ? Colors.red.shade50 : Colors.grey.shade50),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: c.withValues(alpha: 0.4))),
+          child: Row(children: [
+            if (image != null)
+              ClipRRect(borderRadius: BorderRadius.circular(6),
+                  child: Image.file(image, width: 48, height: 48, fit: BoxFit.cover))
+            else
+              Icon(Icons.camera_alt_outlined, size: 36, color: c),
+            const SizedBox(width: 12),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(label, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: c)),
+              Text(
+                  uploading ? 'Uploading...' :
+                  uploaded  ? '✓ Photo uploaded' :
+                  required  ? 'Required — tap to take photo' :
+                  'Tap to take photo (optional)',
+                  style: TextStyle(fontSize: 11, color: c)),
+            ])),
+            if (uploading) const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)),
+            if (uploaded && !uploading) const Icon(Icons.check_circle, color: Colors.green, size: 20),
           ])),
-          if (uploading) const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)),
-          if (uploaded && !uploading) const Icon(Icons.check_circle, color: Colors.green, size: 20),
-        ])),
     );
   }
 
@@ -671,18 +671,18 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
     final zero  = avail <= 0;
     final c     = zero ? Colors.red : over ? Colors.orange : Colors.green;
     return Container(
-      margin: const EdgeInsets.only(bottom: 12), padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(color: c.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: c.withValues(alpha: 0.3))),
-      child: Row(children: [
-        Icon(zero ? Icons.error : over ? Icons.inventory_outlined : Icons.check_circle_outline,
-            color: c, size: 18), const SizedBox(width: 8),
-        Expanded(child: Text(
-          zero ? 'No stock. Ask admin to add DC.' :
-          over ? 'Stock: $avail birds available · Delivering: $_deliveryBirds' :
-          'Stock OK: $avail birds ✓',
-          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: c))),
-      ]));
+        margin: const EdgeInsets.only(bottom: 12), padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(color: c.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: c.withValues(alpha: 0.3))),
+        child: Row(children: [
+          Icon(zero ? Icons.error : over ? Icons.inventory_outlined : Icons.check_circle_outline,
+              color: c, size: 18), const SizedBox(width: 8),
+          Expanded(child: Text(
+              zero ? 'No stock. Ask admin to add DC.' :
+              over ? 'Stock: $avail birds available · Delivering: $_deliveryBirds' :
+              'Stock OK: $avail birds ✓',
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: c))),
+        ]));
   }
 
   Widget _lossStat(String l, String v, Color c) => Expanded(child: Column(children: [

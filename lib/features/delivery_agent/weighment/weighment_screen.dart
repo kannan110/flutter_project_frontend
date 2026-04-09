@@ -12,14 +12,15 @@ import '../../../core/theme/app_theme.dart';
 
 class WeighmentRow {
   final String pk;
-  final int    seqNo;
+  final int seqNo;
   double loadWt;
-  int    loadCages;
+  int loadCages;
   double emptyWt;
-  int    emptyCages;
+  int emptyCages;
+
   double get netWt => (loadWt - emptyWt).clamp(0, double.infinity);
   double avgWt;
-  bool   emptyFilled;
+  bool emptyFilled;
   final String wmtTime;
 
   WeighmentRow({
@@ -27,28 +28,34 @@ class WeighmentRow {
     required this.seqNo,
     required this.loadWt,
     required this.loadCages,
-    this.emptyWt    = 0,
+    this.emptyWt = 0,
     this.emptyCages = 0,
-    this.avgWt      = 0,
+    this.avgWt = 0,
     this.emptyFilled = false,
     required this.wmtTime,
   });
 
   Map<String, dynamic> toJson() => {
-    'PK': pk, 'LOADWT': loadWt, 'LOAD_CAGES': loadCages,
-    'EMPTYWT': emptyWt, 'EMPTY_CAGES': emptyCages,
-    'NETWT': netWt, 'AVGWT': avgWt,
-    'DELETEDFLAG': 'A', 'TRSEQNO': seqNo, 'WMTTIME': wmtTime,
-  };
+        'PK': pk,
+        'LOADWT': loadWt,
+        'LOAD_CAGES': loadCages,
+        'EMPTYWT': emptyWt,
+        'EMPTY_CAGES': emptyCages,
+        'NETWT': netWt,
+        'AVGWT': avgWt,
+        'DELETEDFLAG': 'A',
+        'TRSEQNO': seqNo,
+        'WMTTIME': wmtTime,
+      };
 }
 
 class WeighmentResult {
-  final int    totalBirds;
+  final int totalBirds;
   final double totalNetWt;
-  final double avgBirdWtG;   // grams
+  final double avgBirdWtG; // grams
   final double totalLoadWt;
   final double totalEmptyWt;
-  final int    totalCages;
+  final int totalCages;
   final List<WeighmentRow> rows;
   final String source; // 'bluetooth' | 'manual'
 
@@ -77,7 +84,7 @@ class WeighmentResult {
 class WeighmentScreen extends StatefulWidget {
   final String deliveryId;
   final String shopName;
-  final int    expectedBirds;
+  final int expectedBirds;
   final double expectedWeight;
   final void Function(WeighmentResult) onComplete;
 
@@ -90,33 +97,34 @@ class WeighmentScreen extends StatefulWidget {
     required this.onComplete,
   });
 
-  @override State<WeighmentScreen> createState() => _WS();
+  @override
+  State<WeighmentScreen> createState() => _WS();
 }
 
 class _WS extends State<WeighmentScreen> {
   // ── Weighment data ──────────────────────────────────
   final List<WeighmentRow> _rows = [];
-  bool   _loadLocked = false;
-  String _mode       = 'LOAD'; // 'LOAD' | 'EMPTY'
-  int    _totalBirds = 0;
-  int    _nextSeqNo  = 1;
-  bool   _saving     = false;
+  bool _loadLocked = false;
+  String _mode = 'LOAD'; // 'LOAD' | 'EMPTY'
+  int _totalBirds = 0;
+  int _nextSeqNo = 1;
+  bool _saving = false;
 
   // ── Bluetooth Classic (SPP) ─────────────────────────
   // KEY FIX: Use flutter_bluetooth_serial, not flutter_blue_plus
   // SLE weighing scales use SPP (Serial Port Profile = Bluetooth Classic)
   // BLE (flutter_blue_plus) cannot see Classic BT devices at all
-  List<BluetoothDevice> _pairedDevices   = [];
-  BluetoothDevice?      _selectedDevice;
-  BluetoothConnection?  _connection;
-  StreamSubscription?   _dataSub;
-  bool    _connected    = false;
-  bool    _connecting   = false;
-  double  _liveWeight   = 0;
-  String  _btBuffer     = '';
+  List<BluetoothDevice> _pairedDevices = [];
+  BluetoothDevice? _selectedDevice;
+  BluetoothConnection? _connection;
+  StreamSubscription? _dataSub;
+  bool _connected = false;
+  bool _connecting = false;
+  double _liveWeight = 0;
+  String _btBuffer = '';
 
   // ── Manual entry ────────────────────────────────────
-  final _manualWtCtrl    = TextEditingController();
+  final _manualWtCtrl = TextEditingController();
   final _manualCagesCtrl = TextEditingController(text: '2');
 
   @override
@@ -179,12 +187,11 @@ class _WS extends State<WeighmentScreen> {
     try {
       _connection = await BluetoothConnection.toAddress(device.address)
           .timeout(const Duration(seconds: 15), onTimeout: () {
-        throw TimeoutException(
-          'Scale did not respond in 15 seconds.\n\n'
-          'Check:\n'
-          '• Scale is switched ON\n'
-          '• Scale is within range\n'
-          '• Not connected to another device');
+        throw TimeoutException('Scale did not respond in 15 seconds.\n\n'
+            'Check:\n'
+            '• Scale is switched ON\n'
+            '• Scale is within range\n'
+            '• Not connected to another device');
       });
 
       // Listen to SPP data stream
@@ -192,10 +199,10 @@ class _WS extends State<WeighmentScreen> {
         (data) {
           _btBuffer += String.fromCharCodes(data);
           while (_btBuffer.contains('\n')) {
-            final idx  = _btBuffer.indexOf('\n');
+            final idx = _btBuffer.indexOf('\n');
             final line = _btBuffer.substring(0, idx).trim();
-            _btBuffer  = _btBuffer.substring(idx + 1);
-            final wt   = _parseScaleLine(line);
+            _btBuffer = _btBuffer.substring(idx + 1);
+            final wt = _parseScaleLine(line);
             if (wt != null && wt >= 0 && mounted) {
               setState(() => _liveWeight = wt);
               // Sync to manual field when not in manual mode
@@ -203,16 +210,21 @@ class _WS extends State<WeighmentScreen> {
             }
           }
         },
-        onError: (_) { _disconnect(); },
-        onDone:  ()  { _disconnect(); },
+        onError: (_) {
+          _disconnect();
+        },
+        onDone: () {
+          _disconnect();
+        },
         cancelOnError: false,
       );
 
-      if (mounted) setState(() {
-        _connected       = true;
-        _connecting      = false;
-        _selectedDevice  = device;
-      });
+      if (mounted)
+        setState(() {
+          _connected = true;
+          _connecting = false;
+          _selectedDevice = device;
+        });
       if (mounted) showSuccess(context, '✓ Scale connected: ${device.name}');
     } on TimeoutException catch (e) {
       if (mounted) {
@@ -224,11 +236,14 @@ class _WS extends State<WeighmentScreen> {
         setState(() => _connecting = false);
         String msg = e.toString();
         if (msg.contains('permission') || msg.contains('BLUETOOTH_CONNECT')) {
-          msg = 'Permission denied.\n\nGo to Settings → Apps → Rooster Trader → Permissions → allow Bluetooth.';
+          msg =
+              'Permission denied.\n\nGo to Settings → Apps → Rooster Trader → Permissions → allow Bluetooth.';
         } else if (msg.contains('bond') || msg.contains('pair')) {
-          msg = 'Scale not paired.\n\nGo to Android Settings → Bluetooth, find the scale and pair it first.';
+          msg =
+              'Scale not paired.\n\nGo to Android Settings → Bluetooth, find the scale and pair it first.';
         } else {
-          msg = 'Connection failed: $msg\n\nMake sure scale is ON and not connected to another device.';
+          msg =
+              'Connection failed: $msg\n\nMake sure scale is ON and not connected to another device.';
         }
         showError(context, msg);
       }
@@ -238,10 +253,17 @@ class _WS extends State<WeighmentScreen> {
   void _disconnect() {
     _dataSub?.cancel();
     _dataSub = null;
-    try { _connection?.dispose(); } catch (_) {}
+    try {
+      _connection?.dispose();
+    } catch (_) {}
     _connection = null;
-    _btBuffer   = '';
-    if (mounted) setState(() { _connected = false; _selectedDevice = null; _liveWeight = 0; });
+    _btBuffer = '';
+    if (mounted)
+      setState(() {
+        _connected = false;
+        _selectedDevice = null;
+        _liveWeight = 0;
+      });
   }
 
   /// Parse SLE scale serial output — handles common formats:
@@ -277,14 +299,17 @@ class _WS extends State<WeighmentScreen> {
           params: {'p_delivery_id': widget.deliveryId});
       if (res == null) return;
       final session = res['session'];
-      final rows    = res['rows'] as List? ?? [];
+      final rows = res['rows'] as List? ?? [];
       if (session == null || rows.isEmpty) return;
       final loaded = rows.map((r) {
-        final m = r as Map<String,dynamic>;
+        final m = r as Map<String, dynamic>;
         return WeighmentRow(
-          pk: m['PK'] as String, seqNo: (m['TRSEQNO'] as num).toInt(),
-          loadWt: (m['LOADWT'] as num).toDouble(), loadCages: (m['LOAD_CAGES'] as num).toInt(),
-          emptyWt: (m['EMPTYWT'] as num).toDouble(), emptyCages: (m['EMPTY_CAGES'] as num).toInt(),
+          pk: m['PK'] as String,
+          seqNo: (m['TRSEQNO'] as num).toInt(),
+          loadWt: (m['LOADWT'] as num).toDouble(),
+          loadCages: (m['LOAD_CAGES'] as num).toInt(),
+          emptyWt: (m['EMPTYWT'] as num).toDouble(),
+          emptyCages: (m['EMPTY_CAGES'] as num).toInt(),
           avgWt: (m['AVGWT'] as num).toDouble(),
           emptyFilled: (m['EMPTYWT'] as num).toDouble() > 0,
           wmtTime: m['WMTTIME'] as String? ?? '',
@@ -295,8 +320,8 @@ class _WS extends State<WeighmentScreen> {
         _rows.addAll(loaded);
         _totalBirds = (session['total_birds'] as num?)?.toInt() ?? 0;
         _loadLocked = session['load_locked'] as bool? ?? false;
-        _mode       = session['mode'] as String? ?? 'LOAD';
-        _nextSeqNo  = loaded.isEmpty ? 1 : loaded.last.seqNo + 1;
+        _mode = session['mode'] as String? ?? 'LOAD';
+        _nextSeqNo = loaded.isEmpty ? 1 : loaded.last.seqNo + 1;
       });
     } catch (_) {}
   }
@@ -309,67 +334,172 @@ class _WS extends State<WeighmentScreen> {
         'p_rows': _rows.map((r) => r.toJson()).toList(),
       });
       await Supabase.instance.client.rpc('upsert_weighment_session', params: {
-        'p_delivery_id':  widget.deliveryId,
-        'p_total_birds':  _totalBirds,
+        'p_delivery_id': widget.deliveryId,
+        'p_total_birds': _totalBirds,
         'p_total_net_wt': _totalNetWt,
-        'p_avg_bird_wt':  _avgBirdWtKg,
+        'p_avg_bird_wt': _avgBirdWtKg,
         'p_total_load_wt': _totalLoadWt,
         'p_total_empty_wt': _totalEmptyWt,
-        'p_total_cages':   _totalLoadCages,
-        'p_load_locked':   _loadLocked,
-        'p_mode':          _mode,
+        'p_total_cages': _totalLoadCages,
+        'p_load_locked': _loadLocked,
+        'p_mode': _mode,
       });
     } catch (_) {}
   }
 
   // ── Calculations ────────────────────────────────────
-  double get _totalLoadWt     => _rows.fold(0.0, (s, r) => s + r.loadWt);
-  double get _totalEmptyWt    => _rows.where((r) => r.emptyFilled).fold(0.0, (s, r) => s + r.emptyWt);
-  double get _totalNetWt      => _rows.where((r) => r.emptyFilled).fold(0.0, (s, r) => s + r.netWt);
-  int    get _totalLoadCages  => _rows.fold(0, (s, r) => s + r.loadCages);
-  int    get _totalEmptyCages => _rows.fold(0, (s, r) => s + r.emptyCages);
-  int    get _filledEmpty     => _rows.where((r) => r.emptyFilled).length;
-  double get _avgBirdWtKg     => _totalBirds > 0 && _totalNetWt > 0 ? _totalNetWt / _totalBirds : 0;
-  double get _avgBirdWtG      => _avgBirdWtKg * 1000;
-  bool   get _cagesMatch      => _totalLoadCages == _totalEmptyCages;
+  double get _totalLoadWt => _rows.fold(0.0, (s, r) => s + r.loadWt);
+
+  double get _totalEmptyWt =>
+      _rows.where((r) => r.emptyFilled).fold(0.0, (s, r) => s + r.emptyWt);
+
+  double get _totalNetWt =>
+      _rows.where((r) => r.emptyFilled).fold(0.0, (s, r) => s + r.netWt);
+
+  int get _totalLoadCages => _rows.fold(0, (s, r) => s + r.loadCages);
+
+  int get _totalEmptyCages => _rows.fold(0, (s, r) => s + r.emptyCages);
+
+  int get _filledEmpty => _rows.where((r) => r.emptyFilled).length;
+
+  double get _avgBirdWtKg =>
+      _totalBirds > 0 && _totalNetWt > 0 ? _totalNetWt / _totalBirds : 0;
+
+  double get _avgBirdWtG => _avgBirdWtKg * 1000;
+
+  bool get _cagesMatch => _totalLoadCages == _totalEmptyCages;
 
   void _recalcAvgWt() {
     final avg = _avgBirdWtKg;
-    for (final r in _rows) { if (r.emptyFilled) r.avgWt = avg; }
+    for (final r in _rows) {
+      if (r.emptyFilled) r.avgWt = avg;
+    }
   }
 
   // ── Weight capture ──────────────────────────────────
   Future<void> _captureLoadWt() async {
     if (_loadLocked) return;
-    final wt    = double.tryParse(_manualWtCtrl.text.trim()) ?? (_connected ? _liveWeight : 0);
+    final wt = double.tryParse(_manualWtCtrl.text.trim()) ??
+        (_connected ? _liveWeight : 0);
     final cages = int.tryParse(_manualCagesCtrl.text.trim()) ?? 2;
-    if (wt <= 0) { showError(context, 'Weight must be > 0'); return; }
+    if (wt <= 0) {
+      showError(context, 'Weight must be > 0');
+      return;
+    }
     final ok = await _showCaptureModal(wt, cages, isLoad: true);
     if (!ok) return;
     final now = TimeOfDay.now();
     final row = WeighmentRow(
       pk: '${widget.deliveryId}_${DateTime.now().millisecondsSinceEpoch}_$_nextSeqNo',
       seqNo: _nextSeqNo,
-      loadWt: wt, loadCages: cages,
-      wmtTime: '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}',
+      loadWt: wt,
+      loadCages: cages,
+      wmtTime:
+          '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}',
     );
-    setState(() { _rows.add(row); _nextSeqNo++; _manualWtCtrl.clear(); });
+    setState(() {
+      _rows.add(row);
+      _nextSeqNo++;
+      _manualWtCtrl.clear();
+    });
     _saveToServer();
+  }
+
+  Future<void> _editLastLoadEntry() async {
+    if (_loadLocked || _rows.isEmpty) return;
+    final last = _rows.last;
+    final wtCtrl = TextEditingController(text: last.loadWt.toStringAsFixed(3));
+    final cagesCtrl = TextEditingController(text: '${last.loadCages}');
+    final updated = await showDialog<Map<String, dynamic>>(
+        context: context,
+        builder: (ctx) {
+          return AlertDialog(
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            title: const Text('Edit Last Entry',
+                style: TextStyle(fontWeight: FontWeight.w800)),
+            content: Column(mainAxisSize: MainAxisSize.min, children: [
+              Text('Row #${last.seqNo}',
+                  style: const TextStyle(fontSize: 12, color: kTextSub)),
+              const SizedBox(height: 10),
+              TextField(
+                controller: wtCtrl,
+                keyboardType:
+                    const TextInputType.numberWithOptions(decimal: true),
+                decoration: const InputDecoration(
+                    labelText: 'Weight (kg)', suffixText: 'kg'),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: cagesCtrl,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(labelText: 'Cages'),
+              ),
+            ]),
+            actions: [
+              TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text('Cancel')),
+              ElevatedButton(
+                onPressed: () {
+                  final wt = double.tryParse(wtCtrl.text.trim());
+                  final cages = int.tryParse(cagesCtrl.text.trim());
+                  if (wt == null || wt <= 0 || cages == null || cages <= 0)
+                    return;
+                  Navigator.pop(ctx, {'wt': wt, 'cages': cages});
+                },
+                child: const Text('Update'),
+              ),
+            ],
+          );
+        });
+    wtCtrl.dispose();
+    cagesCtrl.dispose();
+    if (updated == null) return;
+    setState(() {
+      last.loadWt = (updated['wt'] as num).toDouble();
+      last.loadCages = (updated['cages'] as num).toInt();
+    });
+    _saveToServer();
+    if (mounted) showSuccess(context, '✓ Last entry updated');
+  }
+
+  void _deleteLastLoadEntry() {
+    if (_loadLocked || _rows.isEmpty) return;
+    final removed = _rows.last;
+    setState(() {
+      _rows.removeLast();
+      _nextSeqNo = _rows.isEmpty ? 1 : (_rows.last.seqNo + 1);
+    });
+    _saveToServer();
+    showSuccess(
+        context, 'Removed row #${removed.seqNo}. You can re-record now.');
   }
 
   Future<void> _captureEmptyWt() async {
     if (!_loadLocked) return;
-    final row = _rows.firstWhere((r) => !r.emptyFilled, orElse: () => _rows.last);
-    if (row.emptyFilled) { showError(context, 'All empty weights filled'); return; }
-    final wt    = double.tryParse(_manualWtCtrl.text.trim()) ?? (_connected ? _liveWeight : 0);
+    final row =
+        _rows.firstWhere((r) => !r.emptyFilled, orElse: () => _rows.last);
+    if (row.emptyFilled) {
+      showError(context, 'All empty weights filled');
+      return;
+    }
+    final wt = double.tryParse(_manualWtCtrl.text.trim()) ??
+        (_connected ? _liveWeight : 0);
     final cages = int.tryParse(_manualCagesCtrl.text.trim()) ?? row.loadCages;
-    if (wt <= 0) { showError(context, 'Empty weight must be > 0'); return; }
-    final ok = await _showCaptureModal(wt, cages, isLoad: false,
-        rowNum: row.seqNo, loadWt: row.loadWt, loadCages: row.loadCages);
+    if (wt <= 0) {
+      showError(context, 'Empty weight must be > 0');
+      return;
+    }
+    final ok = await _showCaptureModal(wt, cages,
+        isLoad: false,
+        rowNum: row.seqNo,
+        loadWt: row.loadWt,
+        loadCages: row.loadCages);
     if (!ok) return;
     setState(() {
-      row.emptyWt     = wt;
-      row.emptyCages  = cages;
+      row.emptyWt = wt;
+      row.emptyCages = cages;
       row.emptyFilled = true;
       _recalcAvgWt();
       _manualWtCtrl.clear();
@@ -378,59 +508,96 @@ class _WS extends State<WeighmentScreen> {
     _saveToServer();
   }
 
-  Future<bool> _showCaptureModal(double wt, int cages, {
-    required bool isLoad, int rowNum = 0, double loadWt = 0, int loadCages = 0}) async {
-    return await showDialog<bool>(context: context, builder: (ctx) => AlertDialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      title: Text(isLoad ? 'Confirm Load Weight' : 'Confirm Empty Weight',
-          style: const TextStyle(fontWeight: FontWeight.w800)),
-      content: Column(mainAxisSize: MainAxisSize.min, children: [
-        if (!isLoad) ...[
-          Text('Row #$rowNum — Load: ${loadWt.toStringAsFixed(3)} kg ($loadCages cages)',
-              style: const TextStyle(fontSize: 12, color: kTextSub)),
-          const Divider(),
-        ],
-        Text('${wt.toStringAsFixed(3)} kg',
-            style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w900, color: kPrimary)),
-        Text('$cages cages', style: const TextStyle(fontSize: 14, color: kTextSub)),
-        if (!isLoad) ...[
-          const Divider(),
-          Text('Net: ${(loadWt - wt).clamp(0, double.infinity).toStringAsFixed(3)} kg',
-              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: Colors.green)),
-        ],
-      ]),
-      actions: [
-        TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-        ElevatedButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Confirm ✓')),
-      ],
-    )) ?? false;
+  Future<bool> _showCaptureModal(double wt, int cages,
+      {required bool isLoad,
+      int rowNum = 0,
+      double loadWt = 0,
+      int loadCages = 0}) async {
+    return await showDialog<bool>(
+            context: context,
+            builder: (ctx) => AlertDialog(
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(20)),
+                  title: Text(
+                      isLoad ? 'Confirm Load Weight' : 'Confirm Empty Weight',
+                      style: const TextStyle(fontWeight: FontWeight.w800)),
+                  content: Column(mainAxisSize: MainAxisSize.min, children: [
+                    if (!isLoad) ...[
+                      Text(
+                          'Row #$rowNum — Load: ${loadWt.toStringAsFixed(3)} kg ($loadCages cages)',
+                          style:
+                              const TextStyle(fontSize: 12, color: kTextSub)),
+                      const Divider(),
+                    ],
+                    Text('${wt.toStringAsFixed(3)} kg',
+                        style: const TextStyle(
+                            fontSize: 28,
+                            fontWeight: FontWeight.w900,
+                            color: kPrimary)),
+                    Text('$cages cages',
+                        style: const TextStyle(fontSize: 14, color: kTextSub)),
+                    if (!isLoad) ...[
+                      const Divider(),
+                      Text(
+                          'Net: ${(loadWt - wt).clamp(0, double.infinity).toStringAsFixed(3)} kg',
+                          style: const TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.green)),
+                    ],
+                  ]),
+                  actions: [
+                    TextButton(
+                        onPressed: () => Navigator.pop(ctx, false),
+                        child: const Text('Cancel')),
+                    ElevatedButton(
+                        onPressed: () => Navigator.pop(ctx, true),
+                        child: const Text('Confirm ✓')),
+                  ],
+                )) ??
+        false;
   }
 
   Future<void> _lockLoad() async {
-    if (_rows.isEmpty) { showError(context, 'Add at least one load entry first'); return; }
+    if (_rows.isEmpty) {
+      showError(context, 'Add at least one load entry first');
+      return;
+    }
     final ctrl = TextEditingController(
         text: widget.expectedBirds > 0 ? '${widget.expectedBirds}' : '');
-    final birds = await showDialog<int>(context: context, builder: (ctx) => AlertDialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      title: const Text('Total Birds Count', style: TextStyle(fontWeight: FontWeight.w800)),
-      content: Column(mainAxisSize: MainAxisSize.min, children: [
-        const Text('Enter total birds loaded:',
-            style: TextStyle(fontSize: 13, color: kTextSub)),
-        const SizedBox(height: 12),
-        TextField(controller: ctrl, keyboardType: TextInputType.number, autofocus: true,
-            decoration: const InputDecoration(labelText: 'Birds', suffixText: 'birds')),
-        const SizedBox(height: 8),
-        Text('Load weight: ${_totalLoadWt.toStringAsFixed(3)} kg',
-            style: const TextStyle(fontSize: 12, color: kTextHint)),
-      ]),
-      actions: [
-        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
-        ElevatedButton(onPressed: () {
-          final v = int.tryParse(ctrl.text.trim());
-          if (v != null && v > 0) Navigator.pop(ctx, v);
-        }, child: const Text('Lock & Proceed')),
-      ],
-    ));
+    final birds = await showDialog<int>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20)),
+              title: const Text('Total Birds Count',
+                  style: TextStyle(fontWeight: FontWeight.w800)),
+              content: Column(mainAxisSize: MainAxisSize.min, children: [
+                const Text('Enter total birds loaded:',
+                    style: TextStyle(fontSize: 13, color: kTextSub)),
+                const SizedBox(height: 12),
+                TextField(
+                    controller: ctrl,
+                    keyboardType: TextInputType.number,
+                    autofocus: true,
+                    decoration: const InputDecoration(
+                        labelText: 'Birds', suffixText: 'birds')),
+                const SizedBox(height: 8),
+                Text('Load weight: ${_totalLoadWt.toStringAsFixed(3)} kg',
+                    style: const TextStyle(fontSize: 12, color: kTextHint)),
+              ]),
+              actions: [
+                TextButton(
+                    onPressed: () => Navigator.pop(ctx),
+                    child: const Text('Cancel')),
+                ElevatedButton(
+                    onPressed: () {
+                      final v = int.tryParse(ctrl.text.trim());
+                      if (v != null && v > 0) Navigator.pop(ctx, v);
+                    },
+                    child: const Text('Lock & Proceed')),
+              ],
+            ));
     ctrl.dispose();
     if (birds == null) return;
     setState(() {
@@ -444,7 +611,8 @@ class _WS extends State<WeighmentScreen> {
 
   Future<void> _submit() async {
     if (!_cagesMatch) {
-      showError(context,
+      showError(
+          context,
           'Cage mismatch!\nLoad: $_totalLoadCages · Empty: $_totalEmptyCages\n'
           'All empty cages must be weighed before submitting.');
       return;
@@ -457,419 +625,657 @@ class _WS extends State<WeighmentScreen> {
       showError(context, 'Birds count is 0. Lock load first.');
       return;
     }
-    final ok = await showDialog<bool>(context: context, builder: (ctx) => AlertDialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      title: const Text('Confirm Weighment', style: TextStyle(fontWeight: FontWeight.w800)),
-      content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-        _summaryRow('Total Birds',    '$_totalBirds'),
-        _summaryRow('Load Cages',     '$_totalLoadCages'),
-        _summaryRow('Total Load WT',  '${_totalLoadWt.toStringAsFixed(3)} kg'),
-        _summaryRow('Total Empty WT', '${_totalEmptyWt.toStringAsFixed(3)} kg'),
-        _summaryRow('Total Net WT',   '${_totalNetWt.toStringAsFixed(3)} kg'),
-        _summaryRow('Avg Bird WT',    '${_avgBirdWtG.toStringAsFixed(1)} g/bird'),
-        const Divider(),
-        _summaryRow('Source', _connected ? '🔵 SLE Scale (Bluetooth)' : '✏️ Manual Entry'),
-      ]),
-      actions: [
-        TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-        ElevatedButton(onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Use This Weight')),
-      ],
-    )) ?? false;
+    final ok = await showDialog<bool>(
+            context: context,
+            builder: (ctx) => AlertDialog(
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(20)),
+                  title: const Text('Confirm Weighment',
+                      style: TextStyle(fontWeight: FontWeight.w800)),
+                  content: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _summaryRow('Total Birds', '$_totalBirds'),
+                        _summaryRow('Load Cages', '$_totalLoadCages'),
+                        _summaryRow('Total Load WT',
+                            '${_totalLoadWt.toStringAsFixed(3)} kg'),
+                        _summaryRow('Total Empty WT',
+                            '${_totalEmptyWt.toStringAsFixed(3)} kg'),
+                        _summaryRow('Total Net WT',
+                            '${_totalNetWt.toStringAsFixed(3)} kg'),
+                        _summaryRow('Avg Bird WT',
+                            '${_avgBirdWtG.toStringAsFixed(1)} g/bird'),
+                        const Divider(),
+                        _summaryRow(
+                            'Source',
+                            _connected
+                                ? '🔵 SLE Scale (Bluetooth)'
+                                : '✏️ Manual Entry'),
+                      ]),
+                  actions: [
+                    TextButton(
+                        onPressed: () => Navigator.pop(ctx, false),
+                        child: const Text('Cancel')),
+                    ElevatedButton(
+                        onPressed: () => Navigator.pop(ctx, true),
+                        child: const Text('Use This Weight')),
+                  ],
+                )) ??
+        false;
 
     if (!ok) return;
     widget.onComplete(WeighmentResult(
-      totalBirds:   _totalBirds,
-      totalNetWt:   _totalNetWt,
-      avgBirdWtG:   _avgBirdWtG,
-      totalLoadWt:  _totalLoadWt,
+      totalBirds: _totalBirds,
+      totalNetWt: _totalNetWt,
+      avgBirdWtG: _avgBirdWtG,
+      totalLoadWt: _totalLoadWt,
       totalEmptyWt: _totalEmptyWt,
-      totalCages:   _totalLoadCages,
-      rows:         List.from(_rows),
-      source:       _connected ? 'bluetooth' : 'manual',
+      totalCages: _totalLoadCages,
+      rows: List.from(_rows),
+      source: _connected ? 'bluetooth' : 'manual',
     ));
   }
 
   Widget _summaryRow(String l, String v) => Padding(
-    padding: const EdgeInsets.symmetric(vertical: 2),
-    child: Row(children: [
-      Expanded(child: Text(l, style: const TextStyle(fontSize: 12, color: kTextSub))),
-      Text(v, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
-    ]));
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(children: [
+        Expanded(
+            child:
+                Text(l, style: const TextStyle(fontSize: 12, color: kTextSub))),
+        Text(v,
+            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
+      ]));
 
   // ── Scale picker bottom sheet ───────────────────────
   void _showScalePicker() {
     showModalBottomSheet(
-      context: context, useRootNavigator: true, isScrollControlled: true,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (ctx) => StatefulBuilder(builder: (ctx, ss) => Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          Row(children: [
-            const Icon(Icons.scale, color: kPrimary, size: 24),
-            const SizedBox(width: 10),
-            const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('Connect SLE Scale', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
-              Text('Select your paired Bluetooth scale (Classic BT / SPP)',
-                  style: TextStyle(fontSize: 11, color: kTextHint)),
-            ])),
-            IconButton(
-              icon: const Icon(Icons.refresh, color: kPrimary),
-              tooltip: 'Refresh paired devices',
-              onPressed: () async {
-                await _refreshPairedDevices();
-                ss(() {});
-              }),
-          ]),
-          const SizedBox(height: 12),
+        context: context,
+        useRootNavigator: true,
+        isScrollControlled: true,
+        shape: const RoundedRectangleBorder(
+            borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+        // builder: (ctx) => StatefulBuilder(builder: (ctx, ss) => Padding(
+        builder: (ctx) => StatefulBuilder(
+            builder: (ctx, ss) => SafeArea(
+                child: FractionallySizedBox(
+                    heightFactor: 0.9,
+                    child: Padding(
+                      padding: const EdgeInsets.all(20),
+                      // child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                      child: SingleChildScrollView(
+                          child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                            Row(children: [
+                              const Icon(Icons.scale,
+                                  color: kPrimary, size: 24),
+                              const SizedBox(width: 10),
+                              const Expanded(
+                                  child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                    Text('Connect SLE Scale',
+                                        style: TextStyle(
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.w800)),
+                                    Text(
+                                        'Select your paired Bluetooth scale (Classic BT / SPP)',
+                                        style: TextStyle(
+                                            fontSize: 11, color: kTextHint)),
+                                  ])),
+                              IconButton(
+                                  icon: const Icon(Icons.refresh,
+                                      color: kPrimary),
+                                  tooltip: 'Refresh paired devices',
+                                  onPressed: () async {
+                                    await _refreshPairedDevices();
+                                    ss(() {});
+                                  }),
+                            ]),
+                            const SizedBox(height: 12),
 
-          if (_pairedDevices.isEmpty) ...[
-            // Setup guidance when no devices paired
-            Container(
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                  color: Colors.amber.shade50,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.amber.shade200)),
-              child: const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Row(children: [
-                  Icon(Icons.warning_amber_rounded, color: Colors.amber, size: 20),
-                  SizedBox(width: 8),
-                  Text('No paired scale found', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14)),
-                ]),
-                SizedBox(height: 10),
-                Text('To pair your SLE scale:', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
-                SizedBox(height: 6),
-                Text('1. Turn ON the weighing scale', style: TextStyle(height: 1.7)),
-                Text('2. Open Android Settings → Bluetooth', style: TextStyle(height: 1.7)),
-                Text('3. Find your scale and tap "Pair"', style: TextStyle(height: 1.7)),
-                Text('4. Come back here and tap Refresh ↑', style: TextStyle(height: 1.7)),
-              ]),
-            ),
-          ] else ...[
-            // List all paired Classic BT devices
-            // SLE scale will appear here (previously invisible with BLE scanner)
-            const Text('Paired Bluetooth devices:',
-                style: TextStyle(fontSize: 12, color: kTextHint, fontWeight: FontWeight.w600)),
-            const SizedBox(height: 8),
-            ..._pairedDevices.map((d) => Container(
-              margin: const EdgeInsets.only(bottom: 8),
-              decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(
-                      color: _selectedDevice?.address == d.address ? kPrimary : kBorder,
-                      width: _selectedDevice?.address == d.address ? 2 : 1)),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                child: Row(children: [
-                  Container(
-                    width: 40, height: 40,
-                    decoration: BoxDecoration(
-                        color: kPrimary.withValues(alpha: 0.1),
-                        shape: BoxShape.circle),
-                    child: const Icon(Icons.scale, color: kPrimary, size: 20)),
-                  const SizedBox(width: 12),
-                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text(d.name ?? 'Unknown Device',
-                        style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
-                    Text(d.address,
-                        style: const TextStyle(fontSize: 11, color: kTextHint)),
-                  ])),
-                  const SizedBox(width: 8),
-                  _connecting && _selectedDevice?.address == d.address
-                      ? const SizedBox(width: 24, height: 24,
-                          child: CircularProgressIndicator(strokeWidth: 2.5))
-                      : ElevatedButton(
-                          onPressed: () async {
-                            ss(() => _selectedDevice = d);
-                            Navigator.of(ctx, rootNavigator: true).pop();
-                            await _connectDevice(d);
-                          },
-                          style: ElevatedButton.styleFrom(
-                              backgroundColor: kPrimary,
-                              minimumSize: const Size(80, 36),
-                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8)),
-                          child: const Text('Connect',
-                              style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 13))),
-                ])))),
-          ],
-          const SizedBox(height: 8),
-          TextButton.icon(
-            onPressed: () => Navigator.of(ctx, rootNavigator: true).pop(),
-            icon: const Icon(Icons.edit_outlined, size: 16),
-            label: const Text('Skip — Use Manual Entry')),
-        ]))));
+                            if (_pairedDevices.isEmpty) ...[
+                              // Setup guidance when no devices paired
+                              Container(
+                                padding: const EdgeInsets.all(14),
+                                decoration: BoxDecoration(
+                                    color: Colors.amber.shade50,
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(
+                                        color: Colors.amber.shade200)),
+                                child: const Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Row(children: [
+                                        Icon(Icons.warning_amber_rounded,
+                                            color: Colors.amber, size: 20),
+                                        SizedBox(width: 8),
+                                        Text('No paired scale found',
+                                            style: TextStyle(
+                                                fontWeight: FontWeight.w800,
+                                                fontSize: 14)),
+                                      ]),
+                                      SizedBox(height: 10),
+                                      Text('To pair your SLE scale:',
+                                          style: TextStyle(
+                                              fontWeight: FontWeight.w700,
+                                              fontSize: 13)),
+                                      SizedBox(height: 6),
+                                      Text('1. Turn ON the weighing scale',
+                                          style: TextStyle(height: 1.7)),
+                                      Text(
+                                          '2. Open Android Settings → Bluetooth',
+                                          style: TextStyle(height: 1.7)),
+                                      Text('3. Find your scale and tap "Pair"',
+                                          style: TextStyle(height: 1.7)),
+                                      Text(
+                                          '4. Come back here and tap Refresh ↑',
+                                          style: TextStyle(height: 1.7)),
+                                    ]),
+                              ),
+                            ] else ...[
+                              // List all paired Classic BT devices
+                              // SLE scale will appear here (previously invisible with BLE scanner)
+                              const Text('Paired Bluetooth devices:',
+                                  style: TextStyle(
+                                      fontSize: 12,
+                                      color: kTextHint,
+                                      fontWeight: FontWeight.w600)),
+                              const SizedBox(height: 8),
+                              ..._pairedDevices.map((d) => Container(
+                                  margin: const EdgeInsets.only(bottom: 8),
+                                  decoration: BoxDecoration(
+                                      color: Colors.white,
+                                      borderRadius: BorderRadius.circular(10),
+                                      border: Border.all(
+                                          color: _selectedDevice?.address ==
+                                                  d.address
+                                              ? kPrimary
+                                              : kBorder,
+                                          width: _selectedDevice?.address ==
+                                                  d.address
+                                              ? 2
+                                              : 1)),
+                                  child: Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 12, vertical: 10),
+                                      child: Row(children: [
+                                        Container(
+                                            width: 40,
+                                            height: 40,
+                                            decoration: BoxDecoration(
+                                                color: kPrimary.withValues(
+                                                    alpha: 0.1),
+                                                shape: BoxShape.circle),
+                                            child: const Icon(Icons.scale,
+                                                color: kPrimary, size: 20)),
+                                        const SizedBox(width: 12),
+                                        Expanded(
+                                            child: Column(
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment.start,
+                                                children: [
+                                              Text(d.name ?? 'Unknown Device',
+                                                  style: const TextStyle(
+                                                      fontWeight:
+                                                          FontWeight.w700,
+                                                      fontSize: 14)),
+                                              Text(d.address,
+                                                  style: const TextStyle(
+                                                      fontSize: 11,
+                                                      color: kTextHint)),
+                                            ])),
+                                        const SizedBox(width: 8),
+                                        _connecting &&
+                                                _selectedDevice?.address ==
+                                                    d.address
+                                            ? const SizedBox(
+                                                width: 24,
+                                                height: 24,
+                                                child:
+                                                    CircularProgressIndicator(
+                                                        strokeWidth: 2.5))
+                                            : ElevatedButton(
+                                                onPressed: () async {
+                                                  ss(() => _selectedDevice = d);
+                                                  Navigator.of(ctx,
+                                                          rootNavigator: true)
+                                                      .pop();
+                                                  await _connectDevice(d);
+                                                },
+                                                style: ElevatedButton.styleFrom(
+                                                    backgroundColor: kPrimary,
+                                                    minimumSize:
+                                                        const Size(80, 36),
+                                                    padding: const EdgeInsets
+                                                        .symmetric(
+                                                        horizontal: 14,
+                                                        vertical: 8)),
+                                                child: const Text('Connect',
+                                                    style:
+                                                        TextStyle(
+                                                            color: Colors.white,
+                                                            fontWeight:
+                                                                FontWeight.w700,
+                                                            fontSize: 13))),
+                                      ])))),
+                            ],
+                            const SizedBox(height: 8),
+                            TextButton.icon(
+                                onPressed: () =>
+                                    Navigator.of(ctx, rootNavigator: true)
+                                        .pop(),
+                                icon: const Icon(Icons.edit_outlined, size: 16),
+                                label: const Text('Skip — Use Manual Entry')),
+                            // ]))));
+                          ])),
+                    )))));
   }
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    backgroundColor: const Color(0xFFF0F4F0),
-    appBar: AppBar(
-      title: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        const Text('Weighment', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
-        Text(widget.shopName,
-            style: const TextStyle(fontSize: 11, color: kTextHint, fontWeight: FontWeight.w400)),
-      ]),
-      actions: [
-        // BT connection status button
-        Padding(
-          padding: const EdgeInsets.only(right: 8),
-          child: GestureDetector(
-            onTap: _connected ? _disconnect : _showScalePicker,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              decoration: BoxDecoration(
-                  color: _connected ? Colors.green.shade50 : Colors.grey.shade100,
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(
-                      color: _connected ? Colors.green.shade300 : Colors.grey.shade300)),
-              child: Row(mainAxisSize: MainAxisSize.min, children: [
-                Container(width: 7, height: 7,
-                    decoration: BoxDecoration(
-                        color: _connected ? Colors.green : (_connecting ? Colors.orange : Colors.grey),
-                        shape: BoxShape.circle)),
-                const SizedBox(width: 6),
-                Text(
-                  _connecting ? 'Connecting…' :
-                  _connected  ? 'Scale ON' : 'No Scale',
-                  style: TextStyle(
-                      fontSize: 11, fontWeight: FontWeight.w700,
-                      color: _connected ? Colors.green.shade700 : kTextHint)),
-              ]))),
+        backgroundColor: const Color(0xFFF0F4F0),
+        appBar: AppBar(
+          title:
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            const Text('Weighment',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+            Text(widget.shopName,
+                style: const TextStyle(
+                    fontSize: 11,
+                    color: kTextHint,
+                    fontWeight: FontWeight.w400)),
+          ]),
+          actions: [
+            // BT connection status button
+            Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: GestureDetector(
+                  onTap: _connected ? _disconnect : _showScalePicker,
+                  child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(
+                          color: _connected
+                              ? Colors.green.shade50
+                              : Colors.grey.shade100,
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                              color: _connected
+                                  ? Colors.green.shade300
+                                  : Colors.grey.shade300)),
+                      child: Row(mainAxisSize: MainAxisSize.min, children: [
+                        Container(
+                            width: 7,
+                            height: 7,
+                            decoration: BoxDecoration(
+                                color: _connected
+                                    ? Colors.green
+                                    : (_connecting
+                                        ? Colors.orange
+                                        : Colors.grey),
+                                shape: BoxShape.circle)),
+                        const SizedBox(width: 6),
+                        Text(
+                            _connecting
+                                ? 'Connecting…'
+                                : _connected
+                                    ? 'Scale ON'
+                                    : 'No Scale',
+                            style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                color: _connected
+                                    ? Colors.green.shade700
+                                    : kTextHint)),
+                      ]))),
+            ),
+          ],
         ),
-      ],
-    ),
-    body: Column(children: [
-      // Live weight display
-      _buildWeightDisplay(),
-      // Phase header
-      _buildPhaseHeader(),
-      // Table
-      Expanded(child: _buildTable()),
-    ]),
-    bottomNavigationBar: _buildBottomBar(),
-  );
+        body: Column(children: [
+          // Live weight display
+          _buildWeightDisplay(),
+          // Phase header
+          _buildPhaseHeader(),
+          // Table
+          Expanded(child: _buildTable()),
+        ]),
+        bottomNavigationBar: _buildBottomBar(),
+      );
 
   Widget _buildWeightDisplay() => Container(
-    padding: const EdgeInsets.all(16),
-    color: Colors.white,
-    child: Row(children: [
-      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(
-          _connected ? '🔵 SLE SCALE (LIVE)' : '✏️ MANUAL ENTRY',
-          style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700,
-              color: _connected ? Colors.blue : kTextHint, letterSpacing: 0.8)),
-        const SizedBox(height: 4),
-        Row(children: [
-          Expanded(child: TextField(
-            controller: _manualWtCtrl,
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            decoration: const InputDecoration(
-                labelText: 'Weight (kg)', suffixText: 'kg',
-                isDense: true, contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 10)),
-          )),
-          const SizedBox(width: 8),
-          SizedBox(width: 80, child: TextField(
-            controller: _manualCagesCtrl,
-            keyboardType: TextInputType.number,
-            decoration: const InputDecoration(
-                labelText: 'Cages', isDense: true,
-                contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 10)),
-          )),
+        padding: const EdgeInsets.all(16),
+        color: Colors.white,
+        child: Row(children: [
+          Expanded(
+              child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                Text(_connected ? '🔵 SLE SCALE (LIVE)' : '✏️ MANUAL ENTRY',
+                    style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                        color: _connected ? Colors.blue : kTextHint,
+                        letterSpacing: 0.8)),
+                const SizedBox(height: 4),
+                Row(children: [
+                  Expanded(
+                      child: TextField(
+                    controller: _manualWtCtrl,
+                    keyboardType:
+                        const TextInputType.numberWithOptions(decimal: true),
+                    decoration: const InputDecoration(
+                        labelText: 'Weight (kg)',
+                        suffixText: 'kg',
+                        isDense: true,
+                        contentPadding:
+                            EdgeInsets.symmetric(horizontal: 10, vertical: 10)),
+                  )),
+                  const SizedBox(width: 8),
+                  SizedBox(
+                      width: 80,
+                      child: TextField(
+                        controller: _manualCagesCtrl,
+                        keyboardType: TextInputType.number,
+                        decoration: const InputDecoration(
+                            labelText: 'Cages',
+                            isDense: true,
+                            contentPadding: EdgeInsets.symmetric(
+                                horizontal: 10, vertical: 10)),
+                      )),
+                ]),
+                if (_connected)
+                  Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Text('Live: ${_liveWeight.toStringAsFixed(3)} kg',
+                          style: const TextStyle(
+                              fontSize: 11,
+                              color: Colors.blue,
+                              fontWeight: FontWeight.w600))),
+              ])),
+          const SizedBox(width: 12),
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+                color: kPrimary.withValues(alpha: 0.07),
+                borderRadius: BorderRadius.circular(10)),
+            child:
+                Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+              Text('Net: ${_totalNetWt.toStringAsFixed(2)} kg',
+                  style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w800,
+                      color: kPrimary)),
+              Text('Birds: $_totalBirds',
+                  style: const TextStyle(fontSize: 11, color: kTextSub)),
+              if (_avgBirdWtG > 0)
+                Text('Avg: ${_avgBirdWtG.toStringAsFixed(1)}g',
+                    style: const TextStyle(fontSize: 11, color: Colors.teal)),
+            ]),
+          ),
         ]),
-        if (_connected) Padding(
-          padding: const EdgeInsets.only(top: 4),
-          child: Text('Live: ${_liveWeight.toStringAsFixed(3)} kg',
-              style: const TextStyle(fontSize: 11, color: Colors.blue, fontWeight: FontWeight.w600))),
-      ])),
-      const SizedBox(width: 12),
-      Container(
-        padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(
-            color: kPrimary.withValues(alpha: 0.07),
-            borderRadius: BorderRadius.circular(10)),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-          Text('Net: ${_totalNetWt.toStringAsFixed(2)} kg',
-              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: kPrimary)),
-          Text('Birds: $_totalBirds',
-              style: const TextStyle(fontSize: 11, color: kTextSub)),
-          if (_avgBirdWtG > 0)
-            Text('Avg: ${_avgBirdWtG.toStringAsFixed(1)}g',
-                style: const TextStyle(fontSize: 11, color: Colors.teal)),
-        ]),
-      ),
-    ]),
-  );
+      );
 
   Widget _buildPhaseHeader() => Container(
-    color: Colors.white,
-    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-    child: Row(children: [
-      _phaseChip('1: LOAD WT', !_loadLocked, kPrimary),
-      const SizedBox(width: 8),
-      const Icon(Icons.arrow_forward, size: 14, color: kTextHint),
-      const SizedBox(width: 8),
-      _phaseChip('2: EMPTY WT', _loadLocked, Colors.green),
-      const Spacer(),
-      if (!_cagesMatch && _filledEmpty > 0)
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-          decoration: BoxDecoration(
-              color: Colors.red.shade50, borderRadius: BorderRadius.circular(6)),
-          child: Text('⚠ Cage mismatch $_totalLoadCages≠$_totalEmptyCages',
-              style: const TextStyle(fontSize: 10, color: Colors.red, fontWeight: FontWeight.w700))),
-    ]));
+      color: Colors.white,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Row(children: [
+        _phaseChip('1: LOAD WT', !_loadLocked, kPrimary),
+        const SizedBox(width: 8),
+        const Icon(Icons.arrow_forward, size: 14, color: kTextHint),
+        const SizedBox(width: 8),
+        _phaseChip('2: EMPTY WT', _loadLocked, Colors.green),
+        const Spacer(),
+        if (!_cagesMatch && _filledEmpty > 0)
+          Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                  color: Colors.red.shade50,
+                  borderRadius: BorderRadius.circular(6)),
+              child: Text('⚠ Cage mismatch $_totalLoadCages≠$_totalEmptyCages',
+                  style: const TextStyle(
+                      fontSize: 10,
+                      color: Colors.red,
+                      fontWeight: FontWeight.w700))),
+      ]));
 
   Widget _phaseChip(String label, bool active, Color c) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-    decoration: BoxDecoration(
-        color: active ? c.withValues(alpha: 0.1) : Colors.grey.shade100,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: active ? c : Colors.grey.shade300)),
-    child: Text(label, style: TextStyle(
-        fontSize: 10, fontWeight: FontWeight.w700,
-        color: active ? c : kTextHint)));
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+          color: active ? c.withValues(alpha: 0.1) : Colors.grey.shade100,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: active ? c : Colors.grey.shade300)),
+      child: Text(label,
+          style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w700,
+              color: active ? c : kTextHint)));
 
   Widget _buildTable() {
-    if (_rows.isEmpty) return Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
-      const Icon(Icons.scale_outlined, size: 48, color: kTextHint),
-      const SizedBox(height: 8),
-      Text(_connected
-          ? 'Place birds on scale, weight updates live\nTap + to capture'
-          : 'Enter weight manually\nTap + to add row',
-          style: const TextStyle(color: kTextSub, fontSize: 13), textAlign: TextAlign.center),
-    ]));
+    if (_rows.isEmpty)
+      return Center(
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+        const Icon(Icons.scale_outlined, size: 48, color: kTextHint),
+        const SizedBox(height: 8),
+        Text(
+            _connected
+                ? 'Place birds on scale, weight updates live\nTap + to capture'
+                : 'Enter weight manually\nTap + to add row',
+            style: const TextStyle(color: kTextSub, fontSize: 13),
+            textAlign: TextAlign.center),
+      ]));
 
     return ListView(padding: const EdgeInsets.all(12), children: [
       // Header
       Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-        decoration: BoxDecoration(color: kPrimary, borderRadius: BorderRadius.circular(6)),
-        child: const Row(children: [
-          _TH('#', 30), _TH('Load WT', 90), _TH('Cages', 50),
-          _TH('Empty WT', 90), _TH('Net WT', 80), _TH('✓', 40),
-        ])),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+          decoration: BoxDecoration(
+              color: kPrimary, borderRadius: BorderRadius.circular(6)),
+          child: const Row(children: [
+            // _TH('#', 30),
+            // _TH('Load WT', 90),
+            // _TH('Cages', 50),
+            // _TH('Empty WT', 90),
+            // _TH('Net WT', 80),
+            // _TH('✓', 40),
+            _TH('#', 24),
+            _TH('Load WT', 74),
+            _TH('Cages', 44),
+            _TH('Empty WT', 74),
+            _TH('Net WT', 64),
+            _TH('✓', 30),
+          ])),
       const SizedBox(height: 4),
       ..._rows.map((r) {
-        final isNext = _loadLocked && !r.emptyFilled &&
+        final isNext = _loadLocked &&
+            !r.emptyFilled &&
             _rows.firstWhere((x) => !x.emptyFilled, orElse: () => r) == r;
         return Container(
-          margin: const EdgeInsets.only(bottom: 4),
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-          decoration: BoxDecoration(
-              color: isNext ? Colors.blue.shade50 : Colors.white,
-              borderRadius: BorderRadius.circular(6),
-              border: Border.all(color: isNext ? Colors.blue.shade200 : kBorder)),
-          child: Row(children: [
-            _TD('${r.seqNo}', 30, kTextSub),
-            _TD(r.loadWt.toStringAsFixed(3), 90, kTextMain),
-            _TD('${r.loadCages}', 50, kTextSub),
-            _TD(r.emptyFilled ? r.emptyWt.toStringAsFixed(3) : '—', 90,
-                r.emptyFilled ? Colors.orange : kTextHint),
-            _TD(r.emptyFilled ? r.netWt.toStringAsFixed(3) : '—', 80,
-                r.emptyFilled ? Colors.green : kTextHint),
-            SizedBox(width: 40, child: Icon(
-                r.emptyFilled ? Icons.check_circle : (isNext ? Icons.arrow_forward : Icons.circle_outlined),
-                size: 16,
-                color: r.emptyFilled ? Colors.green : (isNext ? Colors.blue : kTextHint))),
-          ]));
+            margin: const EdgeInsets.only(bottom: 4),
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+            decoration: BoxDecoration(
+                color: isNext ? Colors.blue.shade50 : Colors.white,
+                borderRadius: BorderRadius.circular(6),
+                border:
+                    Border.all(color: isNext ? Colors.blue.shade200 : kBorder)),
+            child: Row(children: [
+              // _TD('${r.seqNo}', 30, kTextSub),
+            //               // _TD(r.loadWt.toStringAsFixed(3), 90, kTextMain),
+            //               // _TD('${r.loadCages}', 50, kTextSub),
+            //               // _TD(r.emptyFilled ? r.emptyWt.toStringAsFixed(3) : '—', 90,
+              _TD('${r.seqNo}', 24, kTextSub),
+              _TD(r.loadWt.toStringAsFixed(3), 74, kTextMain),
+              _TD('${r.loadCages}', 44, kTextSub),
+              _TD(r.emptyFilled ? r.emptyWt.toStringAsFixed(3) : '—', 74,
+                  r.emptyFilled ? Colors.orange : kTextHint),
+              // _TD(r.emptyFilled ? r.netWt.toStringAsFixed(3) : '—', 80,
+              _TD(r.emptyFilled ? r.netWt.toStringAsFixed(3) : '—', 64,
+                  r.emptyFilled ? Colors.green : kTextHint),
+              SizedBox(
+                  // width: 40,
+                  width: 30,
+                  child: Icon(
+                      r.emptyFilled
+                          ? Icons.check_circle
+                          : (isNext
+                              ? Icons.arrow_forward
+                              : Icons.circle_outlined),
+                      size: 16,
+                      color: r.emptyFilled
+                          ? Colors.green
+                          : (isNext ? Colors.blue : kTextHint))),
+            ]));
       }),
       if (_rows.isNotEmpty) ...[
         const Divider(height: 16),
         Container(
-          padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(
-              color: kPrimary.withValues(alpha: 0.08),
-              borderRadius: BorderRadius.circular(8)),
-          child: Column(children: [
-            Row(children: [
-              Expanded(child: _KV('Load WT', '${_totalLoadWt.toStringAsFixed(2)} kg')),
-              Expanded(child: _KV('Empty WT', '${_totalEmptyWt.toStringAsFixed(2)} kg')),
-              Expanded(child: _KV('Net WT', '${_totalNetWt.toStringAsFixed(2)} kg', kPrimary)),
-            ]),
-            const SizedBox(height: 4),
-            Row(children: [
-              Expanded(child: _KV('Load Cages', '$_totalLoadCages')),
-              Expanded(child: _KV('Empty Cages', '$_totalEmptyCages',
-                  _cagesMatch ? Colors.green : Colors.red)),
-              Expanded(child: _KV('Avg WT', '${_avgBirdWtG.toStringAsFixed(1)}g', Colors.teal)),
-            ]),
-          ])),
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+                color: kPrimary.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(8)),
+            child: Column(children: [
+              Row(children: [
+                Expanded(
+                    child: _KV(
+                        'Load WT', '${_totalLoadWt.toStringAsFixed(2)} kg')),
+                Expanded(
+                    child: _KV(
+                        'Empty WT', '${_totalEmptyWt.toStringAsFixed(2)} kg')),
+                Expanded(
+                    child: _KV('Net WT', '${_totalNetWt.toStringAsFixed(2)} kg',
+                        kPrimary)),
+              ]),
+              const SizedBox(height: 4),
+              Row(children: [
+                Expanded(child: _KV('Load Cages', '$_totalLoadCages')),
+                Expanded(
+                    child: _KV('Empty Cages', '$_totalEmptyCages',
+                        _cagesMatch ? Colors.green : Colors.red)),
+                Expanded(
+                    child: _KV('Avg WT', '${_avgBirdWtG.toStringAsFixed(1)}g',
+                        Colors.teal)),
+              ]),
+            ])),
       ],
       const SizedBox(height: 80),
     ]);
   }
 
   Widget _buildBottomBar() => Container(
-    color: Colors.white,
-    padding: EdgeInsets.fromLTRB(16, 10, 16, MediaQuery.of(context).padding.bottom + 10),
-    child: Row(children: [
-      if (!_loadLocked) ...[
-        Expanded(child: ElevatedButton.icon(
-          onPressed: _rows.isEmpty ? null : _lockLoad,
-          icon: const Icon(Icons.lock_outline, size: 16),
-          label: const Text('Done — Lock Load'),
-          style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.orange, minimumSize: const Size(0, 44)))),
-        const SizedBox(width: 10),
-        SizedBox(width: 56, height: 44, child: ElevatedButton(
-          onPressed: _captureLoadWt,
-          style: ElevatedButton.styleFrom(padding: EdgeInsets.zero),
-          child: const Icon(Icons.add, size: 28))),
-      ],
-      if (_loadLocked && _mode == 'EMPTY') ...[
-        Expanded(child: ElevatedButton.icon(
-          onPressed: _rows.any((r) => !r.emptyFilled) ? _captureEmptyWt : null,
-          icon: const Icon(Icons.scale_outlined, size: 16),
-          label: Text('Empty WT — Row ${_filledEmpty + 1}'),
-          style: ElevatedButton.styleFrom(minimumSize: const Size(0, 44)))),
-        const SizedBox(width: 10),
-        OutlinedButton(
-          onPressed: () => setState(() { _loadLocked = false; _mode = 'LOAD'; }),
-          style: OutlinedButton.styleFrom(minimumSize: const Size(56, 44)),
-          child: const Icon(Icons.lock_open, size: 16)),
-      ],
-      if (_mode == 'DONE' || (_loadLocked && _filledEmpty == _rows.length && _rows.isNotEmpty))
-        Expanded(child: ElevatedButton.icon(
-          onPressed: _saving ? null : _submit,
-          icon: const Icon(Icons.check_circle_outline, size: 18),
-          label: const Text('Use This Weight',
-              style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
-          style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.green, minimumSize: const Size(0, 48)))),
-    ]),
-  );
+        color: Colors.white,
+        padding: EdgeInsets.fromLTRB(
+            16, 10, 16, MediaQuery.of(context).padding.bottom + 10),
+        child: Row(children: [
+          if (!_loadLocked) ...[
+            OutlinedButton(
+                onPressed: _rows.isNotEmpty ? _editLastLoadEntry : null,
+                style:
+                    OutlinedButton.styleFrom(minimumSize: const Size(56, 44)),
+                child: const Icon(Icons.edit_outlined, size: 16)),
+            const SizedBox(width: 8),
+            OutlinedButton(
+                onPressed: _rows.isNotEmpty ? _deleteLastLoadEntry : null,
+                style:
+                    OutlinedButton.styleFrom(minimumSize: const Size(56, 44)),
+                child: const Icon(Icons.delete_outline, size: 16)),
+            const SizedBox(width: 8),
+            Expanded(
+                child: ElevatedButton.icon(
+                    onPressed: _rows.isEmpty ? null : _lockLoad,
+                    icon: const Icon(Icons.lock_outline, size: 16),
+                    label: const Text('Done — Lock Load'),
+                    style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.orange,
+                        minimumSize: const Size(0, 44)))),
+            const SizedBox(width: 10),
+            SizedBox(
+                width: 56,
+                height: 44,
+                child: ElevatedButton(
+                    onPressed: _captureLoadWt,
+                    style: ElevatedButton.styleFrom(padding: EdgeInsets.zero),
+                    child: const Icon(Icons.add, size: 28))),
+          ],
+          if (_loadLocked && _mode == 'EMPTY') ...[
+            Expanded(
+                child: ElevatedButton.icon(
+                    onPressed: _rows.any((r) => !r.emptyFilled)
+                        ? _captureEmptyWt
+                        : null,
+                    icon: const Icon(Icons.scale_outlined, size: 16),
+                    label: Text('Empty WT — Row ${_filledEmpty + 1}'),
+                    style: ElevatedButton.styleFrom(
+                        minimumSize: const Size(0, 44)))),
+            // const SizedBox(width: 10),
+            // OutlinedButton(
+            //   onPressed: () => setState(() { _loadLocked = false; _mode = 'LOAD'; }),
+            //   style: OutlinedButton.styleFrom(minimumSize: const Size(56, 44)),
+            //   child: const Icon(Icons.lock_open, size: 16)),
+          ],
+          if (_mode == 'DONE' ||
+              (_loadLocked && _filledEmpty == _rows.length && _rows.isNotEmpty))
+            Expanded(
+                child: ElevatedButton.icon(
+                    onPressed: _saving ? null : _submit,
+                    icon: const Icon(Icons.check_circle_outline, size: 18),
+                    label: const Text('Use This Weight',
+                        style: TextStyle(
+                            fontSize: 15, fontWeight: FontWeight.w700)),
+                    style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.green,
+                        minimumSize: const Size(0, 48)))),
+        ]),
+      );
 }
 
 // Table helpers as top-level const to avoid capture issues
 class _TH extends StatelessWidget {
   final String text;
   final double width;
+
   const _TH(this.text, this.width);
-  @override Widget build(BuildContext context) =>
-      SizedBox(width: width, child: Text(text,
-          style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: Colors.white),
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+      width: width,
+      child: Text(text,
+          style: const TextStyle(
+              fontSize: 10, fontWeight: FontWeight.w700, color: Colors.white),
           textAlign: TextAlign.center));
 }
 
 class _TD extends StatelessWidget {
   final String text;
   final double width;
-  final Color  color;
+  final Color color;
+
   const _TD(this.text, this.width, this.color);
-  @override Widget build(BuildContext context) =>
-      SizedBox(width: width, child: Text(text,
-          style: TextStyle(fontSize: 11, color: color), textAlign: TextAlign.center));
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+      width: width,
+      child: Text(text,
+          style: TextStyle(fontSize: 11, color: color),
+          textAlign: TextAlign.center));
 }
 
 class _KV extends StatelessWidget {
   final String label;
   final String value;
   final Color? color;
+
   const _KV(this.label, this.value, [this.color]);
-  @override Widget build(BuildContext context) => Column(children: [
-    Text(value, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: color ?? kTextMain)),
-    Text(label,  style: const TextStyle(fontSize: 9, color: kTextHint)),
-  ]);
+
+  @override
+  Widget build(BuildContext context) => Column(children: [
+        Text(value,
+            style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+                color: color ?? kTextMain)),
+        Text(label, style: const TextStyle(fontSize: 9, color: kTextHint)),
+      ]);
 }

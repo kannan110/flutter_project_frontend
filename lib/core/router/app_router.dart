@@ -42,6 +42,7 @@ import '../../features/trader_admin/reports/daily_report_screen.dart';
 import '../../features/delivery_agent/home/agent_shell.dart';
 import '../../features/auth/trader_setup_screen.dart';
 import '../../features/delivery_agent/batch/dc_view_screen.dart';
+import '../../features/delivery_agent/deliveries/delivery_history_screen.dart';
 import '../../features/delivery_agent/batch/bird_transfer_screen.dart';
 import '../../features/delivery_agent/batch/transfer_history_screen.dart';
 import '../../features/delivery_agent/home/agent_home_screen.dart';
@@ -73,7 +74,7 @@ abstract class R {
   static const retailerCreate = '/t/retailers/create';
   static const retailerDetail = '/t/retailers/:id';
   static const agents         = '/t/agents';
-  static const userMgmt         = '/t/agents';
+  static const userMgmt         = '/t/userMgmt';
   static const agentCreate    = '/t/agents/create';
   static const agentDetail    = '/t/agents/:id';
   static const rates          = '/t/rates';

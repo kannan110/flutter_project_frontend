@@ -13,7 +13,8 @@ class AgentShell extends ConsumerWidget {
 
     // Screens that are "sub-screens" — show back button, hide bottom nav
     final isSubScreen = loc.startsWith('/a/batch/') ||    // batch pickup + DC view
-                        loc.startsWith('/a/delivery/');   // delivery complete
+                        loc.startsWith('/a/delivery/') || // delivery complete
+                        loc.startsWith('/a/order/');
 
     int idx = 0;
     if (loc.startsWith('/a/deliveries') || loc.startsWith('/a/delivery')) idx = 1;
