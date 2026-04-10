@@ -42,6 +42,9 @@ import '../../features/trader_admin/reports/daily_report_screen.dart';
 import '../../features/delivery_agent/home/agent_shell.dart';
 import '../../features/auth/trader_setup_screen.dart';
 import '../../features/delivery_agent/batch/dc_view_screen.dart';
+import '../../features/delivery_agent/orders/instant_order_screen.dart';
+import '../../features/auth/pending_approval_screen.dart';
+import '../../features/super_admin/super_admin_screen.dart';
 import '../../features/delivery_agent/deliveries/delivery_history_screen.dart';
 import '../../features/delivery_agent/batch/bird_transfer_screen.dart';
 import '../../features/delivery_agent/batch/transfer_history_screen.dart';
@@ -57,7 +60,10 @@ abstract class R {
   static const splash         = '/';
   static const login          = '/login';
   static const agentLink      = '/agent-link';
-  static const traderSetup    = '/trader-setup'; // accessible even when signed in
+  static const traderSetup       = '/trader-setup';
+  static const pendingApproval   = '/pending-approval';
+  static const superAdmin        = '/super-admin';
+  static const instantOrder   = '/a/instant-order'; // accessible even when signed in
   static const dashboard      = '/t/dashboard';
   static const orders         = '/t/orders';
   static const orderCreate    = '/t/orders/create';
@@ -140,11 +146,22 @@ final appRouterProvider = Provider<GoRouter>((ref) => GoRouter(
     // An agent may be signed in but not yet linked — let them link!
     if (loc == R.agentLink) return null;
 
-    // Unlinked: signed in but not assigned to any trader or agent yet
-    // Send them to the trader setup screen
+    // Super admin → super admin screen
+    if (user.isSuperAdmin) {
+      if (loc == R.superAdmin) return null;
+      return R.superAdmin;
+    }
+
+    // Unlinked → trader setup
     if (user.isUnlinked) {
       if (loc == R.traderSetup || loc == R.agentLink) return null;
       return R.traderSetup;
+    }
+
+    // Trader pending approval or suspended
+    if (user.isTraderAdmin && (user.isPendingApproval || user.isSuspended)) {
+      if (loc == R.pendingApproval) return null;
+      return R.pendingApproval;
     }
 
     // Redirect away from login if already signed in
@@ -161,9 +178,12 @@ final appRouterProvider = Provider<GoRouter>((ref) => GoRouter(
     return null;
   },
   routes: [
-    GoRoute(path: R.splash,     builder: (_, __) => const SplashScreen()),
-    GoRoute(path: R.login,     builder: (_, __) => const LoginScreen()),
-    GoRoute(path: R.agentLink, builder: (_, __) => const AgentLinkScreen()),
+    GoRoute(path: R.splash,          builder: (_, __) => const SplashScreen()),
+    GoRoute(path: R.login,           builder: (_, __) => const LoginScreen()),
+    GoRoute(path: R.agentLink,       builder: (_, __) => const AgentLinkScreen()),
+    GoRoute(path: R.traderSetup,     builder: (_, __) => const TraderSetupScreen()),
+    GoRoute(path: R.pendingApproval, builder: (_, __) => const PendingApprovalScreen()),
+    GoRoute(path: R.superAdmin,      builder: (_, __) => const SuperAdminScreen()),
 
     // ── Trader Admin Shell ──────────────────────────────────────
     ShellRoute(
@@ -218,6 +238,7 @@ final appRouterProvider = Provider<GoRouter>((ref) => GoRouter(
         GoRoute(path: R.agentDeliveries,  builder: (_, __) => const AgentDeliveriesScreen()),
         GoRoute(path: R.deliveryDone,     builder: (_, s)  => DeliveryCompleteScreen(deliveryId: s.pathParameters['id']!)),
         GoRoute(path: R.agentExpenses,    builder: (_, __) => const ExpensesScreen()),
+        GoRoute(path: R.instantOrder,     builder: (_, __)  => const InstantOrderScreen()),
       ],
     ),
   ],

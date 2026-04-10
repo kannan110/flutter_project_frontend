@@ -89,18 +89,23 @@ class AppUserNotifier extends StateNotifier<AsyncValue<AppUser?>> {
       final role     = UserRole.fromString(row['role'] as String?);
       final traderId = row['trader_id'] as String?;
 
-      // Step 2: fetch trader separately (avoids nested join RLS blocking)
+      // Step 2: fetch trader separately
       Map<String, dynamic>? tMap;
       if (traderId != null) {
         try {
           tMap = await _c.from('traders')
-              .select('id, company_name, company_code, subscription_end_date')
+              .select('id,company_name,company_code,subscription_end_date,status,approval_status')
               .eq('id', traderId)
               .maybeSingle()
               .timeout(const Duration(seconds: 5));
         } catch (e) { _log('Trader fetch non-fatal: $e'); }
       }
-      final sub = _pd(tMap?['subscription_end_date']);
+      final sub            = _pd(tMap?['subscription_end_date']);
+      final traderStatus   = tMap?['status']          as String? ?? 'active';
+      final approvalStatus = tMap?['approval_status'] as String? ?? 'approved';
+
+      // Check if super admin — based on user_roles.role = 'super_admin'
+      final isSa = role == UserRole.superAdmin;
 
       String? agentId;
       if (role == UserRole.deliveryStaff && traderId != null) {
@@ -113,16 +118,25 @@ class AppUserNotifier extends StateNotifier<AsyncValue<AppUser?>> {
       }
 
       state = AsyncValue.data(AppUser(
-        userId: user.id, traderId: traderId, role: role,
-        companyName: tMap?['company_name'] as String?,
-        companyCode: tMap?['company_code'] as String?,
+        userId:              user.id,
+        traderId:            traderId,
+        role:                isSa ? UserRole.superAdmin : role,
+        companyName:         tMap?['company_name']   as String?,
+        companyCode:         tMap?['company_code']   as String?,
         isSubscriptionActive: sub == null || sub.isAfter(DateTime.now()),
-        subscriptionEndDate: sub, agentId: agentId,
+        subscriptionEndDate: sub,
+        agentId:             agentId,
+        traderStatus:        traderStatus,
+        approvalStatus:      approvalStatus,
+        isSuperAdmin:        isSa,
       ));
       _log('Session OK ✓ role=${role.dbValue}');
     } catch (e, st) {
-      _log('ERROR: $e\n$st');
-      state = const AsyncValue.data(null); // go to login on any error
+      _log('SESSION ERROR: $e');
+      _log('STACKTRACE: $st');
+      // Instead of silently going to null (which loops to login),
+      // surface the error so the UI can show it
+      state = AsyncValue.error(e, st);
     }
   }
 

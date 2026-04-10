@@ -96,11 +96,14 @@ class WeighmentScreen extends StatefulWidget {
 class _WS extends State<WeighmentScreen> {
   // ── Weighment data ──────────────────────────────────
   final List<WeighmentRow> _rows = [];
-  bool   _loadLocked = false;
-  String _mode       = 'LOAD'; // 'LOAD' | 'EMPTY'
-  int    _totalBirds = 0;
-  int    _nextSeqNo  = 1;
-  bool   _saving     = false;
+  bool   _loadLocked    = false;
+  bool   _sessionLocked = false; // true after final submission — no more edits
+  String _mode          = 'LOAD'; // 'LOAD' | 'EMPTY' | 'DONE'
+  int    _totalBirds    = 0;
+  int    _nextSeqNo     = 1;
+  bool   _saving        = false;
+  String? _deletingPk;  // pk of row being deleted (for loading state)
+  String? _editingPk;   // pk of row being edited
 
   // ── Bluetooth Classic (SPP) ─────────────────────────
   // KEY FIX: Use flutter_bluetooth_serial, not flutter_blue_plus
@@ -293,10 +296,11 @@ class _WS extends State<WeighmentScreen> {
       if (!mounted) return;
       setState(() {
         _rows.addAll(loaded);
-        _totalBirds = (session['total_birds'] as num?)?.toInt() ?? 0;
-        _loadLocked = session['load_locked'] as bool? ?? false;
-        _mode       = session['mode'] as String? ?? 'LOAD';
-        _nextSeqNo  = loaded.isEmpty ? 1 : loaded.last.seqNo + 1;
+        _totalBirds    = (session['total_birds'] as num?)?.toInt() ?? 0;
+        _loadLocked    = session['load_locked'] as bool? ?? false;
+        _sessionLocked = (session['status'] as String?) == 'COMPLETED';
+        _mode          = session['mode'] as String? ?? 'LOAD';
+        _nextSeqNo     = loaded.isEmpty ? 1 : loaded.last.seqNo + 1;
       });
     } catch (_) {}
   }
@@ -442,6 +446,188 @@ class _WS extends State<WeighmentScreen> {
     _saveToServer();
   }
 
+  // ── Delete latest row (soft-delete via RPC) ───────
+  // Called from Dismissible.onDismissed — removes from list immediately
+  // (no dialog — confirmDismiss already confirmed)
+  void _deleteRowDirectly(String pk) {
+    if (!mounted) return;
+    setState(() {
+      _rows.removeWhere((r) => r.pk == pk);
+      _deletingPk = null;
+      if (_rows.isEmpty) {
+        _loadLocked = false;
+        _mode = 'LOAD';
+        _totalBirds = 0;
+      } else if (_rows.isNotEmpty && _rows.every((r) => r.emptyFilled)) {
+        _mode = 'DONE';
+      } else if (_rows.any((r) => r.emptyFilled) && _rows.any((r) => !r.emptyFilled)) {
+        _mode = 'EMPTY';
+      }
+    });
+    // Fire DB delete async (non-blocking so UI stays responsive)
+    Supabase.instance.client.rpc('delete_weighment_row', params: {
+      'p_delivery_id': widget.deliveryId,
+      'p_pk':          pk,
+    }).catchError((e) {
+      if (mounted) showError(context, 'Delete sync failed: $e');
+    });
+  }
+
+  Future<void> _deleteLatestRow() async {
+    if (_sessionLocked) {
+      showError(context, 'Session is locked. No changes allowed after final submission.');
+      return;
+    }
+    if (_rows.isEmpty) return;
+    final latest = _rows.last;
+    final ok = await showDialog<bool>(context: context, builder: (ctx) => AlertDialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      title: const Text('Delete Latest Entry?', style: TextStyle(fontWeight: FontWeight.w800)),
+      content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Container(padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(color: Colors.red.shade50, borderRadius: BorderRadius.circular(10)),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('Row #${latest.seqNo} — ${latest.wmtTime}',
+                style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+            Text('Load: ${latest.loadWt.toStringAsFixed(3)} kg · ${latest.loadCages} cages',
+                style: const TextStyle(fontSize: 12, color: kTextSub)),
+            if (latest.emptyFilled) Text(
+                'Empty: ${latest.emptyWt.toStringAsFixed(3)} kg · Net: ${latest.netWt.toStringAsFixed(3)} kg',
+                style: const TextStyle(fontSize: 12, color: kTextSub)),
+          ])),
+        const SizedBox(height: 10),
+        const Text('This entry will be removed. You can re-enter the correct values.',
+            style: TextStyle(fontSize: 12, color: kTextSub)),
+      ]),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+        ElevatedButton(
+          style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+          onPressed: () => Navigator.pop(ctx, true),
+          child: const Text('Delete Entry', style: TextStyle(color: Colors.white))),
+      ],
+    )) ?? false;
+    if (!ok || !mounted) return;
+
+    setState(() => _deletingPk = latest.pk);
+    try {
+      await Supabase.instance.client.rpc('delete_weighment_row', params: {
+        'p_delivery_id': widget.deliveryId,
+        'p_pk':          latest.pk,
+      });
+      setState(() {
+        _rows.removeLast();
+        _deletingPk = null;
+        // If we deleted the only row, unlock load phase
+        if (_rows.isEmpty) {
+          _loadLocked = false;
+          _mode = 'LOAD';
+          _totalBirds = 0;
+        }
+        // If we deleted an empty-weighed row, go back to EMPTY mode
+        else if (latest.emptyFilled && _rows.any((r) => !r.emptyFilled)) {
+          _mode = 'EMPTY';
+        }
+      });
+      showSuccess(context, 'Row #${latest.seqNo} deleted — re-enter correct values');
+    } catch (e) {
+      if (mounted) {
+        setState(() => _deletingPk = null);
+        showError(context, e.toString().replaceAll('Exception: ', '')
+            .replaceAll('PostgrestException(message: ', '').replaceAll(')', ''));
+      }
+    }
+  }
+
+  // ── Edit latest row ────────────────────────────────
+  Future<void> _editLatestRow() async {
+    if (_sessionLocked) {
+      showError(context, 'Session is locked. No edits allowed.');
+      return;
+    }
+    if (_rows.isEmpty) return;
+    final latest = _rows.last;
+
+    final wtCtrl    = TextEditingController(text: latest.loadWt.toStringAsFixed(3));
+    final cagesCtrl = TextEditingController(text: '${latest.loadCages}');
+    final emptyWtCtrl    = latest.emptyFilled ? TextEditingController(text: latest.emptyWt.toStringAsFixed(3)) : null;
+    final emptyCagesCtrl = latest.emptyFilled ? TextEditingController(text: '${latest.emptyCages}') : null;
+
+    final ok = await showDialog<bool>(context: context, builder: (ctx) => AlertDialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      title: Text('Edit Row #${latest.seqNo}', style: const TextStyle(fontWeight: FontWeight.w800)),
+      content: Column(mainAxisSize: MainAxisSize.min, children: [
+        const Text('LOAD', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: kTextHint)),
+        const SizedBox(height: 6),
+        Row(children: [
+          Expanded(child: TextField(controller: wtCtrl,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              decoration: const InputDecoration(labelText: 'Load Weight (kg)', isDense: true))),
+          const SizedBox(width: 8),
+          SizedBox(width: 80, child: TextField(controller: cagesCtrl,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(labelText: 'Cages', isDense: true))),
+        ]),
+        if (latest.emptyFilled) ...[
+          const SizedBox(height: 12),
+          const Text('EMPTY', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: kTextHint)),
+          const SizedBox(height: 6),
+          Row(children: [
+            Expanded(child: TextField(controller: emptyWtCtrl!,
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                decoration: const InputDecoration(labelText: 'Empty Weight (kg)', isDense: true))),
+            const SizedBox(width: 8),
+            SizedBox(width: 80, child: TextField(controller: emptyCagesCtrl!,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(labelText: 'Cages', isDense: true))),
+          ]),
+        ],
+      ]),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+        ElevatedButton(
+          onPressed: () => Navigator.pop(ctx, true),
+          child: const Text('Save Changes')),
+      ],
+    )) ?? false;
+
+    if (!ok || !mounted) return;
+
+    final newWt     = double.tryParse(wtCtrl.text.trim())    ?? latest.loadWt;
+    final newCages  = int.tryParse(cagesCtrl.text.trim())    ?? latest.loadCages;
+    final newEmptyWt    = emptyWtCtrl    != null ? (double.tryParse(emptyWtCtrl.text.trim())    ?? latest.emptyWt)    : null;
+    final newEmptyCages = emptyCagesCtrl != null ? (int.tryParse(emptyCagesCtrl.text.trim())    ?? latest.emptyCages) : null;
+    wtCtrl.dispose(); cagesCtrl.dispose();
+    emptyWtCtrl?.dispose(); emptyCagesCtrl?.dispose();
+
+    setState(() => _editingPk = latest.pk);
+    try {
+      await Supabase.instance.client.rpc('edit_weighment_row', params: {
+        'p_delivery_id': widget.deliveryId,
+        'p_pk':          latest.pk,
+        'p_load_wt':     newWt,
+        'p_load_cages':  newCages,
+        if (newEmptyWt    != null) 'p_empty_wt':     newEmptyWt,
+        if (newEmptyCages != null) 'p_empty_cages':  newEmptyCages,
+      });
+      setState(() {
+        latest.loadWt    = newWt;
+        latest.loadCages = newCages;
+        if (newEmptyWt != null)    latest.emptyWt    = newEmptyWt;
+        if (newEmptyCages != null) latest.emptyCages = newEmptyCages;
+        _editingPk = null;
+        _recalcAvgWt();
+      });
+      showSuccess(context, 'Row #${latest.seqNo} updated ✓');
+    } catch (e) {
+      if (mounted) {
+        setState(() => _editingPk = null);
+        showError(context, e.toString().replaceAll('Exception: ', '')
+            .replaceAll('PostgrestException(message: ', '').replaceAll(')', ''));
+      }
+    }
+  }
+
   Future<void> _submit() async {
     if (!_cagesMatch) {
       showError(context,
@@ -478,6 +664,14 @@ class _WS extends State<WeighmentScreen> {
     )) ?? false;
 
     if (!ok) return;
+    // Lock the session — no more edits after this point
+    try {
+      await Supabase.instance.client.rpc('lock_weighment_session',
+          params: {'p_delivery_id': widget.deliveryId});
+    } catch (_) {} // non-fatal if session not yet saved
+
+    if (mounted) setState(() => _sessionLocked = true);
+
     widget.onComplete(WeighmentResult(
       totalBirds:   _totalBirds,
       totalNetWt:   _totalNetWt,
@@ -742,38 +936,101 @@ class _WS extends State<WeighmentScreen> {
     ]));
 
     return ListView(padding: const EdgeInsets.all(12), children: [
+      // Session locked banner
+      if (_sessionLocked) Container(
+        margin: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+            color: Colors.green.shade50, borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.green.shade300)),
+        child: const Row(children: [
+          Icon(Icons.lock, color: Colors.green, size: 16),
+          SizedBox(width: 8),
+          Expanded(child: Text('Session locked — weighment submitted. No further changes allowed.',
+              style: TextStyle(fontSize: 11, color: Colors.green, fontWeight: FontWeight.w600))),
+        ])),
       // Header
       Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
         decoration: BoxDecoration(color: kPrimary, borderRadius: BorderRadius.circular(6)),
         child: const Row(children: [
-          _TH('#', 30), _TH('Load WT', 90), _TH('Cages', 50),
-          _TH('Empty WT', 90), _TH('Net WT', 80), _TH('✓', 40),
+          _TH('#', 28), _TH('Load WT', 88), _TH('Cages', 48),
+          _TH('Empty WT', 88), _TH('Net WT', 78), _TH('✓', 40),
         ])),
       const SizedBox(height: 4),
       ..._rows.map((r) {
         final isNext = _loadLocked && !r.emptyFilled &&
             _rows.firstWhere((x) => !x.emptyFilled, orElse: () => r) == r;
-        return Container(
-          margin: const EdgeInsets.only(bottom: 4),
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-          decoration: BoxDecoration(
-              color: isNext ? Colors.blue.shade50 : Colors.white,
-              borderRadius: BorderRadius.circular(6),
-              border: Border.all(color: isNext ? Colors.blue.shade200 : kBorder)),
-          child: Row(children: [
-            _TD('${r.seqNo}', 30, kTextSub),
-            _TD(r.loadWt.toStringAsFixed(3), 90, kTextMain),
-            _TD('${r.loadCages}', 50, kTextSub),
-            _TD(r.emptyFilled ? r.emptyWt.toStringAsFixed(3) : '—', 90,
-                r.emptyFilled ? Colors.orange : kTextHint),
-            _TD(r.emptyFilled ? r.netWt.toStringAsFixed(3) : '—', 80,
-                r.emptyFilled ? Colors.green : kTextHint),
-            SizedBox(width: 40, child: Icon(
-                r.emptyFilled ? Icons.check_circle : (isNext ? Icons.arrow_forward : Icons.circle_outlined),
-                size: 16,
-                color: r.emptyFilled ? Colors.green : (isNext ? Colors.blue : kTextHint))),
-          ]));
+        final isLastRow = _rows.last == r;
+        return Dismissible(
+          key: Key(r.pk),
+          direction: _sessionLocked ? DismissDirection.none : DismissDirection.endToStart,
+          background: Container(
+            margin: const EdgeInsets.only(bottom: 4),
+            decoration: BoxDecoration(
+                color: Colors.red.shade100, borderRadius: BorderRadius.circular(6)),
+            alignment: Alignment.centerRight,
+            padding: const EdgeInsets.only(right: 16),
+            child: const Row(mainAxisSize: MainAxisSize.min, children: [
+              Icon(Icons.delete_outline, color: Colors.red, size: 20),
+              SizedBox(width: 4),
+              Text('Delete', style: TextStyle(color: Colors.red, fontWeight: FontWeight.w700, fontSize: 12)),
+            ])),
+          confirmDismiss: (_) async {
+            if (_sessionLocked) return false;
+            // Only allow deleting the latest row to preserve sequence integrity
+            if (!isLastRow) {
+              showError(context, 'Only the latest row can be deleted.\nDelete in reverse order.');
+              return false;
+            }
+            return await showDialog<bool>(context: context,
+                builder: (ctx) => AlertDialog(
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  title: Text('Delete Row #${r.seqNo}?',
+                      style: const TextStyle(fontWeight: FontWeight.w800)),
+                  content: Text(
+                      'Load: ${r.loadWt.toStringAsFixed(3)} kg · ${r.loadCages} cages'
+                      '${r.emptyFilled ? '\nEmpty: ${r.emptyWt.toStringAsFixed(3)} kg · Net: ${r.netWt.toStringAsFixed(3)} kg' : ''}'),
+                  actions: [
+                    TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+                    ElevatedButton(
+                        style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                        onPressed: () => Navigator.pop(ctx, true),
+                        child: const Text('Delete', style: TextStyle(color: Colors.white))),
+                  ])) ?? false;
+          },
+          onDismissed: (_) {
+            // FIX: must remove from list synchronously in onDismissed
+            // Do NOT call _deleteLatestRow() here (it shows a dialog = crash)
+            // confirmDismiss already got user confirmation
+            _deleteRowDirectly(r.pk);
+          },
+          child: Container(
+            margin: const EdgeInsets.only(bottom: 4),
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+            decoration: BoxDecoration(
+                color: isNext ? Colors.blue.shade50 : Colors.white,
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: isNext ? Colors.blue.shade200 : kBorder)),
+            child: Row(children: [
+              _TD('${r.seqNo}', 30, kTextSub),
+              _TD(r.loadWt.toStringAsFixed(3), 90, kTextMain),
+              _TD('${r.loadCages}', 50, kTextSub),
+              _TD(r.emptyFilled ? r.emptyWt.toStringAsFixed(3) : '—', 90,
+                  r.emptyFilled ? Colors.orange : kTextHint),
+              _TD(r.emptyFilled ? r.netWt.toStringAsFixed(3) : '—', 80,
+                  r.emptyFilled ? Colors.green : kTextHint),
+              SizedBox(width: 40, child: isLastRow && !_sessionLocked
+                  ? GestureDetector(
+                      onTap: _editLatestRow,
+                      child: const Icon(Icons.edit_outlined, size: 16, color: kPrimary))
+                  : Icon(
+                      r.emptyFilled ? Icons.check_circle
+                          : (isNext ? Icons.arrow_forward : Icons.circle_outlined),
+                      size: 16,
+                      color: r.emptyFilled ? Colors.green
+                          : (isNext ? Colors.blue : kTextHint))),
+            ])));
       }),
       if (_rows.isNotEmpty) ...[
         const Divider(height: 16),
@@ -809,11 +1066,30 @@ class _WS extends State<WeighmentScreen> {
         Expanded(child: ElevatedButton.icon(
           onPressed: _rows.isEmpty ? null : _lockLoad,
           icon: const Icon(Icons.lock_outline, size: 16),
-          label: const Text('Done — Lock Load'),
+          label: const Text('Lock Load'),
           style: ElevatedButton.styleFrom(
               backgroundColor: Colors.orange, minimumSize: const Size(0, 44)))),
-        const SizedBox(width: 10),
-        SizedBox(width: 56, height: 44, child: ElevatedButton(
+        const SizedBox(width: 8),
+        // Edit latest row
+        SizedBox(width: 48, height: 44, child: OutlinedButton(
+          onPressed: _rows.isEmpty || _sessionLocked ? null : _editLatestRow,
+          style: OutlinedButton.styleFrom(padding: EdgeInsets.zero,
+              side: const BorderSide(color: kPrimary)),
+          child: _editingPk != null
+              ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+              : const Icon(Icons.edit_outlined, size: 20, color: kPrimary))),
+        const SizedBox(width: 8),
+        // Delete latest row
+        SizedBox(width: 48, height: 44, child: OutlinedButton(
+          onPressed: _rows.isEmpty || _sessionLocked ? null : _deleteLatestRow,
+          style: OutlinedButton.styleFrom(padding: EdgeInsets.zero,
+              side: BorderSide(color: Colors.red.shade300)),
+          child: _deletingPk != null
+              ? const SizedBox(width: 18, height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.red))
+              : const Icon(Icons.delete_outline, size: 20, color: Colors.red))),
+        const SizedBox(width: 8),
+        SizedBox(width: 52, height: 44, child: ElevatedButton(
           onPressed: _captureLoadWt,
           style: ElevatedButton.styleFrom(padding: EdgeInsets.zero),
           child: const Icon(Icons.add, size: 28))),
@@ -824,11 +1100,30 @@ class _WS extends State<WeighmentScreen> {
           icon: const Icon(Icons.scale_outlined, size: 16),
           label: Text('Empty WT — Row ${_filledEmpty + 1}'),
           style: ElevatedButton.styleFrom(minimumSize: const Size(0, 44)))),
-        const SizedBox(width: 10),
+        const SizedBox(width: 8),
+        // Edit latest row in empty phase
+        SizedBox(width: 48, height: 44, child: OutlinedButton(
+          onPressed: _rows.isEmpty || _sessionLocked ? null : _editLatestRow,
+          style: OutlinedButton.styleFrom(padding: EdgeInsets.zero,
+              side: const BorderSide(color: kPrimary)),
+          child: _editingPk != null
+              ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+              : const Icon(Icons.edit_outlined, size: 20, color: kPrimary))),
+        const SizedBox(width: 8),
+        // Delete latest row in empty phase
+        SizedBox(width: 48, height: 44, child: OutlinedButton(
+          onPressed: _rows.isEmpty || _sessionLocked ? null : _deleteLatestRow,
+          style: OutlinedButton.styleFrom(padding: EdgeInsets.zero,
+              side: BorderSide(color: Colors.red.shade300)),
+          child: _deletingPk != null
+              ? const SizedBox(width: 18, height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.red))
+              : const Icon(Icons.delete_outline, size: 20, color: Colors.red))),
+        const SizedBox(width: 8),
         OutlinedButton(
           onPressed: () => setState(() { _loadLocked = false; _mode = 'LOAD'; }),
-          style: OutlinedButton.styleFrom(minimumSize: const Size(56, 44)),
-          child: const Icon(Icons.lock_open, size: 16)),
+          style: OutlinedButton.styleFrom(minimumSize: const Size(48, 44), padding: EdgeInsets.zero),
+          child: const Icon(Icons.lock_open, size: 18)),
       ],
       if (_mode == 'DONE' || (_loadLocked && _filledEmpty == _rows.length && _rows.isNotEmpty))
         Expanded(child: ElevatedButton.icon(

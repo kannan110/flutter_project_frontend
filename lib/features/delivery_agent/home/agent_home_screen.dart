@@ -286,6 +286,7 @@ class _S extends ConsumerState<AgentHomeScreen> {
                 const SizedBox(height: 12),
                 // ── Quick actions ────────────────────────────────
                 Row(children: [
+                  _qaBtn(Icons.electric_bolt,    '⚡ Instant Order', Colors.deepOrange, () => context.push(R.instantOrder)),
                   _qaBtn(Icons.list_outlined,    'All Deliveries', Colors.blue,   () => context.go(R.agentDeliveries)),
                   const SizedBox(width: 10),
                   _qaBtn(Icons.receipt_outlined, 'Expenses',       Colors.orange, () => context.go(R.agentExpenses)),
