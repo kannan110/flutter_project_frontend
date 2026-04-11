@@ -14,20 +14,24 @@ class ApprovalDetailScreen extends ConsumerStatefulWidget {
 }
 
 class _S extends ConsumerState<ApprovalDetailScreen> {
-  final _c         = Supabase.instance.client;
-  final _rateCtrl  = TextEditingController();
-  final _notesCtrl = TextEditingController();
+  final _c          = Supabase.instance.client;
+  final _rateCtrl   = TextEditingController(); // single-product fallback
+  final _notesCtrl  = TextEditingController();
   final _rejectCtrl = TextEditingController();
+  // Per-product rate controllers: order_item_id -> TextEditingController
+  final Map<String,TextEditingController> _itemRateCtrls = {};
 
   Map<String,dynamic>?       _delivery;
   Map<String,dynamic>?       _weighSession;
   List<Map<String,dynamic>>  _weighRows = [];
+  List<Map<String,dynamic>>  _orderItems = [];  // order_items with product info
   bool _loading = true, _submitting = false;
   DateTime _invoiceDate = DateTime.now();
 
   @override void initState() { super.initState(); _load(); }
   @override void dispose() {
     _rateCtrl.dispose(); _notesCtrl.dispose(); _rejectCtrl.dispose();
+    for (final c in _itemRateCtrls.values) c.dispose();
     super.dispose();
   }
 
@@ -39,7 +43,7 @@ class _S extends ConsumerState<ApprovalDetailScreen> {
           .select('*,'
                   'orders(id,estimated_birds,total_quantity,retailer_id,'
                   '  retailers(shop_name,owner_name,phone,address),'
-                  '  order_items(rate_per_kg,total_weight,bird_count)),'
+                  '  order_items(id,product_id,rate_per_kg,total_weight,bird_count,master_products(name))),'
                   'delivery_agents(name,vehicle_no,phone),'
                   'delivery_batches(id,'
                   '  delivery_challans(dc_number,dc_date,farmer_name,farm_location,'
@@ -65,11 +69,29 @@ class _S extends ConsumerState<ApprovalDetailScreen> {
         }
       } catch (_) {}
 
-      // Pre-fill rate from order items
-      final items    = (d['orders']?['order_items'] as List? ?? []);
-      final orderRate = items.isNotEmpty ? (items.first['rate_per_kg'] as num?)?.toDouble() ?? 0 : 0;
+      // Extract order_items with product info
+      final rawItems = (d['orders']?['order_items'] as List? ?? []);
+      final parsedItems = rawItems.map((i) => Map<String,dynamic>.from(i as Map)).toList();
+
+      // Dispose old controllers before creating new ones
+      for (final c in _itemRateCtrls.values) c.dispose();
+      _itemRateCtrls.clear();
+
+      // Create per-item rate controllers, pre-fill from existing rate or delivery final_rate
       final existRate = (d['final_rate'] as num?)?.toDouble() ?? 0;
-      _rateCtrl.text = (existRate > 0 ? existRate : orderRate).toStringAsFixed(2).replaceAll('.00', '');
+      for (final item in parsedItems) {
+        final itemId    = item['id'] as String? ?? '';
+        final itemRate  = (item['rate_per_kg'] as num?)?.toDouble() ?? 0;
+        final fallback  = itemRate > 0 ? itemRate : existRate;
+        _itemRateCtrls[itemId] = TextEditingController(
+            text: fallback > 0 ? fallback.toStringAsFixed(2).replaceAll('.00', '') : '');
+      }
+
+      // Single-rate fallback for backward compat (when only 1 product)
+      final firstRate = parsedItems.isNotEmpty
+          ? (parsedItems.first['rate_per_kg'] as num?)?.toDouble() ?? 0 : 0;
+      _rateCtrl.text = (existRate > 0 ? existRate : firstRate) > 0
+          ? (existRate > 0 ? existRate : firstRate).toStringAsFixed(2).replaceAll('.00', '') : '';
 
       // Invoice date from delivery
       final delivAt = d['delivered_at'] as String?;
@@ -82,6 +104,7 @@ class _S extends ConsumerState<ApprovalDetailScreen> {
         _delivery    = d;
         _weighSession = ws;
         _weighRows   = rows;
+        _orderItems  = parsedItems;
         _loading     = false;
       });
     } catch (e) {
@@ -91,6 +114,24 @@ class _S extends ConsumerState<ApprovalDetailScreen> {
 
   // ── Core values ──────────────────────────────────────────────────
   double get _rate => double.tryParse(_rateCtrl.text.trim()) ?? 0;
+
+  // Multi-product: true when there are 2+ order items with different products
+  bool get _isMultiProduct => _orderItems.length > 1;
+
+  // Sum of all line totals from item rate controllers
+  double get _multiProductTotal {
+    double total = 0;
+    for (final item in _orderItems) {
+      final id     = item['id'] as String? ?? '';
+      final weight = (item['total_weight'] as num?)?.toDouble() ?? 0;
+      final rate   = double.tryParse(_itemRateCtrls[id]?.text.trim() ?? '') ?? 0;
+      total += weight * rate;
+    }
+    return total;
+  }
+
+  // Effective billing amount: multi-product sum or single rate × billing weight
+  double get _billAmount  => _isMultiProduct ? _multiProductTotal : _billingWeight * _rate;
 
   // Weighment net total (from BLE scale rows) — most accurate
   double get _weighNetTotal => _weighSession != null
@@ -118,34 +159,72 @@ class _S extends ConsumerState<ApprovalDetailScreen> {
   double get _lossPct       => _orderExpectedWt > 0 ? (_totalLoss / _orderExpectedWt * 100) : 0;
   bool   get _isHighLoss    => _lossPct >= 2.0;
 
-  double get _billAmount  => _billingWeight * _rate;
   double get _collected   => (_delivery?['collected_amount'] as num?)?.toDouble() ?? 0;
   double get _balance     => _billAmount - _collected;
   int    get _mortalityBirds => (_delivery?['mortality_birds'] as num?)?.toInt() ?? 0;
 
   Future<void> _approve() async {
-    if (_rate <= 0)          { showError(context, 'Enter rate per kg'); return; }
+    // Validate rates
+    if (_isMultiProduct) {
+      for (final item in _orderItems) {
+        final id   = item['id'] as String? ?? '';
+        final name = (item['master_products'] as Map?)?['name'] as String? ?? 'Item';
+        final rate = double.tryParse(_itemRateCtrls[id]?.text.trim() ?? '') ?? 0;
+        if (rate <= 0) { showError(context, 'Enter rate for $name'); return; }
+      }
+    } else {
+      if (_rate <= 0) { showError(context, 'Enter rate per kg'); return; }
+    }
     if (_billingWeight <= 0) { showError(context, 'No weight data available'); return; }
 
     final source = _weighNetTotal > 0 ? 'BLE Scale' : 'Agent Entry';
-    final ok = await confirmDialog(context,
-      title: 'Approve Delivery',
-      message: '${_billingWeight.toStringAsFixed(2)} kg × ₹${_rate.toStringAsFixed(2)}/kg'
+
+    // Build confirmation message
+    String confirmMsg;
+    if (_isMultiProduct) {
+      final lines = _orderItems.map((item) {
+        final id   = item['id'] as String? ?? '';
+        final name = (item['master_products'] as Map?)?['name'] as String? ?? '—';
+        final wt   = (item['total_weight'] as num?)?.toDouble() ?? 0;
+        final rate = double.tryParse(_itemRateCtrls[id]?.text.trim() ?? '') ?? 0;
+        return '$name: ${wt.toStringAsFixed(1)} kg × ₹${rate.toStringAsFixed(2)} = ${Fmt.amount(wt * rate)}';
+      }).join('\n');
+      confirmMsg = '$lines\n─────\nTotal: ${Fmt.amount(_billAmount)}\n'
+                   'Weight source: $source\n'
+                   'Invoice date: ${DateFormat('d MMM y').format(_invoiceDate)}';
+    } else {
+      confirmMsg = '${_billingWeight.toStringAsFixed(2)} kg × ₹${_rate.toStringAsFixed(2)}/kg'
                ' = ${Fmt.amount(_billAmount)}\n'
                'Weight source: $source\n'
-               'Invoice date: ${DateFormat('d MMM y').format(_invoiceDate)}',
+               'Invoice date: ${DateFormat('d MMM y').format(_invoiceDate)}';
+    }
+
+    final ok = await confirmDialog(context,
+      title: 'Approve Delivery',
+      message: confirmMsg,
       confirmText: 'Approve & Create Bill', confirmColor: kPrimary);
     if (!ok) return;
 
     if (mounted) setState(() => _submitting = true);
     try {
+      // Build per-item rates for multi-product orders
+      List<Map<String,dynamic>>? itemRates;
+      if (_isMultiProduct) {
+        itemRates = _orderItems.map((item) {
+          final id   = item['id'] as String;
+          final rate = double.tryParse(_itemRateCtrls[id]?.text.trim() ?? '') ?? 0;
+          return {'order_item_id': id, 'rate_per_kg': rate};
+        }).toList();
+      }
+
       await _c.rpc('approve_delivery_and_order', params: {
         'p_delivery_id':    widget.id,
-        'p_final_rate':     _rate,
-        'p_final_amount':   _billAmount,
+        'p_final_rate':     _isMultiProduct ? null : _rate,
+        'p_final_amount':   _billAmount > 0 ? _billAmount : null,
         'p_approved_by':    ref.read(appUserProvider).valueOrNull?.userId,
         'p_approval_notes': _notesCtrl.text.trim().isEmpty ? null : _notesCtrl.text.trim(),
         'p_invoice_date':   _invoiceDate.toIso8601String().split('T')[0],
+        if (itemRates != null) 'p_item_rates': itemRates,
       });
       if (mounted) { showSuccess(context, 'Approved! Bill created ✓'); context.go(R.approvals); }
     } catch (e) {
@@ -275,22 +354,74 @@ class _S extends ConsumerState<ApprovalDetailScreen> {
                     color: _weighNetTotal > 0 ? Colors.blue : Colors.orange)),
             ])),
 
-          // Rate input
-          const Text('Rate per kg *',
-              style: TextStyle(fontSize: 11, color: kTextHint, fontWeight: FontWeight.w600)),
-          const SizedBox(height: 4),
-          TextField(
-            controller: _rateCtrl,
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            decoration: InputDecoration(
-              prefixText: '₹', suffixText: '/kg',
-              filled: true, fillColor: const Color(0xFFF3F4F6),
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none)),
-            onChanged: (_) => setState(() {})),
+          // ── Per-product rates (multi-product) OR single rate ──────────
+          if (_isMultiProduct) ...[
+            const Text('RATE PER PRODUCT',
+                style: TextStyle(fontSize: 11, color: kTextHint, fontWeight: FontWeight.w700, letterSpacing: 0.8)),
+            const SizedBox(height: 8),
+            ..._orderItems.map((item) {
+              final id        = item['id'] as String? ?? '';
+              final prodName  = (item['master_products'] as Map?)?['name'] as String? ?? 'Product';
+              final weight    = (item['total_weight'] as num?)?.toDouble() ?? 0;
+              final birds     = (item['bird_count'] as num?)?.toInt() ?? 0;
+              final ctrl      = _itemRateCtrls[id] ?? TextEditingController();
+              final rate      = double.tryParse(ctrl.text.trim()) ?? 0;
+              final lineTotal = weight * rate;
+              return Container(
+                margin: const EdgeInsets.only(bottom: 10),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                    color: const Color(0xFFF8F9FA),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: kBorder)),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Row(children: [
+                    Container(width: 8, height: 8,
+                        decoration: BoxDecoration(color: kPrimary, shape: BoxShape.circle)),
+                    const SizedBox(width: 8),
+                    Expanded(child: Text(prodName,
+                        style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14))),
+                    Text('${weight.toStringAsFixed(1)} kg · $birds birds',
+                        style: const TextStyle(fontSize: 11, color: kTextSub)),
+                  ]),
+                  const SizedBox(height: 8),
+                  Row(children: [
+                    Expanded(child: TextField(
+                      controller: ctrl,
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      decoration: InputDecoration(
+                          labelText: 'Rate/kg *', prefixText: '₹', suffixText: '/kg',
+                          filled: true, fillColor: Colors.white,
+                          border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none)),
+                      onChanged: (_) => setState(() {}))),
+                    const SizedBox(width: 12),
+                    if (rate > 0) Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                      Text(Fmt.amount(lineTotal),
+                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: kPrimary)),
+                      Text('${weight.toStringAsFixed(1)} × ₹${rate.toStringAsFixed(2)}',
+                          style: const TextStyle(fontSize: 10, color: kTextSub)),
+                    ]),
+                  ]),
+                ]));
+            }),
+          ] else ...[
+            const Text('Rate per kg *',
+                style: TextStyle(fontSize: 11, color: kTextHint, fontWeight: FontWeight.w600)),
+            const SizedBox(height: 4),
+            TextField(
+              controller: _rateCtrl,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              decoration: InputDecoration(
+                prefixText: '₹', suffixText: '/kg',
+                filled: true, fillColor: const Color(0xFFF3F4F6),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none)),
+              onChanged: (_) => setState(() {})),
+          ],
           const SizedBox(height: 12),
 
-          // Live calculation
-          if (_billingWeight > 0 && _rate > 0)
+          // Live calculation summary
+          if (_billAmount > 0)
             Container(
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
@@ -298,16 +429,32 @@ class _S extends ConsumerState<ApprovalDetailScreen> {
                   borderRadius: BorderRadius.circular(10),
                   border: Border.all(color: kPrimary.withValues(alpha: 0.2))),
               child: Column(children: [
+                if (_isMultiProduct) ...[
+                  ..._orderItems.map((item) {
+                    final id       = item['id'] as String? ?? '';
+                    final prodName = (item['master_products'] as Map?)?['name'] as String? ?? '—';
+                    final weight   = (item['total_weight'] as num?)?.toDouble() ?? 0;
+                    final rate     = double.tryParse(_itemRateCtrls[id]?.text.trim() ?? '') ?? 0;
+                    if (rate <= 0) return const SizedBox.shrink();
+                    return _bRow(prodName, Fmt.amount(weight * rate), kTextSub);
+                  }),
+                  const Divider(height: 10),
+                ] else ...[
+                  Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                    Text('${_billingWeight.toStringAsFixed(2)} kg × ₹${_rateCtrl.text}/kg',
+                        style: const TextStyle(fontSize: 12, color: kTextSub)),
+                    const SizedBox.shrink(),
+                  ]),
+                ],
                 Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                  Text('${_billingWeight.toStringAsFixed(2)} kg × ₹${_rateCtrl.text}/kg',
-                      style: const TextStyle(fontSize: 12, color: kTextSub)),
+                  const Text('Total Bill', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
                   Text(Fmt.amount(_billAmount),
                       style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w900, color: kPrimary)),
                 ]),
                 if (_collected > 0) ...[
                   const Divider(height: 14),
                   _bRow('Collected by agent', Fmt.amount(_collected), Colors.green),
-                  _bRow('Balance due',        Fmt.amount(_balance),
+                  _bRow('Balance due', Fmt.amount(_balance),
                       _balance > 0 ? Colors.orange : Colors.green),
                 ],
               ])),

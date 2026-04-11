@@ -88,6 +88,7 @@ abstract class R {
   static const retailerCreate = '/t/retailers/create';
   static const retailerDetail = '/t/retailers/:id';
   static const agents         = '/t/agents';
+  static const userMgmt         = '/t/userMgmt';
   static const agentCreate    = '/t/agents/create';
   static const agentDetail    = '/t/agents/:id';
   static const rates          = '/t/rates';
@@ -95,7 +96,6 @@ abstract class R {
   static const shiftDetail    = '/t/shifts/:id';
   static const crates         = '/t/crates';
   static const analytics      = '/t/analytics';
-  static const userMgmt      = '/t/userMgmt';
   static const settings       = '/t/settings';
   static const returns        = '/t/returns';
   static const stock          = '/t/stock';
