@@ -20,7 +20,7 @@ dependencies:
   path: ^1.9.0                       # Path utils for sqflite
   path_provider: ^2.1.2              # App/downloads directory
   share_plus: ^7.2.1                 # Native share sheet (WhatsApp, Gmail etc.)
-  printing: ^5.12.0                  # PDF print dialog
+#  printing: ^5.12.0                  # PDF print dialog
   pdf: ^3.10.8                       # PDF document builder
   permission_handler: ^11.3.0        # Runtime permissions (BT, storage)
 

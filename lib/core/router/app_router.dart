@@ -43,9 +43,12 @@ import '../../features/delivery_agent/home/agent_shell.dart';
 import '../../features/auth/trader_setup_screen.dart';
 import '../../features/delivery_agent/batch/dc_view_screen.dart';
 import '../../features/delivery_agent/orders/instant_order_screen.dart';
+import '../../features/super_admin/dashboard/super_dashboard_screen.dart';
+import '../../features/super_admin/traders/traders_list_sa_screen.dart';
+import '../../features/super_admin/traders/trader_detail_sa_screen.dart';
+import '../../features/super_admin/products/products_sa_screen.dart';
+import '../../features/super_admin/plans/plans_sa_screen.dart';
 import '../../features/auth/pending_approval_screen.dart';
-import '../../features/super_admin/super_admin_screen.dart';
-import '../../features/delivery_agent/deliveries/delivery_history_screen.dart';
 import '../../features/delivery_agent/batch/bird_transfer_screen.dart';
 import '../../features/delivery_agent/batch/transfer_history_screen.dart';
 import '../../features/delivery_agent/home/agent_home_screen.dart';
@@ -63,6 +66,11 @@ abstract class R {
   static const traderSetup       = '/trader-setup';
   static const pendingApproval   = '/pending-approval';
   static const superAdmin        = '/super-admin';
+  static const saDashboard       = '/sa/dashboard';
+  static const saTraders         = '/sa/traders';
+  static const saProducts        = '/sa/products';
+  static const saPlans           = '/sa/plans';
+  static String saTraderDetail(String id) => '/sa/traders/$id';
   static const instantOrder   = '/a/instant-order'; // accessible even when signed in
   static const dashboard      = '/t/dashboard';
   static const orders         = '/t/orders';
@@ -80,7 +88,6 @@ abstract class R {
   static const retailerCreate = '/t/retailers/create';
   static const retailerDetail = '/t/retailers/:id';
   static const agents         = '/t/agents';
-  static const userMgmt         = '/t/userMgmt';
   static const agentCreate    = '/t/agents/create';
   static const agentDetail    = '/t/agents/:id';
   static const rates          = '/t/rates';
@@ -88,6 +95,7 @@ abstract class R {
   static const shiftDetail    = '/t/shifts/:id';
   static const crates         = '/t/crates';
   static const analytics      = '/t/analytics';
+  static const userMgmt      = '/t/userMgmt';
   static const settings       = '/t/settings';
   static const returns        = '/t/returns';
   static const stock          = '/t/stock';
@@ -147,12 +155,13 @@ final appRouterProvider = Provider<GoRouter>((ref) => GoRouter(
     if (loc == R.agentLink) return null;
 
     // Super admin → super admin screen
-    if (user.isSuperAdmin) {
-      if (loc == R.superAdmin) return null;
-      return R.superAdmin;
+    // Unlinked → trader setup
+    // Super admin: redirect to SA dashboard
+    if (user.isSuperAdmin || user.role == UserRole.superAdmin) {
+      if (loc.startsWith('/sa/') || loc == R.saDashboard || loc == R.superAdmin) return null;
+      return R.saDashboard;
     }
 
-    // Unlinked → trader setup
     if (user.isUnlinked) {
       if (loc == R.traderSetup || loc == R.agentLink) return null;
       return R.traderSetup;
@@ -183,7 +192,13 @@ final appRouterProvider = Provider<GoRouter>((ref) => GoRouter(
     GoRoute(path: R.agentLink,       builder: (_, __) => const AgentLinkScreen()),
     GoRoute(path: R.traderSetup,     builder: (_, __) => const TraderSetupScreen()),
     GoRoute(path: R.pendingApproval, builder: (_, __) => const PendingApprovalScreen()),
-    GoRoute(path: R.superAdmin,      builder: (_, __) => const SuperAdminScreen()),
+    GoRoute(path: R.superAdmin,      builder: (_, __) => const SuperDashboardScreen()),
+    GoRoute(path: R.saDashboard,      builder: (_, __) => const SuperDashboardScreen()),
+    GoRoute(path: R.saTraders,        builder: (_, __) => const TradersListSaScreen()),
+    GoRoute(path: R.saProducts,       builder: (_, __) => const ProductsSaScreen()),
+    GoRoute(path: R.saPlans,          builder: (_, __) => const PlansSaScreen()),
+    GoRoute(path: '/sa/traders/:id',  builder: (_, s)  =>
+        TraderDetailSaScreen(traderId: s.pathParameters['id']!)),
 
     // ── Trader Admin Shell ──────────────────────────────────────
     ShellRoute(
