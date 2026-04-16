@@ -481,30 +481,10 @@ class _S extends ConsumerState<BatchDetailScreen> {
             Expanded(child: Text('No DC yet. Add DC before dispatching.',
                 style: TextStyle(fontSize: 12, color: Colors.orange))),
           ]))
-        else ..._challans.map((ch) {
-          final date  = DateTime.tryParse(ch['dc_date'] as String? ?? '');
-          final net   = (ch['net_weight'] as num?)?.toDouble()    ?? 0;
-          final birds = (ch['bird_count'] as num?)?.toInt()        ?? 0;
-          return Container(
-            margin: const EdgeInsets.only(bottom: 6),
-            decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(10),
-                border: const Border.fromBorderSide(BorderSide(color: kBorder))),
-            child: ListTile(
-              dense: true,
-              leading: Container(width: 36, height: 36,
-                  decoration: BoxDecoration(color: kPrimary.withValues(alpha: 0.1), shape: BoxShape.circle),
-                  child: const Icon(Icons.receipt_long_outlined, color: kPrimary, size: 18)),
-              title: Text(ch['dc_number'] as String? ?? '—',
-                  style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
-              subtitle: Text(
-                '${ch['farmer_name'] ?? '—'} · $birds birds · ${net.toStringAsFixed(1)} kg · ${ch['crates_count'] ?? 0} crates',
-                style: const TextStyle(fontSize: 11)),
-              trailing: date != null
-                  ? Text(DateFormat('d MMM').format(date),
-                      style: const TextStyle(fontSize: 11, color: kTextHint))
-                  : null));
+        else ..._challans.asMap().entries.map((entry) {
+          final idx = entry.key;
+          final ch  = entry.value;
+          return _DcCard(challan: ch, index: idx + 1);
         }),
         const SizedBox(height: 14),
 
@@ -624,4 +604,212 @@ class _S extends ConsumerState<BatchDetailScreen> {
     Text(v, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: c)),
     Text(l, style: const TextStyle(fontSize: 9, color: kTextHint), textAlign: TextAlign.center),
   ]));
+}
+
+// ── DC Card — expandable with image ─────────────────────────────────────────
+class _DcCard extends StatefulWidget {
+  const _DcCard({required this.challan, required this.index});
+  final Map<String,dynamic> challan;
+  final int index;
+  @override State<_DcCard> createState() => _DcCardState();
+}
+
+class _DcCardState extends State<_DcCard> {
+  bool _expanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final ch     = widget.challan;
+    final date   = DateTime.tryParse(ch['dc_date'] as String? ?? '');
+    final net    = (ch['net_weight']       as num?)?.toDouble() ?? 0;
+    final gross  = (ch['gross_weight']     as num?)?.toDouble() ?? 0;
+    final empty  = (ch['empty_crate_weight'] as num?)?.toDouble() ?? 0;
+    final birds  = (ch['bird_count']       as num?)?.toInt()    ?? 0;
+    final crates = (ch['crates_count']     as num?)?.toInt()    ?? 0;
+    final rate   = (ch['farm_rate']        as num?)?.toDouble();
+    final photoUrl = ch['dc_photo_url'] as String?;
+    final hasPic = photoUrl != null && photoUrl.isNotEmpty;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      decoration: BoxDecoration(
+          color: Colors.white, borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: hasPic ? Colors.green.shade200 : kBorder),
+          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.03),
+              blurRadius: 4, offset: const Offset(0, 2))]),
+      child: Column(children: [
+        // ── Header (always visible) ────────────────────────────
+        InkWell(
+          onTap: () => setState(() => _expanded = !_expanded),
+          borderRadius: BorderRadius.circular(12),
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Row(children: [
+              Container(
+                width: 36, height: 36,
+                decoration: BoxDecoration(
+                    color: kPrimary.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(8)),
+                child: Center(child: Text('${widget.index}',
+                    style: const TextStyle(fontSize: 14,
+                        fontWeight: FontWeight.w900, color: kPrimary)))),
+              const SizedBox(width: 10),
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Row(children: [
+                  Text(ch['dc_number'] as String? ?? '—',
+                      style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13)),
+                  const SizedBox(width: 8),
+                  if (hasPic) Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(color: Colors.green.shade100,
+                        borderRadius: BorderRadius.circular(4)),
+                    child: const Row(mainAxisSize: MainAxisSize.min, children: [
+                      Icon(Icons.photo_outlined, size: 10, color: Colors.green),
+                      SizedBox(width: 3),
+                      Text('Photo', style: TextStyle(fontSize: 9,
+                          color: Colors.green, fontWeight: FontWeight.w700)),
+                    ])),
+                ]),
+                Text(
+                  '${ch['farmer_name'] ?? '—'} · $birds birds · ${net.toStringAsFixed(1)} kg',
+                  style: const TextStyle(fontSize: 11, color: kTextSub)),
+              ])),
+              Row(children: [
+                if (date != null) Text(DateFormat('d MMM').format(date),
+                    style: const TextStyle(fontSize: 10, color: kTextHint)),
+                const SizedBox(width: 4),
+                Icon(_expanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
+                    size: 18, color: kTextHint),
+              ]),
+            ])),
+        ),
+
+        // ── Expanded detail ────────────────────────────────────
+        if (_expanded) Container(
+          padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            const Divider(height: 12),
+
+            // Weight breakdown
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                  color: const Color(0xFFF5F7FF),
+                  borderRadius: BorderRadius.circular(8)),
+              child: Column(children: [
+                _row('Gross Weight',       '${gross.toStringAsFixed(2)} kg'),
+                _row('Empty Crate Weight', '${empty.toStringAsFixed(2)} kg'),
+                _row('Net Weight',         '${net.toStringAsFixed(2)} kg',  kPrimary),
+                _row('Bird Count',         '$birds birds'),
+                _row('Crates',             '$crates'),
+                if (rate != null) _row('Farm Rate', '₹${rate.toStringAsFixed(2)}/kg'),
+                if (rate != null && net > 0)
+                  _row('Farm Amount', '₹${(rate * net).toStringAsFixed(2)}', Colors.green),
+              ])),
+
+            // Extra info
+            if (ch['farm_location'] != null) ...[
+              const SizedBox(height: 8),
+              Row(children: [
+                const Icon(Icons.location_on_outlined, size: 13, color: kTextSub),
+                const SizedBox(width: 4),
+                Expanded(child: Text(ch['farm_location'] as String,
+                    style: const TextStyle(fontSize: 11, color: kTextSub))),
+              ]),
+            ],
+            if (ch['vehicle_number'] != null) ...[
+              const SizedBox(height: 4),
+              Row(children: [
+                const Icon(Icons.directions_car_outlined, size: 13, color: kTextSub),
+                const SizedBox(width: 4),
+                Text(ch['vehicle_number'] as String,
+                    style: const TextStyle(fontSize: 11, color: kTextSub)),
+              ]),
+            ],
+
+            // DC Photo
+            if (hasPic) ...[
+              const SizedBox(height: 12),
+              Row(children: [
+                const Icon(Icons.photo_library_outlined, size: 13, color: Colors.green),
+                const SizedBox(width: 6),
+                const Text('DC Photo Proof',
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Colors.green)),
+              ]),
+              const SizedBox(height: 8),
+              GestureDetector(
+                onTap: () => _showImageFull(context, photoUrl!),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(10),
+                  child: Stack(children: [
+                    Image.network(
+                      photoUrl!,
+                      width: double.infinity, height: 180,
+                      fit: BoxFit.cover,
+                      loadingBuilder: (ctx, child, prog) => prog == null ? child
+                          : Container(height: 180,
+                              color: Colors.grey.shade100,
+                              child: const Center(
+                                  child: CircularProgressIndicator(strokeWidth: 2))),
+                      errorBuilder: (_, __, ___) => Container(
+                          height: 80, color: Colors.grey.shade100,
+                          child: const Center(
+                              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                                Icon(Icons.broken_image_outlined, color: Colors.grey),
+                                Text('Image unavailable', style: TextStyle(fontSize: 11, color: Colors.grey)),
+                              ]))),
+                    ),
+                    Positioned(bottom: 8, right: 8,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(color: Colors.black54,
+                            borderRadius: BorderRadius.circular(6)),
+                        child: const Row(mainAxisSize: MainAxisSize.min, children: [
+                          Icon(Icons.zoom_in, size: 12, color: Colors.white),
+                          SizedBox(width: 4),
+                          Text('Tap to expand', style: TextStyle(fontSize: 10, color: Colors.white)),
+                        ]))),
+                  ])))
+            ] else ...[
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(color: Colors.orange.shade50,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.orange.shade200)),
+                child: const Row(children: [
+                  Icon(Icons.camera_alt_outlined, size: 14, color: Colors.orange),
+                  SizedBox(width: 6),
+                  Text('No DC photo uploaded yet',
+                      style: TextStyle(fontSize: 11, color: Colors.orange)),
+                ])),
+            ],
+          ])),
+      ]));
+  }
+
+  void _showImageFull(BuildContext context, String url) {
+    showDialog(context: context, builder: (ctx) =>
+      Dialog(
+        insetPadding: const EdgeInsets.all(8),
+        child: Stack(children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: Image.network(url, fit: BoxFit.contain)),
+          Positioned(top: 8, right: 8,
+            child: GestureDetector(
+              onTap: () => Navigator.pop(ctx),
+              child: Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(color: Colors.black54, shape: BoxShape.circle),
+                child: const Icon(Icons.close, color: Colors.white, size: 18)))),
+        ])));
+  }
+
+  Widget _row(String l, String v, [Color? c]) => Padding(
+    padding: const EdgeInsets.only(bottom: 3),
+    child: Row(children: [
+      SizedBox(width: 120, child: Text(l, style: const TextStyle(fontSize: 11, color: kTextSub))),
+      Text(v, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: c ?? kTextMain)),
+    ]));
 }
