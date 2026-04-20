@@ -327,10 +327,9 @@ class _S extends ConsumerState<ApprovalDetailScreen> {
           const SizedBox(height: 10),
         ],
 
-        // ── Proof photos ─────────────────────────────────────────
-        if (_delivery!['mortality_proof_url'] != null ||
-            _delivery!['delivery_photo_url'] != null)
-          _buildPhotos(),
+        // ── MORTALITY & PROOF IMAGES ─────────────────────────────
+        // Always shown — trader must verify mortality before approving
+        _buildPhotos(),
 
         // ── Rate & Bill ───────────────────────────────────────────
         WhiteCard(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -813,35 +812,147 @@ class _S extends ConsumerState<ApprovalDetailScreen> {
           ])),
       ]));
 
-  // ── PROOF PHOTOS ─────────────────────────────────────────────────
+  // ── MORTALITY & PROOF IMAGES ──────────────────────────────────────
   Widget _buildPhotos() {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
+    final mortUrl  = _delivery!['mortality_proof_url'] as String?;
+    final delivUrl = _delivery!['delivery_photo_url']  as String?;
+    final hasAnyPhoto = mortUrl != null || delivUrl != null;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      decoration: BoxDecoration(
+          color: Colors.white, borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+              color: _mortalityBirds > 0 ? Colors.red.shade300 : kBorder,
+              width: _mortalityBirds > 0 ? 1.5 : 1)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        const SectionHeader('PROOF PHOTOS'),
-        Row(children: [
-          if (_delivery!['mortality_proof_url'] != null)
-            Expanded(child: _photoTile('Mortality Proof', _delivery!['mortality_proof_url'] as String, Colors.red)),
-          if (_delivery!['mortality_proof_url'] != null && _delivery!['delivery_photo_url'] != null)
+        // Header
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          decoration: BoxDecoration(
+              color: _mortalityBirds > 0 ? Colors.red.shade50 : Colors.grey.shade50,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(13))),
+          child: Row(children: [
+            Icon(_mortalityBirds > 0 ? Icons.warning_amber_rounded : Icons.photo_library_outlined,
+                color: _mortalityBirds > 0 ? Colors.red : kTextHint, size: 18),
             const SizedBox(width: 8),
-          if (_delivery!['delivery_photo_url'] != null)
-            Expanded(child: _photoTile('Delivery Proof', _delivery!['delivery_photo_url'] as String, Colors.blue)),
-        ]),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              const Text('Mortality & Proof Images',
+                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13)),
+              if (_mortalityBirds > 0)
+                Text('$_mortalityBirds dead birds  |  ${_mortalityWt.toStringAsFixed(2)} kg',
+                    style: const TextStyle(fontSize: 11, color: kTextSub)),
+            ])),
+            if (_mortalityBirds > 0)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(color: Colors.red, borderRadius: BorderRadius.circular(6)),
+                child: const Text('VERIFY', style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w800))),
+          ])),
+        Padding(padding: const EdgeInsets.all(12), child: Column(children: [
+          // Mortality proof image
+          if (mortUrl != null) ...[
+            _imageCard('Mortality Proof Photo', mortUrl, Colors.red, Icons.warning_amber_rounded),
+            if (delivUrl != null) const SizedBox(height: 10),
+          ] else if (_mortalityBirds > 0) ...[
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(color: Colors.orange.shade50,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: Colors.orange.shade300)),
+              child: const Row(children: [
+                Icon(Icons.photo_camera_outlined, color: Colors.orange, size: 18),
+                SizedBox(width: 8),
+                Expanded(child: Text(
+                  'No mortality photo uploaded. Verify with agent before approving.',
+                  style: TextStyle(fontSize: 12, color: Colors.orange, fontWeight: FontWeight.w600))),
+              ])),
+            const SizedBox(height: 10),
+          ] else if (!hasAnyPhoto) ...[
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(color: Colors.green.shade50,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: Colors.green.shade200)),
+              child: const Row(children: [
+                Icon(Icons.check_circle_outline, color: Colors.green, size: 18),
+                SizedBox(width: 8),
+                Text('No mortality reported for this delivery.',
+                    style: TextStyle(fontSize: 12, color: Colors.green, fontWeight: FontWeight.w600)),
+              ])),
+          ],
+          // Delivery proof image
+          if (delivUrl != null) ...[
+            if (mortUrl != null || _mortalityBirds > 0) const SizedBox(height: 10),
+            _imageCard('Delivery Proof Photo', delivUrl, Colors.blue, Icons.local_shipping_outlined),
+          ],
+        ])),
       ]));
   }
 
-  Widget _photoTile(String label, String url, Color c) => Container(
-    padding: const EdgeInsets.all(10),
-    decoration: BoxDecoration(color: c.withValues(alpha: 0.05),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: c.withValues(alpha: 0.3))),
-    child: Column(children: [
-      Icon(Icons.photo_outlined, color: c, size: 24),
-      const SizedBox(height: 4),
-      Text(label, style: TextStyle(fontSize: 11, color: c, fontWeight: FontWeight.w600)),
-      const SizedBox(height: 2),
-      Text('Photo attached ✓', style: TextStyle(fontSize: 10, color: c.withValues(alpha: 0.7))),
-    ]));
+  Widget _imageCard(String label, String url, Color c, IconData icon) {
+    return GestureDetector(
+      onTap: () => _showFullImage(context, url, label),
+      child: Container(
+        decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: c.withValues(alpha: 0.3))),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+                color: c.withValues(alpha: 0.08),
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(9))),
+            child: Row(children: [
+              Icon(icon, size: 14, color: c), const SizedBox(width: 6),
+              Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: c)),
+              const Spacer(),
+              Icon(Icons.open_in_full, size: 13, color: c.withValues(alpha: 0.6)),
+              const SizedBox(width: 4),
+              Text('Tap to expand', style: TextStyle(fontSize: 10, color: c.withValues(alpha: 0.6))),
+            ])),
+          ClipRRect(
+            borderRadius: const BorderRadius.vertical(bottom: Radius.circular(9)),
+            child: Image.network(
+              url,
+              width: double.infinity,
+              height: 200,
+              fit: BoxFit.cover,
+              loadingBuilder: (ctx, child, prog) => prog == null ? child
+                  : Container(height: 200, color: c.withValues(alpha: 0.05),
+                      child: Center(child: CircularProgressIndicator(
+                          value: prog.expectedTotalBytes != null
+                              ? prog.cumulativeBytesLoaded / prog.expectedTotalBytes! : null,
+                          color: c, strokeWidth: 2))),
+              errorBuilder: (_, __, ___) => Container(
+                height: 120, color: c.withValues(alpha: 0.05),
+                child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                  Icon(Icons.broken_image_outlined, size: 36, color: c.withValues(alpha: 0.4)),
+                  const SizedBox(height: 6),
+                  Text('Failed to load image', style: TextStyle(fontSize: 11, color: c.withValues(alpha: 0.6))),
+                ])),
+            )),
+        ])));
+  }
+
+  void _showFullImage(BuildContext context, String url, String title) {
+    showDialog(
+      context: context, useRootNavigator: true,
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.black, insetPadding: EdgeInsets.zero,
+        child: Stack(children: [
+          InteractiveViewer(
+            child: Center(child: Image.network(url, fit: BoxFit.contain,
+                loadingBuilder: (_, child, prog) => prog == null ? child
+                    : const Center(child: CircularProgressIndicator(color: Colors.white)),
+                errorBuilder: (_, __, ___) => const Center(
+                    child: Icon(Icons.broken_image, color: Colors.white, size: 64))))),
+          Positioned(top: 16, left: 16, child: Text(title,
+              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 14, shadows: [Shadow(color: Colors.black54, blurRadius: 4)]))),
+          Positioned(top: 8, right: 8, child: IconButton(
+              icon: const Icon(Icons.close, color: Colors.white, size: 28),
+              onPressed: () => Navigator.of(ctx, rootNavigator: true).pop())),
+        ])));}
 
   Widget _bRow(String l, String v, Color c) => Padding(
     padding: const EdgeInsets.symmetric(vertical: 2),

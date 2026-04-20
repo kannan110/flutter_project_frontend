@@ -67,7 +67,7 @@ class _S extends ConsumerState<BirdTransferScreen> {
         _agents    = List<Map<String,dynamic>>.from(a as List? ?? []);
         // Pre-fill totals
         final totalBirds = deliveries.fold(0, (s, d) =>
-            s + ((d['orders'] as Map?)?['estimated_birds'] as num?)!.toInt() ?? 0);
+            s + (((d['orders'] as Map?)?['estimated_birds'] as num?)?.toInt() ?? 0));
         final totalWeight = deliveries.fold(0.0, (s, d) =>
             s + (((d['orders'] as Map?)?['total_quantity'] as num?)?.toDouble() ?? 0));
         if (_birdsCtrl.text.isEmpty && totalBirds > 0) _birdsCtrl.text = '$totalBirds';

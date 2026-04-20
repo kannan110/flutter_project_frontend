@@ -272,7 +272,7 @@ class _AgentLinkState extends ConsumerState<AgentLinkScreen> {
               onChanged: (_) { if (mounted) setState(() { _traderName = null; _err = null; }); },
             )),
             const SizedBox(width: 8),
-            SizedBox(height: 52, width: 104, child: ElevatedButton(
+            SizedBox(height: 52, width : 100,  child: ElevatedButton(
               onPressed: _checking || _codeCtrl.text.trim().isEmpty ? null : _checkCode,
               child: _checking
                   ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))

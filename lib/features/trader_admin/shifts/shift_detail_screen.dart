@@ -97,6 +97,10 @@ class _S extends ConsumerState<ShiftDetailScreen> {
           ])),
         const SizedBox(height: 12),
 
+        // ── Odometer & Distance ─────────────────────────────────────
+        _buildOdometerSection(shift),
+        const SizedBox(height: 10),
+
         // ── DC / Purchase Summary ────────────────────────────────────
         if (challans.isNotEmpty) WhiteCard(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           const SectionHeader('DELIVERY CHALLANS (FARM PURCHASE)'),
@@ -163,12 +167,25 @@ class _S extends ConsumerState<ShiftDetailScreen> {
                   const SizedBox(width: 4),
                   StatusBadge(approved, approved == 'approved' ? Colors.green : Colors.orange, small: true),
                 ])),
-                Padding(padding: const EdgeInsets.fromLTRB(12,0,12,10), child: Row(children: [
+                Padding(padding: const EdgeInsets.fromLTRB(12,0,12,8), child: Row(children: [
                   Text('$birds birds · ${weight.toStringAsFixed(1)} kg', style: const TextStyle(fontSize: 11, color: kTextSub)),
                   const Spacer(),
                   if (mortality > 0) Text('💀 $mortality  ', style: const TextStyle(fontSize: 11, color: Colors.red)),
                   Text(Fmt.amount(collected), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: kPrimary)),
                 ])),
+                // Mortality & delivery proof photos — tap to expand
+                if (d['mortality_proof_url'] != null || d['delivery_photo_url'] != null)
+                  Padding(padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
+                    child: Row(children: [
+                      if (d['mortality_proof_url'] != null)
+                        _miniPhotoTile('Mortality Proof', d['mortality_proof_url'] as String, Colors.red),
+                      if (d['mortality_proof_url'] != null && d['delivery_photo_url'] != null)
+                        const SizedBox(width: 8),
+                      if (d['delivery_photo_url'] != null)
+                        _miniPhotoTile('Delivery Proof', d['delivery_photo_url'] as String, Colors.blue),
+                    ]))
+                else
+                  const SizedBox(height: 2),
               ]));
           }),
         ],
@@ -204,6 +221,203 @@ class _S extends ConsumerState<ShiftDetailScreen> {
       ]),
     );
   }
+
+  // ── ODOMETER SECTION ─────────────────────────────────────────────
+  Widget _buildOdometerSection(Map<String,dynamic>? shift) {
+    if (shift == null) return const SizedBox.shrink();
+
+    final odoStart    = (shift['odometer_start']       as num?)?.toDouble();
+    final odoEnd      = (shift['odometer_end']         as num?)?.toDouble();
+    final distKm      = odoEnd != null && odoStart != null
+        ? (odoEnd - odoStart).abs() : (shift['distance_km'] as num?)?.toDouble() ?? 0;
+    final startPhoto  = shift['odometer_start_photo']  as String?;
+    final endPhoto    = shift['odometer_end_photo']    as String?;
+    final hasAnyData  = odoStart != null || odoEnd != null || startPhoto != null || endPhoto != null;
+
+    if (!hasAnyData) return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(color: Colors.grey.shade50,
+          borderRadius: BorderRadius.circular(10), border: Border.all(color: kBorder)),
+      child: const Row(children: [
+        Icon(Icons.speed_outlined, size: 16, color: kTextHint), SizedBox(width: 8),
+        Text('No odometer data recorded for this shift',
+            style: TextStyle(fontSize: 12, color: kTextHint)),
+      ]));
+
+    return Container(
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: Colors.teal.shade200, width: 1.5)),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        // Header
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          decoration: BoxDecoration(
+              color: Colors.teal.shade600,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(13))),
+          child: Row(children: [
+            const Icon(Icons.speed_outlined, color: Colors.white, size: 18),
+            const SizedBox(width: 8),
+            const Expanded(child: Text('Odometer & Distance',
+                style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 13))),
+            if (distKm > 0)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(8)),
+                child: Text('${distKm.toStringAsFixed(0)} km travelled',
+                    style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w800))),
+          ])),
+
+        Padding(padding: const EdgeInsets.all(14), child: Column(children: [
+          // Odometer readings row
+          Row(children: [
+            _odoStat('Start Reading',
+                odoStart != null ? '${odoStart.toStringAsFixed(0)} km' : 'Not recorded',
+                Colors.blue),
+            Container(width: 1, height: 40, color: kBorder, margin: const EdgeInsets.symmetric(horizontal: 12)),
+            _odoStat('End Reading',
+                odoEnd != null ? '${odoEnd.toStringAsFixed(0)} km' : 'Not recorded',
+                Colors.teal),
+            Container(width: 1, height: 40, color: kBorder, margin: const EdgeInsets.symmetric(horizontal: 12)),
+            _odoStat('Distance',
+                distKm > 0 ? '${distKm.toStringAsFixed(0)} km' : '—',
+                distKm > 0 ? Colors.green : kTextHint),
+          ]),
+          const SizedBox(height: 14),
+
+          // Photo tiles
+          Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            if (startPhoto != null)
+              Expanded(child: _odoPhotoTile('Start Odometer', startPhoto, Colors.blue))
+            else
+              Expanded(child: _odoMissingTile('Start Odometer', Colors.blue)),
+            const SizedBox(width: 10),
+            if (endPhoto != null)
+              Expanded(child: _odoPhotoTile('End Odometer', endPhoto, Colors.teal))
+            else
+              Expanded(child: _odoMissingTile('End Odometer', Colors.teal)),
+          ]),
+        ])),
+      ]));
+  }
+
+  Widget _odoStat(String label, String value, Color c) =>
+    Expanded(child: Column(children: [
+      Text(value, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: c),
+          textAlign: TextAlign.center),
+      const SizedBox(height: 2),
+      Text(label, style: const TextStyle(fontSize: 9, color: kTextHint),
+          textAlign: TextAlign.center),
+    ]));
+
+  Widget _odoPhotoTile(String label, String url, Color c) =>
+    GestureDetector(
+      onTap: () => _showFullImage(context, url, label),
+      child: Container(
+        decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: c.withValues(alpha: 0.3))),
+        child: Column(children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+            decoration: BoxDecoration(
+                color: c.withValues(alpha: 0.08),
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(9))),
+            child: Row(children: [
+              Icon(Icons.speed_outlined, size: 13, color: c), const SizedBox(width: 4),
+              Expanded(child: Text(label, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: c))),
+              Icon(Icons.open_in_full, size: 12, color: c.withValues(alpha: 0.6)),
+            ])),
+          ClipRRect(
+            borderRadius: const BorderRadius.vertical(bottom: Radius.circular(9)),
+            child: Image.network(url,
+              width: double.infinity, height: 130, fit: BoxFit.cover,
+              loadingBuilder: (ctx, child, prog) => prog == null ? child
+                  : Container(height: 130, color: c.withValues(alpha: 0.05),
+                      child: Center(child: CircularProgressIndicator(color: c, strokeWidth: 2))),
+              errorBuilder: (_, __, ___) => Container(
+                height: 100, color: c.withValues(alpha: 0.05),
+                child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                  Icon(Icons.broken_image_outlined, size: 28, color: c.withValues(alpha: 0.4)),
+                  const SizedBox(height: 4),
+                  Text('Failed to load', style: TextStyle(fontSize: 10, color: c.withValues(alpha: 0.5))),
+                ])),
+            )),
+        ])));
+
+  Widget _odoMissingTile(String label, Color c) => Container(
+    padding: const EdgeInsets.all(14),
+    decoration: BoxDecoration(color: Colors.grey.shade50,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.grey.shade300, style: BorderStyle.solid)),
+    child: Column(children: [
+      Icon(Icons.photo_camera_outlined, size: 28, color: Colors.grey.shade400),
+      const SizedBox(height: 6),
+      Text(label, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: kTextSub)),
+      const SizedBox(height: 2),
+      const Text('Not captured', style: TextStyle(fontSize: 10, color: kTextHint)),
+    ]));
+
+  void _showFullImage(BuildContext context, String url, String title) {
+    showDialog(
+      context: context, useRootNavigator: true,
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.black, insetPadding: EdgeInsets.zero,
+        child: Stack(children: [
+          InteractiveViewer(
+            child: Center(child: Image.network(url, fit: BoxFit.contain,
+                loadingBuilder: (_, child, prog) => prog == null ? child
+                    : const Center(child: CircularProgressIndicator(color: Colors.white)),
+                errorBuilder: (_, __, ___) => const Center(
+                    child: Icon(Icons.broken_image, color: Colors.white, size: 64))))),
+          Positioned(top: 16, left: 16, child: Text(title,
+              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 14,
+                  shadows: [Shadow(color: Colors.black54, blurRadius: 4)]))),
+          Positioned(top: 8, right: 8, child: IconButton(
+              icon: const Icon(Icons.close, color: Colors.white, size: 28),
+              onPressed: () => Navigator.of(ctx, rootNavigator: true).pop())),
+        ])));
+  }
+
+  // Mini photo thumbnail for delivery rows in shift detail
+  Widget _miniPhotoTile(String label, String url, Color c) =>
+    Expanded(child: GestureDetector(
+      onTap: () => _showFullImage(context, url, label),
+      child: Container(
+        decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: c.withValues(alpha: 0.3))),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+            decoration: BoxDecoration(
+                color: c.withValues(alpha: 0.08),
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(7))),
+            child: Row(children: [
+              Icon(label.contains('Mortality') ? Icons.warning_amber_rounded : Icons.check_circle_outline,
+                  size: 11, color: c),
+              const SizedBox(width: 4),
+              Expanded(child: Text(label,
+                  style: TextStyle(fontSize: 9, fontWeight: FontWeight.w700, color: c),
+                  maxLines: 1, overflow: TextOverflow.ellipsis)),
+              Icon(Icons.open_in_full, size: 10, color: c.withValues(alpha: 0.6)),
+            ])),
+          ClipRRect(
+            borderRadius: const BorderRadius.vertical(bottom: Radius.circular(7)),
+            child: Image.network(url,
+              width: double.infinity, height: 90, fit: BoxFit.cover,
+              loadingBuilder: (ctx, child, prog) => prog == null ? child
+                  : Container(height: 90, color: c.withValues(alpha: 0.05),
+                      child: Center(child: CircularProgressIndicator(color: c, strokeWidth: 2))),
+              errorBuilder: (_, __, ___) => Container(
+                height: 70, color: c.withValues(alpha: 0.05),
+                child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                  Icon(Icons.broken_image_outlined, size: 22, color: c.withValues(alpha: 0.4)),
+                  Text('Load failed', style: TextStyle(fontSize: 9, color: c.withValues(alpha: 0.5))),
+                ])),
+            )),
+        ]))));
+
 
   Widget _trow(String l, String v, {Color? color, bool bold = false}) => Padding(
     padding: const EdgeInsets.symmetric(vertical: 4),

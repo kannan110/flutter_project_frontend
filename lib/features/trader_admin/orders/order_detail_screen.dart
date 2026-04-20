@@ -71,6 +71,62 @@ class _S extends ConsumerState<OrderDetailScreen> {
     }
   }
 
+  Widget _buildPartialProgress() {
+    final o = _order!;
+    final totalBirds   = (o['estimated_birds']    as num?)?.toInt()    ?? 0;
+    final totalKg      = (o['total_quantity']      as num?)?.toDouble() ?? 0;
+    final fulfilledB   = (o['fulfilled_birds']     as num?)?.toInt()    ?? 0;
+    final fulfilledKg  = (o['fulfilled_quantity']  as num?)?.toDouble() ?? 0;
+    final backorderB   = (o['backorder_birds']     as num?)?.toInt()    ?? 0;
+    final backorderKg  = (o['backorder_quantity']  as num?)?.toDouble() ?? 0;
+    final partialCount = (o['partial_count']       as num?)?.toInt()    ?? 0;
+    final pct = totalBirds > 0 ? (fulfilledB / totalBirds).clamp(0.0, 1.0) : 0.0;
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+          color: Colors.orange.shade50, borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.orange.shade200, width: 1.5)),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          const Icon(Icons.splitscreen_outlined, color: Colors.orange, size: 16),
+          const SizedBox(width: 6),
+          Text('Partial Delivery — Attempt $partialCount',
+              style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: Colors.orange)),
+        ]),
+        const SizedBox(height: 10),
+        // Progress bar
+        Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+          const Text('Fulfilled', style: TextStyle(fontSize: 11, color: kTextSub)),
+          Text('${(pct * 100).toStringAsFixed(0)}%',
+              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.orange)),
+        ]),
+        const SizedBox(height: 4),
+        ClipRRect(borderRadius: BorderRadius.circular(6),
+            child: LinearProgressIndicator(
+                value: pct, minHeight: 8,
+                backgroundColor: Colors.orange.shade100,
+                valueColor: const AlwaysStoppedAnimation(Colors.orange))),
+        const SizedBox(height: 12),
+        Row(children: [
+          Expanded(child: _pCol('Ordered',   '$totalBirds birds', '${totalKg.toStringAsFixed(1)} kg', Colors.blue)),
+          Container(width: 1, height: 50, color: Colors.orange.shade200, margin: const EdgeInsets.symmetric(horizontal: 10)),
+          Expanded(child: _pCol('Delivered', '$fulfilledB birds', '${fulfilledKg.toStringAsFixed(1)} kg', Colors.green)),
+          Container(width: 1, height: 50, color: Colors.orange.shade200, margin: const EdgeInsets.symmetric(horizontal: 10)),
+          Expanded(child: _pCol('Remaining', '$backorderB birds', '${backorderKg.toStringAsFixed(1)} kg',
+              backorderB > 0 ? Colors.orange : Colors.grey)),
+        ]),
+      ]));
+  }
+
+  Widget _pCol(String l, String birds, String kg, Color c) =>
+    Column(children: [
+      Text(l, style: TextStyle(fontSize: 10, color: c, fontWeight: FontWeight.w700)),
+      const SizedBox(height: 4),
+      Text(birds, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: c)),
+      Text(kg, style: TextStyle(fontSize: 11, color: c.withValues(alpha: 0.8))),
+    ]);
+
   @override
   Widget build(BuildContext context) {
     if (_loading) return const Scaffold(body: LoadingList());
@@ -131,6 +187,12 @@ class _S extends ConsumerState<OrderDetailScreen> {
           }),
         ])),
         const SizedBox(height: 12),
+
+        // Partial delivery progress
+        if (_order!['is_partial_delivery'] == true || _order!['status'] == 'partially_delivered') ...[
+          const SizedBox(height: 12),
+          _buildPartialProgress(),
+        ],
 
         // Amounts — Bug 5: show invoice vs estimate clearly
         WhiteCard(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [

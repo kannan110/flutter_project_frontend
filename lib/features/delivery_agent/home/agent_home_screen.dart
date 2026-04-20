@@ -39,10 +39,7 @@ class _S extends ConsumerState<AgentHomeScreen> {
   // ── Data load ────────────────────────────────────────────────────────────
   Future<void> _load() async {
     final user = ref.read(appUserProvider).valueOrNull;
-    if (user?.agentId == null) {
-      if (mounted) setState(() => _loading = false);
-      return;
-    }
+    if (user?.agentId == null) { if (mounted) setState(() => _loading = false); return; }
     if (mounted) setState(() => _loading = true);
 
     Map<String, dynamic>? dash;
@@ -61,7 +58,7 @@ class _S extends ConsumerState<AgentHomeScreen> {
           .eq('delivery_agent_id', user!.agentId!)
           .order('created_at', ascending: false)
           .limit(10);
-      batches = (raw as List).cast<Map<String, dynamic>>().where((b) {
+      batches = (raw as List).cast<Map<String,dynamic>>().where((b) {
         final s = b['status'] as String? ?? '';
         return s != 'completed' && s != 'cancelled';
       }).toList();
