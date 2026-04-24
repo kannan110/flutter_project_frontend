@@ -31,8 +31,9 @@ android {
     }
 
     configurations.all {
+
         resolutionStrategy {
-            force("androidx.core:core-ktx:1.12.0")
+            force("androidx.annotation:annotation:1.7.0")
         }
     }
 
@@ -44,7 +45,9 @@ android {
         }
     }
 }
-
+dependencies {
+    implementation("androidx.core:core-splashscreen:1.0.1")
+}
 flutter {
     source = "../.."
 }

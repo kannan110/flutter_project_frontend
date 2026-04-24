@@ -12,8 +12,10 @@ class AgentShell extends ConsumerWidget {
     final loc = GoRouterState.of(context).matchedLocation;
 
     // Screens that are "sub-screens" — show back button, hide bottom nav
-    final isSubScreen = loc.startsWith('/a/batch/') ||    // batch pickup + DC view
-                        loc.startsWith('/a/delivery/') || // delivery complete
+    final isSubScreen = loc.startsWith('/a/batch/') ||         // batch pickup + DC view
+                        loc.startsWith('/a/delivery/') ||      // delivery complete
+                        loc.startsWith('/a/delivery-history/') || // delivery history
+                        loc == '/a/instant-order' ||           // instant order
                         loc.startsWith('/a/order/');
 
     int idx = 0;
@@ -30,7 +32,13 @@ class AgentShell extends ConsumerWidget {
       body: child,
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: idx,
-        onTap: (i) => context.go([R.agentHome, R.agentDeliveries, R.agentExpenses, R.shiftOpen][i]),
+        onTap: (i) {
+          const routes = [R.agentHome, R.agentDeliveries, R.agentExpenses];
+          if (i < routes.length) { context.go(routes[i]); return; }
+          // Shift tab — ShiftOpenScreen auto-detects existing shift
+          // and shows close UI if already open
+          context.go(R.shiftOpen);
+        },
         items: const [
           BottomNavigationBarItem(
               icon: Icon(Icons.home_outlined), activeIcon: Icon(Icons.home), label: 'Home'),

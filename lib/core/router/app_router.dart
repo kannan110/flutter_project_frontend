@@ -58,6 +58,7 @@ import '../../features/delivery_agent/batch/batch_pickup_screen.dart';
 import '../../features/delivery_agent/deliveries/agent_deliveries_screen.dart';
 import '../../features/delivery_agent/deliveries/delivery_complete_screen.dart';
 import '../../features/delivery_agent/expenses/expenses_screen.dart';
+import '../../features/delivery_agent/deliveries/delivery_history_screen.dart';
 
 abstract class R {
   static const splash         = '/';
@@ -88,7 +89,6 @@ abstract class R {
   static const retailerCreate = '/t/retailers/create';
   static const retailerDetail = '/t/retailers/:id';
   static const agents         = '/t/agents';
-  static const userMgmt         = '/t/userMgmt';
   static const agentCreate    = '/t/agents/create';
   static const agentDetail    = '/t/agents/:id';
   static const rates          = '/t/rates';
@@ -114,6 +114,9 @@ abstract class R {
   static const agentDeliveries = '/a/deliveries';
   static const deliveryDone   = '/a/delivery/:id/complete';
   static const agentExpenses  = '/a/expenses';
+  static const userMgmt        = '/t/user-management';
+  static const deliveryHistory = '/a/delivery-history/:id';
+  static String deliveryHistoryPath(String id) => '/a/delivery-history/\$id';
 
   static String orderDetailPath(String id)     => '/t/orders/$id';
   static String batchDetailPath(String id)     => '/t/dispatch/batch/$id';
@@ -254,6 +257,8 @@ final appRouterProvider = Provider<GoRouter>((ref) => GoRouter(
         GoRoute(path: R.deliveryDone,     builder: (_, s)  => DeliveryCompleteScreen(deliveryId: s.pathParameters['id']!)),
         GoRoute(path: R.agentExpenses,    builder: (_, __) => const ExpensesScreen()),
         GoRoute(path: R.instantOrder,     builder: (_, __)  => const InstantOrderScreen()),
+        GoRoute(path: R.deliveryHistory,  builder: (_, s)   =>
+            DeliveryHistoryScreen(orderId: s.pathParameters['id']!)),
       ],
     ),
   ],

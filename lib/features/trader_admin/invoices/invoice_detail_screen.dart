@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:printing/printing.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/theme/app_theme.dart';
 
@@ -110,6 +113,167 @@ class _S extends State<InvoiceDetailScreen> {
     return buf.toString();
   }
 
+  Future<void> _generatePdf() async {
+    if (_inv == null) return;
+    final inv  = _inv!;
+    final r    = inv['retailers'] as Map<String,dynamic>?;
+    final t    = inv['traders']   as Map<String,dynamic>?;
+    final date = DateTime.tryParse(inv['invoice_date'] as String? ?? '');
+    final kg   = (inv['quantity_kg']     as double?)?.toDouble() ?? 0;
+    final birds = inv['bird_count'] as int? ?? 0;
+    final rate  = (inv['price_per_kg']    as double?)?.toDouble() ?? 0;
+    final sub   = (inv['subtotal_amount'] as double?)?.toDouble() ?? (kg * rate);
+    final disc  = (inv['discount_amount'] as double?)?.toDouble() ?? 0;
+    final total = (inv['total_amount']    as double?)?.toDouble() ?? 0;
+    final coll  = (inv['collected_amount'] as double?)?.toDouble() ?? 0;
+    final bal   = (inv['balance_amount']  as double?)?.toDouble() ?? 0;
+    final num   = inv['invoice_number'] as String? ?? 'INVOICE';
+
+    final font = await PdfGoogleFonts.notoSansRegular();
+    final boldFont = await PdfGoogleFonts.notoSansBold();
+
+    final doc = pw.Document(
+      theme: pw.ThemeData.withFont(
+        base: font,
+        bold: boldFont,
+      ),
+    );
+
+    final invoiceNo = inv['invoice_number'] as String? ?? 'INVOICE';
+
+    final green   = PdfColor.fromInt(0xFF1B5E20);
+    final primary = PdfColor.fromInt(0xFFBF1B2C);
+    final grey    = PdfColor.fromInt(0xFF616161);
+    final bgLight = PdfColor.fromInt(0xFFF5F5F5);
+
+    doc.addPage(pw.Page(
+      pageFormat: PdfPageFormat.a4,
+      margin: const pw.EdgeInsets.all(32),
+      build: (ctx) => pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        children: [
+          // ── Header ────────────────────────────────────────────
+          pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [
+            pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
+              pw.Text(t?['company_name'] as String? ?? 'Rooster Trader',
+                  style: pw.TextStyle(fontSize: 20, fontWeight: pw.FontWeight.bold, color: primary)),
+              if (t?['phone'] != null)
+                pw.Text('Phone: ${t!['phone']}', style: pw.TextStyle(fontSize: 10, color: grey)),
+              if (t?['gst_number'] != null)
+                pw.Text('GST: ${t!['gst_number']}', style: pw.TextStyle(fontSize: 10, color: grey)),
+            ]),
+            pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.end, children: [
+              pw.Text('TAX INVOICE', style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold, color: primary)),
+              pw.Text(num, style: pw.TextStyle(fontSize: 11, color: grey)),
+              if (date != null)
+                pw.Text('Date: ${DateFormat('d MMM y').format(date)}',
+                    style: pw.TextStyle(fontSize: 10, color: grey)),
+            ]),
+          ]),
+          pw.SizedBox(height: 12),
+          pw.Divider(color: primary),
+          pw.SizedBox(height: 10),
+
+          // ── Bill To ───────────────────────────────────────────
+          pw.Container(
+            padding: const pw.EdgeInsets.all(10),
+            decoration: pw.BoxDecoration(color: bgLight,
+                borderRadius: pw.BorderRadius.circular(4)),
+            child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
+              pw.Text('BILL TO', style: pw.TextStyle(fontSize: 9, color: grey, fontWeight: pw.FontWeight.bold)),
+              pw.SizedBox(height: 4),
+              pw.Text(r?['shop_name'] as String? ?? '—',
+                  style: pw.TextStyle(fontSize: 13, fontWeight: pw.FontWeight.bold)),
+              if (r?['owner_name'] != null)
+                pw.Text(r!['owner_name'] as String, style: pw.TextStyle(fontSize: 10, color: grey)),
+              if (r?['phone'] != null)
+                pw.Text('Phone: ${r!['phone']}', style: pw.TextStyle(fontSize: 10, color: grey)),
+              if (r?['address'] != null)
+                pw.Text(r!['address'] as String, style: pw.TextStyle(fontSize: 10, color: grey)),
+            ])),
+          pw.SizedBox(height: 16),
+
+          // ── Items table ────────────────────────────────────────
+          pw.Table(columnWidths: {
+            0: const pw.FlexColumnWidth(3),
+            1: const pw.FlexColumnWidth(1.5),
+            2: const pw.FlexColumnWidth(1.5),
+            3: const pw.FlexColumnWidth(2),
+          }, children: [
+            // Header
+            pw.TableRow(
+              decoration: pw.BoxDecoration(color: primary),
+              children: ['Item', 'Birds', 'Weight (kg)', 'Amount (₹)'].map((h) =>
+                pw.Padding(padding: const pw.EdgeInsets.all(6),
+                  child: pw.Text(h, style: pw.TextStyle(color: PdfColors.white,
+                      fontSize: 10, fontWeight: pw.FontWeight.bold)))).toList()),
+            // Data rows
+            if (_items.isEmpty)
+              pw.TableRow(children: [
+                _cell('Broiler Chicken', bgLight),
+                _cell('$birds', bgLight),
+                _cell('${kg.toStringAsFixed(2)}', bgLight),
+                _cell('₹${sub.toStringAsFixed(2)}', bgLight),
+              ])
+            else ..._items.map((item) {
+              final p  = item['master_products'] as Map<String,dynamic>?;
+              final ib = (item['bird_count'] as int?)?.toInt() ?? 0;
+              final iw = (item['total_weight'] as double?)?.toDouble() ?? 0;
+              final ir = (item['rate_per_kg'] as double?)?.toDouble() ?? 0;
+              final it = (item['line_total'] as double?)?.toDouble() ?? (iw * ir);
+              return pw.TableRow(children: [
+                _cell(p?['name'] as String? ?? '—', PdfColors.white),
+                _cell('$ib', PdfColors.white),
+                _cell('${iw.toStringAsFixed(2)}', PdfColors.white),
+                _cell('₹${it.toStringAsFixed(2)}', PdfColors.white),
+              ]);
+            }),
+          ]),
+          pw.SizedBox(height: 16),
+
+          // ── Totals ─────────────────────────────────────────────
+          pw.Align(alignment: pw.Alignment.centerRight,
+            child: pw.Container(width: 220,
+              child: pw.Column(children: [
+                if (disc > 0) ...[
+                  _totRow('Subtotal', '₹${sub.toStringAsFixed(2)}', grey),
+                  _totRow('Discount', '-₹${disc.toStringAsFixed(2)}', grey),
+                ],
+                pw.Divider(color: grey),
+                _totRow('TOTAL', '₹${total.toStringAsFixed(2)}', primary, bold: true, size: 13),
+                _totRow('Collected', '₹${coll.toStringAsFixed(2)}', green),
+                pw.Divider(color: PdfColor.fromInt(0xFFE57373)),
+                _totRow('BALANCE DUE', '₹${bal.toStringAsFixed(2)}',
+                    bal > 0 ? PdfColor.fromInt(0xFFE65100) : green, bold: true, size: 12),
+              ]))),
+          pw.SizedBox(height: 20),
+
+          // ── Footer ────────────────────────────────────────────
+          pw.Divider(color: grey),
+          pw.SizedBox(height: 6),
+          pw.Text('Thank you for your business!',
+              style: pw.TextStyle(fontSize: 10, color: grey, fontStyle: pw.FontStyle.italic)),
+          pw.Text('Generated by Rooster Trader • ${DateFormat('d MMM y, h:mm a').format(DateTime.now())}',
+              style: pw.TextStyle(fontSize: 8, color: PdfColor.fromInt(0xFF9E9E9E))),
+        ])));
+
+    await Printing.layoutPdf(onLayout: (_) async => doc.save());
+  }
+
+  static pw.Widget _cell(String text, PdfColor bg) =>
+    pw.Padding(padding: const pw.EdgeInsets.all(6),
+      child: pw.Text(text, style: const pw.TextStyle(fontSize: 10)));
+
+  static pw.Widget _totRow(String label, String value, PdfColor color,
+      {bool bold = false, double size = 11}) =>
+    pw.Padding(padding: const pw.EdgeInsets.symmetric(vertical: 2),
+      child: pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [
+        pw.Text(label, style: pw.TextStyle(fontSize: size, color: color,
+            fontWeight: bold ? pw.FontWeight.bold : pw.FontWeight.normal)),
+        pw.Text(value, style: pw.TextStyle(fontSize: size, color: color,
+            fontWeight: bold ? pw.FontWeight.bold : pw.FontWeight.normal)),
+      ]));
+
   Future<void> _shareWhatsApp() async {
     final text = _buildWhatsAppText();
     await Clipboard.setData(ClipboardData(text: text));
@@ -154,6 +318,10 @@ class _S extends State<InvoiceDetailScreen> {
       appBar: AppBar(
         title: Text(inv['invoice_number'] as String? ?? 'Invoice'),
         actions: [
+          IconButton(
+              icon: const Icon(Icons.picture_as_pdf_outlined),
+              tooltip: 'Generate PDF',
+              onPressed: _generatePdf),
           IconButton(icon: const Icon(Icons.share), onPressed: _shareWhatsApp),
           IconButton(icon: const Icon(Icons.refresh), onPressed: _load),
         ]),

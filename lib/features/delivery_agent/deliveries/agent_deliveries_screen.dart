@@ -236,7 +236,7 @@ class _S extends ConsumerState<AgentDeliveriesScreen> {
                 Expanded(child: OutlinedButton.icon(
                   onPressed: () {
                     final orderId = (d['order_id'] ?? (d['orders'] as Map?)?['id']) as String?;
-                    if (orderId != null) context.push(R.deliveryDonePath(orderId));
+                    if (orderId != null) context.push(R.deliveryHistoryPath(orderId));
                   },
                   icon: const Icon(Icons.history, size: 14),
                   label: const Text('View History', style: TextStyle(fontSize: 12)),

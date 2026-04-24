@@ -1,12 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Modify this file to customize your launch splash screen -->
-<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
-    <item android:drawable="@android:color/white" />
+<!--
+  launch_background.xml
+  ─────────────────────
+  Fully transparent background — the native splash window is invisible.
+  Flutter's own SplashScreen renders immediately on top with no flash.
 
-    <!-- You can insert your own image assets here -->
-    <!-- <item>
-        <bitmap
-            android:gravity="center"
-            android:src="@mipmap/launch_image" />
-    </item> -->
+  DO NOT add a bitmap or icon here. That is what causes the
+  white-screen-with-icon flash before Flutter is ready.
+-->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:drawable="@android:color/transparent" />
 </layer-list>

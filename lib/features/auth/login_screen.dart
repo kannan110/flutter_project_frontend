@@ -60,37 +60,77 @@ class _S extends ConsumerState<LoginScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: kBgGrey,
-      body: SafeArea(child: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 24),
-        child: Column(children: [
-          const SizedBox(height: 40),
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              const SizedBox(height: 32),
 
-          // Logo
-          Container(
-            width: 80, height: 80,
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                  colors: [Color(0xFF1B6B3A), Color(0xFF2E8B57)],
-                  begin: Alignment.topLeft, end: Alignment.bottomRight),
-              borderRadius: BorderRadius.circular(20),
-              boxShadow: [BoxShadow(color: kPrimary.withValues(alpha: 0.3),
-                  blurRadius: 16, offset: const Offset(0, 6))]),
-            child: const Center(child: Text('🐓', style: TextStyle(fontSize: 38)))),
-          const SizedBox(height: 12),
-          const Text('Rooster Trader', style: TextStyle(
-              fontSize: 26, fontWeight: FontWeight.w900, color: kTextMain)),
-          const Text('Poultry Trading App', style: TextStyle(fontSize: 13, color: kTextHint)),
-          const SizedBox(height: 32),
+              // 🔥 Header (Logo + Subtitle grouped)
+              Column(
+                children: [
+                  SizedBox(
+                    width: MediaQuery.of(context).size.width * 0.72,
+                    child: Image.asset(
+                      'assets/images/logo.png',
+                      fit: BoxFit.contain,
+                    ),
+                  ),
 
-          // Content by step
-          if (_step == 0) _buildRolePicker()
-          else if (_step == 1) _buildSignIn(title: 'Trader Sign In', hint: 'Sign in to your trader account')
-          else if (_step == 2) _buildTraderRegister()
-          else _buildAgentSection(),
+                  const SizedBox(height: 2),
 
-          const SizedBox(height: 30),
-        ]),
-      )));
+                  Text(
+                    'Smart Poultry Trading',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 28),
+
+              // 🔥 Content Card (gives structure)
+              Container(
+                padding: const EdgeInsets.all(5),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.05),
+                      blurRadius: 12,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  children: [
+                    if (_step == 0)
+                      _buildRolePicker()
+                    else if (_step == 1)
+                      _buildSignIn(
+                        title: 'Trader Sign In',
+                        hint: 'Sign in to your trader account',
+                      )
+                    else if (_step == 2)
+                        _buildTraderRegister()
+                      else
+                        _buildAgentSection(),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 24),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   // ── Step 0: Who are you? ───────────────────────────────────────────────────
@@ -206,27 +246,26 @@ class _S extends ConsumerState<LoginScreen> {
   }
 
   Widget _buildAgentSignIn() => _card(children: [
-        _backBtn(),
-        const SizedBox(height: 4),
-        Row(children: [
-          const Icon(Icons.delivery_dining, color: kPrimary, size: 22),
-          const SizedBox(width: 8),
-          const Text('Delivery Agent',
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
-        ]),
-        const SizedBox(height: 4),
-        const Text('Sign in with your registered email and password.',
-            style: TextStyle(fontSize: 12, color: kTextSub)),
-        const SizedBox(height: 20),
-        if (_err != null) _errBox(_err!),
-        _emailField(),
-        const SizedBox(height: 12),
-        _passField(),
-        const SizedBox(height: 20),
-        _submitBtn('Sign In', _signIn),
-        const SizedBox(height: 16),
-        const Divider(),
-        const SizedBox(height: 12),
+    _backBtn(),
+    const SizedBox(height: 4),
+    Row(children: [
+      const Icon(Icons.delivery_dining, color: kPrimary, size: 22),
+      const SizedBox(width: 8),
+      const Text('Delivery Agent', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
+    ]),
+    const SizedBox(height: 4),
+    const Text('Sign in with your registered email and password.',
+        style: TextStyle(fontSize: 12, color: kTextSub)),
+    const SizedBox(height: 20),
+    if (_err != null) _errBox(_err!),
+    _emailField(),
+    const SizedBox(height: 12),
+    _passField(),
+    const SizedBox(height: 20),
+    _submitBtn('Sign In', _signIn),
+    const SizedBox(height: 16),
+    const Divider(),
+    const SizedBox(height: 12),
 
         // ── New agent path ──────────────────────────────────────────────
         Container(
@@ -285,28 +324,23 @@ class _S extends ConsumerState<LoginScreen> {
       ]);
 
   Widget _buildAgentSignUp() => _card(children: [
-        // Back to sign in
-        GestureDetector(
-            onTap: () => setState(() {
-                  _agentSignUpMode = false;
-                  _err = null;
-                }),
-            child: const Row(mainAxisSize: MainAxisSize.min, children: [
-              Icon(Icons.arrow_back_ios, size: 14, color: kTextSub),
-              Text('Back to Sign In',
-                  style: TextStyle(fontSize: 13, color: kTextSub)),
-            ])),
-        const SizedBox(height: 16),
-        const Row(children: [
-          Icon(Icons.person_add, color: kPrimary, size: 22),
-          SizedBox(width: 8),
-          Text('Create Agent Account',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
-        ]),
-        const SizedBox(height: 4),
-        const Text('Create your login account (do this only once).',
-            style: TextStyle(fontSize: 12, color: kTextSub)),
-        const SizedBox(height: 20),
+    // Back to sign in
+    GestureDetector(
+      onTap: () => setState(() { _agentSignUpMode = false; _err = null; }),
+      child: const Row(mainAxisSize: MainAxisSize.min, children: [
+        Icon(Icons.arrow_back_ios, size: 14, color: kTextSub),
+        Text('Back to Sign In', style: TextStyle(fontSize: 13, color: kTextSub)),
+      ])),
+    const SizedBox(height: 16),
+    const Row(children: [
+      Icon(Icons.person_add, color: kPrimary, size: 22),
+      SizedBox(width: 8),
+      Text('Create Agent Account', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+    ]),
+    const SizedBox(height: 4),
+    const Text('Create your login account (do this only once).',
+        style: TextStyle(fontSize: 12, color: kTextSub)),
+    const SizedBox(height: 20),
 
         // Steps
         Container(
@@ -323,24 +357,23 @@ class _S extends ConsumerState<LoginScreen> {
                     TextStyle(fontSize: 12, color: Colors.brown, height: 1.5))),
         const SizedBox(height: 16),
 
-        if (_err != null) _errBox(_err!),
+    if (_err != null) _errBox(_err!),
 
-        _emailField(),
-        const SizedBox(height: 12),
-        _passField(),
-        const SizedBox(height: 12),
+    _emailField(),
+    const SizedBox(height: 12),
+    _passField(),
+    const SizedBox(height: 12),
 
-        // Confirm password
-        TextField(
-            controller: _confirmCtrl,
-            obscureText: true,
-            textInputAction: TextInputAction.done,
-            decoration: const InputDecoration(
-                labelText: 'Confirm Password',
-                prefixIcon:
-                    Icon(Icons.lock_outline, size: 20, color: kPrimary)),
-            onSubmitted: (_) => _agentSignUpSubmit()),
-        const SizedBox(height: 20),
+    // Confirm password
+    TextField(
+      controller: _confirmCtrl,
+      obscureText: true,
+      textInputAction: TextInputAction.done,
+      decoration: const InputDecoration(
+          labelText: 'Confirm Password',
+          prefixIcon: Icon(Icons.lock_outline, size: 20, color: kPrimary)),
+      onSubmitted: (_) => _agentSignUpSubmit()),
+    const SizedBox(height: 20),
 
     _submitBtn('Create My Account', _agentSignUpSubmit),
     const SizedBox(height: 10),

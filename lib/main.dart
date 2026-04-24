@@ -8,6 +8,19 @@ import 'core/theme/app_theme.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Remove the native splash (windowBackground) the moment Flutter engine is
+  // ready — before Supabase.initialize completes. This means the user jumps
+  // directly from app launch into our Dart SplashScreen with zero white flash.
+  // The engine posts a callback that swaps LaunchTheme -> NormalTheme and
+  // calls FlutterView.render; we call remove() here to dismiss it as fast as
+  // possible.
+  SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+  SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
+    statusBarColor: Colors.transparent,
+    statusBarIconBrightness: Brightness.light,
+    systemNavigationBarColor: Colors.transparent,
+  ));
   SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
   SupabaseConfig.assertConfigured();
   await Supabase.initialize(

@@ -14,13 +14,19 @@ class CreateRetailerScreen extends ConsumerStatefulWidget {
 class _S extends ConsumerState<CreateRetailerScreen> {
   final _c = Supabase.instance.client;
   final _form = GlobalKey<FormState>();
-  final _shopName = TextEditingController();
-  final _ownerName = TextEditingController();
-  final _phone = TextEditingController();
-  final _address = TextEditingController();
+  final _shopName   = TextEditingController();
+  final _shopTamil  = TextEditingController();
+  final _ownerName  = TextEditingController();
+  final _phone      = TextEditingController();
+  final _address    = TextEditingController();
+  final _city       = TextEditingController();
   final _creditLimit = TextEditingController(text: '100000');
   bool _submitting = false;
-  @override void dispose() { _shopName.dispose(); _ownerName.dispose(); _phone.dispose(); _address.dispose(); _creditLimit.dispose(); super.dispose(); }
+  @override void dispose() {
+    _shopName.dispose(); _shopTamil.dispose(); _ownerName.dispose();
+    _phone.dispose(); _address.dispose(); _city.dispose(); _creditLimit.dispose();
+    super.dispose();
+  }
 
   Future<void> _save() async {
     if (!_form.currentState!.validate()) return;
@@ -29,13 +35,15 @@ class _S extends ConsumerState<CreateRetailerScreen> {
     try {
       // retailers columns: trader_id, shop_name, owner_name, phone, address, credit_limit, is_active
       await _c.from('retailers').insert({
-        'trader_id': tid,
-        'shop_name': _shopName.text.trim(),
-        'owner_name': _ownerName.text.trim().isEmpty ? null : _ownerName.text.trim(),
-        'phone': _phone.text.trim().isEmpty ? null : _phone.text.trim(),
-        'address': _address.text.trim().isEmpty ? null : _address.text.trim(),
-        'credit_limit': double.tryParse(_creditLimit.text.trim()) ?? 100000,
-        'is_active': true,
+        'trader_id':       tid,
+        'shop_name':       _shopName.text.trim(),
+        'shop_name_tamil': _shopTamil.text.trim().isEmpty ? null : _shopTamil.text.trim(),
+        'owner_name':      _ownerName.text.trim().isEmpty ? null : _ownerName.text.trim(),
+        'phone':           _phone.text.trim().isEmpty ? null : _phone.text.trim(),
+        'address':         _address.text.trim().isEmpty ? null : _address.text.trim(),
+        'city':            _city.text.trim().isEmpty ? null : _city.text.trim(),
+        'credit_limit':    double.tryParse(_creditLimit.text.trim()) ?? 100000,
+        'is_active':       true,
       });
       if (mounted) { showSuccess(context, '${_shopName.text.trim()} added ✓'); if (context.canPop()) context.pop(); else context.go(R.retailers); }
     } catch (e) { if (mounted) showError(context, e.toString()); }
@@ -49,8 +57,11 @@ class _S extends ConsumerState<CreateRetailerScreen> {
       child: Form(key: _form, child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         const SectionHeader('SHOP DETAILS'),
         TextFormField(controller: _shopName, textCapitalization: TextCapitalization.words,
-            decoration: const InputDecoration(labelText: 'Shop Name *', prefixIcon: Icon(Icons.store_outlined, size: 20)),
+            decoration: const InputDecoration(labelText: 'Shop Name (English) *', prefixIcon: Icon(Icons.store_outlined, size: 20)),
             validator: (v) => v!.trim().isEmpty ? 'Required' : null),
+        const SizedBox(height: 12),
+        TextFormField(controller: _shopTamil,
+            decoration: const InputDecoration(labelText: 'கடை பெயர் (Tamil — optional)', prefixIcon: Icon(Icons.translate_outlined, size: 20))),
         const SizedBox(height: 12),
         TextFormField(controller: _ownerName, textCapitalization: TextCapitalization.words,
             decoration: const InputDecoration(labelText: 'Owner Name', prefixIcon: Icon(Icons.person_outline, size: 20))),
@@ -58,7 +69,14 @@ class _S extends ConsumerState<CreateRetailerScreen> {
         TextFormField(controller: _phone, keyboardType: TextInputType.phone,
             decoration: const InputDecoration(labelText: 'Phone', prefixIcon: Icon(Icons.phone_outlined, size: 20))),
         const SizedBox(height: 12),
-        TextFormField(controller: _address, maxLines: 2, decoration: const InputDecoration(labelText: 'Address', alignLabelWithHint: true)),
+        Row(children: [
+          Expanded(child: TextFormField(controller: _address, maxLines: 2,
+              decoration: const InputDecoration(labelText: 'Address', alignLabelWithHint: true))),
+          const SizedBox(width: 12),
+          Expanded(child: TextFormField(controller: _city,
+              textCapitalization: TextCapitalization.words,
+              decoration: const InputDecoration(labelText: 'City', prefixIcon: Icon(Icons.location_city_outlined, size: 18)))),
+        ]),
         const SizedBox(height: 20),
         const SectionHeader('CREDIT LIMIT'),
         TextFormField(controller: _creditLimit, keyboardType: const TextInputType.numberWithOptions(decimal: true),
