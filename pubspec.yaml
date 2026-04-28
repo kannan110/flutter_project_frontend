@@ -23,6 +23,7 @@ dependencies:
   printing: ^5.13.2                  # PDF print dialog
   pdf: ^3.10.8                       # PDF document builder
   permission_handler: ^11.3.0        # Runtime permissions (BT, storage)
+  audioplayers: ^5.2.1
 
 dev_dependencies:
   flutter_test:
@@ -33,3 +34,4 @@ flutter:
   uses-material-design: true
   assets:
     - assets/images/logo.png
+    - assets/sounds/beep.mp3

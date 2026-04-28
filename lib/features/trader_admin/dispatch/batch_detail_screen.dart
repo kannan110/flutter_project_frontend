@@ -90,9 +90,8 @@ class _S extends ConsumerState<BatchDetailScreen> {
       // FIX: use remove_order_from_batch RPC — resets order status to 'confirmed'
       if (orderId != null && tid != null) {
         await _c.rpc('remove_order_from_batch', params: {
-          'p_batch_id':  widget.id,
-          'p_order_id':  orderId,
-          'p_trader_id': tid,
+          'p_batch_id': widget.id,
+          'p_order_id': orderId,
         });
       } else {
         // Fallback: manual update
@@ -157,16 +156,27 @@ class _S extends ConsumerState<BatchDetailScreen> {
     if (!ok) return;
     if (mounted) setState(() => _submitting = true);
     try {
-      // FIX: Delete in correct FK order — challans -> deliveries -> batch
+      // FIX: Delete in correct FK order
       // Step 1: Nullify batch_id on delivery_shifts if FK exists
       try {
         await _c.from('delivery_shifts').update({'batch_id': null}).eq('batch_id', widget.id);
       } catch (_) { /* column may not exist — safe to ignore */ }
       // Step 2: Delete delivery_challans (FK: batch_id -> delivery_batches.id)
       await _c.from('delivery_challans').delete().eq('batch_id', widget.id);
-      // Step 3: Nullify batch_id on deliveries and cancel them
-      await _c.from('deliveries').update({'status': 'cancelled', 'batch_id': null}).eq('batch_id', widget.id);
-      // Step 4: Now safe to delete the batch
+      // Step 3: Unlock orders linked to this batch (reset to confirmed)
+      final deliveryRows = await _c
+          .from('deliveries')
+          .select('id, order_id')
+          .eq('batch_id', widget.id);
+      for (final d in (deliveryRows as List<dynamic>)) {
+        final oid = d['order_id'];
+        if (oid != null) {
+          await _c.from('orders').update({'status': 'confirmed', 'batch_id': null}).eq('id', oid);
+        }
+      }
+      // Step 4: Delete deliveries (batch_id is NOT NULL — cannot nullify, must delete)
+      await _c.from('deliveries').delete().eq('batch_id', widget.id);
+      // Step 5: Now safe to delete the batch
       await _c.from('delivery_batches').delete().eq('id', widget.id);
       if (mounted) {
         showSuccess(context, 'Batch deleted ✓');
@@ -222,7 +232,7 @@ class _S extends ConsumerState<BatchDetailScreen> {
     String sourceType = 'farm';
 
     await showModalBottomSheet(
-      context: context, isScrollControlled: true, useRootNavigator: true,
+      context: context, useRootNavigator: true, isScrollControlled: true,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (ctx) => StatefulBuilder(builder: (ctx, ss) {
         final grossVal = double.tryParse(grossWtCtrl.text) ?? 0;
@@ -789,7 +799,8 @@ class _DcCardState extends State<_DcCard> {
   }
 
   void _showImageFull(BuildContext context, String url) {
-    showDialog(context: context, builder: (ctx) =>
+    showDialog(
+      context: context, useRootNavigator: true, builder: (ctx) =>
       Dialog(
         insetPadding: const EdgeInsets.all(8),
         child: Stack(children: [

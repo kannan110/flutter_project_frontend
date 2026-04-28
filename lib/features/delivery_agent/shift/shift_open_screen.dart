@@ -31,7 +31,7 @@ class _S extends ConsumerState<ShiftOpenScreen> {
     try {
       final s = await _c
           .from('delivery_shifts')
-          .select('id,status,odometer_start,shift_start_at,total_cash_collected,total_deliveries')
+          .select('id,status,odometer_start,shift_start_at,total_cash_collected,total_orders')
           .eq('delivery_agent_id', agentId)
           .eq('status', 'open')
           .maybeSingle();
@@ -121,8 +121,8 @@ class _S extends ConsumerState<ShiftOpenScreen> {
           ]),
           const SizedBox(height: 10),
           _infoRow('Odometer start', '${_existing!['odometer_start'] ?? '—'} km'),
-          if ((_existing!['total_deliveries'] as int? ?? 0) > 0)
-            _infoRow('Deliveries done', '${_existing!['total_deliveries']}'),
+          if ((_existing!['total_orders'] as int? ?? 0) > 0)
+            _infoRow('Deliveries done', '${_existing!['total_orders']}'),
           if ((_existing!['total_cash_collected'] as num? ?? 0) > 0)
             _infoRow('Cash collected', Fmt.amount((_existing!['total_cash_collected'] as num).toDouble())),
         ])),

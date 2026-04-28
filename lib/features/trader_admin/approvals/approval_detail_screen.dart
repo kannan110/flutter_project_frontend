@@ -149,14 +149,20 @@ class _S extends ConsumerState<ApprovalDetailScreen> {
       (_delivery?['orders']?['total_quantity'] as num?)?.toDouble() ?? 0;
   int    get _orderExpectedBirds =>
       (_delivery?['orders']?['estimated_birds'] as num?)?.toInt() ?? 0;
+  // DC weight stored on delivery (set by complete_delivery RPC) — best base for loss %
+  double get _dcWeightForLoss =>
+      (_delivery?['dc_weight_kg'] as num?)?.toDouble() ?? _orderExpectedWt;
   double get _transportLoss =>
       (_delivery?['transport_loss_kg'] as num?)?.toDouble() ??
-      (_orderExpectedWt > 0 && _billingWeight > 0
-          ? (_orderExpectedWt - _billingWeight).clamp(0.0, double.infinity) : 0);
+      (_dcWeightForLoss > 0 && _billingWeight > 0
+          ? (_dcWeightForLoss - _billingWeight).clamp(0.0, double.infinity) : 0);
   double get _mortalityWt =>
       (_delivery?['mortality_weight_kg'] as num?)?.toDouble() ?? 0;
   double get _totalLoss     => _transportLoss + _mortalityWt;
-  double get _lossPct       => _orderExpectedWt > 0 ? (_totalLoss / _orderExpectedWt * 100) : 0;
+  // Use stored loss_percentage when available (most accurate); else compute vs DC weight
+  double get _lossPct       =>
+      (_delivery?['loss_percentage'] as num?)?.toDouble() ??
+      (_dcWeightForLoss > 0 ? (_totalLoss / _dcWeightForLoss * 100) : 0);
   bool   get _isHighLoss    => _lossPct >= 2.0;
 
   double get _collected   => (_delivery?['collected_amount'] as num?)?.toDouble() ?? 0;
@@ -521,7 +527,7 @@ class _S extends ConsumerState<ApprovalDetailScreen> {
 
   // ── ORDER-LEVEL LOSS CARD ────────────────────────────────────────
   Widget _buildLossCard(Map<String,dynamic>? o) {
-    final expectedWt    = _orderExpectedWt;
+    final dcWt          = _dcWeightForLoss;
     final expectedBirds = _orderExpectedBirds;
     final deliveredWt   = _billingWeight;
     final deliveredBirds = (_delivery?['delivered_bird_count'] as num?)?.toInt() ?? 0;
@@ -550,23 +556,21 @@ class _S extends ConsumerState<ApprovalDetailScreen> {
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
             decoration: BoxDecoration(
                 color: Colors.white, borderRadius: BorderRadius.circular(6)),
-            child: Text('ORDER LEVEL',
+            child: Text('DC WEIGHT BASIS',
                 style: TextStyle(fontSize: 9, fontWeight: FontWeight.w700,
                     color: _isHighLoss ? Colors.red : Colors.green))),
         ]),
         const SizedBox(height: 12),
-        // Grid: Expected vs Actual
         Container(
           padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.7),
               borderRadius: BorderRadius.circular(8)),
           child: Column(children: [
-            _lossRow('Weight', expectedWt, deliveredWt, 'kg', isHeader: true),
+            _lossRow('Weight', dcWt, deliveredWt, 'kg', isHeader: true),
             const Divider(height: 10),
             _lossRow('Birds', expectedBirds.toDouble(), deliveredBirds.toDouble(), 'birds'),
           ])),
         const SizedBox(height: 10),
-        // Breakdown
         Row(children: [
           _lossChip('Transport Loss', '${_transportLoss.toStringAsFixed(2)} kg', Colors.orange),
           const SizedBox(width: 8),
@@ -939,7 +943,7 @@ class _S extends ConsumerState<ApprovalDetailScreen> {
     showDialog(
       context: context, useRootNavigator: true,
       builder: (ctx) => Dialog(
-        backgroundColor: Colors.black, insetPadding: EdgeInsets.zero,
+        backgroundColor:   Colors.black, insetPadding: EdgeInsets.zero,
         child: Stack(children: [
           InteractiveViewer(
             child: Center(child: Image.network(url, fit: BoxFit.contain,
