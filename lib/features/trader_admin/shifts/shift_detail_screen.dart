@@ -183,7 +183,9 @@ class _S extends ConsumerState<ShiftDetailScreen> {
 
   Future<void> _rejectShift() async {
     final ctrl = TextEditingController();
-    final reason = await showDialog<String>(context: context, builder: (ctx) =>
+    final reason = await showDialog<String>(context: context,
+        useRootNavigator: true,
+        builder: (ctx) =>
         AlertDialog(
           title: const Text('Reject Shift'),
           content: TextField(controller: ctrl,
@@ -767,20 +769,72 @@ class _S extends ConsumerState<ShiftDetailScreen> {
 
   // ── Batch Loss Panel ────────────────────────────────────────────────────────
   Widget _buildBatchLossPanel() {
+    // U6 FIX: If batchLoss is null (loading) or totals show zero DC weight,
+    // warn the trader clearly before they approve blindly.
     if (_batchLoss == null) {
-      return Container(
+      return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Container(
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(color: Colors.grey.shade50,
               borderRadius: BorderRadius.circular(12),
               border: Border.all(color: kBorder)),
           child: const Row(children: [
-            SizedBox(width: 18,
-                height: 18,
-                child: CircularProgressIndicator(strokeWidth: 2)),
+            SizedBox(width: 18, height: 18,
+                child: CircularProgressIndicator(strokeWidth: 2, color: kPrimary)),
             SizedBox(width: 12),
-            Text('Loading loss summary...',
-                style: TextStyle(fontSize: 12, color: kTextSub)),
-          ]));
+            Text('Loading batch loss summary...', style: TextStyle(fontSize: 12, color: kTextSub)),
+          ])),
+        const SizedBox(height: 8),
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(color: Colors.orange.shade50,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: Colors.orange.shade200)),
+          child: const Row(children: [
+            Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 16),
+            SizedBox(width: 8),
+            Expanded(child: Text(
+              'Wait for the batch loss summary to load before approving. '
+              'Approving without DC data will record zero loss.',
+              style: TextStyle(fontSize: 12, color: Colors.orange, fontWeight: FontWeight.w600))),
+          ])),
+      ]);
+    }
+
+    // U6 FIX: check if DC data is actually present
+    final _checkTotals = (_batchLoss!['shift_totals'] as Map?)?.cast<String, dynamic>();
+    final _checkDcKg   = (_checkTotals?['total_dc_weight_kg'] as num?)?.toDouble() ?? 0;
+    if (_checkDcKg == 0) {
+      return Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+            color: Colors.amber.shade50, borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.amber.shade300, width: 1.5)),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          const Row(children: [
+            Icon(Icons.warning_amber_rounded, color: Colors.amber, size: 20),
+            SizedBox(width: 8),
+            Text('No DC Data Found for This Shift',
+                style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14, color: Colors.amber)),
+          ]),
+          const SizedBox(height: 10),
+          const Text(
+            'No delivery challans were recorded for the batches in this shift. '
+            'This means the loss calculation cannot be computed — approving now '
+            'will record zero loss, which may be incorrect.',
+            style: TextStyle(fontSize: 12, color: kTextSub, height: 1.5)),
+          const SizedBox(height: 10),
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8)),
+            child: const Text(
+              'Checklist before approving:'
+              '• Verify with the agent that all DCs were uploaded in batch pickup'
+              '• Check Dispatch screen — does the batch show challan data?'
+              '• If DCs are genuinely missing, reject this shift and ask agent to re-upload',
+              style: TextStyle(fontSize: 11, color: kTextSub, height: 1.6)),
+          ),
+        ]));
     }
 
     final totals = (_batchLoss!['shift_totals'] as Map?)?.cast<String,

@@ -146,11 +146,37 @@ class _S extends ConsumerState<AgentHomeScreen> {
         confirmText: 'Reassign', confirmColor: kPrimary);
     if (!ok || !mounted) return;
     try {
+      // M4 FIX: Also update delivery_shift_id to the new agent's open shift.
+      // Without this, the delivery stays linked to the old agent's shift in
+      // shift_detail_screen and get_shift_summary, causing phantom entries.
+      String? newShiftId;
+      try {
+        final newShift = await _c
+            .from('delivery_shifts')
+            .select('id')
+            .eq('delivery_agent_id', selected!['id'] as String)
+            .eq('status', 'open')
+            .maybeSingle()
+            .timeout(const Duration(seconds: 8));
+        newShiftId = newShift?['id'] as String?;
+      } catch (_) {
+        // Non-fatal — reassign still proceeds, shift linkage just won't update
+      }
+
+      final updateData = <String, dynamic>{'delivery_agent_id': selected!['id']};
+      if (newShiftId != null) updateData['delivery_shift_id'] = newShiftId;
+
       await _c.from('deliveries')
-          .update({'delivery_agent_id': selected!['id']})
+          .update(updateData)
           .eq('id', delivery['id'] as String);
-      showSuccess(context, 'Reassigned to ${selected!['name']}');
-      _load();
+
+      if (mounted) {
+        final note = newShiftId != null
+            ? 'Reassigned to ${selected!['name']} ✓ (linked to their active shift)'
+            : 'Reassigned to ${selected!['name']} ✓ (no active shift found — link manually if needed)';
+        showSuccess(context, note);
+        _load();
+      }
     } catch (e) {
       if (mounted) showError(context, e.toString().replaceAll('Exception: ', ''));
     }

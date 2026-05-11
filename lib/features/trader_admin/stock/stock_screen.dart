@@ -202,13 +202,31 @@ class _S extends ConsumerState<StockScreen> {
                 style: const TextStyle(fontSize: 11, color: Colors.blue)),
           ]),
         ])),
-      // Breakdown grid
-      Padding(padding: const EdgeInsets.fromLTRB(14, 10, 14, 14), child: Row(children: [
-        _stockStat('Total In',   '${p.totalInBirds}',   '${p.totalInKg.toStringAsFixed(0)} kg',   Colors.blue),
-        _stockStat('Delivered',  '${p.totalOutBirds}',  '${p.totalOutKg.toStringAsFixed(0)} kg',  kPrimary),
-        _stockStat('Returns',    '${p.returnedBirds}',  '',                                        Colors.purple),
-        _stockStat('Mortality',  '${p.mortalityBirds}', '',
-            p.mortalityBirds > 0 ? Colors.red : kTextHint),
+      // BUG 1 FIX: Enhanced breakdown grid showing what's IN the "Total Out" number.
+      // total_out_birds = delivered_birds + transferred_out_birds + mortality + shrinkage.
+      // Showing all components prevents the trader from thinking 540 birds = 540 delivered.
+      Padding(padding: const EdgeInsets.fromLTRB(14, 10, 14, 14), child: Column(children: [
+        Row(children: [
+          _stockStat('Total In',  '${p.totalInBirds}',   '${p.totalInKg.toStringAsFixed(0)} kg', Colors.blue),
+          _stockStat('Total Out', '${p.totalOutBirds}',  '${p.totalOutKg.toStringAsFixed(0)} kg', kPrimary),
+          _stockStat('Returns',   '${p.returnedBirds}',  '', Colors.purple),
+          _stockStat('Mortality', '${p.mortalityBirds}', '', p.mortalityBirds > 0 ? Colors.red : kTextHint),
+        ]),
+        // BUG 1 FIX: "Total Out" includes transferred_out — show breakdown if non-zero
+        // This is computed from stock_ledger where delivered + transferred_out = total_out
+        if (p.totalOutBirds > 0) Padding(
+          padding: const EdgeInsets.only(top: 8),
+          child: Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(color: kBgGrey, borderRadius: BorderRadius.circular(8)),
+            child: Row(children: [
+              const Icon(Icons.info_outline, size: 12, color: kTextHint),
+              const SizedBox(width: 6),
+              Expanded(child: Text(
+                'Total Out includes delivered birds + any transfers out. '
+                'See Movements tab for full breakdown.',
+                style: const TextStyle(fontSize: 10, color: kTextSub))),
+            ]))),
       ])),
     ]));
 
@@ -222,7 +240,8 @@ class _S extends ConsumerState<StockScreen> {
     if (_ledger.isEmpty) {
       return const EmptyState(icon: Icons.receipt_long_outlined, message: 'No movements recorded');
     }
-    final isIn = (String t) => ['opening','purchased','returned_in'].contains(t);
+    // BUG 5 FIX: transferred_in is an INFLOW — must be in isIn list so it shows '+'
+    final isIn = (String t) => ['opening','purchased','returned_in','transferred_in'].contains(t);
     return ListView.separated(
       padding: const EdgeInsets.all(16),
       itemCount: _ledger.length,
@@ -350,24 +369,32 @@ class _S extends ConsumerState<StockScreen> {
   ]));
 
   Color _movementColor(String t) => switch(t) {
-    'opening'     => Colors.blue,
-    'purchased'   => Colors.green,
-    'returned_in' => Colors.purple,
-    'delivered'   => kPrimary,
-    'allocated'   => Colors.orange,
-    'mortality'   => Colors.red,
-    'shrinkage'   => Colors.deepOrange,
-    _             => Colors.grey,
+    'opening'          => Colors.blue,
+    'purchased'        => Colors.green,
+    'returned_in'      => Colors.purple,
+    'transferred_in'   => Colors.teal,    // BUG 5 FIX: was grey (looked like outflow)
+    'delivered'        => kPrimary,
+    'allocated'        => Colors.orange,
+    'transferred_out'  => Colors.indigo,  // BUG 5 FIX: distinct colour from delivered
+    'mortality'        => Colors.red,
+    'shrinkage'        => Colors.deepOrange,
+    'shift_close_return' => Colors.purple,
+    'closing_stock'    => Colors.grey,
+    _                  => Colors.grey,
   };
 
   IconData _movementIcon(String t) => switch(t) {
-    'opening'     => Icons.home_outlined,
-    'purchased'   => Icons.add_shopping_cart,
-    'returned_in' => Icons.assignment_return_outlined,
-    'delivered'   => Icons.local_shipping_outlined,
-    'allocated'   => Icons.inventory_outlined,
-    'mortality'   => Icons.sentiment_very_dissatisfied_outlined,
-    'shrinkage'   => Icons.compress_outlined,
-    _             => Icons.circle_outlined,
+    'opening'           => Icons.home_outlined,
+    'purchased'         => Icons.add_shopping_cart,
+    'returned_in'       => Icons.assignment_return_outlined,
+    'transferred_in'    => Icons.swap_horiz,           // BUG 5 FIX: distinct icon
+    'transferred_out'   => Icons.swap_horiz,
+    'delivered'         => Icons.local_shipping_outlined,
+    'allocated'         => Icons.inventory_outlined,
+    'mortality'         => Icons.sentiment_very_dissatisfied_outlined,
+    'shrinkage'         => Icons.compress_outlined,
+    'shift_close_return'=> Icons.assignment_return_outlined,
+    'closing_stock'     => Icons.lock_outline,
+    _                   => Icons.circle_outlined,
   };
 }

@@ -40,7 +40,7 @@ class _S extends ConsumerState<RatesScreen> {
         final rate = (h['rate_per_kg'] as num).toDouble();
         if (!rates.containsKey(pid)) rates[pid] = rate;
         hist.putIfAbsent(pid, () => []);
-        if (hist[pid]!.length < 7) hist[pid]!.add(Map<String,dynamic>.from(h as Map));
+        if (hist[pid]!.length < 30) hist[pid]!.add(Map<String,dynamic>.from(h as Map)); // U8 FIX: was 7, now 30 for full history view
       }
 
       if (!mounted) return;
@@ -116,6 +116,86 @@ class _S extends ConsumerState<RatesScreen> {
     } catch (e) { if (mounted) showError(context, e.toString()); }
   }
 
+  // U8 FIX: Full rate history bottom sheet — shows all entries beyond the 5 shown inline.
+  void _showFullHistory(BuildContext ctx, String productName, List<Map<String,dynamic>> hist) {
+    showModalBottomSheet(
+      context: ctx,
+      useRootNavigator: true,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (bctx) => DraggableScrollableSheet(
+        expand: false,
+        initialChildSize: 0.6,
+        maxChildSize: 0.9,
+        builder: (_, ctrl) => Column(children: [
+          // Handle + header
+          Padding(padding: const EdgeInsets.fromLTRB(20, 12, 20, 0), child: Column(children: [
+            Center(child: Container(width: 40, height: 4,
+                decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2)))),
+            const SizedBox(height: 12),
+            Row(children: [
+              const Icon(Icons.history, color: kPrimary, size: 20),
+              const SizedBox(width: 8),
+              Expanded(child: Text('Rate History — $productName',
+                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800))),
+              Text('${hist.length} entries',
+                  style: const TextStyle(fontSize: 12, color: kTextHint)),
+            ]),
+            const SizedBox(height: 10),
+            const Divider(height: 1),
+          ])),
+          // Full history list
+          Expanded(child: ListView.separated(
+            controller: ctrl,
+            padding: const EdgeInsets.all(20),
+            itemCount: hist.length,
+            separatorBuilder: (_, __) => const SizedBox(height: 2),
+            itemBuilder: (_, i) {
+              final h = hist[i];
+              final d = DateTime.tryParse(h['effective_date'] as String? ?? '');
+              final r = (h['rate_per_kg'] as num).toDouble();
+              final isLatest = i == 0;
+              // Trend arrow vs previous
+              double? prevR;
+              if (i < hist.length - 1) prevR = (hist[i + 1]['rate_per_kg'] as num).toDouble();
+              final trend = prevR != null ? r.compareTo(prevR) : 0;
+              return Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                decoration: BoxDecoration(
+                    color: isLatest ? kPrimary.withValues(alpha: 0.06) : Colors.white,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: isLatest ? kPrimary.withValues(alpha: 0.2) : kBorder)),
+                child: Row(children: [
+                  Container(
+                    width: 32, height: 32,
+                    decoration: BoxDecoration(
+                        color: isLatest ? kPrimary.withValues(alpha: 0.12) : Colors.grey.shade100,
+                        shape: BoxShape.circle),
+                    child: Center(child: Text('${hist.length - i}',
+                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800,
+                            color: isLatest ? kPrimary : kTextHint)))),
+                  const SizedBox(width: 12),
+                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text(d != null ? DateFormat('d MMMM y').format(d) : '—',
+                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600,
+                            color: isLatest ? kPrimary : kTextMain)),
+                    if (isLatest)
+                      const Text('Current rate', style: TextStyle(fontSize: 10, color: kPrimary)),
+                  ])),
+                  if (trend != 0) ...[ 
+                    Icon(trend > 0 ? Icons.trending_up : Icons.trending_down,
+                        color: trend > 0 ? Colors.green : Colors.red, size: 16),
+                    const SizedBox(width: 4),
+                  ],
+                  Text(Fmt.amount(r),
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900,
+                          color: isLatest ? kPrimary : kTextMain)),
+                  Text('/kg', style: const TextStyle(fontSize: 10, color: kTextHint)),
+                ]));
+            })),
+        ])));
+  }
+
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(
@@ -177,12 +257,30 @@ class _S extends ConsumerState<RatesScreen> {
                           tooltip: 'Update rate'),
                       ]),
 
-                      // Rate history mini-timeline
+                      // U8 FIX: Rate history mini-timeline + "View all" link
                       if (hist.length > 1) ...[
                         const SizedBox(height: 10),
                         const Divider(height: 1),
                         const SizedBox(height: 8),
-                        const Text('History', style: TextStyle(fontSize: 10, color: kTextHint, letterSpacing: 0.5)),
+                        Row(children: [
+                          const Text('History', style: TextStyle(fontSize: 10, color: kTextHint, letterSpacing: 0.5)),
+                          const Spacer(),
+                          // U8 FIX: Show "View all X entries" when there are more than 5
+                          if (hist.length > 5)
+                            GestureDetector(
+                              onTap: () => _showFullHistory(context, p['name'] as String, hist),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                decoration: BoxDecoration(
+                                    color: kPrimary.withValues(alpha: 0.08),
+                                    borderRadius: BorderRadius.circular(6)),
+                                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                                  const Icon(Icons.history, size: 11, color: kPrimary),
+                                  const SizedBox(width: 4),
+                                  Text('View all ${hist.length}',
+                                      style: const TextStyle(fontSize: 10, color: kPrimary, fontWeight: FontWeight.w700)),
+                                ]))),
+                        ]),
                         const SizedBox(height: 6),
                         Row(children: hist.take(5).toList().asMap().entries.map((e) {
                           final h = e.value;

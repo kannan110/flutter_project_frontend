@@ -17,6 +17,9 @@ class _S extends ConsumerState<DispatchScreen> with SingleTickerProviderStateMix
   List<Map<String,dynamic>> _all = [];
   bool _loading = true;
   late TabController _tab;
+  // M5 FIX: Completed/cancelled batches use a rolling date window to avoid
+  // loading hundreds of old records. "Load More" extends the window by 7 days.
+  int _completedDaysBack = 7; // show last N days of completed/cancelled
 
   static const _tabs = ['Today', 'Live', 'Completed', 'Cancelled'];
 
@@ -32,7 +35,12 @@ class _S extends ConsumerState<DispatchScreen> with SingleTickerProviderStateMix
     if (tid == null) return;
     if (mounted) setState(() => _loading = true);
     try {
-      // Fetch batches with actual delivery counts (not stale total_orders column)
+      // M5 FIX: Active/today batches load without date filter (always small count).
+      // Completed/cancelled use a rolling window (_completedDaysBack) with Load More.
+      // This prevents loading years of history on every screen open.
+      final cutoff = DateTime.now().subtract(Duration(days: _completedDaysBack));
+      final cutoffStr = cutoff.toIso8601String().split('T')[0];
+
       final data = await _c.from('delivery_batches')
           .select('id,status,total_birds,total_weight,created_at,vehicle_no,'
                   'delivery_agents(id,name,vehicle_no,phone),'
@@ -40,8 +48,10 @@ class _S extends ConsumerState<DispatchScreen> with SingleTickerProviderStateMix
                     'orders(estimated_birds,total_quantity,retailers(shop_name))),'
                   'delivery_challans(id,dc_number,net_weight,bird_count,dc_photo_url,farmer_name,created_at)')
           .eq('trader_id', tid)
+          .or('status.in.(assigned,picked_up,out_for_delivery),'
+              'created_at.gte.$cutoffStr')  // active always + recent completed
           .order('created_at', ascending: false)
-          .limit(200);
+          .limit(300);
       if (mounted) setState(() {
         _all = List<Map<String,dynamic>>.from(data);
         _loading = false;
@@ -125,8 +135,14 @@ class _S extends ConsumerState<DispatchScreen> with SingleTickerProviderStateMix
       ]));
     if (sel == null || !mounted) return;
     try {
+      // I5 FIX: stamp vehicle_no from the selected agent onto the batch.
+      // vehicle_no is set when the agent is created/updated in delivery_agents.
+      // This makes it visible on the dispatch and batch detail screens.
       await _c.from('delivery_batches').insert({
-        'trader_id': tid, 'delivery_agent_id': sel!['id'], 'status': 'assigned',
+        'trader_id':        tid,
+        'delivery_agent_id': sel!['id'],
+        'status':           'assigned',
+        'vehicle_no':       sel!['vehicle_no'] as String?,
       });
       _load();
       if (mounted) showSuccess(context, 'Batch created ✓');
@@ -180,22 +196,42 @@ class _S extends ConsumerState<DispatchScreen> with SingleTickerProviderStateMix
           message: switch(i) {
             0 => 'No batches today',
             1 => 'No live deliveries',
-            2 => 'No completed batches',
+            2 => 'No completed batches in last $_completedDaysBack days',
             _ => 'No cancelled batches',
           });
+        // M5 FIX: Completed (2) and Cancelled (3) tabs show "Load More" footer
+        final showLoadMore = i >= 2;
         return RefreshIndicator(
           onRefresh: _load,
           child: ListView.separated(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
-            itemCount: list.length,
+            itemCount: list.length + (showLoadMore ? 1 : 0),
             separatorBuilder: (_, __) => const SizedBox(height: 10),
-            itemBuilder: (_, idx) => _BatchCard(
-              batch: list[idx],
-              birds: _birds(list[idx]),
-              weight: _weight(list[idx]),
-              orders: _orders(list[idx]),
-              onTap: () => context.push(R.batchDetailPath(list[idx]['id'])),
-            )));
+            itemBuilder: (_, idx) {
+              // Last item: Load More button for completed/cancelled tabs
+              if (showLoadMore && idx == list.length) {
+                return Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: OutlinedButton.icon(
+                    onPressed: () {
+                      setState(() => _completedDaysBack += 14);
+                      _load();
+                    },
+                    icon: const Icon(Icons.expand_more, size: 18),
+                    label: Text('Load Earlier — showing last $_completedDaysBack days',
+                        style: const TextStyle(fontSize: 12)),
+                    style: OutlinedButton.styleFrom(
+                        minimumSize: const Size(double.infinity, 44),
+                        foregroundColor: kPrimary)));
+              }
+              return _BatchCard(
+                batch: list[idx],
+                birds: _birds(list[idx]),
+                weight: _weight(list[idx]),
+                orders: _orders(list[idx]),
+                onTap: () => context.push(R.batchDetailPath(list[idx]['id'])),
+              );
+            }));
       })),
   );
 }

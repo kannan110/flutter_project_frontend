@@ -49,7 +49,7 @@ class _S extends ConsumerState<OrdersScreen> {
     if (mounted) setState(() => _loading = true);
     try {
       var q = _c.from('orders')
-          .select('id,status,estimated_birds,total_amount,created_at,order_date,retailers(shop_name)')
+          .select('id,status,estimated_birds,total_quantity,total_amount,created_at,order_date,retailers(shop_name)') // U9 FIX: added total_quantity
           .eq('trader_id', tid);
       if (_filter != 'all') q = q.eq('status', _filter);
       final data = await q.order('created_at', ascending: false).limit(300);
@@ -155,6 +155,8 @@ class _S extends ConsumerState<OrdersScreen> {
                         final date   = DateTime.tryParse(o['created_at'] as String? ?? '');
                         final amt    = (o['total_amount'] as num?)?.toDouble() ?? 0;
                         final birds  = (o['estimated_birds'] as num?)?.toInt() ?? 0;
+                        // U9 FIX: total_quantity is the weight in kg — primary billing field
+                        final weight = (o['total_quantity'] as num?)?.toDouble() ?? 0;
                         final sc     = SC.order(status);
 
                         return InkWell(
@@ -196,7 +198,18 @@ class _S extends ConsumerState<OrdersScreen> {
                                       Text('$birds birds',
                                           style: const TextStyle(
                                               fontSize: 12, color: kTextHint)),
-                                      const SizedBox(width: 10),
+                                      const SizedBox(width: 6),
+                                    ],
+                                    // U9 FIX: Show total_quantity (weight in kg) on list card.
+                                    // Weight is primary billing unit; traders scan this first.
+                                    if (weight > 0) ...[
+                                      const Icon(Icons.scale_outlined,
+                                          size: 12, color: kTextHint),
+                                      const SizedBox(width: 3),
+                                      Text(Fmt.kg(weight),
+                                          style: const TextStyle(
+                                              fontSize: 12, color: kTextHint)),
+                                      const SizedBox(width: 6),
                                     ],
                                     if (date != null)
                                       Text(DateFormat('d MMM').format(date),

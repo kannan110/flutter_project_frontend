@@ -34,7 +34,7 @@ class _S extends ConsumerState<DayClosureScreen> {
 
       // ✅ Get ALL shifts for selected date with agent names
       final shifts = await _c.from('delivery_shifts')
-          .select('id,status,shift_start_at,shift_end_at,total_orders,total_cash_collected,total_expenses,odometer_start,odometer_end,delivery_agents(id,name,vehicle_no)')
+          .select('id,status,shift_start_at,shift_end_at,total_orders,total_cash_collected,total_expenses,total_birds_delivered,shift_approval_status,odometer_start,odometer_end,delivery_agents(id,name,vehicle_no)') // U10 FIX: added birds, approval status
           .eq('trader_id', tid)
           .gte('shift_start_at', '$_dateStr 00:00:00')
           .lt('shift_start_at', '${_nextDay()} 00:00:00')
@@ -236,8 +236,12 @@ class _S extends ConsumerState<DayClosureScreen> {
           final isOpen = status == 'open';
           final startAt = DateTime.tryParse(shift['shift_start_at'] as String? ?? '');
           final endAt   = shift['shift_end_at'] != null ? DateTime.tryParse(shift['shift_end_at'] as String) : null;
-          final cash    = (shift['total_cash_collected'] as num?)?.toDouble() ?? 0;
-          final orders  = shift['total_orders'] as int? ?? 0;
+          final cash        = (shift['total_cash_collected'] as num?)?.toDouble() ?? 0;
+          final expenses    = (shift['total_expenses'] as num?)?.toDouble() ?? 0;
+          final netCash     = (cash - expenses).clamp(0.0, double.infinity);
+          final orders      = shift['total_orders'] as int? ?? 0;
+          final birds       = (shift['total_birds_delivered'] as num?)?.toInt() ?? 0;
+          final approvalSt  = shift['shift_approval_status'] as String? ?? 'pending';
 
           return Container(
             margin: const EdgeInsets.only(bottom: 10),
@@ -267,12 +271,44 @@ class _S extends ConsumerState<DayClosureScreen> {
                 StatusBadge(status, isOpen ? Colors.orange : Colors.green),
               ])),
 
-              // Stats row
-              Padding(padding: const EdgeInsets.fromLTRB(14, 0, 14, 10), child: Row(children: [
-                _mini('Start', startAt != null ? DateFormat('h:mm a').format(startAt) : '—'),
-                _mini('End', endAt   != null ? DateFormat('h:mm a').format(endAt)   : '—'),
-                _mini('Orders', '$orders'),
-                _mini('Cash', Fmt.amount(cash)),
+              // U10 FIX: Richer stats row — show cash, expenses, net, birds, approval
+              Padding(padding: const EdgeInsets.fromLTRB(14, 0, 14, 0), child: Column(children: [
+                // Row 1: timing + order count
+                Row(children: [
+                  _mini('Start', startAt != null ? DateFormat('h:mm a').format(startAt) : '—'),
+                  _mini('End',   endAt   != null ? DateFormat('h:mm a').format(endAt)   : '—'),
+                  _mini('Orders', '$orders'),
+                  _mini('Birds', birds > 0 ? '$birds' : '—'),
+                ]),
+                const SizedBox(height: 8),
+                // Row 2: financial summary — the key numbers trader checks at day closure
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  decoration: BoxDecoration(
+                      color: kPrimary.withValues(alpha: 0.04),
+                      borderRadius: BorderRadius.circular(8)),
+                  child: Row(children: [
+                    _mini('Cash Collected', Fmt.amount(cash), color: Colors.green),
+                    _vDivider(),
+                    _mini('Expenses',       Fmt.amount(expenses), color: expenses > 0 ? Colors.red : kTextHint),
+                    _vDivider(),
+                    _mini('Net to Hand',    Fmt.amount(netCash), color: kPrimary, bold: true),
+                  ])),
+                // Approval status badge for closed shifts
+                if (!isOpen) Padding(
+                  padding: const EdgeInsets.only(top: 6, bottom: 4),
+                  child: Row(children: [
+                    Icon(
+                      approvalSt == 'approved' ? Icons.verified_outlined : Icons.pending_outlined,
+                      size: 13,
+                      color: approvalSt == 'approved' ? Colors.green : Colors.orange),
+                    const SizedBox(width: 4),
+                    Text(
+                      approvalSt == 'approved' ? 'Shift approved ✓' : 'Pending shift approval',
+                      style: TextStyle(fontSize: 11,
+                          color: approvalSt == 'approved' ? Colors.green : Colors.orange,
+                          fontWeight: FontWeight.w600)),
+                  ])),
               ])),
 
               // Open shift — show Close button
@@ -380,8 +416,15 @@ class _S extends ConsumerState<DayClosureScreen> {
     ]),
   );
 
-  Widget _mini(String label, String value) => Expanded(child: Column(children: [
-    Text(value, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: kTextMain)),
-    Text(label, style: const TextStyle(fontSize: 10, color: kTextHint)),
+  Widget _mini(String label, String value, {Color? color, bool bold = false}) =>
+      Expanded(child: Column(children: [
+    Text(value, style: TextStyle(fontSize: 12,
+        fontWeight: bold ? FontWeight.w900 : FontWeight.w700,
+        color: color ?? kTextMain), textAlign: TextAlign.center),
+    Text(label, style: const TextStyle(fontSize: 10, color: kTextHint), textAlign: TextAlign.center),
   ]));
+
+  Widget _vDivider() => Container(
+      width: 1, height: 28, color: kBorder,
+      margin: const EdgeInsets.symmetric(horizontal: 4));
 }

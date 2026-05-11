@@ -136,54 +136,61 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                         () => context.go(R.approvals)),
                   ]),
                 ]),
-                _section('🐓 Live Stock Position', [
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
-                    child: Row(children: [
-                      Icon(Icons.info_outline, size: 12, color: kTextHint),
-                      const SizedBox(width: 4),
-                      const Text('Cumulative all-time balance  ·  Today\'s DC shown separately',
-                          style: TextStyle(fontSize: 10, color: kTextHint)),
-                    ])),
-                  if (_stock.isEmpty)
-                    _alertTile('No stock recorded. Add opening stock or create a DC.',
-                        Colors.orange, Icons.warning_amber_rounded, onTap: () => context.go(R.stock))
-                  else
-                    ..._stock.map(_stockCard),
-                  if (_stock.any((s) => s.isNegative))
-                    _alertTile('NEGATIVE STOCK detected! Check stock entries.', Colors.red, Icons.error_outline),
-                ]),
-                if ((_data?.todayDcCount ?? 0) > 0)
-                  _section('🚛 Today\'s DC (Farm Purchases)', [
-                    Row(children: [
-                      _stat2('DCs',    '${_data?.todayDcCount ?? 0}',  kPrimary),
-                      _stat2('Birds',  '${_data?.todayDcBirds ?? 0}',  Colors.blue),
-                      _stat2('Weight', '${(_data?.todayDcWeight ?? 0).toStringAsFixed(0)} kg', Colors.teal),
-                    ]),
-                  ]),
+                // ── LIVE STOCK CARD — enhanced, clean, glanceable ──────────────
+                // Tap opens stock_detail_screen with full reconciliation drill-down
+                _buildLiveStockCard(),
+                // Today's DC is now inside the Live Stock card — removed as separate section
                 // High loss alert section
+                // LOSS SUMMARY — only meaningful AFTER shift approval
+                // Per-delivery loss is inflated (full batch DC ÷ one delivery).
+                // Real authoritative loss = approve_shift formula from batch_loss_summary.
+                // We show: APPROVED loss (real) + advisory pending note.
                 if ((_data?.todayDelivered ?? 0) > 0)
-                  _section('⚖️ Today\'s Loss Summary', [
+                  _section('⚖️ Today\'s Reconciliation', [
+                    // Show stock-ledger derived today's flow — authoritative
                     Row(children: [
-                      _stat2('DC Weight', '${(_data?.todayDcWeightTotal ?? 0).toStringAsFixed(0)} kg', Colors.blue),
-                      _stat2('Total Loss', '${(_data?.todayTotalLossKg ?? 0).toStringAsFixed(1)} kg', Colors.orange),
-                      _stat2('Mortality', '${_data?.todayMortalityBirds ?? 0} birds', Colors.red),
-                      _stat2('Loss %',
-                        (_data?.todayDcWeightTotal ?? 0) > 0
-                            ? '${((_data!.todayTotalLossKg / _data!.todayDcWeightTotal) * 100).toStringAsFixed(1)}%'
-                            : '—',
-                        (_data?.todayTotalLossKg ?? 0) > 0 &&
-                        (_data?.todayDcWeightTotal ?? 0) > 0 &&
-                        ((_data!.todayTotalLossKg / _data!.todayDcWeightTotal) * 100) >= 2
-                            ? Colors.red : Colors.green),
+                      _stat2('DC Loaded', '${(_data?.todayDcWeight ?? 0).toStringAsFixed(0)} kg',   Colors.blue),
+                      _stat2('Delivered', '${(_data?.todayDeliveredKgLedger ?? 0).toStringAsFixed(0)} kg', Colors.teal),
+                      _stat2('Mortality', '${_data?.todayMortalityBirdsLedger ?? 0} birds',          Colors.red),
+                      _stat2('Transfers Out', '${_data?.todayTransferredOutBirds ?? 0} birds',       Colors.indigo),
                     ]),
-                    if ((_data?.todayHighLossCount ?? 0) > 0)
+                    const SizedBox(height: 6),
+                    // Show APPROVED loss (real, from batch_loss_summary)
+                    if ((_data?.todayHighLossCount ?? 0) > 0 && (_data?.todayPendingShifts ?? 0) == 0) ...[
                       Padding(
-                        padding: const EdgeInsets.only(top: 8),
+                        padding: const EdgeInsets.only(top: 2),
                         child: _alertTile(
-                          '⚠️ ${_data!.todayHighLossCount} deliveries with loss ≥ 2% — Review in Reports',
-                          Colors.orange, Icons.warning_amber_rounded,
+                          '⚠️ ${_data!.todayHighLossCount} batches with loss ≥ 2% after approval',
+                          Colors.red, Icons.warning_amber_rounded,
                           onTap: () => context.go(R.dailyReport))),
+                    ],
+                    // If shifts are pending approval — loss not yet final
+                    if ((_data?.todayPendingShifts ?? 0) > 0) Padding(
+                      padding: const EdgeInsets.only(top: 6),
+                      child: Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(color: Colors.orange.shade50, borderRadius: BorderRadius.circular(8)),
+                        child: Row(children: [
+                          const Icon(Icons.pending_outlined, color: Colors.orange, size: 13),
+                          const SizedBox(width: 6),
+                          Expanded(child: Text(
+                            '${_data!.todayPendingShifts} shift(s) pending approval — final loss will be confirmed after approval.',
+                            style: const TextStyle(fontSize: 10, color: Colors.orange, fontWeight: FontWeight.w600))),
+                        ]))),
+                    if ((_data?.todayPendingShifts ?? 0) == 0 &&
+                        (_data?.todayApprovedLossKg ?? 0) > 0) Padding(
+                      padding: const EdgeInsets.only(top: 6),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        decoration: BoxDecoration(color: Colors.green.shade50, borderRadius: BorderRadius.circular(8)),
+                        child: Row(children: [
+                          const Icon(Icons.verified_outlined, color: Colors.green, size: 13),
+                          const SizedBox(width: 6),
+                          Expanded(child: Text(
+                            'Approved Loss: ${(_data!.todayApprovedLossKg).toStringAsFixed(2)} kg '
+                            '(${(_data!.todayDcWeight > 0 ? (_data!.todayApprovedLossKg / _data!.todayDcWeight * 100) : 0).toStringAsFixed(1)}%)',
+                            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.green))),
+                        ]))),
                   ]),
                 _section('💰 Financial Overview', [
                   Row(children: [
@@ -210,6 +217,12 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                         Icons.schedule_outlined, onTap: () => context.go(R.shifts)),
                   ],
                 ]),
+
+                // ── AGENT RECONCILIATION STATUS (new section) ─────────────────
+                // Shows per-agent: loaded today / live stock / pending deliveries
+                // This is the key fraud-control view for the trader
+                if ((_data?.agentStatus ?? []).isNotEmpty)
+                  _buildAgentReconciliation(),
                 if ((_data?.todayReturnsBirds ?? 0) > 0 || (_data?.pendingReturns ?? 0) > 0)
                   _section('↩️ Returns', [
                     if ((_data?.todayReturnsBirds ?? 0) > 0)
@@ -314,29 +327,381 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 Text(label, style: const TextStyle(fontSize: 11, color: kTextSub)),
               ]))));
 
-  Widget _stockCard(StockPosition s) => GestureDetector(
-      onTap: () => context.go(R.stock),
+  // ─────────────────────────────────────────────────────────────────────────
+  // LIVE STOCK CARD  (dashboard card — lightweight, glanceable, operational)
+  // Tap → StockDetailScreen for full reconciliation drill-down.
+  // Design rules:
+  //   PRIMARY  : Available now (birds + kg)   — large, immediate
+  //   SECONDARY: Loaded / Delivered / With Agents / Pending Return
+  //   BADGE    : Balanced / Return Pending / Pending Approval / Low Stock / Mismatch
+  //   AGENTS   : compact one-line ownership rows (who holds what)
+  //   TODAY DC : tucked pill at bottom
+  //   NO formulas, NO loss math, NO transfers detail — all in detail screen
+  // ─────────────────────────────────────────────────────────────────────────
+  Widget _buildLiveStockCard() {
+    final agents = _data?.agentStatus ?? [];
+
+    if (_stock.isEmpty && agents.isEmpty) {
+      return Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+            color: Colors.white, borderRadius: BorderRadius.circular(14),
+            boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8, offset: const Offset(0, 2))]),
+        child: _alertTile('No stock recorded. Add opening stock or create a DC.',
+            Colors.orange, Icons.warning_amber_rounded, onTap: () => context.go(R.stock)));
+    }
+
+    final totalAgentBirds   = agents.fold(0,   (s, a) => s + a.liveStockBirds);
+    final pendingReturnAgents = agents.where((a) => a.liveStockBirds > 0 && !a.hasOpenShift).toList();
+    final pendingDelCount   = agents.fold(0,   (s, a) => s + a.pendingDeliveries);
+
+    return GestureDetector(
+      onTap: () => context.push(R.stockDetail),
       child: Container(
-      margin: const EdgeInsets.only(bottom: 8), padding: const EdgeInsets.all(12),
+        margin: const EdgeInsets.only(bottom: 12),
+        decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [BoxShadow(
+                color: Colors.black.withValues(alpha: 0.06),
+                blurRadius: 10, offset: const Offset(0, 3))]),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+
+          // ── CARD HEADER ──────────────────────────────────────────────────
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 12, 14, 0),
+            child: Row(children: [
+              const Text('🐓 Live Stock Position',
+                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: kTextMain)),
+              const Spacer(),
+              const Row(children: [
+                Text('Details', style: TextStyle(fontSize: 11, color: kPrimary, fontWeight: FontWeight.w600)),
+                Icon(Icons.chevron_right, color: kPrimary, size: 15),
+              ]),
+            ])),
+          const SizedBox(height: 10),
+
+          // ── PRIMARY METRIC per product ────────────────────────────────────
+          ..._stock.map((s) {
+            final neg = s.isNegative;
+            final low = s.hasLowStock;
+            final c   = neg ? Colors.red : low ? Colors.orange : const Color(0xFF1B7A3E);
+            final bg  = neg ? Colors.red.shade50 : low ? Colors.orange.shade50 : Colors.green.shade50;
+
+            return Padding(
+              padding: const EdgeInsets.fromLTRB(14, 0, 14, 10),
+              child: Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                    color: bg,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: c.withValues(alpha: 0.25))),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  // Product name + status badge
+                  Row(children: [
+                    Expanded(child: Text(s.productName,
+                        style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: kTextSub))),
+                    _stockStatusBadge(
+                        s, pendingReturnAgents.isNotEmpty, pendingDelCount),
+                  ]),
+                  const SizedBox(height: 6),
+
+                  // PRIMARY: available now — the only number that matters at a glance
+                  Text('${s.availableBirds} Birds  •  ${s.availableKg.toStringAsFixed(1)} kg',
+                      style: TextStyle(
+                          fontSize: 22, fontWeight: FontWeight.w900,
+                          color: c, height: 1.0)),
+                  const Text('Available now',
+                      style: TextStyle(fontSize: 10, color: kTextSub)),
+                  const SizedBox(height: 10),
+
+                  // SECONDARY: 4 operational metrics
+                  Row(children: [
+                    _metric('Loaded Today',    '+${s.todayPurchased}', 'birds', Colors.blue),
+                    _metricDivider(),
+                    _metric('Delivered',        '${s.todayDelivered}', 'birds', kPrimary),
+                    _metricDivider(),
+                    _metric('With Agents',      '$totalAgentBirds',    'birds',
+                        totalAgentBirds > 0 ? Colors.orange : Colors.green),
+                    _metricDivider(),
+                    _metric('Return Pending',
+                        '${pendingReturnAgents.length}', 'agents',
+                        pendingReturnAgents.isNotEmpty ? Colors.red : Colors.green),
+                  ]),
+                ])));
+          }),
+
+          // ── AGENT OWNERSHIP — one compact row per agent ───────────────────
+          if (agents.isNotEmpty) ...[
+            const Padding(
+              padding: EdgeInsets.fromLTRB(14, 2, 14, 6),
+              child: Row(children: [
+                Icon(Icons.people_alt_outlined, size: 12, color: kTextHint),
+                SizedBox(width: 4),
+                Text('STOCK OWNERSHIP',
+                    style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800,
+                        color: kTextHint, letterSpacing: 0.7)),
+              ])),
+            ...agents.map(_agentOwnershipRow),
+          ],
+
+          // ── TODAY DC pill ─────────────────────────────────────────────────
+          if ((_data?.todayDcCount ?? 0) > 0)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 0, 14, 12),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                decoration: BoxDecoration(
+                    color: Colors.blue.withValues(alpha: 0.06),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.blue.withValues(alpha: 0.2))),
+                child: Row(children: [
+                  const Icon(Icons.local_shipping_outlined, size: 13, color: Colors.blue),
+                  const SizedBox(width: 6),
+                  Expanded(child: Text(
+                      'Today DC: ${_data!.todayDcCount} challan(s)  ·  '
+                      '${_data!.todayDcBirds} birds  ·  '
+                      '${_data!.todayDcWeight.toStringAsFixed(0)} kg loaded',
+                      style: const TextStyle(
+                          fontSize: 11, color: Colors.blue,
+                          fontWeight: FontWeight.w600))),
+                ]))),
+
+          // ── NEGATIVE STOCK ALERT ──────────────────────────────────────────
+          if (_stock.any((s) => s.isNegative))
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 0, 14, 12),
+              child: _alertTile('NEGATIVE STOCK — check ledger entries!',
+                  Colors.red, Icons.error_outline,
+                  onTap: () => context.go(R.stock))),
+        ])));
+  }
+
+  // Status badge: single most important operational state
+  Widget _stockStatusBadge(
+      StockPosition s, bool hasPendingReturn, int pendingDel) {
+    final String label;
+    final Color  c;
+    final IconData ic;
+
+    if (s.isNegative) {
+      label='MISMATCH';        c=Colors.red;    ic=Icons.error_outline;
+    } else if (hasPendingReturn) {
+      label='RETURN PENDING';  c=Colors.red;    ic=Icons.warning_amber_rounded;
+    } else if (pendingDel > 0) {
+      label='PENDING APPRVL';  c=Colors.orange; ic=Icons.pending_outlined;
+    } else if (s.hasLowStock) {
+      label='LOW STOCK';       c=Colors.orange; ic=Icons.inventory_outlined;
+    } else {
+      label='BALANCED';        c=Colors.green;  ic=Icons.check_circle_outline;
+    }
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-          color: s.isNegative ? Colors.red.shade50 : s.hasLowStock ? Colors.orange.shade50 : Colors.green.shade50,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: s.isNegative ? Colors.red.shade200 : s.hasLowStock ? Colors.orange.shade200 : Colors.green.shade200)),
+          color:  c.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(color: c.withValues(alpha: 0.3))),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        Icon(ic, color: c, size: 10),
+        const SizedBox(width: 3),
+        Text(label,
+            style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800,
+                color: c, letterSpacing: 0.3)),
+      ]));
+  }
+
+  // One secondary metric cell
+  Widget _metric(String label, String value, String unit, Color c) =>
+      Expanded(child: Column(
+          mainAxisAlignment: MainAxisAlignment.center, children: [
+        Text(value,
+            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: c),
+            textAlign: TextAlign.center),
+        Text(unit,
+            style: const TextStyle(fontSize: 8, color: kTextSub),
+            textAlign: TextAlign.center),
+        const SizedBox(height: 1),
+        Text(label,
+            style: const TextStyle(fontSize: 8, color: kTextHint, height: 1.2),
+            textAlign: TextAlign.center, maxLines: 2),
+      ]));
+
+  Widget _metricDivider() => Container(
+      width: 1, height: 32, color: kBorder,
+      margin: const EdgeInsets.symmetric(horizontal: 2));
+
+  // Compact agent ownership row
+  Widget _agentOwnershipRow(AgentStockStatus a) {
+    final hasStock  = a.liveStockBirds > 0;
+    final shiftOpen = a.hasOpenShift;
+    final Color dotColor = hasStock && !shiftOpen
+        ? Colors.red
+        : a.pendingDeliveries > 0
+            ? Colors.orange
+            : hasStock
+                ? Colors.blue
+                : Colors.green;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+      decoration: const BoxDecoration(
+          border: Border(top: BorderSide(color: kBorder, width: 0.5))),
+      child: Row(children: [
+        // Shift status dot
+        Container(
+            width: 7, height: 7,
+            margin: const EdgeInsets.only(right: 8),
+            decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: shiftOpen ? Colors.green : Colors.grey.shade400)),
+        // Name
+        Expanded(child: Text(a.agentName,
+            style: const TextStyle(
+                fontSize: 11, fontWeight: FontWeight.w600, color: kTextMain))),
+        // Stock in hand
+        Text(
+          hasStock
+              ? '${a.liveStockBirds} birds  ·  ${a.liveStockKg.toStringAsFixed(0)} kg'
+              : '—',
+          style: TextStyle(
+              fontSize: 11, fontWeight: FontWeight.w700,
+              color: hasStock ? dotColor : Colors.green)),
+        const SizedBox(width: 8),
+        // Colour dot (status indicator)
+        Container(
+            width: 6, height: 6,
+            decoration: BoxDecoration(
+                shape: BoxShape.circle, color: dotColor)),
+      ]));
+  }
+
+  // ── AGENT RECONCILIATION STATUS ─────────────────────────────────────────────
+  // Shows every active agent with:
+  //   - Today's DC loaded (birds picked up from farm today)
+  //   - Delivered today (from stock_ledger)
+  //   - Live stock in hand right now
+  //   - Pending deliveries count
+  //   - Shift open/closed status
+  // This is the primary fraud-control view at the trader level.
+  Widget _buildAgentReconciliation() {
+    final agents = _data?.agentStatus ?? [];
+    if (agents.isEmpty) return const SizedBox.shrink();
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+          color: Colors.white, borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: kBorder)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [
-          Expanded(child: Text(s.productName, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700))),
-          Icon(s.isNegative ? Icons.error : s.hasLowStock ? Icons.warning_amber_rounded : Icons.check_circle_outline,
-              color: s.isNegative ? Colors.red : s.hasLowStock ? Colors.orange : Colors.green, size: 18),
-        ]),
-        const SizedBox(height: 8),
-        Row(children: [
-          _sstat('Total Purchased', '${s.totalInBirds}',   Colors.blue),
-          _sstat('Delivered (All)', '${s.totalOutBirds}', kPrimary),
-          _sstat('Today\'s DC', '${s.todayPurchased}',  Colors.teal),
-          _sstat('Available Now', '${s.availableBirds}',
-              s.isNegative ? Colors.red : s.hasLowStock ? Colors.orange : Colors.green),
-        ]),
-      ])));
+        // Header
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          decoration: BoxDecoration(
+              color: kPrimary.withValues(alpha: 0.07),
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(13))),
+          child: Row(children: [
+            const Icon(Icons.people_outline, color: kPrimary, size: 18),
+            const SizedBox(width: 8),
+            const Expanded(child: Text('Agent Reconciliation Status',
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: kPrimary))),
+            GestureDetector(
+              onTap: () => context.go(R.shifts),
+              child: const Row(children: [
+                Text('View Shifts', style: TextStyle(fontSize: 11, color: kPrimary, fontWeight: FontWeight.w600)),
+                Icon(Icons.chevron_right, color: kPrimary, size: 16),
+              ])),
+          ])),
+        // Column headers
+        Padding(
+          padding: const EdgeInsets.fromLTRB(14, 8, 14, 4),
+          child: Row(children: [
+            const Expanded(flex: 3, child: Text('Agent', style: TextStyle(fontSize: 9, color: kTextHint, fontWeight: FontWeight.w700, letterSpacing: 0.5))),
+            const Expanded(flex: 2, child: Text('DC Today', style: TextStyle(fontSize: 9, color: kTextHint, fontWeight: FontWeight.w700), textAlign: TextAlign.center)),
+            const Expanded(flex: 2, child: Text('Delivered', style: TextStyle(fontSize: 9, color: kTextHint, fontWeight: FontWeight.w700), textAlign: TextAlign.center)),
+            const Expanded(flex: 2, child: Text('Live Stock', style: TextStyle(fontSize: 9, color: kTextHint, fontWeight: FontWeight.w700), textAlign: TextAlign.center)),
+            const Expanded(flex: 2, child: Text('Pending', style: TextStyle(fontSize: 9, color: kTextHint, fontWeight: FontWeight.w700), textAlign: TextAlign.center)),
+          ])),
+        const Divider(height: 1, indent: 14, endIndent: 14),
+        // Agent rows
+        ...agents.asMap().entries.map((e) {
+          final i = e.key;
+          final a = e.value;
+          final hasPending  = a.pendingDeliveries > 0;
+          final hasStock    = a.liveStockBirds > 0;
+          final needsAttention = hasPending || (hasStock && !a.hasOpenShift);
+          return Container(
+            padding: const EdgeInsets.fromLTRB(14, 8, 14, 8),
+            decoration: BoxDecoration(
+                color: needsAttention ? Colors.orange.shade50 : Colors.transparent,
+                border: i < agents.length - 1
+                    ? const Border(bottom: BorderSide(color: kBorder, width: 0.5))
+                    : null),
+            child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+              // Agent name + shift status
+              Expanded(flex: 3, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(a.agentName, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: kTextMain),
+                    maxLines: 1, overflow: TextOverflow.ellipsis),
+                Row(children: [
+                  Container(
+                    width: 6, height: 6, margin: const EdgeInsets.only(right: 4),
+                    decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: a.hasOpenShift ? Colors.green : Colors.grey)),
+                  Text(a.hasOpenShift ? 'Shift Open' : 'Shift Closed',
+                      style: TextStyle(fontSize: 9, color: a.hasOpenShift ? Colors.green : kTextHint)),
+                ]),
+              ])),
+              // Today DC
+              Expanded(flex: 2, child: Column(children: [
+                Text('${a.todayDcBirds}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: Colors.blue), textAlign: TextAlign.center),
+                Text('${a.todayDcKg.toStringAsFixed(0)} kg', style: const TextStyle(fontSize: 9, color: kTextHint), textAlign: TextAlign.center),
+              ])),
+              // Delivered today
+              Expanded(flex: 2, child: Column(children: [
+                Text('${a.todayDeliveredBirds}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: Colors.teal), textAlign: TextAlign.center),
+                const Text('birds', style: TextStyle(fontSize: 9, color: kTextHint), textAlign: TextAlign.center),
+              ])),
+              // Live stock
+              Expanded(flex: 2, child: Column(children: [
+                Text('${a.liveStockBirds}',
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800,
+                        color: a.liveStockBirds > 0 ? Colors.orange : Colors.green),
+                    textAlign: TextAlign.center),
+                Text('${a.liveStockKg.toStringAsFixed(0)} kg',
+                    style: const TextStyle(fontSize: 9, color: kTextHint), textAlign: TextAlign.center),
+              ])),
+              // Pending deliveries
+              Expanded(flex: 2, child: Column(children: [
+                Text('${a.pendingDeliveries}',
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800,
+                        color: hasPending ? Colors.orange : Colors.green),
+                    textAlign: TextAlign.center),
+                const Text('orders', style: TextStyle(fontSize: 9, color: kTextHint), textAlign: TextAlign.center),
+              ])),
+            ]));
+        }),
+        // Summary footer
+        Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+              color: const Color(0xFFF8F9FA),
+              borderRadius: const BorderRadius.vertical(bottom: Radius.circular(13))),
+          child: Row(mainAxisAlignment: MainAxisAlignment.spaceAround, children: [
+            _agentSummary('Total DC', '${agents.fold(0, (s, a) => s + a.todayDcBirds)} birds', Colors.blue),
+            _agentSummary('Total Delivered', '${agents.fold(0, (s, a) => s + a.todayDeliveredBirds)} birds', Colors.teal),
+            _agentSummary('Live in Stock', '${agents.fold(0, (s, a) => s + a.liveStockBirds)} birds',
+                agents.any((a) => a.liveStockBirds > 0) ? Colors.orange : Colors.green),
+            _agentSummary('Pending', '${agents.fold(0, (s, a) => s + a.pendingDeliveries)} orders',
+                agents.any((a) => a.pendingDeliveries > 0) ? Colors.orange : Colors.green),
+          ])),
+      ]));
+  }
+
+  Widget _agentSummary(String l, String v, Color c) => Column(children: [
+    Text(v, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: c)),
+    Text(l, style: const TextStyle(fontSize: 9, color: kTextHint)),
+  ]);
 
   Widget _sstat(String l, String v, Color c) => Expanded(child: Column(children: [
     Text(v, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: c)),

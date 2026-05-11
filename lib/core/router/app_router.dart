@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../features/trader_admin/stock/stock_detail_screen.dart';
 import '../models/app_user.dart';
 import '../providers/session_provider.dart';
 import '../../features/splash_screen.dart';
@@ -39,6 +40,7 @@ import '../../features/trader_admin/reconciliation/cash_reconciliation_screen.da
 import '../../features/trader_admin/day_closure/day_closure_screen.dart';
 import '../../features/trader_admin/alerts/alerts_screen.dart';
 import '../../features/trader_admin/reports/daily_report_screen.dart';
+import '../../features/trader_admin/reports/reports_hub_screen.dart';
 import '../../features/delivery_agent/home/agent_shell.dart';
 import '../../features/auth/trader_setup_screen.dart';
 import '../../features/delivery_agent/batch/dc_view_screen.dart';
@@ -104,6 +106,8 @@ abstract class R {
   static const dayClosure     = '/t/day-closure';
   static const alerts         = '/t/alerts';
   static const dailyReport    = '/t/reports/daily';
+  static const reportsHub     = '/t/reports';
+  static const stockDetail    = '/t/stock/detail';
   static const agentHome      = '/a/home';
   static const shiftOpen      = '/a/shift/open';
   static const shiftClose     = '/a/shift/close';
@@ -239,6 +243,8 @@ final appRouterProvider = Provider<GoRouter>((ref) => GoRouter(
         GoRoute(path: R.dayClosure,     builder: (_, __) => const DayClosureScreen()),
         GoRoute(path: R.alerts,         builder: (_, __) => const AlertsScreen()),
         GoRoute(path: R.dailyReport,    builder: (_, __) => const DailyReportScreen()),
+        GoRoute(path: R.reportsHub,     builder: (_, __) => const ReportsHubScreen()),
+        GoRoute(path: R.stockDetail,    builder: (_, __) => const StockDetailScreen()),
       ],
     ),
 

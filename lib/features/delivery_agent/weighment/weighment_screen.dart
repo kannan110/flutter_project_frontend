@@ -463,6 +463,7 @@ class _WS extends State<WeighmentScreen> {
 
     final result = await showDialog<bool>(
         context: context,
+        useRootNavigator: true,
         builder: (ctx) => AlertDialog(
               shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(20)),
@@ -519,6 +520,7 @@ class _WS extends State<WeighmentScreen> {
 
     final birds = await showDialog<int>(
         context: context,
+        useRootNavigator: true,
         builder: (ctx) => AlertDialog(
               shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(20)),
@@ -600,6 +602,7 @@ class _WS extends State<WeighmentScreen> {
     final latest = _rows.last;
     final ok = await showDialog<bool>(
             context: context,
+            useRootNavigator: true,
             builder: (ctx) => AlertDialog(
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(20)),
@@ -709,6 +712,7 @@ class _WS extends State<WeighmentScreen> {
 
     final ok = await showDialog<bool>(
             context: context,
+            useRootNavigator: true,
             builder: (ctx) => AlertDialog(
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(20)),
@@ -849,6 +853,7 @@ class _WS extends State<WeighmentScreen> {
 
     final ok = await showDialog<bool>(
             context: context,
+            useRootNavigator: true,
             builder: (ctx) => AlertDialog(
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(20)),
@@ -1348,6 +1353,7 @@ class _WS extends State<WeighmentScreen> {
               }
               return await showDialog<bool>(
                       context: context,
+                      useRootNavigator: true,
                       builder: (ctx) => AlertDialog(
                               shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(16)),

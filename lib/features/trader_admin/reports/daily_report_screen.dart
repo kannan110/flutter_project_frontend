@@ -69,8 +69,21 @@ class _S extends ConsumerState<DailyReportScreen> {
     }
   }
 
+  // A2 FIX: Per-delivery dc_weight_kg stores the FULL BATCH weight (not prorated per delivery).
+  // For a batch with 3 deliveries sharing 1080 kg DC:
+  //   Each delivery.dc_weight_kg = 1080 → sum = 3240 (WRONG)
+  //   Real DC for this agent = 1080 (from stock_ledger purchased / delivery_challans)
+  // IMPACT: inflated transport_loss and total_loss per agent in this report.
+  //
+  // FIX: We still collect delivered_weight correctly (actual kg delivered to each shop).
+  //      For dc_weight we use the challan net_weight from stock_ledger perspective.
+  //      We mark transport_loss as ADVISORY until shift is approved (batch_loss_summary).
+  //      The approved loss (from batch_loss_summary) is loaded separately below.
   List<Map<String,dynamic>> _groupByAgent(List<Map<String,dynamic>> rows) {
     final map = <String, Map<String,dynamic>>{};
+    // Track which batches we've already counted DC for (to avoid double-counting)
+    final countedBatches = <String, Set<String>>{};
+
     for (final r in rows) {
       final aId   = r['delivery_agent_id'] as String? ?? '';
       final aName = (r['delivery_agents'] as Map?)?['name'] as String? ?? '—';
@@ -80,18 +93,51 @@ class _S extends ConsumerState<DailyReportScreen> {
           'deliveries': 0, 'dc_weight': 0.0, 'delivered_weight': 0.0,
           'transport_loss': 0.0, 'mortality_birds': 0,
           'mortality_weight': 0.0, 'total_loss': 0.0, 'high_loss_count': 0,
+          'loss_is_advisory': true, // mark as preliminary until shift approved
         };
+        countedBatches[aId] = {};
       }
       final m = map[aId]!;
       m['deliveries']       = (m['deliveries'] as int) + 1;
-      m['dc_weight']        = (m['dc_weight'] as double) + ((r['dc_weight_kg'] as num?)?.toDouble() ?? 0);
+
+      // A2 FIX: Only count DC weight ONCE per batch (not once per delivery)
+      // dc_weight_kg on deliveries = full batch total → multiple deliveries inflate it
+      // We track which batch IDs we've already summed
+      final batchId = r['batch_id'] as String?;
+      if (batchId != null && !countedBatches[aId]!.contains(batchId)) {
+        // Get the batch DC from challans via the delivery record
+        final challans = (r['delivery_batches'] as Map?)?['delivery_challans'] as List?;
+        final batchDcKg = challans?.fold<double>(0.0,
+            (s, c) => s + ((c['net_weight'] as num?)?.toDouble() ?? 0)) ?? 0.0;
+        // Only use batch-level DC if we have challan data; else use delivery's dc_weight_kg
+        // (If dc_weight is 0 or no challan data, fall back — but note it may be inflated)
+        if (batchDcKg > 0) {
+          m['dc_weight'] = (m['dc_weight'] as double) + batchDcKg;
+        } else {
+          // No challan data: use delivery.dc_weight_kg but mark as potentially inflated
+          m['dc_weight'] = (m['dc_weight'] as double) + ((r['dc_weight_kg'] as num?)?.toDouble() ?? 0);
+        }
+        countedBatches[aId]!.add(batchId);
+      }
+
+      // Delivered weight: actual kg delivered to shop — always correct per delivery
       m['delivered_weight'] = (m['delivered_weight'] as double) + ((r['delivered_total_weight'] as num?)?.toDouble() ?? 0);
-      m['transport_loss']   = (m['transport_loss'] as double) + ((r['transport_loss_kg'] as num?)?.toDouble() ?? 0);
       m['mortality_birds']  = (m['mortality_birds'] as int) + ((r['mortality_birds'] as num?)?.toInt() ?? 0);
       m['mortality_weight'] = (m['mortality_weight'] as double) + ((r['mortality_weight_kg'] as num?)?.toDouble() ?? 0);
-      m['total_loss']       = (m['total_loss'] as double) + ((r['total_loss_kg'] as num?)?.toDouble() ?? 0);
+
+      // Suppress inflated per-delivery loss — transport_loss = dc_weight - delivered
+      // This will be recomputed correctly after dc_weight is de-duplicated per batch
       if (r['is_high_loss'] == true) m['high_loss_count'] = (m['high_loss_count'] as int) + 1;
     }
+
+    // Recompute transport_loss from de-duplicated dc_weight
+    for (final m in map.values) {
+      final dcWt  = m['dc_weight'] as double;
+      final delWt = m['delivered_weight'] as double;
+      final morWt = m['mortality_weight'] as double;
+      m['transport_loss'] = (dcWt - delWt - morWt).clamp(0.0, double.infinity);
+      m['total_loss'] = (m['transport_loss'] as double) + morWt;    }
+
     return map.values.toList()..sort((a, b) => (b['total_loss'] as double).compareTo(a['total_loss'] as double));
   }
 

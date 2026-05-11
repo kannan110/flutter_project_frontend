@@ -151,7 +151,7 @@ class _S extends ConsumerState<ApprovalDetailScreen> {
       (_delivery?['orders']?['estimated_birds'] as num?)?.toInt() ?? 0;
   // DC weight stored on delivery (set by complete_delivery RPC) — best base for loss %
   double get _dcWeightForLoss =>
-      (_delivery?['dc_weight_kg'] as num?)?.toDouble() ?? _orderExpectedWt;
+      (_delivery?['dc_weight_kg'] as num?)?.toDouble() ?? 0;
   double get _transportLoss =>
       (_delivery?['transport_loss_kg'] as num?)?.toDouble() ??
       (_dcWeightForLoss > 0 && _billingWeight > 0
@@ -532,27 +532,46 @@ class _S extends ConsumerState<ApprovalDetailScreen> {
     final deliveredWt   = _billingWeight;
     final deliveredBirds = (_delivery?['delivered_bird_count'] as num?)?.toInt() ?? 0;
 
+    // U5 FIX: when dc_weight_kg = 0 (DC not yet recorded or old delivery),
+    // show an informational label rather than a misleading "0.0% loss".
+    // Loss calculation is meaningless without DC weight as the base.
+    final bool dcAvailable = dcWt > 0;
+
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-          color: _isHighLoss ? Colors.red.shade50 : Colors.green.shade50,
+          color: !dcAvailable
+              ? Colors.grey.shade50
+              : (_isHighLoss ? Colors.red.shade50 : Colors.green.shade50),
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-              color: _isHighLoss ? Colors.red.shade300 : Colors.green.shade300, width: 1.5)),
+              color: !dcAvailable
+                  ? Colors.grey.shade300
+                  : (_isHighLoss ? Colors.red.shade300 : Colors.green.shade300),
+              width: 1.5)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
-          Icon(_isHighLoss ? Icons.warning_amber_rounded : Icons.check_circle_outline,
-              color: _isHighLoss ? Colors.red : Colors.green, size: 18),
+          Icon(
+            !dcAvailable
+                ? Icons.info_outline
+                : (_isHighLoss ? Icons.warning_amber_rounded : Icons.check_circle_outline),
+            color: !dcAvailable
+                ? kTextSub
+                : (_isHighLoss ? Colors.red : Colors.green),
+            size: 18),
           const SizedBox(width: 6),
-          Text(
-            _isHighLoss
-                ? '⚠️ High Loss — ${_lossPct.toStringAsFixed(1)}% needs attention'
-                : 'Loss: ${_lossPct.toStringAsFixed(1)}%',
+          Expanded(child: Text(
+            !dcAvailable
+                ? 'DC weight not recorded — loss cannot be computed'
+                : (_isHighLoss
+                    ? '⚠️ High Loss — ${_lossPct.toStringAsFixed(1)}% needs attention'
+                    : 'Loss: ${_lossPct.toStringAsFixed(1)}%'),
             style: TextStyle(
                 fontWeight: FontWeight.w800, fontSize: 13,
-                color: _isHighLoss ? Colors.red : Colors.green.shade700)),
-          const Spacer(),
-          Container(
+                color: !dcAvailable
+                    ? kTextSub
+                    : (_isHighLoss ? Colors.red : Colors.green.shade700)))),
+          if (dcAvailable) Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
             decoration: BoxDecoration(
                 color: Colors.white, borderRadius: BorderRadius.circular(6)),
@@ -560,6 +579,23 @@ class _S extends ConsumerState<ApprovalDetailScreen> {
                 style: TextStyle(fontSize: 9, fontWeight: FontWeight.w700,
                     color: _isHighLoss ? Colors.red : Colors.green))),
         ]),
+        // U5: show "DC not recorded" advisory when no DC weight
+        if (!dcAvailable) ...[
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+                color: Colors.blue.shade50, borderRadius: BorderRadius.circular(8)),
+            child: const Row(children: [
+              Icon(Icons.info_outline, color: Colors.blue, size: 14),
+              SizedBox(width: 8),
+              Expanded(child: Text(
+                'No DC challan was recorded for this batch, or the delivery '
+                'was completed before DC tracking was enabled. '
+                'The authoritative loss will be computed when the shift is approved.',
+                style: TextStyle(fontSize: 11, color: Colors.blue))),
+            ])),
+        ],
         const SizedBox(height: 12),
         Container(
           padding: const EdgeInsets.all(10),

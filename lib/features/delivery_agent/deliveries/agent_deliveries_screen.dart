@@ -53,6 +53,28 @@ class _S extends ConsumerState<AgentDeliveriesScreen> {
     }
   }
 
+  // U3 FIX: Mark a picked_up delivery as out_for_delivery directly from the list.
+  // This saves 3 taps vs going to the batch screen.
+  Future<void> _markOutForDelivery(String deliveryId) async {
+    final ok = await confirmDialog(context,
+        title: 'Mark Out for Delivery',
+        message: 'Confirm you are now heading to deliver this order?',
+        confirmText: 'Yes, Start Delivery',
+        confirmColor: Colors.teal);
+    if (!ok || !mounted) return;
+    try {
+      await _c.from('deliveries')
+          .update({'status': 'out_for_delivery'})
+          .eq('id', deliveryId);
+      if (mounted) {
+        showSuccess(context, 'Marked as Out for Delivery ✓');
+        _load();
+      }
+    } catch (e) {
+      if (mounted) showError(context, e.toString().replaceAll('Exception: ', ''));
+    }
+  }
+
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(
@@ -194,20 +216,41 @@ class _S extends ConsumerState<AgentDeliveriesScreen> {
           ]),
         ]),
 
-        // Status-aware action row
+        // U3 FIX: Status-aware action row with Mark OFD button for picked_up.
+        // Before this fix, agents had to go to the batch screen to change status.
+        // Now they can mark directly from the deliveries list.
         if (isActive) ...[
           const SizedBox(height: 10),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: () => context.push(R.deliveryDonePath(d['id'])),
-              style: ElevatedButton.styleFrom(minimumSize: const Size(0, 40),
-                  backgroundColor: status == 'out_for_delivery' ? kPrimary : Colors.grey),
-              child: Text(
-                  status == 'out_for_delivery' ? 'Mark as Delivered ✓'
-                  : status == 'picked_up' ? 'Waiting — out for delivery...'
-                  : 'Assigned',
-                  style: const TextStyle(fontWeight: FontWeight.w700)))),
+          if (status == 'out_for_delivery')
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: () => context.push(R.deliveryDonePath(d['id'])),
+                icon: const Icon(Icons.check_circle_outline, size: 16),
+                label: const Text('Mark as Delivered ✓',
+                    style: TextStyle(fontWeight: FontWeight.w700)),
+                style: ElevatedButton.styleFrom(
+                    minimumSize: const Size(0, 40), backgroundColor: kPrimary)))
+          else if (status == 'picked_up')
+            Row(children: [
+              Expanded(child: ElevatedButton.icon(
+                onPressed: () => _markOutForDelivery(d['id'] as String),
+                icon: const Icon(Icons.local_shipping_outlined, size: 16),
+                label: const Text('Mark Out for Delivery',
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+                style: ElevatedButton.styleFrom(
+                    minimumSize: const Size(0, 40),
+                    backgroundColor: Colors.teal))),
+            ])
+          else
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 10),
+              decoration: BoxDecoration(
+                  color: Colors.grey.shade100, borderRadius: BorderRadius.circular(10)),
+              child: const Text('Assigned — awaiting pickup',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 12, color: kTextSub, fontWeight: FontWeight.w600))),
         ],
         if (isDelivered) Padding(
           padding: const EdgeInsets.only(top: 8),
