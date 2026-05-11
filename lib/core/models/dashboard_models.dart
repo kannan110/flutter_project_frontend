@@ -2,14 +2,34 @@
 class StockPosition {
   final String productId;
   final String productName;
+
+  // ── ALL-TIME SYSTEM FLOWS ─────────────────────────────────────────────────
+  // total_in: purchased + opening + customer_returns (NOT transfers, NOT shift_close_return)
+  // total_out: delivered + closing_stock + mortality + shrinkage (NOT transfers)
+  // available = total_in - total_out  (CORRECT — no double-count)
   final int totalInBirds;
   final double totalInKg;
   final int totalOutBirds;
   final double totalOutKg;
-  final int availableBirds;
+  final int availableBirds;   // = total system stock still alive in the business
   final double availableKg;
+
+  // ── LOCATION BREAKDOWN of available stock ────────────────────────────────
+  // in_house = birds physically at stock point (returned by agents via shift_close_return)
+  // agent    = birds still with active delivery agents (available - in_house)
+  final int inHouseBirds;
+  final double inHouseKg;
+  final int agentBirds;
+  final double agentKg;
+
+  // ── SUPPLEMENTARY ────────────────────────────────────────────────────────
   final int mortalityBirds;
-  final int returnedBirds;
+  final int returnedBirds;        // customer returns (returned_in only)
+  final int transferredInBirds;   // informational — net 0 at trader level
+  final int transferredOutBirds;
+  final double shrinkageKg;
+
+  // ── TODAY VALUES ─────────────────────────────────────────────────────────
   final int todayPurchased;
   final int todayDelivered;
 
@@ -18,27 +38,41 @@ class StockPosition {
     required this.totalInBirds, required this.totalInKg,
     required this.totalOutBirds, required this.totalOutKg,
     required this.availableBirds, required this.availableKg,
+    required this.inHouseBirds, required this.inHouseKg,
+    required this.agentBirds, required this.agentKg,
     required this.mortalityBirds, required this.returnedBirds,
+    required this.transferredInBirds, required this.transferredOutBirds,
+    required this.shrinkageKg,
     required this.todayPurchased, required this.todayDelivered,
   });
 
   factory StockPosition.fromMap(Map<String,dynamic> m) => StockPosition(
-    productId:      m['product_id']   as String? ?? '',
-    productName:    m['product_name'] as String? ?? '—',
-    totalInBirds:   (m['total_in_birds']  as num?)?.toInt() ?? 0,
-    totalInKg:      (m['total_in_kg']     as num?)?.toDouble() ?? 0,
-    totalOutBirds:  (m['total_out_birds'] as num?)?.toInt() ?? 0,
-    totalOutKg:     (m['total_out_kg']    as num?)?.toDouble() ?? 0,
-    availableBirds: (m['available_birds'] as num?)?.toInt() ?? 0,
-    availableKg:    (m['available_kg']    as num?)?.toDouble() ?? 0,
-    mortalityBirds: (m['mortality_birds'] as num?)?.toInt() ?? 0,
-    returnedBirds:  (m['returned_birds']  as num?)?.toInt() ?? 0,
-    todayPurchased: (m['today_purchased'] as num?)?.toInt() ?? 0,
-    todayDelivered: (m['today_delivered'] as num?)?.toInt() ?? 0,
+    productId:          m['product_id']            as String? ?? '',
+    productName:        m['product_name']           as String? ?? '—',
+    totalInBirds:       (m['total_in_birds']        as num?)?.toInt()    ?? 0,
+    totalInKg:          (m['total_in_kg']           as num?)?.toDouble() ?? 0,
+    totalOutBirds:      (m['total_out_birds']       as num?)?.toInt()    ?? 0,
+    totalOutKg:         (m['total_out_kg']          as num?)?.toDouble() ?? 0,
+    availableBirds:     (m['available_birds']       as num?)?.toInt()    ?? 0,
+    availableKg:        (m['available_kg']          as num?)?.toDouble() ?? 0,
+    // New: in-house and agent breakdown (from corrected function)
+    inHouseBirds:       (m['in_house_birds']        as num?)?.toInt()    ?? 0,
+    inHouseKg:          (m['in_house_kg']           as num?)?.toDouble() ?? 0,
+    agentBirds:         (m['agent_birds']           as num?)?.toInt()    ?? 0,
+    agentKg:            (m['agent_kg']              as num?)?.toDouble() ?? 0,
+    mortalityBirds:     (m['mortality_birds']       as num?)?.toInt()    ?? 0,
+    returnedBirds:      (m['returned_birds']        as num?)?.toInt()    ?? 0,
+    transferredInBirds: (m['transferred_in_birds']  as num?)?.toInt()    ?? 0,
+    transferredOutBirds:(m['transferred_out_birds'] as num?)?.toInt()    ?? 0,
+    shrinkageKg:        (m['shrinkage_kg']          as num?)?.toDouble() ?? 0,
+    todayPurchased:     (m['today_purchased']       as num?)?.toInt()    ?? 0,
+    todayDelivered:     (m['today_delivered']       as num?)?.toInt()    ?? 0,
   );
 
   bool get hasLowStock => availableBirds < 100 && totalInBirds > 0;
   bool get isNegative  => availableBirds < 0;
+  bool get hasInHouseStock => inHouseBirds > 0;
+  bool get hasAgentStock   => agentBirds > 0;
 }
 
 // ── Per-agent stock position for dashboard reconciliation section ─────────────

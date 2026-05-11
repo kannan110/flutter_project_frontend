@@ -253,11 +253,34 @@ class _S extends ConsumerState<BatchDetailScreen> {
               const SizedBox(height: 10),
               SegmentedButton<String>(
                 segments: const [
-                  ButtonSegment(value: 'farm',            icon: Icon(Icons.agriculture, size: 14),   label: Text('Farm')),
-                  ButtonSegment(value: 'shop_collection', icon: Icon(Icons.store, size: 14),          label: Text('Shop')),
+                  ButtonSegment(value: 'farm',            icon: Icon(Icons.agriculture, size: 14),     label: Text('Farm')),
+                  ButtonSegment(value: 'shop_collection', icon: Icon(Icons.store, size: 14),            label: Text('Shop')),
+                  ButtonSegment(value: 'inhouse_stock',   icon: Icon(Icons.warehouse_outlined, size: 14), label: Text('In-House')),
                 ],
                 selected: {sourceType},
                 onSelectionChanged: (s) => ss(() => sourceType = s.first)),
+              if (sourceType == 'inhouse_stock') ...[
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                      color: Colors.orange.shade50,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.orange.shade200)),
+                  child: const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Row(children: [
+                      Icon(Icons.warehouse_outlined, color: Colors.orange, size: 14),
+                      SizedBox(width: 6),
+                      Text('IN-HOUSE DC — Internal Transfer',
+                          style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Colors.orange)),
+                    ]),
+                    SizedBox(height: 4),
+                    Text(
+                      'Moves stock FROM in-house inventory TO agent.\n'
+                      'In-house stock DECREASES. Agent stock INCREASES.',
+                      style: TextStyle(fontSize: 10, color: Colors.orange, height: 1.4)),
+                  ])),
+              ],
               const SizedBox(height: 10),
               Row(children: [
                 Expanded(child: TextField(
@@ -282,7 +305,12 @@ class _S extends ConsumerState<BatchDetailScreen> {
               TextField(
                 controller: farmerCtrl,
                 textCapitalization: TextCapitalization.words,
-                decoration: InputDecoration(labelText: sourceType == 'shop_collection' ? 'Shop Name *' : 'Farmer Name *')),
+                decoration: InputDecoration(
+                    labelText: sourceType == 'shop_collection'
+                        ? 'Shop Name *'
+                        : sourceType == 'inhouse_stock'
+                            ? 'Stock Point Name *'
+                            : 'Farmer Name *')),
               const SizedBox(height: 8),
               TextField(controller: farmLocCtrl, decoration: const InputDecoration(labelText: 'Location (optional)')),
               const SizedBox(height: 8),
@@ -343,6 +371,7 @@ class _S extends ConsumerState<BatchDetailScreen> {
                           .eq('delivery_agent_id', _batch!['delivery_agent_id'])
                           .eq('status', 'open')
                           .maybeSingle();
+                      // FIX: pass p_source_type — was missing, inhouse_stock treated as farm
                       await _c.rpc('pickup_batch', params: {
                         'p_batch_id':       widget.id,
                         'p_shift_id':       shiftRow?['id'],
@@ -364,6 +393,7 @@ class _S extends ConsumerState<BatchDetailScreen> {
                         'p_in_time':        null,
                         'p_out_time':       null,
                         'p_dc_photo_url':   null,
+                        'p_source_type':    sourceType,  // FIX: was missing
                       });
                       // Advance picked_up → out_for_delivery so agent can complete
                       await _c.rpc('start_batch_delivery', params: {'p_batch_id': widget.id});

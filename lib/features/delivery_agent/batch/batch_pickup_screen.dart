@@ -164,7 +164,7 @@ class _S extends ConsumerState<BatchPickupScreen> {
 
       if (isFirstPickup) {
         // Step 1: Record DC and move batch to picked_up
-        // pickup_batch exact signature: no p_source_type param
+        // FIX: p_source_type now supported — inhouse_stock writes transfer entries, not purchased
         await _c.rpc('pickup_batch', params: {
           'p_batch_id':       widget.batchId,
           'p_shift_id':       _shift!['id'],
@@ -186,6 +186,7 @@ class _S extends ConsumerState<BatchPickupScreen> {
           'p_in_time':        null,
           'p_out_time':       null,
           'p_dc_photo_url':   _dcImageUrl,
+          'p_source_type':    _srcType,   // FIX: was missing — inhouse_stock was treated as farm
         });
 
         // Step 2: CRITICAL — advance all deliveries picked_up → out_for_delivery
@@ -409,6 +410,29 @@ class _S extends ConsumerState<BatchPickupScreen> {
             ],
             selected: {_srcType},
             onSelectionChanged: (s) => setState(() => _srcType = s.first)),
+          // FIX: Show in-house DC guidance when source = inhouse_stock
+          if (_srcType == 'inhouse_stock') ...[
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                  color: Colors.orange.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.orange.shade200)),
+              child: const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Row(children: [
+                  Icon(Icons.warehouse_outlined, color: Colors.orange, size: 14),
+                  SizedBox(width: 6),
+                  Text('IN-HOUSE DC — Internal Transfer',
+                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Colors.orange)),
+                ]),
+                SizedBox(height: 4),
+                Text(
+                  'This will move stock FROM trader in-house inventory TO your agent stock.\n'
+                  'Trader in-house stock will DECREASE. Your stock will INCREASE.',
+                  style: TextStyle(fontSize: 10, color: Colors.orange, height: 1.4)),
+              ])),
+          ],
           const SizedBox(height: 12),
 
           // ── DC Image (mandatory) ─────────────────────────

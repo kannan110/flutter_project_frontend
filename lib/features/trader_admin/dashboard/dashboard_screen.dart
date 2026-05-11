@@ -416,18 +416,20 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                       style: TextStyle(fontSize: 10, color: kTextSub)),
                   const SizedBox(height: 10),
 
-                  // SECONDARY: 4 operational metrics
+                  // SECONDARY: 4 operational metrics — sourced from corrected get_available_stock
+                  // available_birds = purchased - delivered - writeoff (NO double-count)
+                  // in_house = birds at stock point after shift_close_return
+                  // agent = available - in_house (still with active agents)
                   Row(children: [
-                    _metric('Loaded Today',    '+${s.todayPurchased}', 'birds', Colors.blue),
+                    _metric('In-House',    '${s.inHouseBirds}', 'birds',
+                        s.inHouseBirds > 0 ? Colors.teal : Colors.grey),
                     _metricDivider(),
-                    _metric('Delivered',        '${s.todayDelivered}', 'birds', kPrimary),
+                    _metric('With Agents', '${s.agentBirds}',   'birds',
+                        s.agentBirds > 0 ? Colors.orange : Colors.green),
                     _metricDivider(),
-                    _metric('With Agents',      '$totalAgentBirds',    'birds',
-                        totalAgentBirds > 0 ? Colors.orange : Colors.green),
+                    _metric('Delivered',   '${s.totalOutBirds}','birds', kPrimary),
                     _metricDivider(),
-                    _metric('Return Pending',
-                        '${pendingReturnAgents.length}', 'agents',
-                        pendingReturnAgents.isNotEmpty ? Colors.red : Colors.green),
+                    _metric('DC Today',    '+${s.todayPurchased}','birds', Colors.blue),
                   ]),
                 ])));
           }),

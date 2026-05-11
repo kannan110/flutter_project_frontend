@@ -202,30 +202,60 @@ class _S extends ConsumerState<StockScreen> {
                 style: const TextStyle(fontSize: 11, color: Colors.blue)),
           ]),
         ])),
-      // BUG 1 FIX: Enhanced breakdown grid showing what's IN the "Total Out" number.
-      // total_out_birds = delivered_birds + transferred_out_birds + mortality + shrinkage.
-      // Showing all components prevents the trader from thinking 540 birds = 540 delivered.
+      // CORRECTED breakdown — no double-counting.
+      // available_birds = purchased - delivered - closing_stock - mortality
+      // in_house_birds = birds at stock point (shift_close_return, subset of available)
+      // agent_birds = available - in_house (still with active agents)
       Padding(padding: const EdgeInsets.fromLTRB(14, 10, 14, 14), child: Column(children: [
+        // Primary: available breakdown (most important to trader)
+        Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(color: kBgGrey, borderRadius: BorderRadius.circular(8)),
+          child: Column(children: [
+            const Padding(
+              padding: EdgeInsets.only(bottom: 6),
+              child: Row(children: [
+                Text('LOCATION OF AVAILABLE STOCK',
+                    style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800,
+                        color: kTextHint, letterSpacing: 0.6)),
+              ])),
+            Row(children: [
+              _stockStat('In-House', '${p.inHouseBirds}',
+                  '${p.inHouseKg.toStringAsFixed(0)} kg',
+                  p.inHouseBirds > 0 ? Colors.teal : kTextHint),
+              _stockStat('With Agents', '${p.agentBirds}',
+                  '${p.agentKg.toStringAsFixed(0)} kg',
+                  p.agentBirds > 0 ? Colors.orange : kTextHint),
+              _stockStat('Total Available', '${p.availableBirds}',
+                  '${p.availableKg.toStringAsFixed(0)} kg',
+                  p.isNegative ? Colors.red : p.hasLowStock ? Colors.orange : Colors.green),
+            ]),
+          ])),
+        const SizedBox(height: 8),
+        // Secondary: system-wide totals
         Row(children: [
-          _stockStat('Total In',  '${p.totalInBirds}',   '${p.totalInKg.toStringAsFixed(0)} kg', Colors.blue),
-          _stockStat('Total Out', '${p.totalOutBirds}',  '${p.totalOutKg.toStringAsFixed(0)} kg', kPrimary),
-          _stockStat('Returns',   '${p.returnedBirds}',  '', Colors.purple),
-          _stockStat('Mortality', '${p.mortalityBirds}', '', p.mortalityBirds > 0 ? Colors.red : kTextHint),
+          _stockStat('Total Purchased', '${p.totalInBirds}',
+              '${p.totalInKg.toStringAsFixed(0)} kg', Colors.blue),
+          _stockStat('Total Sold',      '${p.totalOutBirds}',
+              '${p.totalOutKg.toStringAsFixed(0)} kg', kPrimary),
+          _stockStat('Mortality',       '${p.mortalityBirds}', '',
+              p.mortalityBirds > 0 ? Colors.red : kTextHint),
+          _stockStat('Shrinkage', p.shrinkageKg > 0
+              ? '${p.shrinkageKg.toStringAsFixed(1)} kg' : '—', '',
+              p.shrinkageKg > 0 ? Colors.deepOrange : kTextHint),
         ]),
-        // BUG 1 FIX: "Total Out" includes transferred_out — show breakdown if non-zero
-        // This is computed from stock_ledger where delivered + transferred_out = total_out
-        if (p.totalOutBirds > 0) Padding(
+        if (p.transferredInBirds > 0 || p.transferredOutBirds > 0) Padding(
           padding: const EdgeInsets.only(top: 8),
           child: Container(
             padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(color: kBgGrey, borderRadius: BorderRadius.circular(8)),
+            decoration: BoxDecoration(color: Colors.teal.shade50, borderRadius: BorderRadius.circular(8)),
             child: Row(children: [
-              const Icon(Icons.info_outline, size: 12, color: kTextHint),
+              const Icon(Icons.swap_horiz, size: 12, color: Colors.teal),
               const SizedBox(width: 6),
-              Expanded(child: Text(
-                'Total Out includes delivered birds + any transfers out. '
-                'See Movements tab for full breakdown.',
-                style: const TextStyle(fontSize: 10, color: kTextSub))),
+              Text(
+                'Transfers: +${p.transferredInBirds} in  ·  −${p.transferredOutBirds} out  '
+                '(net ${p.transferredInBirds - p.transferredOutBirds} — location change only, no stock impact)',
+                style: const TextStyle(fontSize: 10, color: Colors.teal)),
             ]))),
       ])),
     ]));
