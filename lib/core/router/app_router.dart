@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../../features/trader_admin/stock/stock_detail_screen.dart';
+import 'package:rooster_trader/features/trader_admin/retailers/retailer_link_screen.dart' show RetailerLinkScreen;
+import 'package:rooster_trader/features/trader_admin/settings/purchase_screen.dart' show PurchaseScreen;
+import 'package:rooster_trader/features/trader_admin/stock/stock_detail_screen.dart' show StockDetailScreen;
 import '../models/app_user.dart';
 import '../providers/session_provider.dart';
 import '../../features/splash_screen.dart';
@@ -41,6 +43,7 @@ import '../../features/trader_admin/day_closure/day_closure_screen.dart';
 import '../../features/trader_admin/alerts/alerts_screen.dart';
 import '../../features/trader_admin/reports/daily_report_screen.dart';
 import '../../features/trader_admin/reports/reports_hub_screen.dart';
+import '../../features/retailer/retailer_screen.dart';
 import '../../features/delivery_agent/home/agent_shell.dart';
 import '../../features/auth/trader_setup_screen.dart';
 import '../../features/delivery_agent/batch/dc_view_screen.dart';
@@ -61,6 +64,7 @@ import '../../features/delivery_agent/deliveries/agent_deliveries_screen.dart';
 import '../../features/delivery_agent/deliveries/delivery_complete_screen.dart';
 import '../../features/delivery_agent/expenses/expenses_screen.dart';
 import '../../features/delivery_agent/deliveries/delivery_history_screen.dart';
+import '../../features/retailer/retailer_screen.dart';
 
 abstract class R {
   static const splash         = '/';
@@ -107,6 +111,9 @@ abstract class R {
   static const alerts         = '/t/alerts';
   static const dailyReport    = '/t/reports/daily';
   static const reportsHub     = '/t/reports';
+  static const purchase       = '/t/purchase';
+  static const retailerHome   = '/r/home';
+  static const retailerLink   = '/r/link';   // invite code claim screen
   static const stockDetail    = '/t/stock/detail';
   static const agentHome      = '/a/home';
   static const shiftOpen      = '/a/shift/open';
@@ -169,6 +176,13 @@ final appRouterProvider = Provider<GoRouter>((ref) => GoRouter(
       return R.saDashboard;
     }
 
+    // Retailer users → retailer routes only
+    if (user.isRetailer) {
+      if (loc == R.retailerLink || loc == R.retailerHome) return null;
+      if (user.retailerId == null) return R.retailerLink;
+      return R.retailerHome;
+    }
+
     if (user.isUnlinked) {
       if (loc == R.traderSetup || loc == R.agentLink) return null;
       return R.traderSetup;
@@ -197,6 +211,8 @@ final appRouterProvider = Provider<GoRouter>((ref) => GoRouter(
     GoRoute(path: R.splash,          builder: (_, __) => const SplashScreen()),
     GoRoute(path: R.login,           builder: (_, __) => const LoginScreen()),
     GoRoute(path: R.agentLink,       builder: (_, __) => const AgentLinkScreen()),
+    GoRoute(path: R.retailerLink, builder: (_, __) => const RetailerLinkScreen()),
+    GoRoute(path: R.retailerHome, builder: (_, __) => const RetailerScreen()),
     GoRoute(path: R.traderSetup,     builder: (_, __) => const TraderSetupScreen()),
     GoRoute(path: R.pendingApproval, builder: (_, __) => const PendingApprovalScreen()),
     GoRoute(path: R.superAdmin,      builder: (_, __) => const SuperDashboardScreen()),
@@ -244,6 +260,10 @@ final appRouterProvider = Provider<GoRouter>((ref) => GoRouter(
         GoRoute(path: R.alerts,         builder: (_, __) => const AlertsScreen()),
         GoRoute(path: R.dailyReport,    builder: (_, __) => const DailyReportScreen()),
         GoRoute(path: R.reportsHub,     builder: (_, __) => const ReportsHubScreen()),
+        GoRoute(path: R.purchase,       builder: (_, __) => const PurchaseScreen()),
+      // Retailer routes (outside trader ShellRoute)
+      GoRoute(path: R.retailerLink, builder: (_, __) => const RetailerLinkScreen()),
+      GoRoute(path: R.retailerHome, builder: (_, __) => const RetailerScreen()),
         GoRoute(path: R.stockDetail,    builder: (_, __) => const StockDetailScreen()),
       ],
     ),

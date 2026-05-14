@@ -117,6 +117,22 @@ class AppUserNotifier extends StateNotifier<AsyncValue<AppUser?>> {
         _log('agentId=$agentId');
       }
 
+      // Resolve retailer session
+      String? retailerId;
+      String? shopName;
+      if (role == UserRole.retailerUser) {
+        try {
+          final rs = await _c.rpc('get_retailer_session',
+              params: {'p_user_id': user.id})
+              .timeout(const Duration(seconds: 5));
+          if (rs is Map) {
+            retailerId = rs['retailer_id'] as String?;
+            shopName   = rs['shop_name']   as String?;
+            _log('retailerId=\$retailerId');
+          }
+        } catch (e) { _log('retailer session: \$e'); }
+      }
+
       state = AsyncValue.data(AppUser(
         userId:              user.id,
         traderId:            traderId,
@@ -126,6 +142,8 @@ class AppUserNotifier extends StateNotifier<AsyncValue<AppUser?>> {
         isSubscriptionActive: sub == null || sub.isAfter(DateTime.now()),
         subscriptionEndDate: sub,
         agentId:             agentId,
+        retailerId:          retailerId,
+        shopName:            shopName,
         traderStatus:        traderStatus,
         approvalStatus:      approvalStatus,
         isSuperAdmin:        isSa,

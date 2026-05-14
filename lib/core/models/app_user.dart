@@ -39,6 +39,8 @@ class AppUser {
   final bool    isSubscriptionActive;
   final DateTime? subscriptionEndDate;
   final String? agentId;
+  final String? retailerId;
+  final String? shopName;
   // New fields for approval flow
   final String  traderStatus;      // active | pending_approval | suspended | blocked
   final String  approvalStatus;    // pending | approved | rejected | enterprise_contact
@@ -53,6 +55,8 @@ class AppUser {
     this.isSubscriptionActive = true,
     this.subscriptionEndDate,
     this.agentId,
+    this.retailerId,
+    this.shopName,
     this.traderStatus    = 'active',
     this.approvalStatus  = 'approved',
     this.isSuperAdmin    = false,
@@ -60,6 +64,7 @@ class AppUser {
 
   bool get isDeliveryAgent    => role == UserRole.deliveryStaff;
   bool get isTraderAdmin      => role == UserRole.traderAdmin;
+  bool get isRetailer         => role == UserRole.retailerUser;
   bool get canApprove         => isTraderAdmin || isSuperAdmin;
   bool get canManageAgents    => isTraderAdmin || isSuperAdmin;
   bool get isUnlinked         => role == UserRole.unknown || (traderId == null && !isSuperAdmin);

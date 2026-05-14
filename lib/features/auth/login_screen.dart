@@ -17,14 +17,14 @@ class LoginScreen extends ConsumerStatefulWidget {
 }
 
 class _S extends ConsumerState<LoginScreen> {
-  // 0 = role picker, 1 = trader signin, 2 = trader signup, 3 = agent signin
+  // 0=role picker, 1=trader signin, 2=trader signup, 3=agent signin, 4=retailer OTP
   int _step = 0;
 
   final _emailCtrl   = TextEditingController();
   final _passCtrl    = TextEditingController();
   final _confirmCtrl = TextEditingController();
-  bool _hidePass   = true;
-  bool _busy       = false;
+  bool _hidePass     = true;
+  bool _busy         = false;
   String? _err;
 
   @override void dispose() {
@@ -119,8 +119,10 @@ class _S extends ConsumerState<LoginScreen> {
                       )
                     else if (_step == 2)
                         _buildTraderRegister()
-                      else
-                        _buildAgentSection(),
+                      else if (_step == 4)
+                          _buildRetailerLogin()
+                        else
+                          _buildAgentSection(),
                   ],
                 ),
               ),
@@ -144,29 +146,38 @@ class _S extends ConsumerState<LoginScreen> {
 
     // Trader card
     _roleCard(
-      icon: '🏪',
-      title: 'I am a Trader',
-      subtitle: 'I run a poultry trading business\nI manage orders, agents & deliveries',
-      color: kPrimary,
-      onTap: () => setState(() { _step = 1; _err = null; })),
+        icon: '🏪',
+        title: 'I am a Trader',
+        subtitle: 'I run a poultry trading business\nI manage orders, agents & deliveries',
+        color: kPrimary,
+        onTap: () => setState(() { _step = 1; _err = null; })),
+    const SizedBox(height: 16),
+
+    // Retailer card
+    _roleCard(
+        icon: '🏬',
+        title: 'I am a Retailer / Shop',
+        subtitle: 'I buy chicken from a trader\nI track my orders and payments',
+        color: Colors.green.shade700,
+        onTap: () => setState(() { _step = 4; _err = null; })),
     const SizedBox(height: 16),
 
     // Delivery agent card
     _roleCard(
-      icon: '🚚',
-      title: 'I am a Delivery Agent',
-      subtitle: 'I deliver chicken to shops\nI use the app during my shift',
-      color: Colors.blue.shade700,
-      onTap: () => setState(() { _step = 3; _err = null; })),
+        icon: '🚚',
+        title: 'I am a Delivery Agent',
+        subtitle: 'I deliver chicken to shops\nI use the app during my shift',
+        color: Colors.blue.shade700,
+        onTap: () => setState(() { _step = 3; _err = null; })),
     const SizedBox(height: 28),
 
     // Already have account
     Row(mainAxisAlignment: MainAxisAlignment.center, children: [
       const Text('Already signed in before? ', style: TextStyle(fontSize: 13, color: kTextSub)),
       GestureDetector(
-        onTap: () => setState(() { _step = 1; _err = null; }),
-        child: const Text('Sign In', style: TextStyle(
-            fontSize: 13, color: kPrimary, fontWeight: FontWeight.w800))),
+          onTap: () => setState(() { _step = 1; _err = null; }),
+          child: const Text('Sign In', style: TextStyle(
+              fontSize: 13, color: kPrimary, fontWeight: FontWeight.w800))),
     ]),
   ]);
 
@@ -174,30 +185,30 @@ class _S extends ConsumerState<LoginScreen> {
     required String icon, required String title, required String subtitle,
     required Color color, required VoidCallback onTap,
   }) => GestureDetector(
-    onTap: onTap,
-    child: Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: color.withValues(alpha: 0.3), width: 1.5),
-          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05),
-              blurRadius: 12, offset: const Offset(0, 3))]),
-      child: Row(children: [
-        Container(
-          width: 56, height: 56,
-          decoration: BoxDecoration(color: color.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(14)),
-          child: Center(child: Text(icon, style: const TextStyle(fontSize: 28)))),
-        const SizedBox(width: 16),
-        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(title, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: color)),
-          const SizedBox(height: 4),
-          Text(subtitle, style: const TextStyle(fontSize: 12, color: kTextSub, height: 1.4)),
-        ])),
-        Icon(Icons.arrow_forward_ios, size: 14, color: color),
-      ])));
+      onTap: onTap,
+      child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: color.withValues(alpha: 0.3), width: 1.5),
+              boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05),
+                  blurRadius: 12, offset: const Offset(0, 3))]),
+          child: Row(children: [
+            Container(
+                width: 56, height: 56,
+                decoration: BoxDecoration(color: color.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(14)),
+                child: Center(child: Text(icon, style: const TextStyle(fontSize: 28)))),
+            const SizedBox(width: 16),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(title, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: color)),
+              const SizedBox(height: 4),
+              Text(subtitle, style: const TextStyle(fontSize: 12, color: kTextSub, height: 1.4)),
+            ])),
+            Icon(Icons.arrow_forward_ios, size: 14, color: color),
+          ])));
 
   // ── Sign In form (shared for trader + agent) ───────────────────────────────
   Widget _buildSignIn({required String title, required String hint}) => _card(children: [
@@ -221,12 +232,12 @@ class _S extends ConsumerState<LoginScreen> {
           style: TextStyle(fontSize: 13, color: kTextSub), textAlign: TextAlign.center),
       const SizedBox(height: 10),
       OutlinedButton.icon(
-        onPressed: () => setState(() { _step = 2; _err = null; }),
-        icon: const Icon(Icons.add_business_outlined, size: 18),
-        label: const Text('Register My Company', style: TextStyle(fontWeight: FontWeight.w700)),
-        style: OutlinedButton.styleFrom(
-            minimumSize: const Size(double.infinity, 48),
-            side: const BorderSide(color: kPrimary, width: 1.5))),
+          onPressed: () => setState(() { _step = 2; _err = null; }),
+          icon: const Icon(Icons.add_business_outlined, size: 18),
+          label: const Text('Register My Company', style: TextStyle(fontWeight: FontWeight.w700)),
+          style: OutlinedButton.styleFrom(
+              minimumSize: const Size(double.infinity, 48),
+              side: const BorderSide(color: kPrimary, width: 1.5))),
     ],
   ]);
 
@@ -236,7 +247,95 @@ class _S extends ConsumerState<LoginScreen> {
     return _TraderRegisterCard(onBack: () => setState(() { _step = 1; _err = null; }));
   }
 
-  // ── Delivery Agent section (step 3) ───────────────────────────────────────
+  // ── Retailer Login (step 4) — phone number + password ───────────────────
+  // Uses same email/password flow as trader/agent.
+  // Phone number is used as the "email" field label for familiarity.
+  // Supabase account is created by trader (or retailer self-registers).
+  // After login, session_provider resolves retailer_id via retailer_users table.
+  Widget _buildRetailerLogin() => _card(children: [
+    _backBtn(),
+    const SizedBox(height: 4),
+    const Row(children: [
+      Text('🏬', style: TextStyle(fontSize: 22)),
+      SizedBox(width: 8),
+      Text('Retailer Login',
+          style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
+    ]),
+    const SizedBox(height: 4),
+    const Text('Sign in with your mobile number and password.',
+        style: TextStyle(fontSize: 12, color: kTextSub)),
+    const SizedBox(height: 16),
+    // Info box
+    Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+            color: Colors.green.shade50,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: Colors.green.shade200)),
+        child: const Column(
+            crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            Icon(Icons.info_outline, size: 14, color: Colors.green),
+            SizedBox(width: 6),
+            Text('First time?',
+                style: TextStyle(fontWeight: FontWeight.w700,
+                    color: Colors.green, fontSize: 12)),
+          ]),
+          SizedBox(height: 6),
+          const Text(
+              '1. Ask your supplier to create your account\n'
+                  '2. They will share your login and invite code\n'
+                  '3. Sign in below, then enter the invite code',
+              style: TextStyle(fontSize: 11, color: Colors.green, height: 1.6)),
+        ])),
+    const SizedBox(height: 20),
+    if (_err != null) _errBox(_err!),
+    TextField(
+        controller: _emailCtrl,
+        keyboardType: TextInputType.emailAddress,
+        autocorrect: false,
+        textInputAction: TextInputAction.next,
+        decoration: const InputDecoration(
+            labelText: 'Email / Mobile',
+            prefixIcon: Icon(Icons.person_outlined, size: 20,
+                color: Colors.green))),
+    const SizedBox(height: 12),
+    TextField(
+        controller: _passCtrl,
+        obscureText: _hidePass,
+        textInputAction: TextInputAction.done,
+        onSubmitted: (_) => _signIn(),
+        decoration: InputDecoration(
+            labelText: 'Password',
+            prefixIcon: const Icon(Icons.lock_outline, size: 20,
+                color: Colors.green),
+            suffixIcon: IconButton(
+                icon: Icon(
+                    _hidePass
+                        ? Icons.visibility_outlined
+                        : Icons.visibility_off_outlined,
+                    size: 18, color: kTextHint),
+                onPressed: () => setState(() => _hidePass = !_hidePass)))),
+    const SizedBox(height: 20),
+    SizedBox(
+        width: double.infinity, height: 50,
+        child: ElevatedButton(
+            onPressed: _busy ? null : _signIn,
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+            child: _busy
+                ? const SizedBox(width: 22, height: 22,
+                child: CircularProgressIndicator(
+                    strokeWidth: 2.5, color: Colors.white))
+                : const Text('Sign In',
+                style: TextStyle(
+                    fontSize: 15, fontWeight: FontWeight.w700)))),
+    const SizedBox(height: 14),
+    Center(child: Text(
+        'Trouble signing in? Contact your supplier.',
+        style: const TextStyle(fontSize: 11, color: kTextHint))),
+  ]);
+
+  // ── Delivery Agent section (step 3) ───────────────────────────────────────  // ── Delivery Agent section (step 3) ───────────────────────────────────────────
   // Sub-mode: false = sign in, true = sign up
   bool _agentSignUpMode = false;
 
@@ -267,70 +366,70 @@ class _S extends ConsumerState<LoginScreen> {
     const Divider(),
     const SizedBox(height: 12),
 
-        // ── New agent path ──────────────────────────────────────────────
-        Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-                color: Colors.blue.shade50,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.blue.shade200)),
-            child:
-                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              const Row(children: [
-                Icon(Icons.person_add_outlined, size: 16, color: Colors.blue),
-                SizedBox(width: 6),
-                Text('First time here?',
-                    style: TextStyle(
-                        fontWeight: FontWeight.w700,
-                        color: Colors.blue,
-                        fontSize: 13)),
-              ]),
-              const SizedBox(height: 10),
-              const Text(
-                  '① Admin adds your name in the Agents screen\n'
+    // ── New agent path ──────────────────────────────────────────────
+    Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+            color: Colors.blue.shade50,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.blue.shade200)),
+        child:
+        Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          const Row(children: [
+            Icon(Icons.person_add_outlined, size: 16, color: Colors.blue),
+            SizedBox(width: 6),
+            Text('First time here?',
+                style: TextStyle(
+                    fontWeight: FontWeight.w700,
+                    color: Colors.blue,
+                    fontSize: 13)),
+          ]),
+          const SizedBox(height: 10),
+          const Text(
+              '① Admin adds your name in the Agents screen\n'
                   '② Create your account here (one time only)\n'
                   '③ Link your name using the Company Code',
-                  style:
-                      TextStyle(fontSize: 12, color: Colors.blue, height: 1.7)),
-              const SizedBox(height: 14),
-              Row(children: [
-                Expanded(
-                    child: ElevatedButton.icon(
-                        onPressed: () => setState(() {
-                              _agentSignUpMode = true;
-                              _err = null;
-                            }),
-                        icon: const Icon(Icons.person_add, size: 16),
-                        label: const Text('Create Account',
-                            style: TextStyle(
-                                fontWeight: FontWeight.w700, fontSize: 13)),
-                        style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.blue,
-                            minimumSize: const Size(0, 44)))),
-                const SizedBox(width: 10),
-                Expanded(
-                    child: OutlinedButton.icon(
-                        onPressed: () => context.go(R.agentLink),
-                        icon: const Icon(Icons.link, size: 16),
-                        label: const Text('Link Account',
-                            style: TextStyle(
-                                fontWeight: FontWeight.w700, fontSize: 13)),
-                        style: OutlinedButton.styleFrom(
-                            side: const BorderSide(color: Colors.blue),
-                            foregroundColor: Colors.blue,
-                            minimumSize: const Size(0, 44)))),
-              ]),
-            ])),
-      ]);
+              style:
+              TextStyle(fontSize: 12, color: Colors.blue, height: 1.7)),
+          const SizedBox(height: 14),
+          Row(children: [
+            Expanded(
+                child: ElevatedButton.icon(
+                    onPressed: () => setState(() {
+                      _agentSignUpMode = true;
+                      _err = null;
+                    }),
+                    icon: const Icon(Icons.person_add, size: 16),
+                    label: const Text('Create Account',
+                        style: TextStyle(
+                            fontWeight: FontWeight.w700, fontSize: 13)),
+                    style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.blue,
+                        minimumSize: const Size(0, 44)))),
+            const SizedBox(width: 10),
+            Expanded(
+                child: OutlinedButton.icon(
+                    onPressed: () => context.go(R.agentLink),
+                    icon: const Icon(Icons.link, size: 16),
+                    label: const Text('Link Account',
+                        style: TextStyle(
+                            fontWeight: FontWeight.w700, fontSize: 13)),
+                    style: OutlinedButton.styleFrom(
+                        side: const BorderSide(color: Colors.blue),
+                        foregroundColor: Colors.blue,
+                        minimumSize: const Size(0, 44)))),
+          ]),
+        ])),
+  ]);
 
   Widget _buildAgentSignUp() => _card(children: [
     // Back to sign in
     GestureDetector(
-      onTap: () => setState(() { _agentSignUpMode = false; _err = null; }),
-      child: const Row(mainAxisSize: MainAxisSize.min, children: [
-        Icon(Icons.arrow_back_ios, size: 14, color: kTextSub),
-        Text('Back to Sign In', style: TextStyle(fontSize: 13, color: kTextSub)),
-      ])),
+        onTap: () => setState(() { _agentSignUpMode = false; _err = null; }),
+        child: const Row(mainAxisSize: MainAxisSize.min, children: [
+          Icon(Icons.arrow_back_ios, size: 14, color: kTextSub),
+          Text('Back to Sign In', style: TextStyle(fontSize: 13, color: kTextSub)),
+        ])),
     const SizedBox(height: 16),
     const Row(children: [
       Icon(Icons.person_add, color: kPrimary, size: 22),
@@ -342,20 +441,20 @@ class _S extends ConsumerState<LoginScreen> {
         style: TextStyle(fontSize: 12, color: kTextSub)),
     const SizedBox(height: 20),
 
-        // Steps
-        Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-                color: Colors.amber.shade50,
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: Colors.amber.shade200)),
-            child: const Text(
-                '📋 After creating your account:\n'
+    // Steps
+    Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+            color: Colors.amber.shade50,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: Colors.amber.shade200)),
+        child: const Text(
+            '📋 After creating your account:\n'
                 'Tap "Link Account" → enter Company Code + your name '
                 'to connect to your trader company.',
-                style:
-                    TextStyle(fontSize: 12, color: Colors.brown, height: 1.5))),
-        const SizedBox(height: 16),
+            style:
+            TextStyle(fontSize: 12, color: Colors.brown, height: 1.5))),
+    const SizedBox(height: 16),
 
     if (_err != null) _errBox(_err!),
 
@@ -366,13 +465,13 @@ class _S extends ConsumerState<LoginScreen> {
 
     // Confirm password
     TextField(
-      controller: _confirmCtrl,
-      obscureText: true,
-      textInputAction: TextInputAction.done,
-      decoration: const InputDecoration(
-          labelText: 'Confirm Password',
-          prefixIcon: Icon(Icons.lock_outline, size: 20, color: kPrimary)),
-      onSubmitted: (_) => _agentSignUpSubmit()),
+        controller: _confirmCtrl,
+        obscureText: true,
+        textInputAction: TextInputAction.done,
+        decoration: const InputDecoration(
+            labelText: 'Confirm Password',
+            prefixIcon: Icon(Icons.lock_outline, size: 20, color: kPrimary)),
+        onSubmitted: (_) => _agentSignUpSubmit()),
     const SizedBox(height: 20),
 
     _submitBtn('Create My Account', _agentSignUpSubmit),
@@ -439,55 +538,55 @@ class _S extends ConsumerState<LoginScreen> {
 
   // ── Helpers ────────────────────────────────────────────────────────────────
   Widget _card({required List<Widget> children}) => Container(
-    width: double.infinity, padding: const EdgeInsets.all(20),
-    decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16),
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.06),
-            blurRadius: 16, offset: const Offset(0, 4))]),
-    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: children));
+      width: double.infinity, padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16),
+          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.06),
+              blurRadius: 16, offset: const Offset(0, 4))]),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: children));
 
   Widget _backBtn() => GestureDetector(
-    onTap: _reset,
-    child: Row(mainAxisSize: MainAxisSize.min, children: [
-      const Icon(Icons.arrow_back_ios, size: 14, color: kTextSub),
-      const Text('Back', style: TextStyle(fontSize: 13, color: kTextSub)),
-    ]));
+      onTap: _reset,
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        const Icon(Icons.arrow_back_ios, size: 14, color: kTextSub),
+        const Text('Back', style: TextStyle(fontSize: 13, color: kTextSub)),
+      ]));
 
   Widget _errBox(String msg) => Container(
-    width: double.infinity, margin: const EdgeInsets.only(bottom: 14),
-    padding: const EdgeInsets.all(12),
-    decoration: BoxDecoration(color: Colors.red.shade50, borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.red.shade200)),
-    child: Row(children: [
-      const Icon(Icons.error_outline, color: kError, size: 16), const SizedBox(width: 8),
-      Expanded(child: Text(msg, style: const TextStyle(color: kError, fontSize: 12))),
-    ]));
+      width: double.infinity, margin: const EdgeInsets.only(bottom: 14),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(color: Colors.red.shade50, borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: Colors.red.shade200)),
+      child: Row(children: [
+        const Icon(Icons.error_outline, color: kError, size: 16), const SizedBox(width: 8),
+        Expanded(child: Text(msg, style: const TextStyle(color: kError, fontSize: 12))),
+      ]));
 
   Widget _emailField() => TextField(
-    controller: _emailCtrl, keyboardType: TextInputType.emailAddress,
-    autocorrect: false, textInputAction: TextInputAction.next,
-    decoration: const InputDecoration(labelText: 'Email address',
-        prefixIcon: Icon(Icons.email_outlined, size: 20, color: kPrimary)));
+      controller: _emailCtrl, keyboardType: TextInputType.emailAddress,
+      autocorrect: false, textInputAction: TextInputAction.next,
+      decoration: const InputDecoration(labelText: 'Email address',
+          prefixIcon: Icon(Icons.email_outlined, size: 20, color: kPrimary)));
 
   Widget _passField() => TextField(
-    controller: _passCtrl, obscureText: _hidePass,
-    textInputAction: TextInputAction.done,
-    onSubmitted: (_) => _signIn(),
-    decoration: InputDecoration(
-        labelText: 'Password',
-        prefixIcon: const Icon(Icons.lock_outline, size: 20, color: kPrimary),
-        suffixIcon: IconButton(
-            icon: Icon(_hidePass ? Icons.visibility_outlined : Icons.visibility_off_outlined,
-                size: 18, color: kTextHint),
-            onPressed: () => setState(() => _hidePass = !_hidePass))));
+      controller: _passCtrl, obscureText: _hidePass,
+      textInputAction: TextInputAction.done,
+      onSubmitted: (_) => _signIn(),
+      decoration: InputDecoration(
+          labelText: 'Password',
+          prefixIcon: const Icon(Icons.lock_outline, size: 20, color: kPrimary),
+          suffixIcon: IconButton(
+              icon: Icon(_hidePass ? Icons.visibility_outlined : Icons.visibility_off_outlined,
+                  size: 18, color: kTextHint),
+              onPressed: () => setState(() => _hidePass = !_hidePass))));
 
   Widget _submitBtn(String label, VoidCallback onTap) => SizedBox(
-    width: double.infinity, height: 50,
-    child: ElevatedButton(
-      onPressed: _busy ? null : onTap,
-      child: _busy
-          ? const SizedBox(width: 22, height: 22,
+      width: double.infinity, height: 50,
+      child: ElevatedButton(
+          onPressed: _busy ? null : onTap,
+          child: _busy
+              ? const SizedBox(width: 22, height: 22,
               child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white))
-          : Text(label, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700))));
+              : Text(label, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700))));
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -652,32 +751,32 @@ class _TRS extends State<_TraderRegisterCard> {
 
   @override
   Widget build(BuildContext context) => Container(
-    width: double.infinity, padding: const EdgeInsets.all(20),
-    decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16),
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.06),
-            blurRadius: 16, offset: const Offset(0, 4))]),
-    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      GestureDetector(onTap: widget.onBack,
-          child: const Row(mainAxisSize: MainAxisSize.min, children: [
-            Icon(Icons.arrow_back_ios, size: 14, color: kTextSub),
-            Text('Back', style: TextStyle(fontSize: 13, color: kTextSub)),
-          ])),
-      const SizedBox(height: 12),
+      width: double.infinity, padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16),
+          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.06),
+              blurRadius: 16, offset: const Offset(0, 4))]),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        GestureDetector(onTap: widget.onBack,
+            child: const Row(mainAxisSize: MainAxisSize.min, children: [
+              Icon(Icons.arrow_back_ios, size: 14, color: kTextSub),
+              Text('Back', style: TextStyle(fontSize: 13, color: kTextSub)),
+            ])),
+        const SizedBox(height: 12),
 
-      // Step indicator
-      Row(children: List.generate(3, (i) => Expanded(child: Row(children: [
-        Expanded(child: Container(height: 4,
-            decoration: BoxDecoration(
-                color: i <= _page ? kPrimary : kBorder,
-                borderRadius: BorderRadius.circular(2)))),
-        if (i < 2) const SizedBox(width: 4),
-      ])))),
-      const SizedBox(height: 16),
+        // Step indicator
+        Row(children: List.generate(3, (i) => Expanded(child: Row(children: [
+          Expanded(child: Container(height: 4,
+              decoration: BoxDecoration(
+                  color: i <= _page ? kPrimary : kBorder,
+                  borderRadius: BorderRadius.circular(2)))),
+          if (i < 2) const SizedBox(width: 4),
+        ])))),
+        const SizedBox(height: 16),
 
-      if (_page == 0) ..._accountStep()
-      else if (_page == 1) ..._companyStep()
-      else ..._planStep(),
-    ]));
+        if (_page == 0) ..._accountStep()
+        else if (_page == 1) ..._companyStep()
+        else ..._planStep(),
+      ]));
 
   // Account step
   List<Widget> _accountStep() => [
@@ -763,64 +862,64 @@ class _TRS extends State<_TraderRegisterCard> {
       final isPremium = (p['name'] as String).toLowerCase() == 'premium';
 
       return GestureDetector(
-        onTap: isPremium ? null : () => setState(() => _selPlan = p),
-        child: Container(
-          margin: const EdgeInsets.only(bottom: 10),
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-              color: isPremium ? Colors.purple.shade50 : (isSelected ? kPrimary.withValues(alpha: 0.08) : Colors.white),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                  color: isPremium ? Colors.purple.shade300
-                       : isSelected ? kPrimary
-                       : kBorder,
-                  width: isSelected || isPremium ? 2 : 1)),
-          child: Row(children: [
-            if (isSelected && !isPremium)
-              const Icon(Icons.check_circle, color: kPrimary, size: 20)
-            else if (isPremium)
-              const Icon(Icons.star_rounded, color: Colors.purple, size: 20)
-            else
-              const Icon(Icons.circle_outlined, color: kBorder, size: 20),
-            const SizedBox(width: 12),
-            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Row(children: [
-                Text(p['name'] as String, style: TextStyle(
-                    fontWeight: FontWeight.w800, fontSize: 14,
-                    color: isPremium ? Colors.purple : (isSelected ? kPrimary : kTextMain))),
-                if (isFree) Container(
-                  margin: const EdgeInsets.only(left: 8),
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                  decoration: BoxDecoration(color: Colors.green, borderRadius: BorderRadius.circular(4)),
-                  child: const Text('FREE', style: TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w800))),
-              ]),
-              const SizedBox(height: 3),
-              if (isPremium)
-                const Text('Contact us for custom pricing & unlimited scale',
-                    style: TextStyle(fontSize: 11, color: Colors.purple))
-              else
-                Text(
-                  isFree ? '30 days free, no credit card needed'
-                         : '₹$price for $days days',
-                  style: const TextStyle(fontSize: 11, color: kTextSub)),
-              const SizedBox(height: 4),
-              Wrap(spacing: 8, children: [
-                if (features['dc_upload'] == true)
-                  _featureChip('📸 DC Upload'),
-                if (features['loss_tracking'] == true)
-                  _featureChip('⚖️ Loss Track'),
-                _featureChip('📊 ${features['reports'] ?? 'basic'} reports'),
-              ]),
-            ])),
-            if (isPremium)
-              OutlinedButton(
-                onPressed: () {},
-                style: OutlinedButton.styleFrom(
-                    foregroundColor: Colors.purple,
-                    side: const BorderSide(color: Colors.purple),
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6)),
-                child: const Text('Contact', style: TextStyle(fontSize: 11))),
-          ])));
+          onTap: isPremium ? null : () => setState(() => _selPlan = p),
+          child: Container(
+              margin: const EdgeInsets.only(bottom: 10),
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                  color: isPremium ? Colors.purple.shade50 : (isSelected ? kPrimary.withValues(alpha: 0.08) : Colors.white),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                      color: isPremium ? Colors.purple.shade300
+                          : isSelected ? kPrimary
+                          : kBorder,
+                      width: isSelected || isPremium ? 2 : 1)),
+              child: Row(children: [
+                if (isSelected && !isPremium)
+                  const Icon(Icons.check_circle, color: kPrimary, size: 20)
+                else if (isPremium)
+                  const Icon(Icons.star_rounded, color: Colors.purple, size: 20)
+                else
+                  const Icon(Icons.circle_outlined, color: kBorder, size: 20),
+                const SizedBox(width: 12),
+                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Row(children: [
+                    Text(p['name'] as String, style: TextStyle(
+                        fontWeight: FontWeight.w800, fontSize: 14,
+                        color: isPremium ? Colors.purple : (isSelected ? kPrimary : kTextMain))),
+                    if (isFree) Container(
+                        margin: const EdgeInsets.only(left: 8),
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(color: Colors.green, borderRadius: BorderRadius.circular(4)),
+                        child: const Text('FREE', style: TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w800))),
+                  ]),
+                  const SizedBox(height: 3),
+                  if (isPremium)
+                    const Text('Contact us for custom pricing & unlimited scale',
+                        style: TextStyle(fontSize: 11, color: Colors.purple))
+                  else
+                    Text(
+                        isFree ? '30 days free, no credit card needed'
+                            : '₹$price for $days days',
+                        style: const TextStyle(fontSize: 11, color: kTextSub)),
+                  const SizedBox(height: 4),
+                  Wrap(spacing: 8, children: [
+                    if (features['dc_upload'] == true)
+                      _featureChip('📸 DC Upload'),
+                    if (features['loss_tracking'] == true)
+                      _featureChip('⚖️ Loss Track'),
+                    _featureChip('📊 ${features['reports'] ?? 'basic'} reports'),
+                  ]),
+                ])),
+                if (isPremium)
+                  OutlinedButton(
+                      onPressed: () {},
+                      style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.purple,
+                          side: const BorderSide(color: Colors.purple),
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6)),
+                      child: const Text('Contact', style: TextStyle(fontSize: 11))),
+              ])));
     }),
     const SizedBox(height: 20),
     _btn('✅ Register My Company', _createTrader),
@@ -830,26 +929,26 @@ class _TRS extends State<_TraderRegisterCard> {
   ];
 
   Widget _featureChip(String label) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-    decoration: BoxDecoration(color: kPrimary.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(4)),
-    child: Text(label, style: const TextStyle(fontSize: 9, color: kPrimary, fontWeight: FontWeight.w600)));
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(color: kPrimary.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(4)),
+      child: Text(label, style: const TextStyle(fontSize: 9, color: kPrimary, fontWeight: FontWeight.w600)));
 
   Widget _errBox() => Container(
-    width: double.infinity, margin: const EdgeInsets.only(bottom: 14),
-    padding: const EdgeInsets.all(12),
-    decoration: BoxDecoration(color: Colors.red.shade50, borderRadius: BorderRadius.circular(10)),
-    child: Row(children: [
-      const Icon(Icons.error_outline, color: kError, size: 16), const SizedBox(width: 8),
-      Expanded(child: Text(_err!, style: const TextStyle(color: kError, fontSize: 12))),
-    ]));
+      width: double.infinity, margin: const EdgeInsets.only(bottom: 14),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(color: Colors.red.shade50, borderRadius: BorderRadius.circular(10)),
+      child: Row(children: [
+        const Icon(Icons.error_outline, color: kError, size: 16), const SizedBox(width: 8),
+        Expanded(child: Text(_err!, style: const TextStyle(color: kError, fontSize: 12))),
+      ]));
 
   Widget _btn(String label, VoidCallback onTap) => SizedBox(
-    width: double.infinity, height: 50,
-    child: ElevatedButton(
-      onPressed: _busy ? null : onTap,
-      child: _busy
-          ? const SizedBox(width: 22, height: 22,
+      width: double.infinity, height: 50,
+      child: ElevatedButton(
+          onPressed: _busy ? null : onTap,
+          child: _busy
+              ? const SizedBox(width: 22, height: 22,
               child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white))
-          : Text(label, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700))));
+              : Text(label, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700))));
 }

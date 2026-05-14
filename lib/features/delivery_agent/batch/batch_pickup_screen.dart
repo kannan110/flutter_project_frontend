@@ -32,6 +32,10 @@ class _S extends ConsumerState<BatchPickupScreen> {
 
   DateTime _dcDate  = DateTime.now();
   String _srcType   = 'farm';
+  // Farm/supplier selection — links DC to supplier master
+  String? _selectedFarmId;
+  String? _selectedFarmName;
+  List<Map<String,dynamic>> _farms = [];
   bool _loading = false, _dataLoading = true, _uploadingDcImage = false;
   Map<String,dynamic>? _batch, _shift;
   List<Map<String,dynamic>> _existingDCs = [];
@@ -101,11 +105,25 @@ class _S extends ConsumerState<BatchPickupScreen> {
       _vehicle.text = batch!['delivery_agents']['vehicle_no'] as String;
     }
 
+    // Load supplier list for farm picker
+    List<Map<String,dynamic>> farms = [];
+    try {
+      final tid = ref.read(appUserProvider).valueOrNull?.traderId;
+      if (tid != null) {
+        final f = await _c.from('farms')
+            .select('id,farmer_name,farm_name,location,phone')
+            .eq('trader_id', tid).eq('is_active', true)
+            .order('farmer_name');
+        farms = List<Map<String,dynamic>>.from(f as List? ?? []);
+      }
+    } catch (_) {}
+
     if (mounted) setState(() {
       _batch       = batch;
       _shift       = shift;
       _existingDCs = dcs;
       _deliveries  = deliveries;
+      _farms       = farms;
       _dataLoading = false;
     });
   }
@@ -170,7 +188,9 @@ class _S extends ConsumerState<BatchPickupScreen> {
           'p_shift_id':       _shift!['id'],
           'p_dc_number':      _dcNum.text.trim(),
           'p_dc_date':        _dcDate.toIso8601String().split('T')[0],
-          'p_farmer_name':    _farmer.text.trim(),
+          'p_farmer_name':    _farmer.text.trim().isEmpty && _selectedFarmName != null
+              ? _selectedFarmName : _farmer.text.trim(),
+          'p_farm_id':        _selectedFarmId,
           'p_farm_location':  _farmLoc.text.trim().isEmpty ? null : _farmLoc.text.trim(),
           'p_vehicle_number': _vehicle.text.trim().isEmpty ? null : _vehicle.text.trim(),
           'p_driver_name':    _driver.text.trim().isEmpty  ? null : _driver.text.trim(),
@@ -205,7 +225,9 @@ class _S extends ConsumerState<BatchPickupScreen> {
           'p_batch_id':       widget.batchId,
           'p_dc_number':      _dcNum.text.trim(),
           'p_dc_date':        _dcDate.toIso8601String().split('T')[0],
-          'p_farmer_name':    _farmer.text.trim(),
+          'p_farmer_name':    _farmer.text.trim().isEmpty && _selectedFarmName != null
+              ? _selectedFarmName : _farmer.text.trim(),
+          'p_farm_id':        _selectedFarmId,
           'p_farm_location':  _farmLoc.text.trim().isEmpty ? null : _farmLoc.text.trim(),
           'p_vehicle_number': _vehicle.text.trim().isEmpty ? null : _vehicle.text.trim(),
           'p_gross_weight':   _grossWtVal,
@@ -241,6 +263,116 @@ class _S extends ConsumerState<BatchPickupScreen> {
     _birds.clear(); _farmRate.clear(); _grossWt.clear();
     _emptyWt.text = '0'; _crates.text = '0';
     if (mounted) setState(() { _dcDate = DateTime.now(); });
+  }
+
+  void _showFarmPicker() {
+    showModalBottomSheet(
+      context: context,
+      useRootNavigator: true,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (ctx) {
+        String query = '';
+        return StatefulBuilder(builder: (ctx, ss) {
+          final filtered = query.isEmpty
+              ? _farms
+              : _farms.where((f) =>
+                  (f['farmer_name'] as String? ?? '').toLowerCase().contains(query.toLowerCase()) ||
+                  (f['farm_name']   as String? ?? '').toLowerCase().contains(query.toLowerCase()) ||
+                  (f['location']    as String? ?? '').toLowerCase().contains(query.toLowerCase()))
+                  .toList();
+          return DraggableScrollableSheet(
+            expand: false,
+            initialChildSize: 0.6,
+            maxChildSize: 0.9,
+            builder: (_, ctrl) => Column(children: [
+              // Handle
+              Padding(padding: const EdgeInsets.fromLTRB(20, 12, 20, 8), child: Column(children: [
+                Center(child: Container(width: 40, height: 4,
+                    decoration: BoxDecoration(color: Colors.grey.shade300,
+                        borderRadius: BorderRadius.circular(2)))),
+                const SizedBox(height: 10),
+                const Text('Select Supplier', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800)),
+                const SizedBox(height: 10),
+                // Search
+                TextField(
+                    onChanged: (v) => ss(() => query = v),
+                    decoration: const InputDecoration(
+                        hintText: 'Search supplier...',
+                        prefixIcon: Icon(Icons.search, size: 18),
+                        isDense: true)),
+              ])),
+              const Divider(height: 1),
+              // List
+              Expanded(child: ListView.separated(
+                controller: ctrl,
+                padding: const EdgeInsets.all(12),
+                itemCount: filtered.length,
+                separatorBuilder: (_, __) => const SizedBox(height: 4),
+                itemBuilder: (_, i) {
+                  final f = filtered[i];
+                  final name = f['farmer_name'] as String? ?? '—';
+                  final farm = f['farm_name']   as String?;
+                  final loc  = f['location']    as String?;
+                  final phone= f['phone']       as String?;
+                  return InkWell(
+                    onTap: () {
+                      Navigator.of(ctx, rootNavigator: true).pop();
+                      setState(() {
+                        _selectedFarmId   = f['id'] as String;
+                        _selectedFarmName = farm != null ? '$name ($farm)' : name;
+                        // Pre-fill the manual field too
+                        _farmer.text  = name;
+                        if (loc != null && _farmLoc.text.isEmpty) _farmLoc.text = loc;
+                      });
+                    },
+                    borderRadius: BorderRadius.circular(10),
+                    child: Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                          color: _selectedFarmId == f['id'] ? kPrimary.withValues(alpha: 0.06) : Colors.white,
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                              color: _selectedFarmId == f['id'] ? kPrimary : kBorder,
+                              width: _selectedFarmId == f['id'] ? 1.5 : 1)),
+                      child: Row(children: [
+                        Container(width: 36, height: 36,
+                            decoration: BoxDecoration(
+                                color: kPrimary.withValues(alpha: 0.08),
+                                shape: BoxShape.circle),
+                            child: Center(child: Text(name[0].toUpperCase(),
+                                style: const TextStyle(fontWeight: FontWeight.w800, color: kPrimary)))),
+                        const SizedBox(width: 10),
+                        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                          Text(name, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
+                          if (farm != null) Text(farm,
+                              style: const TextStyle(fontSize: 10, color: kTextHint)),
+                          if (loc  != null) Text(loc,
+                              style: const TextStyle(fontSize: 10, color: kTextHint)),
+                        ])),
+                        if (phone != null) Text(phone,
+                            style: const TextStyle(fontSize: 10, color: kTextHint)),
+                        if (_selectedFarmId == f['id'])
+                          const Icon(Icons.check_circle, color: kPrimary, size: 16),
+                      ])));
+                })),
+              // Add new supplier shortcut
+              SafeArea(child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: OutlinedButton.icon(
+                    onPressed: () {
+                      Navigator.of(ctx, rootNavigator: true).pop();
+                      // Navigate to purchase screen to add supplier
+                      context.go(R.purchase);
+                    },
+                    icon: const Icon(Icons.add, size: 16),
+                    label: const Text('Add New Supplier'),
+                    style: OutlinedButton.styleFrom(
+                        minimumSize: const Size(double.infinity, 44))))),
+            ]));
+        });
+      });
   }
 
   @override
@@ -512,6 +644,47 @@ class _S extends ConsumerState<BatchPickupScreen> {
           ]),
           const SizedBox(height: 10),
 
+          // ── Supplier picker from master list ─────────────────────
+          if (_srcType == 'farm' && _farms.isNotEmpty) ...[
+            GestureDetector(
+              onTap: _showFarmPicker,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 13),
+                decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                        color: _selectedFarmId != null ? kPrimary : kBorder,
+                        width: _selectedFarmId != null ? 1.5 : 1)),
+                child: Row(children: [
+                  Icon(Icons.agriculture_outlined, size: 16,
+                      color: _selectedFarmId != null ? kPrimary : kTextHint),
+                  const SizedBox(width: 10),
+                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text(_selectedFarmId != null ? 'Supplier Selected' : 'Select from Supplier List',
+                        style: TextStyle(fontSize: 10,
+                            color: _selectedFarmId != null ? kPrimary : kTextHint)),
+                    if (_selectedFarmId != null)
+                      Text(_selectedFarmName ?? '—',
+                          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
+                  ])),
+                  if (_selectedFarmId != null)
+                    GestureDetector(
+                        onTap: () => setState(() {
+                          _selectedFarmId = null;
+                          _selectedFarmName = null;
+                          _farmer.clear();
+                        }),
+                        child: const Icon(Icons.close, size: 16, color: kTextHint))
+                  else
+                    const Icon(Icons.chevron_right, size: 16, color: kTextHint),
+                ]))),
+            const SizedBox(height: 6),
+            const Center(child: Text('— or type manually —',
+                style: TextStyle(fontSize: 10, color: kTextHint))),
+            const SizedBox(height: 6),
+          ],
+          // ── Farmer name text input ────────────────────────────────
           TextFormField(
             controller: _farmer,
             textCapitalization: TextCapitalization.words,
