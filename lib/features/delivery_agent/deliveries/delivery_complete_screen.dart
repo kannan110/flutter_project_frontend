@@ -225,18 +225,29 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
             shopName:       r?['shop_name'] as String? ?? 'Delivery',
             expectedBirds:  _dcBirds  > 0 ? _dcBirds  : _orderBirds,
             expectedWeight: _dcWeight > 0 ? _dcWeight : _orderWeight,
-            onComplete: (result) {
+            onComplete: (result) async {
+
+              if (!mounted) return;
+
               _birdsCtrl.text     = '${result.totalBirds}';
               _weightCtrl.text    = result.totalNetWt.toStringAsFixed(3);
               _rcvBirdsCtrl.text  = '${result.totalBirds}';
               _rcvWeightCtrl.text = result.totalNetWt.toStringAsFixed(3);
-              _avgBirdWeightG     = result.avgBirdWtG;
-              _weighmentSource    = result.source;
-              _weighmentDone      = true;
-              // BUG I4 FIX: use rootNavigator so ShellRoute navigator is not confused
-              Navigator.of(context, rootNavigator: true).pop();
-              if (mounted) setState(() {});
-              showSuccess(context, '✓ Weight loaded: ${result.totalNetWt.toStringAsFixed(2)} kg');
+
+              _avgBirdWeightG  = result.avgBirdWtG;
+              _weighmentSource = result.source;
+              _weighmentDone   = true;
+
+              setState(() {});
+
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (!mounted) return;
+
+                showSuccess(
+                  context,
+                  '✓ Weight loaded: ${result.totalNetWt.toStringAsFixed(2)} kg',
+                );
+              });
             })));
   }
 

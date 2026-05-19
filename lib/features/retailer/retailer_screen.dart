@@ -265,7 +265,7 @@ class _RS extends ConsumerState<RetailerScreen>
                     child: Row(children: [
                       Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                         Text('${(lastDel['pickup_bird_count'] as num?)?.toInt() ?? 0} birds  |  '
-                            '${(lastDel['delivery_weight_kg'] as num?)?.toStringAsFixed(1) ?? 0} kg',
+                            '${(lastDel['delivered_total_weight'] as num?)?.toStringAsFixed(1) ?? 0} kg',
                             style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
                         if (lastDel['delivered_at'] != null)
                           Text(DateFormat('d MMM, hh:mm a').format(
@@ -361,6 +361,21 @@ class _RS extends ConsumerState<RetailerScreen>
                           minHeight: 3, backgroundColor: Colors.grey.shade200,
                           valueColor: const AlwaysStoppedAnimation(Colors.orange))),
                 ],
+                // Cancel button — only for pending/confirmed (before pickup)
+                if (['pending','confirmed'].contains(status)) ...[
+                  const SizedBox(height: 8),
+                  const Divider(height: 1),
+                  const SizedBox(height: 6),
+                  GestureDetector(
+                      onTap: () => _cancelOrder(o['id'] as String, status),
+                      child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                        const Icon(Icons.cancel_outlined, size: 14, color: kError),
+                        const SizedBox(width: 4),
+                        const Text('Cancel Order',
+                            style: TextStyle(fontSize: 11, color: kError,
+                                fontWeight: FontWeight.w700)),
+                      ])),
+                ],
               ]));
         })),
   ]);
@@ -396,7 +411,7 @@ class _RS extends ConsumerState<RetailerScreen>
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
                 decoration: BoxDecoration(color: Colors.white,
                     borderRadius: BorderRadius.circular(10),
-                    border: Border(left: BorderSide(color: c, width: 3),
+                    border: Border(left: BorderSide(color: kBorder, width: 3),
                         right: const BorderSide(color: kBorder),
                         top: const BorderSide(color: kBorder),
                         bottom: const BorderSide(color: kBorder))),
@@ -668,8 +683,9 @@ class _RS extends ConsumerState<RetailerScreen>
         text: reorderFrom != null
             ? (reorderFrom['total_quantity'] as num?)?.toStringAsFixed(0) ?? '' : '');
     final noteCtrl = TextEditingController();
-    String mode    = 'kg';
-    bool urgent    = false;
+    String mode        = 'kg';
+    String deliverySlot = 'today';   // 'today' or 'tomorrow'
+    bool urgent        = false;
 
     showModalBottomSheet(
         context: context, useRootNavigator: true, isScrollControlled: true,
@@ -701,21 +717,39 @@ class _RS extends ConsumerState<RetailerScreen>
                         Text(products.first['name'] as String? ?? 'Broiler',
                             style: const TextStyle(fontWeight: FontWeight.w700)),
                         const Spacer(),
-                        if (products.first['rate'] != null)
-                          Text('Rs.${(products.first["rate"] as num).toStringAsFixed(2)}/kg',
-                              style: const TextStyle(color: kPrimary, fontWeight: FontWeight.w700)),
+                        Text(products.first['rate'] != null
+                            ? 'Rs.${(products.first["rate"] as num).toStringAsFixed(2)}/kg'
+                            : 'Rate TBD',
+                            style: TextStyle(color: products.first['rate'] != null
+                                ? kPrimary : kTextHint, fontWeight: FontWeight.w700)),
                       ]))
                   else DropdownButtonFormField<String>(
                         value: selectedProductId,
                         decoration: const InputDecoration(labelText: 'Product *', isDense: true),
                         items: products.map((p) => DropdownMenuItem(
                             value: p['id'] as String,
-                            child: Row(children: [
-                              Expanded(child: Text(p['name'] as String? ?? '—')),
-                              if (p['rate'] != null)
-                                Text('Rs.${(p["rate"] as num).toStringAsFixed(2)}/kg',
-                                    style: const TextStyle(fontSize: 10, color: kTextSub)),
-                            ]))).toList(),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Flexible(
+                                  fit: FlexFit.loose,
+                                  child: Text(
+                                    p['name'] as String? ?? '—',
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  p['rate'] != null
+                                      ? 'Rs.${(p["rate"] as num).toStringAsFixed(2)}/kg'
+                                      : 'Rate TBD',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    color: p['rate'] != null ? kTextSub : kTextHint,
+                                  ),
+                                ),
+                              ],
+                            ))).toList(),
                         onChanged: (v) => ss(() => selectedProductId = v)),
                   const SizedBox(height: 10),
                   Row(children: [
@@ -739,6 +773,20 @@ class _RS extends ConsumerState<RetailerScreen>
                   TextField(controller: noteCtrl,
                       decoration: const InputDecoration(labelText: 'Instructions (optional)')),
                   const SizedBox(height: 8),
+                  // Delivery date — Today / Tomorrow / Custom
+                  Row(children: [
+                    const Text('Delivery:', style: TextStyle(fontSize: 12, color: kTextSub)),
+                    const SizedBox(width: 10),
+                    Expanded(child: SegmentedButton<String>(
+                        style: const ButtonStyle(visualDensity: VisualDensity.compact),
+                        segments: const [
+                          ButtonSegment(value: 'today',    label: Text('Today',    style: TextStyle(fontSize: 11))),
+                          ButtonSegment(value: 'tomorrow', label: Text('Tomorrow', style: TextStyle(fontSize: 11))),
+                        ],
+                        selected: {deliverySlot},
+                        onSelectionChanged: (s) => ss(() => deliverySlot = s.first))),
+                  ]),
+                  const SizedBox(height: 8),
                   Row(children: [
                     Checkbox(value: urgent, onChanged: (v) => ss(() => urgent = v ?? false)),
                     const Text('Urgent Order', style: TextStyle(fontSize: 12)),
@@ -755,11 +803,15 @@ class _RS extends ConsumerState<RetailerScreen>
                           selectedProductId = products.first['id'] as String;
                         Navigator.of(ctx, rootNavigator: true).pop();
                         try {
+                          final dDate = deliverySlot == 'tomorrow'
+                              ? DateTime.now().add(const Duration(days: 1))
+                              : DateTime.now();
                           await _c.rpc('retailer_place_order', params: {
-                            'p_retailer_id': _retailerId,
-                            'p_product_id':  selectedProductId,
+                            'p_retailer_id':  _retailerId,
+                            'p_product_id':   selectedProductId,
                             if (mode == 'kg')    'p_quantity_kg': qty,
                             if (mode == 'birds') 'p_birds':       qty.toInt(),
+                            'p_delivery_date': '${dDate.year}-${dDate.month.toString().padLeft(2,"0")}-${dDate.day.toString().padLeft(2,"0")}',
                             'p_notes':    noteCtrl.text.trim().isEmpty ? null : noteCtrl.text.trim(),
                             'p_is_urgent': urgent,
                           });
@@ -771,6 +823,27 @@ class _RS extends ConsumerState<RetailerScreen>
                       },
                       child: const Text('Confirm Order')),
                 ])))));
+  }
+
+  Future<void> _cancelOrder(String orderId, String status) async {
+    final ok = await confirmDialog(context,
+        title: 'Cancel Order',
+        message: 'Are you sure you want to cancel this order? '
+            'You can only cancel before the order is picked up.',
+        confirmText: 'Yes, Cancel');
+    if (!ok || !mounted) return;
+    try {
+      await _c.rpc('cancel_retailer_order', params: {
+        'p_order_id':    orderId,
+        'p_retailer_id': _retailerId,
+        'p_reason':      'Cancelled by retailer',
+      });
+      _load();
+      if (mounted) showSuccess(context, 'Order cancelled.');
+    } catch (e) {
+      if (mounted) showError(context,
+          e.toString().replaceAll('Exception: ','').replaceAll('PostgrestException: ',''));
+    }
   }
 
   void _showPayment() {

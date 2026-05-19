@@ -36,8 +36,75 @@ class _S extends ConsumerState<OrderDetailScreen> {
 
   Future<void> _updateStatus(String s) async {
     try { await _c.from('orders').update({'status': s}).eq('id', widget.id); _load();
-          if (mounted) showSuccess(context, 'Status updated'); }
+    if (mounted) showSuccess(context, 'Status updated'); }
     catch (e) { if (mounted) showError(context, e.toString()); }
+  }
+
+  Future<void> _confirmRetailerOrder() async {
+    DateTime selectedDate = DateTime.now();
+    final dateCtrl = TextEditingController(
+        text: '${selectedDate.day}/${selectedDate.month}/${selectedDate.year}');
+    String slot = 'today';
+
+    await showDialog(
+        context: context,
+        useRootNavigator: true,
+        builder: (ctx) => StatefulBuilder(builder: (ctx, ss) => AlertDialog(
+            title: const Text('Confirm Retailer Order'),
+            content: Column(mainAxisSize: MainAxisSize.min, children: [
+              const Text('Set delivery date and confirm the order.',
+                  style: TextStyle(fontSize: 12, color: kTextSub)),
+              const SizedBox(height: 16),
+              // Quick slots
+              Row(children: [
+                const Text('Deliver: ', style: TextStyle(fontSize: 12)),
+                Expanded(child: SegmentedButton<String>(
+                    style: const ButtonStyle(visualDensity: VisualDensity.compact),
+                    segments: const [
+                      ButtonSegment(value: 'today',    label: Text('Today')),
+                      ButtonSegment(value: 'tomorrow', label: Text('Tomorrow')),
+                    ],
+                    selected: {slot},
+                    onSelectionChanged: (s) {
+                      ss(() {
+                        slot = s.first;
+                        selectedDate = slot == 'tomorrow'
+                            ? DateTime.now().add(const Duration(days: 1))
+                            : DateTime.now();
+                        dateCtrl.text =
+                        '${selectedDate.day}/${selectedDate.month}/${selectedDate.year}';
+                      });
+                    })),
+              ]),
+              const SizedBox(height: 8),
+              Text('Delivery Date: ${dateCtrl.text}',
+                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
+            ]),
+            actions: [
+              TextButton(
+                  onPressed: () => Navigator.of(ctx, rootNavigator: true).pop(),
+                  child: const Text('Cancel')),
+              ElevatedButton(
+                  style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+                  onPressed: () async {
+                    Navigator.of(ctx, rootNavigator: true).pop();
+                    try {
+                      await _c.rpc('confirm_retailer_order', params: {
+                        'p_order_id':      widget.id,
+                        'p_delivery_date': '${selectedDate.year}'
+                            '-${selectedDate.month.toString().padLeft(2,"0")}'
+                            '-${selectedDate.day.toString().padLeft(2,"0")}',
+                      });
+                      _load();
+                      if (mounted) showSuccess(context,
+                          'Order confirmed for ${dateCtrl.text}. Retailer notified.');
+                    } catch (e) {
+                      if (mounted) showError(context,
+                          e.toString().replaceAll('Exception: ',''));
+                    }
+                  },
+                  child: const Text('Confirm Order')),
+            ])));
   }
 
   Future<void> _cancelOrder() async {
@@ -83,49 +150,49 @@ class _S extends ConsumerState<OrderDetailScreen> {
     final pct = totalBirds > 0 ? (fulfilledB / totalBirds).clamp(0.0, 1.0) : 0.0;
 
     return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-          color: Colors.orange.shade50, borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.orange.shade200, width: 1.5)),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [
-          const Icon(Icons.splitscreen_outlined, color: Colors.orange, size: 16),
-          const SizedBox(width: 6),
-          Text('Partial Delivery — Attempt $partialCount',
-              style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: Colors.orange)),
-        ]),
-        const SizedBox(height: 10),
-        // Progress bar
-        Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-          const Text('Fulfilled', style: TextStyle(fontSize: 11, color: kTextSub)),
-          Text('${(pct * 100).toStringAsFixed(0)}%',
-              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.orange)),
-        ]),
-        const SizedBox(height: 4),
-        ClipRRect(borderRadius: BorderRadius.circular(6),
-            child: LinearProgressIndicator(
-                value: pct, minHeight: 8,
-                backgroundColor: Colors.orange.shade100,
-                valueColor: const AlwaysStoppedAnimation(Colors.orange))),
-        const SizedBox(height: 12),
-        Row(children: [
-          Expanded(child: _pCol('Ordered',   '$totalBirds birds', '${totalKg.toStringAsFixed(1)} kg', Colors.blue)),
-          Container(width: 1, height: 50, color: Colors.orange.shade200, margin: const EdgeInsets.symmetric(horizontal: 10)),
-          Expanded(child: _pCol('Delivered', '$fulfilledB birds', '${fulfilledKg.toStringAsFixed(1)} kg', Colors.green)),
-          Container(width: 1, height: 50, color: Colors.orange.shade200, margin: const EdgeInsets.symmetric(horizontal: 10)),
-          Expanded(child: _pCol('Remaining', '$backorderB birds', '${backorderKg.toStringAsFixed(1)} kg',
-              backorderB > 0 ? Colors.orange : Colors.grey)),
-        ]),
-      ]));
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+            color: Colors.orange.shade50, borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.orange.shade200, width: 1.5)),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            const Icon(Icons.splitscreen_outlined, color: Colors.orange, size: 16),
+            const SizedBox(width: 6),
+            Text('Partial Delivery — Attempt $partialCount',
+                style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: Colors.orange)),
+          ]),
+          const SizedBox(height: 10),
+          // Progress bar
+          Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+            const Text('Fulfilled', style: TextStyle(fontSize: 11, color: kTextSub)),
+            Text('${(pct * 100).toStringAsFixed(0)}%',
+                style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.orange)),
+          ]),
+          const SizedBox(height: 4),
+          ClipRRect(borderRadius: BorderRadius.circular(6),
+              child: LinearProgressIndicator(
+                  value: pct, minHeight: 8,
+                  backgroundColor: Colors.orange.shade100,
+                  valueColor: const AlwaysStoppedAnimation(Colors.orange))),
+          const SizedBox(height: 12),
+          Row(children: [
+            Expanded(child: _pCol('Ordered',   '$totalBirds birds', '${totalKg.toStringAsFixed(1)} kg', Colors.blue)),
+            Container(width: 1, height: 50, color: Colors.orange.shade200, margin: const EdgeInsets.symmetric(horizontal: 10)),
+            Expanded(child: _pCol('Delivered', '$fulfilledB birds', '${fulfilledKg.toStringAsFixed(1)} kg', Colors.green)),
+            Container(width: 1, height: 50, color: Colors.orange.shade200, margin: const EdgeInsets.symmetric(horizontal: 10)),
+            Expanded(child: _pCol('Remaining', '$backorderB birds', '${backorderKg.toStringAsFixed(1)} kg',
+                backorderB > 0 ? Colors.orange : Colors.grey)),
+          ]),
+        ]));
   }
 
   Widget _pCol(String l, String birds, String kg, Color c) =>
-    Column(children: [
-      Text(l, style: TextStyle(fontSize: 10, color: c, fontWeight: FontWeight.w700)),
-      const SizedBox(height: 4),
-      Text(birds, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: c)),
-      Text(kg, style: TextStyle(fontSize: 11, color: c.withValues(alpha: 0.8))),
-    ]);
+      Column(children: [
+        Text(l, style: TextStyle(fontSize: 10, color: c, fontWeight: FontWeight.w700)),
+        const SizedBox(height: 4),
+        Text(birds, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: c)),
+        Text(kg, style: TextStyle(fontSize: 11, color: c.withValues(alpha: 0.8))),
+      ]);
 
   @override
   Widget build(BuildContext context) {
@@ -200,11 +267,11 @@ class _S extends ConsumerState<OrderDetailScreen> {
             const Text('Amount', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
             const Spacer(),
             if (hasInv) Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-              decoration: BoxDecoration(color: Colors.green.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.green.shade200)),
-              child: const Text('Billed ✓', style: TextStyle(fontSize: 10, color: Colors.green, fontWeight: FontWeight.w700))),
+                decoration: BoxDecoration(color: Colors.green.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.green.shade200)),
+                child: const Text('Billed ✓', style: TextStyle(fontSize: 10, color: Colors.green, fontWeight: FontWeight.w700))),
             if (!hasInv) Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-              decoration: BoxDecoration(color: Colors.orange.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.orange.shade200)),
-              child: const Text('Estimate', style: TextStyle(fontSize: 10, color: Colors.orange, fontWeight: FontWeight.w700))),
+                decoration: BoxDecoration(color: Colors.orange.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.orange.shade200)),
+                child: const Text('Estimate', style: TextStyle(fontSize: 10, color: Colors.orange, fontWeight: FontWeight.w700))),
           ]),
           const Divider(height: 14),
           if (birds > 0)   InfoRow('Birds ordered', '$birds'),
@@ -246,20 +313,49 @@ class _S extends ConsumerState<OrderDetailScreen> {
 
         // Actions
         if (!['cancelled','invoiced','closed'].contains(status)) ...[
+          // Retailer-placed order pending confirmation
+          if (status == 'pending' && _order!['source'] == 'retailer') ...[
+            Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(color: Colors.orange.shade50,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: Colors.orange.shade200)),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  const Row(children: [
+                    Icon(Icons.store_outlined, size: 14, color: Colors.orange),
+                    SizedBox(width: 6),
+                    Text('Retailer Order — Awaiting Confirmation',
+                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800,
+                            color: Colors.orange)),
+                  ]),
+                  const SizedBox(height: 4),
+                  const Text('Review the order, set delivery date and confirm.',
+                      style: TextStyle(fontSize: 11, color: kTextSub)),
+                ])),
+            const SizedBox(height: 10),
+            ElevatedButton.icon(
+                onPressed: _confirmRetailerOrder,
+                icon: const Icon(Icons.check_circle_outline, size: 18),
+                label: const Text('Confirm Order + Set Delivery Date'),
+                style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.green,
+                    minimumSize: const Size(double.infinity, 46))),
+            const SizedBox(height: 10),
+          ],
           if (status == 'confirmed')
             OutlinedButton.icon(
-              onPressed: () => context.go(R.dispatch),
-              icon: const Icon(Icons.local_shipping_outlined, size: 18),
-              label: const Text('Assign to Batch → Dispatch'),
-              style: OutlinedButton.styleFrom(minimumSize: const Size(double.infinity, 46))),
+                onPressed: () => context.go(R.dispatch),
+                icon: const Icon(Icons.local_shipping_outlined, size: 18),
+                label: const Text('Assign to Batch → Dispatch'),
+                style: OutlinedButton.styleFrom(minimumSize: const Size(double.infinity, 46))),
           if (status == 'confirmed') const SizedBox(height: 10),
           OutlinedButton.icon(
-            onPressed: _cancelOrder,
-            icon: const Icon(Icons.cancel_outlined, size: 18, color: kError),
-            label: const Text('Cancel Order'),
-            style: OutlinedButton.styleFrom(foregroundColor: kError,
-                side: const BorderSide(color: kError),
-                minimumSize: const Size(double.infinity, 46))),
+              onPressed: _cancelOrder,
+              icon: const Icon(Icons.cancel_outlined, size: 18, color: kError),
+              label: const Text('Cancel Order'),
+              style: OutlinedButton.styleFrom(foregroundColor: kError,
+                  side: const BorderSide(color: kError),
+                  minimumSize: const Size(double.infinity, 46))),
         ],
       ]),
     );

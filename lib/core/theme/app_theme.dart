@@ -81,7 +81,7 @@ class AppTheme {
       focusedErrorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: const BorderSide(color: kError, width: 1.5)),
-      labelStyle: const TextStyle(color: kTextSub, fontSize: 14),
+        labelStyle: const TextStyle(color: kTextSub, fontSize: 14),
       hintStyle: const TextStyle(color: kTextHint, fontSize: 14),
     ),
 
@@ -156,15 +156,15 @@ class AppTheme {
     // Text theme — larger, more readable
     textTheme: const TextTheme(
       displayLarge:  TextStyle(fontSize: 32, fontWeight: FontWeight.w900, color: kTextMain),
-      titleLarge:    TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: kTextMain),
-      titleMedium:   TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: kTextMain),
-      titleSmall:    TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: kTextMain),
-      bodyLarge:     TextStyle(fontSize: 15, fontWeight: FontWeight.w400, color: kTextMain),
-      bodyMedium:    TextStyle(fontSize: 14, fontWeight: FontWeight.w400, color: kTextMain),
-      bodySmall:     TextStyle(fontSize: 12, fontWeight: FontWeight.w400, color: kTextSub),
-      labelLarge:    TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: kTextMain),
-      labelMedium:   TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: kTextSub),
-      labelSmall:    TextStyle(fontSize: 11, fontWeight: FontWeight.w500, color: kTextHint),
+      titleLarge:    TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: kTextMain),
+      titleMedium:   TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: kTextMain),
+      titleSmall:    TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: kTextMain),
+      bodyLarge:     TextStyle(fontSize: 17, fontWeight: FontWeight.w400, color: kTextMain),
+      bodyMedium:    TextStyle(fontSize: 15, fontWeight: FontWeight.w400, color: kTextMain),
+      bodySmall:     TextStyle(fontSize: 14, fontWeight: FontWeight.w400, color: kTextSub),
+      labelLarge:    TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: kTextMain),
+      labelMedium:   TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: kTextSub),
+      labelSmall:    TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: kTextHint),
     ),
   );
 }
@@ -244,7 +244,7 @@ class SectionHeader extends StatelessWidget {
   Widget build(BuildContext context) => Padding(
     padding: const EdgeInsets.only(bottom: 10, top: 6),
     child: Text(text,
-        style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800,
+        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800,
             color: kTextHint, letterSpacing: 1.0)),
   );
 }
@@ -258,10 +258,10 @@ class InfoRow extends StatelessWidget {
     child: Row(children: [
       SizedBox(width: 140,
           child: Text(label,
-              style: const TextStyle(fontSize: 13, color: kTextSub,
+              style: const TextStyle(fontSize: 15, color: kTextSub,
                   fontWeight: FontWeight.w500))),
       Expanded(child: Text(value,
-          style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700,
+          style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700,
               color: valueColor ?? kTextMain))),
     ]),
   );
@@ -300,11 +300,11 @@ class KpiCard extends StatelessWidget {
                 color: kTextMain)),
         const SizedBox(height: 2),
         Text(label,
-            style: const TextStyle(fontSize: 12, color: kTextSub,
+            style: const TextStyle(fontSize: 14, color: kTextSub,
                 fontWeight: FontWeight.w500)),
         if (sub != null) ...[
           const SizedBox(height: 2),
-          Text(sub!, style: TextStyle(fontSize: 11, color: color,
+          Text(sub!, style: TextStyle(fontSize: 13, color: color,
               fontWeight: FontWeight.w700))
         ],
       ]),
@@ -331,12 +331,12 @@ class EmptyState extends StatelessWidget {
               color: kPrimary.withValues(alpha: 0.5)))),
       const SizedBox(height: 20),
       Text(message,
-          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700,
+          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700,
               color: kTextSub),
           textAlign: TextAlign.center),
       if (sub != null) ...[
         const SizedBox(height: 8),
-        Text(sub!, style: const TextStyle(fontSize: 13, color: kTextHint),
+        Text(sub!, style: const TextStyle(fontSize: 15, color: kTextHint),
             textAlign: TextAlign.center)
       ],
       if (onAction != null) ...[

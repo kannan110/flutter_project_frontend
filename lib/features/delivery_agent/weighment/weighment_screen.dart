@@ -913,6 +913,9 @@ class _WS extends State<WeighmentScreen> {
       rows: List.from(_rows),
       source: _connected ? 'bluetooth' : 'manual',
     ));
+    if (mounted && Navigator.canPop(context)) {
+      Navigator.pop(context);
+    }
   }
 
   Widget _summaryRow(String l, String v) => Padding(
