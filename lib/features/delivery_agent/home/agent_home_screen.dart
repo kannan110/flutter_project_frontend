@@ -3,9 +3,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../../core/config/ui_mode.dart';
 import '../../../core/providers/session_provider.dart';
+import '../../../core/providers/ui_mode_provider.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_theme.dart';
+import 'agent_home_simple_screen.dart';
 
 class AgentHomeScreen extends ConsumerStatefulWidget {
   const AgentHomeScreen({super.key});
@@ -182,6 +185,193 @@ class _S extends ConsumerState<AgentHomeScreen> {
     }
   }
 
+  // ══════════════════════════════════════════════════════════════════════════
+  // SIMPLE MODE DASHBOARD — delegates to SimpleDashboard widget
+  // ══════════════════════════════════════════════════════════════════════════
+  Widget _buildSimpleDashboard() {
+    // DEBUG: wrap in a Container to verify the build method runs
+    debugPrint('[AgentHomeScreen] Building SimpleDashboard — hasShift=$_hasShift pending=${_pendingList.length} batches=${_activeBatches.length}');
+    return SimpleDashboard(
+      hasShift: _hasShift,
+      today: _today,
+      reqBirds: _reqBirds,
+      reqWeight: _reqWeight,
+      orderCount: _orderCount,
+      availBirds: _availBirds,
+      availKg: _availKg,
+      hasShortage: _hasShortage,
+      shortBirds: _shortBirds,
+      shortKg: _shortKg,
+      pendingList: _pendingList,
+      activeBatches: _activeBatches,
+      onRefresh: _load,
+      onGoToShiftOpen: () => context.go(R.shiftOpen),
+      onGoToShiftClose: () => context.go(R.shiftClose),
+      onGoToBatchPickup: () {
+        if (_activeBatches.isNotEmpty) {
+          context.push(R.batchPickupPath(_activeBatches.first['id'] as String));
+        } else {
+          showError(context, 'No active batch. Ask admin to create one.');
+        }
+      },
+      onGoToDeliveries: () => context.go(R.agentDeliveries),
+      onGoToTransfers: () {
+        if (_activeBatches.isNotEmpty) {
+          context.push(R.birdTransferPath(_activeBatches.first['id'] as String));
+        } else {
+          context.push(R.transferHistory);
+        }
+      },
+      onGoToDeliveryComplete: () {
+        final firstOfd = _pendingList
+            .whereType<Map<String, dynamic>>()
+            .where((d) => d['status'] == 'out_for_delivery')
+            .firstOrNull;
+        if (firstOfd != null) {
+          context.push(R.deliveryDonePath(firstOfd['id'] as String));
+        } else {
+          context.go(R.agentDeliveries);
+        }
+      },
+      onGoToDcView: () {
+        if (_activeBatches.isNotEmpty) {
+          context.push(R.dcViewPath(_activeBatches.first['id'] as String));
+        } else {
+          showError(context, 'No active batch.');
+        }
+      },
+      onGoToAllDeliveries: () => context.go(R.agentDeliveries),
+      onDeliveryCompleteItem: (deliveryId) => context.push(R.deliveryDonePath(deliveryId)),
+      onTransferItem: (batchId) => context.push(R.birdTransferPath(batchId)),
+      onReassignItem: (delivery) => _doReassign(delivery),
+    );
+  }
+
+  // ── Profile / Settings Bottom Sheet ────────────────────────────────────
+  void _showProfileSheet() {
+    final user = ref.read(appUserProvider).valueOrNull;
+    final mode = ref.read(uiModeProvider);
+    showModalBottomSheet(
+      context: context,
+      useRootNavigator: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            // Drag handle
+            Container(width: 36, height: 4,
+                decoration: BoxDecoration(
+                    color: Colors.grey.shade300,
+                    borderRadius: BorderRadius.circular(2))),
+            const SizedBox(height: 20),
+
+            // ── Avatar + Name ────────────────────────────────────
+            Row(children: [
+              Container(width: 48, height: 48,
+                  decoration: BoxDecoration(
+                      color: kPrimary.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(14)),
+                  child: const Center(child: Text('🛵', style: TextStyle(fontSize: 22)))),
+              const SizedBox(width: 14),
+              Expanded(child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(user?.companyName ?? 'Delivery Agent',
+                      style: const TextStyle(fontSize: 16,
+                          fontWeight: FontWeight.w800)),
+                  Text('Agent',
+                      style: const TextStyle(fontSize: 12,
+                          color: kTextHint)),
+                ],
+              )),
+            ]),
+            const SizedBox(height: 24),
+
+            // ── UI Mode Toggle ───────────────────────────────────
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                  color: kBgGrey,
+                  borderRadius: BorderRadius.circular(14)),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(children: [
+                    const Icon(Icons.palette_outlined, size: 16, color: kTextSub),
+                    const SizedBox(width: 8),
+                    const Text('UI Mode',
+                        style: TextStyle(fontSize: 13,
+                            fontWeight: FontWeight.w700)),
+                    const Spacer(),
+                    Text(mode.label,
+                        style: const TextStyle(fontSize: 11,
+                            color: kPrimary,
+                            fontWeight: FontWeight.w600)),
+                  ]),
+                  const SizedBox(height: 10),
+                  SegmentedButton<UiMode>(
+                    segments: const [
+                      ButtonSegment(
+                          value: UiMode.smart,
+                          label: Text('Smart',
+                              style: TextStyle(fontSize: 12)),
+                          icon: Icon(Icons.dashboard_outlined, size: 16)),
+                      ButtonSegment(
+                          value: UiMode.simple,
+                          label: Text('Simple',
+                              style: TextStyle(fontSize: 12)),
+                          icon: Icon(Icons.accessible_rounded, size: 16)),
+                    ],
+                    selected: {mode},
+                    onSelectionChanged: (set) {
+                      final newMode = set.first;
+                      ref.read(uiModeProvider.notifier).setMode(newMode);
+                      Navigator.pop(ctx);
+                    },
+                    showSelectedIcon: false,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    mode.isSimple
+                        ? 'Larger text, simpler layout, bigger buttons'
+                        : 'Full ERP-style dashboard with detailed KPIs',
+                    style: const TextStyle(fontSize: 11,
+                        color: kTextHint),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 20),
+
+            // ── Sign Out ─────────────────────────────────────────
+            OutlinedButton.icon(
+              onPressed: () async {
+                Navigator.pop(ctx);
+                final ok = await confirmDialog(context,
+                    title: 'Sign Out',
+                    message: 'Sign out of Rooster Trader?');
+                if (ok == true && mounted) {
+                  ref.read(appUserProvider.notifier).signOut();
+                }
+              },
+              icon: const Icon(Icons.logout, size: 18),
+              label: const Text('Sign Out',
+                  style: TextStyle(fontWeight: FontWeight.w600)),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: kError,
+                side: const BorderSide(color: kError),
+                minimumSize: const Size(double.infinity, 44),
+              ),
+            ),
+          ]),
+        ),
+      ),
+    );
+  }
+
   // ── Build ────────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
@@ -207,11 +397,13 @@ class _S extends ConsumerState<AgentHomeScreen> {
       backgroundColor: kBgGrey,
       appBar: AppBar(
         backgroundColor: kBgGrey,
-        title: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          const Text('Delivery Dashboard', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
-          Text(user?.companyName ?? 'Agent',
-              style: const TextStyle(fontSize: 11, color: kTextHint, fontWeight: FontWeight.w400)),
-        ]),
+        title: ref.watch(uiModeProvider).isSimple
+            ? const Text('Dashboard', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800))
+            : Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                const Text('Delivery Dashboard', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
+                Text(user?.companyName ?? 'Agent',
+                    style: const TextStyle(fontSize: 11, color: kTextHint, fontWeight: FontWeight.w400)),
+              ]),
         actions: [
           // Live shift indicator dot
           if (!_loading) Padding(padding: const EdgeInsets.only(right: 4),
@@ -219,15 +411,15 @@ class _S extends ConsumerState<AgentHomeScreen> {
                   decoration: BoxDecoration(
                       color: _hasShift ? Colors.green : Colors.red, shape: BoxShape.circle)))),
           IconButton(icon: const Icon(Icons.refresh), onPressed: _load),
-          IconButton(icon: const Icon(Icons.logout_outlined, size: 20),
-            onPressed: () async {
-              final ok = await confirmDialog(context, title: 'Sign Out', message: 'Sign out?');
-              if (ok && mounted) ref.read(appUserProvider.notifier).signOut();
-            }),
+          IconButton(icon: const Icon(Icons.account_circle_outlined, size: 22),
+            onPressed: _showProfileSheet),
         ]),
-      body: _loading ? const LoadingList()
-          : RefreshIndicator(onRefresh: _load,
-              child: ListView(padding: const EdgeInsets.fromLTRB(14, 8, 14, 80), children: [
+      body: _loading
+          ? const LoadingList()
+          : ref.watch(uiModeProvider).isSimple
+              ? _buildSimpleDashboard()
+              : RefreshIndicator(onRefresh: _load,
+                  child: ListView(padding: const EdgeInsets.fromLTRB(14, 8, 14, 80), children: [
                 _buildShiftCard(),
                 const SizedBox(height: 12),
                 _buildStockPanel(),

@@ -6,6 +6,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/providers/session_provider.dart';
+import '../../../core/providers/ui_mode_provider.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_theme.dart';
 
@@ -445,34 +446,40 @@ class _S extends ConsumerState<ShiftCloseScreen> {
   // BUILD
   // ═════════════════════════════════════════════════════════════════════════
   @override
-  Widget build(BuildContext context) => Scaffold(
-    backgroundColor: kBgGrey,
-    appBar: AppBar(
-        backgroundColor: Colors.white,
-        title: const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text('Close Shift', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
-          Text('Reconciliation & Audit', style: TextStyle(fontSize: 11, color: kTextHint)),
-        ]),
-        actions: [IconButton(icon: const Icon(Icons.refresh), onPressed: _load)]),
-    body: _checking
-        ? const LoadingList()
-        : _shift == null ? _noShift()
-        : Column(children: [
-            _statusBar(),
-            Expanded(child: ListView(
-                padding: const EdgeInsets.fromLTRB(14, 12, 14, 32),
-                children: [
-              _sec1ShiftSummary(),
-              _sec2DeliverySummary(),
-              _sec3StockRecon(),
-              _sec4ReturnStock(),
-              _sec5Mortality(),
-              _sec6Expenses(),
-              _sec7Odometer(),
-              const SizedBox(height: 16),
-              _closeButton(),
-            ])),
-          ]));
+  Widget build(BuildContext context) {
+    final isSimple = ref.watch(uiModeProvider).isSimple;
+    if (isSimple && !_checking && _shift != null) {
+      return _buildSimpleCloseView();
+    }
+    return Scaffold(
+      backgroundColor: kBgGrey,
+      appBar: AppBar(
+          backgroundColor: Colors.white,
+          title: const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('Close Shift', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+            Text('Reconciliation & Audit', style: TextStyle(fontSize: 11, color: kTextHint)),
+          ]),
+          actions: [IconButton(icon: const Icon(Icons.refresh), onPressed: _load)]),
+      body: _checking
+          ? const LoadingList()
+          : _shift == null ? _noShift()
+          : Column(children: [
+              _statusBar(),
+              Expanded(child: ListView(
+                  padding: const EdgeInsets.fromLTRB(14, 12, 14, 32),
+                  children: [
+                _sec1ShiftSummary(),
+                _sec2DeliverySummary(),
+                _sec3StockRecon(),
+                _sec4ReturnStock(),
+                _sec5Mortality(),
+                _sec6Expenses(),
+                _sec7Odometer(),
+                const SizedBox(height: 16),
+                _closeButton(),
+              ])),
+            ]));
+  }
 
   // ── STATUS BAR ──────────────────────────────────────────────────────────
   Widget _statusBar() {
@@ -1104,6 +1111,1185 @@ class _S extends ConsumerState<ShiftCloseScreen> {
             : const Icon(Icons.lock_outline, size: 18),
         label: Text(label, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
         style: ElevatedButton.styleFrom(backgroundColor: c, minimumSize: const Size(double.infinity, 52)));
+  }
+
+  // ═════════════════════════════════════════════════════════════════════════
+  // SIMPLE MODE — Simplified Shift Close
+  // ═════════════════════════════════════════════════════════════════════════
+  Widget _buildSimpleCloseView() {
+    final st = _status;
+    return Scaffold(
+      backgroundColor: Colors.grey.shade50,
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        title: const Text('📋 Close Shift',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+        actions: [IconButton(icon: const Icon(Icons.refresh), onPressed: _load)],
+      ),
+      body: Column(children: [
+        _statusBar(),
+        Expanded(
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
+            children: [
+              // ── Hero Summary Card ────────────────────────────────
+              _simpleHeroCard(),
+              const SizedBox(height: 16),
+
+              // ── Shift Summary ─────────────────────────────────
+              _simpleShiftSummary(),
+              const SizedBox(height: 16),
+
+              // ── Delivery Summary ──────────────────────────────
+              _simpleDeliverySummary(),
+              const SizedBox(height: 16),
+
+              // ── Stock Reconciliation ──────────────────────────
+              _simpleStockRecon(),
+              const SizedBox(height: 16),
+
+              // ── Return Stock ────────────────────────────────────
+              _simpleReturnSection(),
+              const SizedBox(height: 16),
+
+              // ── Mortality ───────────────────────────────────────
+              _simpleMortalitySection(),
+              const SizedBox(height: 16),
+
+              // ── Expenses ─────────────────────────────────────
+              _simpleExpensesSection(),
+              const SizedBox(height: 16),
+
+              // ── Odometer ────────────────────────────────────────
+              _simpleOdometerSection(),
+              const SizedBox(height: 20),
+
+              // ── Close button ────────────────────────────────────
+              _simpleCloseButton(st),
+              const SizedBox(height: 20),
+            ],
+          ),
+        ),
+      ]),
+    );
+  }
+
+  // ── Simple Hero Summary Card ─────────────────────────────────────────────
+  Widget _simpleHeroCard() {
+    final done = _deliveries.where((d) => d['status'] == 'delivered').toList();
+    final totBirds = done.fold(0, (s, d) => s + ((d['delivered_bird_count'] as num?)?.toInt() ?? 0));
+    final totKg = done.fold(0.0, (s, d) => s + ((d['delivered_total_weight'] as num?)?.toDouble() ?? 0));
+    final totCash = done.fold(0.0, (s, d) => s + ((d['collected_amount'] as num?)?.toDouble() ?? 0));
+
+    final sc = _shrinkagePct > 5 ? Colors.red : _shrinkagePct > 2 ? Colors.orange : Colors.green;
+
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF1B5E20), Color(0xFF2E7D32)],
+          begin: Alignment.topLeft, end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withValues(alpha: 0.10), blurRadius: 14, offset: const Offset(0, 6)),
+        ],
+      ),
+      child: Column(children: [
+        const Text('✅', style: TextStyle(fontSize: 40)),
+        const SizedBox(height: 10),
+        const Text('SHIFT SUMMARY',
+            style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: Colors.white, letterSpacing: 1)),
+        const SizedBox(height: 20),
+        // Big KPIs
+        Row(children: [
+          _simpleKpi('🚛', '${done.length}', 'Deliveries'),
+          _simpleKpi('🐔', '$totBirds', 'Birds'),
+          _simpleKpi('💰', Fmt.amount(totCash), 'Cash'),
+        ]),
+        const SizedBox(height: 12),
+        Row(children: [
+          _simpleKpi('📦', '${totKg.toStringAsFixed(1)} kg', 'Weight'),
+          _simpleKpi('📉', '${_shrinkagePct.toStringAsFixed(1)}%', 'Shrinkage',
+              valueColor: sc),
+          _simpleKpi('🐦', '$_stockBirds', 'Stock'),
+        ]),
+      ]),
+    );
+  }
+
+  Widget _simpleKpi(String emoji, String value, String label, {Color? valueColor}) => Expanded(
+    child: Container(
+      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(children: [
+        Text(emoji, style: const TextStyle(fontSize: 20)),
+        const SizedBox(height: 2),
+        Text(value,
+            style: TextStyle(
+              fontSize: 17, fontWeight: FontWeight.w900,
+              color: valueColor ?? Colors.white,
+            ),
+            textAlign: TextAlign.center, maxLines: 1, overflow: TextOverflow.ellipsis),
+        Text(label,
+            style: const TextStyle(fontSize: 10, color: Colors.white70),
+            textAlign: TextAlign.center),
+      ]),
+    ),
+  );
+
+  // ── Simple Shift Summary ────────────────────────────────────────────────
+  Widget _simpleShiftSummary() {
+    final agent = _shift!['delivery_agents'] as Map?;
+    final startAt = DateTime.tryParse(_shift!['shift_start_at'] as String? ?? '');
+    final dur = startAt != null ? DateTime.now().difference(startAt) : null;
+    final durStr = dur != null ? '${dur.inHours}h ${dur.inMinutes.remainder(60)}m' : '—';
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: kBorder),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 10, offset: const Offset(0, 3)),
+        ],
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          const Text('⏱️', style: TextStyle(fontSize: 24)),
+          const SizedBox(width: 10),
+          const Expanded(child: Text('Shift Summary',
+              style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800))),
+        ]),
+        const SizedBox(height: 16),
+        Row(children: [
+          Expanded(child: _simpleInfoTile('👤 Agent', agent?['name'] as String? ?? '—')),
+          const SizedBox(width: 10),
+          Expanded(child: _simpleInfoTile('🚗 Vehicle', agent?['vehicle_no'] as String? ?? '—')),
+        ]),
+        const SizedBox(height: 10),
+        Row(children: [
+          Expanded(child: _simpleInfoTile('🕐 Started', startAt != null ? DateFormat('d MMM, h:mm a').format(startAt) : '—')),
+          const SizedBox(width: 10),
+          Expanded(child: _simpleInfoTile('⏳ Duration', durStr)),
+        ]),
+        const SizedBox(height: 10),
+        Row(children: [
+          Expanded(child: _simpleInfoTile('🏁 Start Odo', '${_shift!['odometer_start'] ?? '—'} km')),
+          const SizedBox(width: 10),
+          Expanded(child: _simpleInfoTile('📦 Crates Out', '${_shift!['crates_taken'] ?? 0}')),
+        ]),
+      ]),
+    );
+  }
+
+  // ── Simple Delivery Summary ─────────────────────────────────────────────
+  Widget _simpleDeliverySummary() {
+    final done = _deliveries.where((d) => d['status'] == 'delivered').toList();
+    final pending = _deliveries.where((d) =>
+        ['assigned', 'picked_up', 'out_for_delivery'].contains(d['status'])).toList();
+    final totBirds = done.fold(0, (s, d) => s + ((d['delivered_bird_count'] as num?)?.toInt() ?? 0));
+    final totKg = done.fold(0.0, (s, d) => s + ((d['delivered_total_weight'] as num?)?.toDouble() ?? 0));
+    final totCash = done.fold(0.0, (s, d) => s + ((d['collected_amount'] as num?)?.toDouble() ?? 0));
+    final totMort = done.fold(0, (s, d) => s + ((d['mortality_birds'] as num?)?.toInt() ?? 0));
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: kBorder),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 10, offset: const Offset(0, 3)),
+        ],
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          const Text('🚛', style: TextStyle(fontSize: 24)),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text('Delivery Summary',
+                style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
+          ),
+          if (pending.isNotEmpty)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(color: Colors.orange, borderRadius: BorderRadius.circular(6)),
+              child: Text('${pending.length} pending',
+                  style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Colors.white)),
+            ),
+        ]),
+        const SizedBox(height: 12),
+        // KPI row
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(color: Colors.teal.shade50, borderRadius: BorderRadius.circular(12)),
+          child: Row(children: [
+            _simpleKpi('✅', '${done.length}', 'Done'),
+            _simpleKpi('🐔', '$totBirds', 'Birds'),
+            _simpleKpi('📦', '${totKg.toStringAsFixed(1)} kg', 'Weight'),
+            _simpleKpi('💰', Fmt.amount(totCash), 'Cash'),
+          ]),
+        ),
+        if (pending.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: Colors.orange.shade50,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: Colors.orange.shade200),
+            ),
+            child: Row(children: [
+              const Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 18),
+              const SizedBox(width: 8),
+              Expanded(child: Text('${pending.length} delivery(s) still active — complete before closing',
+                  style: const TextStyle(fontSize: 12, color: Colors.orange, fontWeight: FontWeight.w600))),
+            ]),
+          ),
+        ],
+        if (totMort > 0) ...[
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: Colors.red.shade50,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: Colors.red.shade200),
+            ),
+            child: Row(children: [
+              const Icon(Icons.sentiment_dissatisfied_outlined, color: Colors.red, size: 18),
+              const SizedBox(width: 8),
+              const Expanded(child: Text('Mortality recorded',
+                  style: TextStyle(fontSize: 12, color: Colors.red, fontWeight: FontWeight.w600))),
+            ]),
+          ),
+        ],
+        if (done.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          const Text('DELIVERIES',
+              style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: kTextHint, letterSpacing: 0.6)),
+          const SizedBox(height: 6),
+          ...done.map((d) {
+            final shop = ((d['orders'] as Map?)?['retailers'] as Map?)?['shop_name'] as String? ?? 'Delivery';
+            final b = (d['delivered_bird_count'] as num?)?.toInt() ?? 0;
+            final k = (d['delivered_total_weight'] as num?)?.toDouble() ?? 0;
+            final cash = (d['collected_amount'] as num?)?.toDouble() ?? 0;
+            return Container(
+              margin: const EdgeInsets.only(bottom: 4),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade50,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(children: [
+                Container(width: 6, height: 6,
+                    decoration: const BoxDecoration(color: Colors.teal, shape: BoxShape.circle)),
+                const SizedBox(width: 8),
+                Expanded(child: Text(shop,
+                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600))),
+                Text('$b birds · ${k.toStringAsFixed(1)} kg · ${Fmt.amount(cash)}',
+                    style: const TextStyle(fontSize: 11, color: kTextSub)),
+              ]),
+            );
+          }),
+        ],
+      ]),
+    );
+  }
+
+  // ── Simple Stock Reconciliation ─────────────────────────────────────────
+  Widget _simpleStockRecon() {
+    final sc = _shrinkagePct > 5 ? Colors.red : _shrinkagePct > 2 ? Colors.orange : Colors.green;
+    final hasTransfers = _transferInKg > 0 || _transferOutKg > 0;
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: sc.withValues(alpha: 0.3)),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 10, offset: const Offset(0, 3)),
+        ],
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          const Text('⚖️', style: TextStyle(fontSize: 24)),
+          const SizedBox(width: 10),
+          Expanded(child: Text('Stock Reconciliation',
+              style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: sc))),
+          if (_shrinkageKg > 0.01)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(color: sc, borderRadius: BorderRadius.circular(6)),
+              child: Text('${_shrinkagePct.toStringAsFixed(1)}%',
+                  style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Colors.white)),
+            ),
+        ]),
+        const SizedBox(height: 16),
+        // Formula rows
+        _simpleReconRow('📦 DC Loaded', '+$_dcBirds birds', '+${_dcKg.toStringAsFixed(1)} kg', Colors.blue, true),
+        if (_transferInBirds > 0)
+          _simpleReconRow('📥 Transfer In', '+$_transferInBirds birds', '+${_transferInKg.toStringAsFixed(1)} kg', Colors.teal, true),
+        if (_transferOutBirds > 0)
+          _simpleReconRow('📤 Transfer Out', '−$_transferOutBirds birds', '−${_transferOutKg.toStringAsFixed(1)} kg', Colors.indigo, false),
+        _simpleReconRow('🚛 Delivered', '−$_deliveredBirds birds', '−${_deliveredKg.toStringAsFixed(1)} kg', kPrimary, false),
+        if (_mortalityBirds > 0)
+          _simpleReconRow('💀 Mortality', '−$_mortalityBirds birds', '−${_mortalityKg.toStringAsFixed(2)} kg', Colors.red, false),
+        if (_mortReturnBirds > 0)
+          _simpleReconRow('💀 Mort-Return', '−$_mortReturnBirds birds', '−${_mortReturnWt.toStringAsFixed(2)} kg', Colors.deepOrange, false),
+        _simpleReconRow('📤 Returned', '−$_returnBirds birds', '−${_returnWt.toStringAsFixed(1)} kg', Colors.purple, false),
+        const Padding(padding: EdgeInsets.symmetric(vertical: 6), child: Divider(height: 1)),
+        // Shrinkage result
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: sc.withValues(alpha: 0.07),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: sc.withValues(alpha: 0.3)),
+          ),
+          child: Row(children: [
+            Icon(_shrinkagePct > 2 ? Icons.warning_amber_rounded : Icons.check_circle_outline, color: sc, size: 22),
+            const SizedBox(width: 10),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('SHRINKAGE',
+                  style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: sc, letterSpacing: 0.6)),
+              Text('${_shrinkageKg.toStringAsFixed(2)} kg  (${_shrinkagePct.toStringAsFixed(1)}%)',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: sc)),
+            ])),
+          ]),
+        ),
+        // Bird variance
+        const SizedBox(height: 8),
+        Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: Colors.grey.shade50,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: kBorder),
+          ),
+          child: Row(children: [
+            const Icon(Icons.egg_alt_outlined, size: 16, color: kTextSub),
+            const SizedBox(width: 6),
+            Expanded(child: Text(
+                'Expected: $_expectedReturnBirds birds  ·  Returned: $_returnBirds',
+                style: const TextStyle(fontSize: 12, color: kTextSub))),
+            Text(
+                _birdVariance == 0 ? '✓ Matched'
+                    : _birdVariance > 0 ? '−$_birdVariance missing'
+                        : '+${-_birdVariance} extra',
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700,
+                    color: _birdVariance == 0 ? Colors.green : _birdVariance > 5 ? Colors.red : Colors.orange)),
+          ]),
+        ),
+        // Transfer notes
+        if (_transferNotes.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: Colors.teal.shade50,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              const Text('TRANSFER DETAILS',
+                  style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: Colors.teal, letterSpacing: 0.6)),
+              const SizedBox(height: 4),
+              ..._transferNotes.map((n) => Padding(
+                  padding: const EdgeInsets.only(bottom: 2),
+                  child: Text('· $n', style: const TextStyle(fontSize: 11, color: Colors.teal)))),
+            ]),
+          ),
+        ],
+        // Alerts
+        if (_birdVariance > 5) ...[
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: Colors.orange.shade50,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: Colors.orange.shade200),
+            ),
+            child: Row(children: [
+              const Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 18),
+              const SizedBox(width: 8),
+              const Expanded(child: Text('Bird mismatch — trader will be notified',
+                  style: TextStyle(fontSize: 12, color: Colors.orange, fontWeight: FontWeight.w600))),
+            ]),
+          ),
+        ],
+        if (_shrinkagePct > 5) ...[
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: Colors.red.shade50,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: Colors.red.shade200),
+            ),
+            child: Row(children: [
+              const Icon(Icons.error_outline, color: Colors.red, size: 18),
+              const SizedBox(width: 8),
+              Expanded(child: Text('Shrinkage ${_shrinkagePct.toStringAsFixed(1)}% exceeds 5% — trader approval required',
+                  style: TextStyle(fontSize: 12, color: Colors.red.shade700, fontWeight: FontWeight.w600))),
+            ]),
+          ),
+        ],
+      ]),
+    );
+  }
+
+  // ── Simple Return Stock ──────────────────────────────────────────────────
+  Widget _simpleReturnSection() {
+    final declared = _returnBirds > 0 || _returnWt > 0;
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: declared ? Colors.purple.shade200 : (_stockBirds > 0 ? Colors.red.shade200 : kBorder), width: declared ? 2 : 1),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 10, offset: const Offset(0, 3)),
+        ],
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          const Text('📦', style: TextStyle(fontSize: 24)),
+          const SizedBox(width: 10),
+          const Expanded(child: Text('Return Stock Weighment',
+              style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800))),
+          if (_stockBirds > 0 && !declared)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(color: Colors.red, borderRadius: BorderRadius.circular(6)),
+              child: const Text('REQUIRED', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: Colors.white)),
+            ),
+        ]),
+        if (_stockLoaded) ...[
+          const SizedBox(height: 10),
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(10)),
+            child: Row(children: [
+              const Icon(Icons.info_outline, color: Colors.blue, size: 16),
+              const SizedBox(width: 8),
+              Text('Expected: $_stockBirds birds · ${_stockKg.toStringAsFixed(1)} kg',
+                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.blue)),
+            ]),
+          ),
+        ],
+        const SizedBox(height: 16),
+        Row(children: [
+          Expanded(
+            child: TextField(
+              controller: _returnBirdsCtrl,
+              keyboardType: TextInputType.number,
+              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
+              onChanged: (_) { if (mounted) setState(() {}); },
+              decoration: InputDecoration(
+                labelText: 'Birds *',
+                labelStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                suffixText: 'birds',
+                suffixStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: TextField(
+              controller: _returnWtCtrl,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
+              onChanged: (_) { if (mounted) setState(() {}); },
+              decoration: InputDecoration(
+                labelText: 'Weight *',
+                labelStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                suffixText: 'kg',
+                suffixStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+              ),
+            ),
+          ),
+        ]),
+        // Weighment variance indicator
+        if (declared && _stockLoaded) ...[
+          const SizedBox(height: 10),
+          Builder(builder: (_) {
+            final expectedKg = _expectedReturnKg;
+            final varKg = _returnWt - expectedKg;
+            final varColor = varKg.abs() < 0.5
+                ? Colors.green
+                : varKg.abs() < 2.0
+                    ? Colors.orange
+                    : Colors.red;
+            return Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: varColor.withValues(alpha: 0.07),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: varColor.withValues(alpha: 0.3)),
+              ),
+              child: Row(children: [
+                Icon(varKg.abs() < 0.5 ? Icons.check_circle_outline : Icons.warning_amber_rounded,
+                    color: varColor, size: 20),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    varKg.abs() < 0.1
+                        ? 'Weight matches expected ✓'
+                        : 'Weight variance: ${varKg > 0 ? "+" : ""}${varKg.toStringAsFixed(2)} kg (expected ${expectedKg.toStringAsFixed(1)} kg)',
+                    style: TextStyle(fontSize: 13, color: varColor, fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ]),
+            );
+          }),
+        ],
+        const SizedBox(height: 14),
+        // Confirmation status
+        if (declared) ...[
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: Colors.purple.shade50,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Row(children: [
+              Icon(_returnPhotoUrl != null ? Icons.verified_outlined : Icons.pending_outlined,
+                  color: _returnPhotoUrl != null ? Colors.green : Colors.purple, size: 18),
+              const SizedBox(width: 8),
+              Expanded(child: Text(
+                  '$_returnBirds birds · ${_returnWt.toStringAsFixed(1)} kg'
+                  '${_returnPhotoUrl != null ? " — Weighed & photographed ✓" : " — Add photo to complete"}',
+                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600,
+                      color: _returnPhotoUrl != null ? Colors.green : Colors.purple))),
+            ]),
+          ),
+          const SizedBox(height: 12),
+        ],
+        // Photo tiles
+        Row(children: [
+          Expanded(child: _simplePhotoTile(
+            label: 'Return Photo',
+            required: declared,
+            file: _returnPhotoFile,
+            uploaded: _returnPhotoUrl != null,
+            uploading: _uploadingReturn,
+            onTap: () => _capture('return'),
+          )),
+          const SizedBox(width: 8),
+          Expanded(child: _simplePhotoTile(
+            label: 'Weigh Slip',
+            required: false,
+            file: _returnSlipFile,
+            uploaded: _returnSlipUrl != null,
+            uploading: _uploadingReturnSlip,
+            onTap: () => _capture('return-slip'),
+          )),
+        ]),
+      ]),
+    );
+  }
+
+  // ── Simple Mortality ─────────────────────────────────────────────────────
+  Widget _simpleMortalitySection() {
+    final hasMort = _mortalityBirds > 0 || _mortReturnBirds > 0;
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: hasMort ? Colors.red.shade200 : kBorder, width: hasMort ? 2 : 1),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 10, offset: const Offset(0, 3)),
+        ],
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          const Text('💀', style: TextStyle(fontSize: 24)),
+          const SizedBox(width: 10),
+          const Expanded(child: Text('Mortality',
+              style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800))),
+          if (hasMort && _mortalityPhotoUrl == null)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(color: Colors.red, borderRadius: BorderRadius.circular(6)),
+              child: const Text('PHOTO NEEDED', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: Colors.white)),
+            ),
+        ]),
+        if (_mortalityBirds > 0) ...[
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(color: Colors.red.shade50, borderRadius: BorderRadius.circular(12)),
+            child: Row(children: [
+              _simpleKpi('💀', '$_mortalityBirds', 'During Delivery'),
+              if (_mortalityKg > 0)
+                _simpleKpi('⚖️', '${_mortalityKg.toStringAsFixed(1)} kg', 'Weight'),
+            ]),
+          ),
+        ],
+        if (_mortReturnBirds > 0) ...[
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(color: Colors.deepOrange.shade50, borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.deepOrange.shade200)),
+            child: Row(children: [
+              _simpleKpi('💀', '$_mortReturnBirds', 'During Return'),
+              if (_mortReturnWt > 0)
+                _simpleKpi('⚖️', '${_mortReturnWt.toStringAsFixed(1)} kg', 'Weight'),
+            ]),
+          ),
+        ],
+        if (hasMort) ...[
+          // Reason + photo (key action)
+          const SizedBox(height: 14),
+          TextField(
+            controller: _mortalityReasonCtrl,
+            maxLines: 2,
+            style: const TextStyle(fontSize: 15),
+            decoration: InputDecoration(
+              labelText: 'Reason *',
+              labelStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+              hintText: 'Disease, injury, heat stress...',
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+              contentPadding: const EdgeInsets.all(16),
+            ),
+          ),
+          const SizedBox(height: 14),
+          _simplePhotoTile(
+            label: _mortalityPhotoUrl != null ? 'Photo Captured ✓' : 'Mortality Proof Photo *',
+            required: true,
+            file: _mortalityPhotoFile,
+            uploaded: _mortalityPhotoUrl != null,
+            uploading: _uploadingMortality,
+            onTap: () => _capture('mortality'),
+          ),
+          if (_mortalityPhotoUrl == null) ...[
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(color: Colors.red.shade50, borderRadius: BorderRadius.circular(10)),
+              child: const Row(children: [
+                Icon(Icons.block, color: Colors.red, size: 16),
+                SizedBox(width: 8),
+                Expanded(child: Text(
+                  'Photo required before closing shift',
+                  style: TextStyle(fontSize: 12, color: Colors.red, fontWeight: FontWeight.w600),
+                )),
+              ]),
+            ),
+          ],
+        ] else ...[
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(color: Colors.green.shade50, borderRadius: BorderRadius.circular(12)),
+            child: const Row(children: [
+              Icon(Icons.check_circle_outline, color: Colors.green, size: 18),
+              SizedBox(width: 10),
+              Text('No mortality recorded',
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: Colors.green)),
+            ]),
+          ),
+        ],
+        // ── Return Mortality ──────────────────────────────────────
+        const SizedBox(height: 16),
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.deepOrange.shade50,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.deepOrange.shade200),
+          ),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              const Icon(Icons.warning_amber_rounded, color: Colors.deepOrange, size: 18),
+              const SizedBox(width: 8),
+              const Expanded(child: Text('Mortality During Return',
+                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: Colors.deepOrange))),
+            ]),
+            const SizedBox(height: 4),
+            const Text('Birds that died during transport back to stock point after shift close.',
+                style: TextStyle(fontSize: 11, color: kTextHint, height: 1.4)),
+            const SizedBox(height: 10),
+            // Inputs
+            Row(children: [
+              Expanded(
+                child: TextField(
+                  controller: _mortReturnBirdsCtrl,
+                  keyboardType: TextInputType.number,
+                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+                  onChanged: (_) { if (mounted) setState(() {}); },
+                  decoration: InputDecoration(
+                    labelText: 'Dead Birds',
+                    suffixText: 'birds',
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: TextField(
+                  controller: _mortReturnWtCtrl,
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+                  onChanged: (_) { if (mounted) setState(() {}); },
+                  decoration: InputDecoration(
+                    labelText: 'Weight (kg)',
+                    suffixText: 'kg',
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                  ),
+                ),
+              ),
+            ]),
+            if (_mortReturnBirds > 0) ...[
+              const SizedBox(height: 12),
+              const Text('PHOTO EVIDENCE',
+                  style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: kTextHint, letterSpacing: 0.6)),
+              const SizedBox(height: 6),
+              Row(children: [
+                Expanded(child: _simplePhotoTile(
+                  label: 'Return Mortality Photo',
+                  required: true,
+                  file: _mortReturnPhotoFile,
+                  uploaded: _mortReturnPhotoUrl != null,
+                  uploading: _uploadingMortReturn,
+                  onTap: () => _capture('mort-return'),
+                )),
+                const SizedBox(width: 8),
+                Expanded(child: _simplePhotoTile(
+                  label: 'Weigh Slip',
+                  required: false,
+                  file: _mortReturnSlipFile,
+                  uploaded: _mortReturnSlipUrl != null,
+                  uploading: _uploadingMortReturnSlip,
+                  onTap: () => _capture('mort-return-slip'),
+                )),
+              ]),
+            ],
+          ]),
+        ),
+        // Combined total
+        if (_totalMortalityBirds > 0) ...[
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: Colors.red.withValues(alpha: 0.06),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: Colors.red.withValues(alpha: 0.2)),
+            ),
+            child: Row(children: [
+              const Icon(Icons.summarize_outlined, color: Colors.red, size: 18),
+              const SizedBox(width: 8),
+              Expanded(child: Text(
+                  'Total mortality: ${_totalMortalityBirds} birds · ${_totalMortalityKg.toStringAsFixed(2)} kg',
+                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Colors.red))),
+              const Text('Deducted from shrinkage',
+                  style: TextStyle(fontSize: 10, color: kTextHint)),
+            ]),
+          ),
+        ],
+      ]),
+    );
+  }
+
+  // ── Simple Odometer ──────────────────────────────────────────────────────
+  Widget _simpleOdometerSection() {
+    final odoStart = ((_shift!['odometer_start']) as num?)?.toDouble() ?? 0;
+    final odoEnd = double.tryParse(_odoEndCtrl.text.trim()) ?? 0;
+    final km = odoEnd > odoStart ? odoEnd - odoStart : 0.0;
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: kBorder),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 10, offset: const Offset(0, 3)),
+        ],
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          const Text('⛽', style: TextStyle(fontSize: 24)),
+          const SizedBox(width: 10),
+          const Expanded(child: Text('Odometer Reading',
+              style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800))),
+        ]),
+        const SizedBox(height: 16),
+        Row(children: [
+          Expanded(
+            child: Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade50,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Column(children: [
+                const Text('Start', style: TextStyle(fontSize: 11, color: kTextHint)),
+                Text('${odoStart.toStringAsFixed(0)} km',
+                    style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900)),
+              ]),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: TextField(
+              controller: _odoEndCtrl,
+              keyboardType: TextInputType.number,
+              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
+              onChanged: (_) { if (mounted) setState(() {}); },
+              decoration: InputDecoration(
+                labelText: 'End *',
+                labelStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                suffixText: 'km',
+                suffixStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+              ),
+            ),
+          ),
+        ]),
+        if (km > 0) ...[
+          const SizedBox(height: 10),
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(color: Colors.indigo.shade50, borderRadius: BorderRadius.circular(10)),
+            child: Row(children: [
+              const Icon(Icons.route, color: Colors.indigo, size: 20),
+              const SizedBox(width: 8),
+              Text('$km km travelled',
+                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: Colors.indigo)),
+            ]),
+          ),
+        ],
+        const SizedBox(height: 14),
+        _simplePhotoTile(
+          label: 'End Odo Photo',
+          required: false,
+          file: _odoPhotoFile,
+          uploaded: _odoPhotoUrl != null,
+          uploading: _uploadingOdo,
+          onTap: () => _capture('odo'),
+        ),
+      ]),
+    );
+  }
+
+  // ── Simple Expenses ─────────────────────────────────────────────────────
+  Widget _simpleExpensesSection() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: _totalExpenses > 0 ? Colors.orange.shade200 : kBorder),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 10, offset: const Offset(0, 3)),
+        ],
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          const Text('💰', style: TextStyle(fontSize: 24)),
+          const SizedBox(width: 10),
+          const Expanded(child: Text('Expenses & Allowances',
+              style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800))),
+          if (_totalExpenses > 0)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: Colors.orange.shade50,
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: Colors.orange.shade200),
+              ),
+              child: Text(Fmt.amount(_totalExpenses),
+                  style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Colors.orange)),
+            ),
+        ]),
+        const SizedBox(height: 16),
+        // Diesel, Allowance, Toll
+        Row(children: [
+          Expanded(child: _simpleExpField(_dieselCtrl, '⛽ Diesel', Icons.local_gas_station)),
+          const SizedBox(width: 8),
+          Expanded(child: _simpleExpField(_allowanceCtrl, '💰 Allowance', Icons.card_giftcard)),
+          const SizedBox(width: 8),
+          Expanded(child: _simpleExpField(_tollCtrl, '🚧 Toll', Icons.toll)),
+        ]),
+        const SizedBox(height: 14),
+        // Custom expenses list
+        ..._expenses.asMap().entries.map((e) {
+          final idx = e.key;
+          final exp = e.value;
+          return Container(
+            margin: const EdgeInsets.only(bottom: 6),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              color: Colors.green.shade50,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: Colors.green.shade200),
+            ),
+            child: Row(children: [
+              Expanded(
+                child: Text('${_expLabel(exp['type'] as String)}  ₹${(exp['amount'] as double).toStringAsFixed(0)}'
+                    '${(exp['notes'] as String?)?.isNotEmpty == true ? "  ·  ${exp['notes']}" : ""}',
+                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+              ),
+              GestureDetector(
+                onTap: () => setState(() => _expenses.removeAt(idx)),
+                child: const Icon(Icons.remove_circle_outline, color: Colors.red, size: 20),
+              ),
+            ]),
+          );
+        }),
+        const SizedBox(height: 8),
+        // Add expense form
+        Row(children: [
+          Expanded(
+            child: DropdownButtonFormField<String>(
+              value: _expType,
+              isDense: true,
+              decoration: InputDecoration(
+                labelText: 'Type',
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              ),
+              items: ['vehicle', 'loading', 'misc', 'food', 'other']
+                  .map((t) => DropdownMenuItem(
+                      value: t,
+                      child: Text(_expLabel(t),
+                          style: const TextStyle(fontSize: 12),
+                          overflow: TextOverflow.ellipsis, maxLines: 1)))
+                  .toList(),
+              onChanged: (v) => setState(() => _expType = v!),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: TextField(
+              controller: _expAmtCtrl,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+              decoration: InputDecoration(
+                labelText: 'Amount ₹',
+                prefixText: '₹',
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+              ),
+            ),
+          ),
+        ]),
+        const SizedBox(height: 8),
+        Row(children: [
+          Expanded(
+            child: TextField(
+              controller: _expNoteCtrl,
+              style: const TextStyle(fontSize: 14),
+              decoration: InputDecoration(
+                labelText: 'Note (optional)',
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          SizedBox(
+            height: 48,
+            child: ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                minimumSize: const Size(52, 48),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                padding: EdgeInsets.zero,
+              ),
+              onPressed: () {
+                final amt = double.tryParse(_expAmtCtrl.text.trim()) ?? 0;
+                if (amt <= 0) return;
+                setState(() {
+                  _expenses.add({
+                    'type': _expType,
+                    'amount': amt,
+                    'notes': _expNoteCtrl.text.trim(),
+                  });
+                  _expAmtCtrl.clear();
+                  _expNoteCtrl.clear();
+                });
+              },
+              child: const Icon(Icons.add, size: 22),
+            ),
+          ),
+        ]),
+        if (_totalExpenses > 0) ...[
+          const SizedBox(height: 12),
+          Row(children: [
+            const Spacer(),
+            Text('Total: ${Fmt.amount(_totalExpenses)}',
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: Colors.orange)),
+          ]),
+        ],
+      ]),
+    );
+  }
+
+  // ── Simple Expense Field ─────────────────────────────────────────────────
+  Widget _simpleExpField(TextEditingController c, String label, IconData icon) => TextField(
+    controller: c,
+    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+    onChanged: (_) { if (mounted) setState(() {}); },
+    decoration: InputDecoration(
+      labelText: label,
+      prefixText: '₹',
+      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+    ),
+  );
+
+  // ── Simple Info Tile ─────────────────────────────────────────────────────
+  Widget _simpleInfoTile(String label, String value) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+    decoration: BoxDecoration(
+      color: Colors.grey.shade50,
+      borderRadius: BorderRadius.circular(10),
+      border: Border.all(color: kBorder),
+    ),
+    child: Row(children: [
+      Expanded(
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(label, style: const TextStyle(fontSize: 9, color: kTextHint)),
+          const SizedBox(height: 2),
+          Text(value, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+              maxLines: 1, overflow: TextOverflow.ellipsis),
+        ]),
+      ),
+    ]),
+  );
+
+  // ── Simple Recon Row ─────────────────────────────────────────────────────
+  Widget _simpleReconRow(String label, String birds, String kg, Color c, bool isIn) =>
+    Padding(
+      padding: const EdgeInsets.symmetric(vertical: 3),
+      child: Row(children: [
+        Container(width: 5, height: 5, decoration: BoxDecoration(shape: BoxShape.circle, color: c)),
+        const SizedBox(width: 10),
+        Expanded(child: Text(label,
+            style: const TextStyle(fontSize: 12, color: kTextSub))),
+        Text(birds, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700,
+            color: isIn ? Colors.green.shade700 : Colors.red.shade700)),
+        const SizedBox(width: 8),
+        SizedBox(width: 90, child: Text(kg, textAlign: TextAlign.right,
+            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700,
+                color: isIn ? Colors.green.shade700 : Colors.red.shade700))),
+      ]),
+    );
+
+  // ── Simple Close Button ──────────────────────────────────────────────────
+  Widget _simpleCloseButton(_RStatus st) {
+    final canClose = !_submitting && st != _RStatus.pending && st != _RStatus.loading && st != _RStatus.mortProofRequired;
+    String label;
+    Color color;
+    IconData icon;
+    switch (st) {
+      case _RStatus.mortProofRequired:
+        label = '📷 Capture Mortality Photo First';
+        color = Colors.red.shade700;
+        icon = Icons.camera_alt;
+      case _RStatus.pending:
+        label = '⏳ Complete Pending Deliveries First';
+        color = Colors.orange;
+        icon = Icons.hourglass_empty;
+      case _RStatus.loading:
+        label = '⏳ Loading...';
+        color = Colors.grey;
+        icon = Icons.hourglass_empty;
+      case _RStatus.mismatch:
+      case _RStatus.highShrinkage:
+        label = '⚠️ Close Shift (Requires Trader Review)';
+        color = Colors.red;
+        icon = Icons.warning_amber_rounded;
+      case _RStatus.approvalNeeded:
+        label = '⏳ Close Shift (Approval Needed)';
+        color = Colors.orange;
+        icon = Icons.pending;
+      case _RStatus.balanced:
+        label = '✅ CLOSE SHIFT';
+        color = kPrimary;
+        icon = Icons.lock_outline;
+    }
+
+    return SizedBox(
+      width: double.infinity,
+      height: 64,
+      child: ElevatedButton.icon(
+        onPressed: canClose ? _doClose : null,
+        icon: _submitting
+            ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 3, color: Colors.white))
+            : Icon(icon, size: 26),
+        label: Text(label, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: color,
+          foregroundColor: Colors.white,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+          elevation: 0,
+        ),
+      ),
+    );
+  }
+
+  // ── Simple Photo Tile ────────────────────────────────────────────────────
+  Widget _simplePhotoTile({
+    required String label,
+    required bool required,
+    required File? file,
+    required bool uploaded,
+    required bool uploading,
+    required VoidCallback onTap,
+  }) {
+    final Color c = uploaded ? Colors.green : required ? Colors.red.shade400 : kTextHint;
+    return GestureDetector(
+      onTap: uploading ? null : onTap,
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: uploaded ? Colors.green.shade50 : required ? Colors.red.shade50 : Colors.grey.shade50,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: c.withValues(alpha: 0.3)),
+        ),
+        child: Row(children: [
+          file != null
+              ? ClipRRect(borderRadius: BorderRadius.circular(6),
+                  child: Image.file(file!, width: 44, height: 44, fit: BoxFit.cover))
+              : Container(
+                  width: 44, height: 44,
+                  decoration: BoxDecoration(color: c.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(10)),
+                  child: Icon(Icons.camera_alt, color: c, size: 22)),
+          const SizedBox(width: 10),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: c)),
+            Text(uploading ? 'Uploading...' : uploaded ? '✓ Uploaded' : 'Tap to capture',
+                style: const TextStyle(fontSize: 10, color: kTextHint)),
+          ])),
+          if (uploading)
+            const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+          else if (uploaded)
+            const Icon(Icons.check_circle, color: Colors.green, size: 20)
+          else
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(color: c.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(8)),
+              child: Text('Capture', style: TextStyle(fontSize: 11, color: c, fontWeight: FontWeight.w700)),
+            ),
+        ]),
+      ),
+    );
   }
 
   Widget _noShift() => Center(child: Column(mainAxisSize: MainAxisSize.min, children: [

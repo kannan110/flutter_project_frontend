@@ -24,6 +24,7 @@ dependencies:
   pdf: ^3.10.8                       # PDF document builder
   permission_handler: ^11.3.0        # Runtime permissions (BT, storage)
   audioplayers: ^5.2.1
+  shared_preferences: ^2.5.5
 
 dev_dependencies:
   flutter_test:
