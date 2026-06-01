@@ -6,6 +6,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/models/dashboard_models.dart';
 import '../../../core/providers/session_provider.dart';
+import '../../../core/providers/ui_mode_provider.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_theme.dart';
 import '../weighment/weighment_screen.dart';
@@ -539,6 +540,7 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
             title: const Text('Complete Delivery')),
         body: const LoadingList());
 
+    final isSimple = ref.watch(uiModeProvider).isSimple;
     final o           = _delivery?['orders'] as Map<String,dynamic>?;
     final r           = o?['retailers']       as Map<String,dynamic>?;
     final shopName    = r?['shop_name']  as String? ?? 'Delivery';
@@ -547,6 +549,9 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
     final isReady = _deliveryStatus == 'out_for_delivery';
 
     if (!isReady || !_hasOpenShift) {
+      if (isSimple) {
+        return _buildSimpleNotReadyView(shopName, isReady);
+      }
       return Scaffold(
           appBar: AppBar(
               leading: IconButton(icon: const Icon(Icons.arrow_back), onPressed: () {
@@ -575,6 +580,10 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
                 onPressed: () { if (context.canPop()) context.pop(); else context.go(R.agentDeliveries); },
                 child: const Text('← Back to Deliveries')),
           ]))));
+    }
+
+    if (isSimple) {
+      return _buildSimpleView(shopName, r, isAlreadyPartial, partialCount);
     }
 
     return Scaffold(
@@ -938,6 +947,612 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
                       style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700))),
           const SizedBox(height: 20),
         ])));
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // SIMPLE MODE — guided delivery form with large touch targets
+  // ═══════════════════════════════════════════════════════════════════════
+  Widget _buildSimpleNotReadyView(String shopName, bool isReady) {
+    return Scaffold(
+      backgroundColor: Colors.grey.shade50,
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        leading: IconButton(icon: const Icon(Icons.arrow_back), onPressed: () {
+          if (context.canPop()) context.pop(); else context.go(R.agentDeliveries);
+        }),
+        title: Text('📦 $shopName',
+            style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
+      ),
+      body: Center(
+        child: Padding(padding: const EdgeInsets.all(24), child: Column(
+            mainAxisSize: MainAxisSize.min, children: [
+          Text(isReady ? '⏰' : '⛔', style: const TextStyle(fontSize: 72)),
+          const SizedBox(height: 16),
+          Text(!isReady ? 'Not Ready' : 'No Shift',
+              style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w900)),
+          const SizedBox(height: 12),
+          Text(isReady
+              ? 'Open a shift first, then come back.'
+              : 'Status: "$_deliveryStatus"'
+                '\nMust be "out_for_delivery". Ask admin.',
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 16, color: kTextSub, height: 1.6)),
+          const SizedBox(height: 28),
+          if (!_hasOpenShift)
+            SizedBox(width: double.infinity, height: 56,
+              child: ElevatedButton.icon(
+                onPressed: () => context.go(R.shiftOpen),
+                icon: const Icon(Icons.access_time, size: 24),
+                label: const Text('Open Shift',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+                style: ElevatedButton.styleFrom(
+                    backgroundColor: kPrimary,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
+              )),
+          const SizedBox(height: 16),
+          SizedBox(width: double.infinity, height: 56,
+            child: OutlinedButton(
+              onPressed: () { if (context.canPop()) context.pop(); else context.go(R.agentDeliveries); },
+              style: OutlinedButton.styleFrom(
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
+              child: const Text('← Back to Deliveries',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+            )),
+        ])),
+      ),
+    );
+  }
+
+  Widget _buildSimpleView(String shopName, Map<String,dynamic>? r,
+      bool isAlreadyPartial, int partialCount) {
+    final isReady = _deliveryStatus == 'out_for_delivery';
+    if (!isReady || !_hasOpenShift) {
+      return _buildSimpleNotReadyView(shopName, isReady);
+    }
+
+    return Scaffold(
+      backgroundColor: Colors.grey.shade50,
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        leading: IconButton(icon: const Icon(Icons.arrow_back), onPressed: () {
+          if (context.canPop()) context.pop(); else context.go(R.agentDeliveries);
+        }),
+        title: Text('🚚 $shopName',
+            style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
+      ),
+      body: Form(key: _form, child: ListView(padding: const EdgeInsets.all(16), children: [
+
+        // ── Shop header card ──────────────────────────────────────
+        _simpleHeroCard(shopName, r, isAlreadyPartial, partialCount),
+        const SizedBox(height: 12),
+
+        // ── Weighment button ──────────────────────────────────────
+        _simpleWeighmentCard(),
+        const SizedBox(height: 12),
+
+        // ── Delivered quantity ─────────────────────────────────────
+        _simpleSectionCard(
+          emoji: '🐔',
+          title: 'Birds Delivered',
+          children: [
+            Row(children: [
+              Expanded(
+                child: _simpleBigInput(
+                  controller: _birdsCtrl,
+                  hint: '0',
+                  suffix: 'birds',
+                  onChanged: () { if (mounted) setState(() {}); },
+                  validator: (v) => v!.isEmpty ? 'Required' : null,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _simpleBigInput(
+                  controller: _weightCtrl,
+                  hint: '0.0',
+                  suffix: 'kg',
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  onChanged: () { if (mounted) setState(() {}); },
+                  validator: (v) => (double.tryParse(v ?? '') ?? 0) <= 0 ? 'Enter weight' : null,
+                ),
+              ),
+            ]),
+          ],
+        ),
+        const SizedBox(height: 12),
+
+        // ── Stock warning ─────────────────────────────────────────
+        if (_stock != null) _simpleStockBanner(),
+
+        // ── Mortality ─────────────────────────────────────────────
+        _simpleSectionCard(
+          emoji: '💀',
+          title: 'Mortality & Rejects',
+          subtitle: 'Enter dead or rejected birds',
+          children: [
+            Row(children: [
+              Expanded(
+                child: _simpleBigInput(
+                  controller: _mortalityCtrl,
+                  hint: '0',
+                  suffix: 'dead',
+                  onChanged: () { if (mounted) setState(() {}); },
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _simpleBigInput(
+                  controller: _rejectedCtrl,
+                  hint: '0',
+                  suffix: 'rejected',
+                ),
+              ),
+            ]),
+            const SizedBox(height: 8),
+            _simpleCameraTile(
+              label: '📸 Mortality Proof',
+              required: _mortalityBirds > 0,
+              image: _mortalityImage,
+              uploading: _uploadingMortality,
+              uploaded: _mortalityProofUrl != null,
+              onTap: () => _pickImage(true),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+
+        // ── Returns ───────────────────────────────────────────────
+        _simpleSectionCard(
+          emoji: '↩️',
+          title: 'Returned to Stock',
+          children: [
+            Row(children: [
+              Expanded(
+                child: _simpleBigInput(
+                  controller: _returnBirdsCtrl,
+                  hint: '0',
+                  suffix: 'birds',
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _simpleBigInput(
+                  controller: _returnWtCtrl,
+                  hint: '0.0',
+                  suffix: 'kg',
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                ),
+              ),
+            ]),
+          ],
+        ),
+        const SizedBox(height: 12),
+
+        // ── Crates ────────────────────────────────────────────────
+        _simpleSectionCard(
+          emoji: '📦',
+          title: 'Crates',
+          children: [
+            Row(children: [
+              Expanded(
+                child: _simpleBigInput(
+                  controller: _crateDropCtrl,
+                  hint: '0',
+                  suffix: 'given',
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _simpleBigInput(
+                  controller: _crateBackCtrl,
+                  hint: '0',
+                  suffix: 'back',
+                ),
+              ),
+            ]),
+          ],
+        ),
+        const SizedBox(height: 12),
+
+        // ── Cash collection ────────────────────────────────────────
+        _simpleSectionCard(
+          emoji: '💰',
+          title: 'Payment Collected',
+          children: [
+            _simpleBigInput(
+              controller: _cashCtrl,
+              hint: '0',
+              prefix: '₹',
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            ),
+            const SizedBox(height: 8),
+            // Payment mode as big chips
+            Row(children: [
+              _payChip('Cash', 'cash', Icons.payments_outlined),
+              const SizedBox(width: 8),
+              _payChip('UPI', 'upi', Icons.phone_iphone_outlined),
+              const SizedBox(width: 8),
+              _payChip('Credit', 'credit', Icons.credit_card_outlined),
+            ]),
+          ],
+        ),
+        const SizedBox(height: 12),
+
+        // ── Delivery photo ────────────────────────────────────────
+        _simpleSectionCard(
+          emoji: '📸',
+          title: 'Delivery Photo',
+          subtitle: 'Optional proof photo',
+          children: [
+            _simpleCameraTile(
+              label: '📸 Take Delivery Photo',
+              required: false,
+              image: _deliveryImage,
+              uploading: _uploadingDelivery,
+              uploaded: _deliveryProofUrl != null,
+              onTap: () => _pickImage(false),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+
+        // ── Notes ─────────────────────────────────────────────────
+        _simpleSectionCard(
+          emoji: '📝',
+          title: 'Notes',
+          subtitle: 'Optional notes for this delivery',
+          children: [
+            TextFormField(
+              controller: _notesCtrl,
+              maxLines: 3,
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+              decoration: InputDecoration(
+                hintText: 'Any notes...',
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+                contentPadding: const EdgeInsets.all(16),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 20),
+
+        // ── Submit button ─────────────────────────────────────────
+        SizedBox(
+          width: double.infinity,
+          height: 60,
+          child: ElevatedButton(
+            onPressed: (_submitting || _uploadingMortality || _uploadingDelivery) ? null : _submit,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: _isPartial ? Colors.orange : const Color(0xFF2E7D32),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+              elevation: 3,
+            ),
+            child: _submitting
+                ? const SizedBox(width: 26, height: 26,
+                    child: CircularProgressIndicator(strokeWidth: 3, color: Colors.white))
+                : Text(
+                    _isPartial
+                        ? '⚡ Complete Partial Delivery'
+                        : '✅ Mark as Delivered',
+                    style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: Colors.white)),
+          ),
+        ),
+        const SizedBox(height: 30),
+      ])),
+    );
+  }
+
+  Widget _simpleHeroCard(String shopName, Map<String,dynamic>? r,
+      bool isAlreadyPartial, int partialCount) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: isAlreadyPartial
+              ? [const Color(0xFFE65100), const Color(0xFFEF6C00)]
+              : [const Color(0xFF1B5E20), const Color(0xFF2E7D32)],
+          begin: Alignment.topLeft, end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withValues(alpha: 0.10), blurRadius: 14, offset: const Offset(0, 6)),
+        ],
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Text(isAlreadyPartial ? '⚡' : '✅', style: const TextStyle(fontSize: 36)),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(shopName,
+                  style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: Colors.white)),
+              if (r?['address'] != null)
+                Text(r!['address'] as String,
+                    style: const TextStyle(fontSize: 13, color: Colors.white70),
+                    maxLines: 1, overflow: TextOverflow.ellipsis),
+              if (r?['phone'] != null)
+                Text(r!['phone'] as String,
+                    style: const TextStyle(fontSize: 13, color: Colors.white70)),
+            ]),
+          ),
+        ]),
+        const SizedBox(height: 14),
+        // Order info
+        Row(children: [
+          _simpleHeroStat('📦', '$_orderBirds', 'birds'),
+          _simpleHeroStat('⚖️', '${_orderWeight.toStringAsFixed(1)}', 'kg'),
+          if (_dcBirds > 0)
+            _simpleHeroStat('📋', '$_dcBirds', 'DC birds'),
+        ]),
+        if (isAlreadyPartial) ...[
+          const SizedBox(height: 10),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.2),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(children: [
+              const Text('⚡', style: TextStyle(fontSize: 18)),
+              const SizedBox(width: 8),
+              Text('Partial — Attempt #${partialCount + 1}',
+                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: Colors.white)),
+            ]),
+          ),
+        ],
+      ]),
+    );
+  }
+
+  Widget _simpleHeroStat(String emoji, String value, String label) => Expanded(
+    child: Container(
+      margin: const EdgeInsets.only(right: 6),
+      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 6),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(children: [
+        Text(emoji, style: const TextStyle(fontSize: 20)),
+        const SizedBox(height: 2),
+        Text(value,
+            style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w900, color: Colors.white),
+            textAlign: TextAlign.center),
+        Text(label,
+            style: const TextStyle(fontSize: 11, color: Colors.white70),
+            textAlign: TextAlign.center),
+      ]),
+    ),
+  );
+
+  Widget _simpleWeighmentCard() {
+    return GestureDetector(
+      onTap: _launchWeighment,
+      child: Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(colors: [kPrimary, Colors.teal.shade700]),
+          borderRadius: BorderRadius.circular(24),
+          boxShadow: [
+            BoxShadow(color: Colors.black.withValues(alpha: 0.08), blurRadius: 12, offset: const Offset(0, 4)),
+          ],
+        ),
+        child: Row(children: [
+          Container(
+            width: 60, height: 60,
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.2),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: const Center(child: Icon(Icons.scale_outlined, color: Colors.white, size: 32)),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(
+                _weighmentDone ? '✓ Weighment Done' : '⚖️ Weigh the Birds',
+                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 18)),
+              const SizedBox(height: 4),
+              Text(
+                _weighmentDone
+                    ? 'Weight: ${_weightCtrl.text} kg · Tap to re-weigh'
+                    : 'Tap to use Bluetooth scale or enter manually',
+                style: const TextStyle(color: Colors.white70, fontSize: 14)),
+            ]),
+          ),
+          const Icon(Icons.chevron_right, color: Colors.white, size: 28),
+        ]),
+      ),
+    );
+  }
+
+  Widget _simpleSectionCard({
+    required String emoji,
+    required String title,
+    String? subtitle,
+    required List<Widget> children,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: kBorder),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8, offset: const Offset(0, 3)),
+        ],
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Text(emoji, style: const TextStyle(fontSize: 22)),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(title,
+                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+              if (subtitle != null)
+                Text(subtitle,
+                    style: const TextStyle(fontSize: 12, color: kTextHint)),
+            ]),
+          ),
+        ]),
+        const SizedBox(height: 14),
+        ...children,
+      ]),
+    );
+  }
+
+  Widget _simpleBigInput({
+    required TextEditingController controller,
+    required String hint,
+    String? suffix,
+    String? prefix,
+    TextInputType? keyboardType,
+    void Function()? onChanged,
+    String? Function(String?)? validator,
+  }) {
+    return TextFormField(
+      controller: controller,
+      keyboardType: keyboardType ?? TextInputType.number,
+      style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
+      onChanged: (_) { if (onChanged != null && mounted) onChanged(); if (mounted) setState(() {}); },
+      validator: validator,
+      decoration: InputDecoration(
+        hintText: hint,
+        suffixText: suffix,
+        prefixText: prefix,
+        filled: true,
+        fillColor: Colors.grey.shade50,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(color: kBorder),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(color: kBorder),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: kPrimary, width: 2),
+        ),
+      ),
+    );
+  }
+
+  Widget _payChip(String label, String value, IconData icon) {
+    final selected = _payMode == value;
+    return Expanded(
+      child: GestureDetector(
+        onTap: () => setState(() => _payMode = value),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
+          decoration: BoxDecoration(
+            color: selected
+                ? (value == 'cash' ? Colors.green.shade100
+                    : value == 'upi' ? Colors.blue.shade100
+                    : Colors.purple.shade100)
+                : Colors.grey.shade100,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: selected ? kPrimary : Colors.grey.shade300,
+              width: selected ? 2 : 1,
+            ),
+          ),
+          child: Column(children: [
+            Icon(icon, size: 22,
+                color: selected ? kPrimary : kTextHint),
+            const SizedBox(height: 4),
+            Text(label,
+                style: TextStyle(
+                  fontSize: 14, fontWeight: FontWeight.w800,
+                  color: selected ? kPrimary : kTextHint,
+                )),
+          ]),
+        ),
+      ),
+    );
+  }
+
+  Widget _simpleCameraTile({
+    required String label,
+    required bool required,
+    required File? image,
+    required bool uploading,
+    required bool uploaded,
+    required VoidCallback onTap,
+  }) {
+    final Color c = uploaded ? Colors.green : (required ? Colors.red : kPrimary);
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: uploaded ? Colors.green.shade50 : (required ? Colors.red.shade50 : Colors.grey.shade50),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: c.withValues(alpha: 0.4), width: uploaded ? 2 : 1),
+        ),
+        child: Row(children: [
+          if (image != null)
+            ClipRRect(borderRadius: BorderRadius.circular(8),
+                child: Image.file(image, width: 56, height: 56, fit: BoxFit.cover))
+          else
+            Container(
+              width: 56, height: 56,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(Icons.camera_alt_outlined, size: 28, color: c),
+            ),
+          const SizedBox(width: 14),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(label, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: c)),
+            const SizedBox(height: 2),
+            Text(uploading ? 'Uploading...'
+                : uploaded ? '✓ Photo uploaded'
+                : required ? 'Required — tap to take photo'
+                : 'Tap to take photo',
+                style: TextStyle(fontSize: 12, color: c)),
+          ])),
+          if (uploading) const SizedBox(width: 24, height: 24,
+              child: CircularProgressIndicator(strokeWidth: 2.5)),
+          if (uploaded && !uploading)
+            const Icon(Icons.check_circle, color: Colors.green, size: 28),
+        ]),
+      ),
+    );
+  }
+
+  Widget _simpleStockBanner() {
+    final avail = _stock!.availableBirds;
+    final over  = _deliveryBirds > avail && avail > 0;
+    final zero  = avail <= 0;
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: zero ? Colors.red.shade50 : (over ? Colors.orange.shade50 : Colors.green.shade50),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: zero ? Colors.red.shade300 : (over ? Colors.orange.shade300 : Colors.green.shade300),
+          width: 2,
+        ),
+      ),
+      child: Row(children: [
+        Text(zero ? '🚫' : (over ? '⚠️' : '✅'), style: const TextStyle(fontSize: 28)),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(
+            zero ? 'No stock available! Ask admin.'
+                : over ? 'Stock: $avail birds — delivering $_deliveryBirds'
+                : 'Stock OK: $avail birds ✓',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800,
+                color: zero ? Colors.red.shade700
+                    : (over ? Colors.orange.shade700 : Colors.green.shade700)),
+          ),
+        ),
+      ]),
+    );
   }
 
   Widget _imageUploadTile({

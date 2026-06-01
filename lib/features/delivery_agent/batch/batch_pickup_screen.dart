@@ -6,6 +6,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/providers/session_provider.dart';
+import '../../../core/providers/ui_mode_provider.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_theme.dart';
 
@@ -384,6 +385,10 @@ class _S extends ConsumerState<BatchPickupScreen> {
     final a            = _batch?['delivery_agents'] as Map<String,dynamic>?;
     final bStatus      = _batch?['status'] as String? ?? 'assigned';
     final isAdditional = bStatus != 'assigned';
+
+    if (ref.watch(uiModeProvider).isSimple) {
+      return _buildSimpleView(isAdditional);
+    }
 
     return Scaffold(
       appBar: AppBar(
@@ -832,6 +837,513 @@ class _S extends ConsumerState<BatchPickupScreen> {
                     style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700))),
           const SizedBox(height: 20),
         ])),
+      ),
+    );
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // SIMPLE MODE — large buttons, big fonts, icon-first
+  // ═══════════════════════════════════════════════════════════════════════
+  Widget _buildSimpleView(bool isAdditional) {
+    final a = _batch?['delivery_agents'] as Map<String,dynamic>?;
+    final bStatus = _batch?['status'] as String? ?? 'assigned';
+    final hasShift = _shift != null;
+
+    return Scaffold(
+      backgroundColor: Colors.grey.shade50,
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () { if (context.canPop()) context.pop(); else context.go(R.agentHome); },
+        ),
+        title: Text(isAdditional ? '📋 Add DC' : '🚜 Farm Pickup',
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+        actions: [IconButton(icon: const Icon(Icons.refresh), onPressed: _load)],
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: Form(key: _form, child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+
+          // ── Shift status ─────────────────────────────────────
+          _simpleShiftBanner(hasShift),
+          if (!hasShift) ...[
+            const SizedBox(height: 8),
+            SizedBox(height: 52, child: ElevatedButton.icon(
+              onPressed: () { if (context.canPop()) context.pop(); context.go(R.shiftOpen); },
+              icon: const Icon(Icons.access_time, size: 20),
+              label: const Text('Open Shift',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+              style: ElevatedButton.styleFrom(
+                  backgroundColor: kPrimary,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))),
+            )),
+          ],
+
+          if (hasShift) ...[
+            const SizedBox(height: 12),
+
+            // ── Batch info ────────────────────────────────────────
+            _simpleInfoCard(
+              emoji: '🚚',
+              title: a?['name'] as String? ?? '—',
+              subtitle: 'Vehicle: ${_batch?['vehicle_no'] ?? a?['vehicle_no'] ?? '—'}',
+              trailing: bStatus,
+            ),
+            const SizedBox(height: 12),
+
+            // ── Existing DCs summary ──────────────────────────────
+            if (_existingDCs.isNotEmpty) ...[
+              _simpleInfoCard(
+                emoji: '✅',
+                title: '${_existingDCs.length} DC(s) already added',
+                subtitle: '${_totalDcBirds - _birdCount} birds · '
+                    '${(_totalDcWeight - _netWt).toStringAsFixed(1)} kg',
+                color: Colors.green,
+              ),
+              const SizedBox(height: 12),
+            ],
+
+            // ── Source type ───────────────────────────────────────
+            _simpleSectionCard(
+              emoji: '📍',
+              title: 'Source Type',
+              children: [
+                Row(children: [
+                  _simpleSourceChip('Farm', 'farm', Icons.agriculture),
+                  const SizedBox(width: 8),
+                  _simpleSourceChip('Shop', 'shop_collection', Icons.store_outlined),
+                  const SizedBox(width: 8),
+                  _simpleSourceChip('In-House', 'inhouse_stock', Icons.warehouse_outlined),
+                ]),
+              ],
+            ),
+            const SizedBox(height: 12),
+
+            // ── DC Photo (mandatory) ─────────────────────────────
+            _simpleCameraTile(),
+            const SizedBox(height: 12),
+
+            // ── DC Number & Date ─────────────────────────────────
+            _simpleSectionCard(
+              emoji: '📄',
+              title: 'DC Details',
+              children: [
+                _simpleBigInput(
+                  controller: _dcNum,
+                  hint: 'DC Number',
+                  textCapitalization: TextCapitalization.characters,
+                  validator: (v) => v!.trim().isEmpty ? 'Required' : null,
+                ),
+                const SizedBox(height: 8),
+                GestureDetector(
+                  onTap: () async {
+                    final d = await showDatePicker(
+                        context: context,
+                        initialDate: _dcDate,
+                        firstDate: DateTime.now().subtract(const Duration(days: 7)),
+                        lastDate: DateTime.now());
+                    if (d != null && mounted) setState(() => _dcDate = d);
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade50,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: kBorder),
+                    ),
+                    child: Row(children: [
+                      const Icon(Icons.calendar_today_outlined, size: 22, color: kPrimary),
+                      const SizedBox(width: 10),
+                      Text(DateFormat('d MMM y').format(_dcDate),
+                          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+                    ]),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+
+            // ── Farmer/Supplier ─────────────────────────────────
+            _simpleSectionCard(
+              emoji: '👨‍🌾',
+              title: _srcType == 'shop_collection' ? 'Shop Name' : 'Farmer Name',
+              children: [
+                if (_srcType == 'farm' && _farms.isNotEmpty)
+                  _simpleFarmPicker(),
+                _simpleBigInput(
+                  controller: _farmer,
+                  hint: _srcType == 'shop_collection' ? 'Shop Name' : 'Farmer Name',
+                  textCapitalization: TextCapitalization.words,
+                  validator: (v) => v!.trim().isEmpty ? 'Required' : null,
+                ),
+                const SizedBox(height: 8),
+                _simpleBigInput(
+                  controller: _farmLoc,
+                  hint: 'Location (optional)',
+                  textCapitalization: TextCapitalization.words,
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+
+            // ── Vehicle & Driver ────────────────────────────────
+            _simpleSectionCard(
+              emoji: '🚛',
+              title: 'Vehicle & Driver',
+              children: [
+                Row(children: [
+                  Expanded(
+                    child: _simpleBigInput(
+                      controller: _vehicle,
+                      hint: 'Vehicle No.',
+                      textCapitalization: TextCapitalization.characters,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _simpleBigInput(
+                      controller: _driver,
+                      hint: 'Driver Name',
+                      textCapitalization: TextCapitalization.words,
+                    ),
+                  ),
+                ]),
+              ],
+            ),
+            const SizedBox(height: 12),
+
+            // ── Weight & Birds ──────────────────────────────────
+            _simpleSectionCard(
+              emoji: '⚖️',
+              title: 'Weight & Birds',
+              children: [
+                Row(children: [
+                  Expanded(
+                    child: _simpleBigInput(
+                      controller: _grossWt,
+                      hint: 'Gross Weight',
+                      suffix: 'kg',
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      validator: (v) {
+                        final n = double.tryParse(v?.trim() ?? '');
+                        return (n == null || n <= 0) ? 'Enter gross weight' : null;
+                      },
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _simpleBigInput(
+                      controller: _emptyWt,
+                      hint: 'Empty',
+                      suffix: 'kg',
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    ),
+                  ),
+                ]),
+                if (_grossWtVal > 0) ...[
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: Colors.green.shade50,
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Row(children: [
+                      const Text('⚖️', style: TextStyle(fontSize: 22)),
+                      const SizedBox(width: 10),
+                      Text('Net = ${_netWt.toStringAsFixed(2)} kg',
+                          style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: Colors.green)),
+                    ]),
+                  ),
+                ],
+                const SizedBox(height: 8),
+                Row(children: [
+                  Expanded(
+                    child: _simpleBigInput(
+                      controller: _birds,
+                      hint: 'Birds',
+                      suffix: 'birds',
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _simpleBigInput(
+                      controller: _crates,
+                      hint: 'Crates',
+                    ),
+                  ),
+                ]),
+                if (_birdCount > 0 && _netWt > 0) ...[
+                  const SizedBox(height: 6),
+                  Text('🐔 Avg: ${_avgWt.toStringAsFixed(3)} kg/bird',
+                      style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: kTextSub)),
+                ],
+                const SizedBox(height: 8),
+                _simpleBigInput(
+                  controller: _farmRate,
+                  hint: 'Rate (₹/kg)',
+                  prefix: '₹',
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                ),
+              ],
+            ),
+            const SizedBox(height: 24),
+
+            // ── Submit ──────────────────────────────────────────
+            SizedBox(
+              width: double.infinity,
+              height: 60,
+              child: ElevatedButton(
+                onPressed: _loading ? null : _saveDC,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF2E7D32),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+                  elevation: 3,
+                ),
+                child: _loading
+                    ? const SizedBox(width: 26, height: 26,
+                        child: CircularProgressIndicator(strokeWidth: 3, color: Colors.white))
+                    : Text(
+                        isAdditional ? '✅ Save Additional DC' : '✅ Start Pickup',
+                        style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: Colors.white)),
+              ),
+            ),
+            const SizedBox(height: 30),
+          ],
+        ])),
+      ),
+    );
+  }
+
+  Widget _simpleShiftBanner(bool hasShift) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: hasShift ? Colors.green.shade50 : Colors.red.shade50,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+            color: hasShift ? Colors.green.shade300 : Colors.red.shade300,
+            width: 2),
+      ),
+      child: Row(children: [
+        Text(hasShift ? '✅' : '⛔', style: const TextStyle(fontSize: 28)),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(hasShift ? 'Shift Active' : 'No Active Shift',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900,
+                    color: hasShift ? Colors.green.shade700 : Colors.red.shade700)),
+            Text(hasShift ? 'Ready to add DC' : 'Open a shift first',
+                style: TextStyle(fontSize: 14, color: hasShift ? Colors.green.shade600 : Colors.red.shade600)),
+          ]),
+        ),
+      ]),
+    );
+  }
+
+  Widget _simpleInfoCard({
+    required String emoji, required String title,
+    String? subtitle, String? trailing, Color? color,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color ?? kPrimary.withValues(alpha: 0.3), width: 2),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8, offset: const Offset(0, 3)),
+        ],
+      ),
+      child: Row(children: [
+        Text(emoji, style: const TextStyle(fontSize: 24)),
+        const SizedBox(width: 12),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+          if (subtitle != null)
+            Text(subtitle, style: const TextStyle(fontSize: 13, color: kTextSub)),
+        ])),
+        if (trailing != null)
+          StatusBadge(trailing, SC.order(trailing)),
+      ]),
+    );
+  }
+
+  Widget _simpleSectionCard({
+    required String emoji, required String title,
+    required List<Widget> children,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: kBorder),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8, offset: const Offset(0, 3)),
+        ],
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Text(emoji, style: const TextStyle(fontSize: 22)),
+          const SizedBox(width: 10),
+          Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+        ]),
+        const SizedBox(height: 14),
+        ...children,
+      ]),
+    );
+  }
+
+  Widget _simpleBigInput({
+    required TextEditingController controller,
+    required String hint,
+    String? suffix, String? prefix,
+    TextInputType? keyboardType,
+    TextCapitalization? textCapitalization,
+    String? Function(String?)? validator,
+  }) {
+    return TextFormField(
+      controller: controller,
+      keyboardType: keyboardType ?? TextInputType.text,
+      textCapitalization: textCapitalization ?? TextCapitalization.none,
+      style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
+      validator: validator,
+      decoration: InputDecoration(
+        hintText: hint,
+        suffixText: suffix,
+        prefixText: prefix,
+        filled: true,
+        fillColor: Colors.grey.shade50,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(color: kBorder),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(color: kBorder),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: kPrimary, width: 2),
+        ),
+      ),
+    );
+  }
+
+  Widget _simpleSourceChip(String label, String value, IconData icon) {
+    final selected = _srcType == value;
+    return Expanded(
+      child: GestureDetector(
+        onTap: () => setState(() => _srcType = value),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
+          decoration: BoxDecoration(
+            color: selected ? kPrimary.withValues(alpha: 0.1) : Colors.grey.shade100,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: selected ? kPrimary : Colors.grey.shade300,
+              width: selected ? 2 : 1,
+            ),
+          ),
+          child: Column(children: [
+            Icon(icon, size: 22, color: selected ? kPrimary : kTextHint),
+            const SizedBox(height: 4),
+            Text(label, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700,
+                color: selected ? kPrimary : kTextHint)),
+          ]),
+        ),
+      ),
+    );
+  }
+
+  Widget _simpleCameraTile() {
+    return GestureDetector(
+      onTap: _uploadingDcImage ? null : _takeDcPhoto,
+      child: Container(
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          color: _dcImage != null ? Colors.green.shade50 : Colors.red.shade50,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: _dcImage != null ? Colors.green.shade300 : Colors.red.shade300,
+            width: _dcImage != null ? 2 : 2,
+          ),
+        ),
+        child: Row(children: [
+          if (_dcImage != null)
+            ClipRRect(borderRadius: BorderRadius.circular(12),
+                child: Image.file(_dcImage!, width: 64, height: 64, fit: BoxFit.cover))
+          else
+            Container(
+              width: 64, height: 64,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: const Icon(Icons.camera_alt_outlined, size: 32, color: Colors.red),
+            ),
+          const SizedBox(width: 16),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(_dcImage != null ? '✅ DC Photo taken' : '📸 Take DC Photo (Required)',
+                style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800,
+                    color: _dcImage != null ? Colors.green.shade700 : Colors.red.shade700)),
+            const SizedBox(height: 4),
+            Text(_uploadingDcImage ? 'Uploading...'
+                : _dcImageUrl != null ? '✓ Uploaded & linked'
+                : 'Take a clear photo of the challan',
+                style: TextStyle(fontSize: 13, color: _dcImageUrl != null ? Colors.green.shade600 : Colors.red.shade600)),
+          ])),
+          if (_uploadingDcImage)
+            const SizedBox(width: 26, height: 26, child: CircularProgressIndicator(strokeWidth: 2.5))
+          else if (_dcImageUrl != null)
+            const Icon(Icons.check_circle, color: Colors.green, size: 32)
+          else
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: const BoxDecoration(color: Colors.red, shape: BoxShape.circle),
+              child: const Icon(Icons.camera_alt, color: Colors.white, size: 22),
+            ),
+        ]),
+      ),
+    );
+  }
+
+  Widget _simpleFarmPicker() {
+    final selected = _selectedFarmId != null;
+    return GestureDetector(
+      onTap: _showFarmPicker,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: selected ? kPrimary.withValues(alpha: 0.08) : Colors.grey.shade50,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: selected ? kPrimary : kBorder,
+            width: selected ? 2 : 1,
+          ),
+        ),
+        child: Row(children: [
+          Icon(Icons.agriculture_outlined, size: 24,
+              color: selected ? kPrimary : kTextHint),
+          const SizedBox(width: 12),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(
+              selected ? _selectedFarmName! : '👆 Select from Supplier List',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+                color: selected ? kPrimary : kTextHint,
+              ),
+            ),
+            if (selected) Text('Tap to change',
+                style: TextStyle(fontSize: 12, color: kTextHint)),
+          ])),
+          const Icon(Icons.chevron_right, size: 22, color: kTextHint),
+        ]),
       ),
     );
   }

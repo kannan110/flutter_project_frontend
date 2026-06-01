@@ -40,6 +40,8 @@ class AppUserNotifier extends StateNotifier<AsyncValue<AppUser?>> {
           .select('role, trader_id, is_active')
           .eq('user_id', user.id)
           .eq('is_active', true)
+          .order('role', ascending: true)  // trader_admin comes before delivery_staff
+          .limit(1)
           .maybeSingle()
           .timeout(const Duration(seconds: 10));
 

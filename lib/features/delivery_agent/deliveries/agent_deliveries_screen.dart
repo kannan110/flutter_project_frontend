@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/providers/session_provider.dart';
+import '../../../core/providers/ui_mode_provider.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_theme.dart';
 
@@ -24,10 +25,6 @@ class _S extends ConsumerState<AgentDeliveriesScreen> {
     if (agentId == null || !mounted) return;
     if (mounted) setState(() => _loading = true);
     try {
-      // FIX: fetch delivery with DC birds/weight from challans for accurate stock display
-      // FIX: removed broken nested delivery_batches->delivery_challans select
-      // PostgREST can't traverse deliveries->delivery_batches->delivery_challans
-      // DC data loaded separately only in delivery_complete_screen where needed
       var q = _c.from('deliveries')
           .select('id,status,collected_amount,payment_mode,delivered_at,'
                   'delivered_bird_count,delivered_total_weight,'
@@ -53,8 +50,6 @@ class _S extends ConsumerState<AgentDeliveriesScreen> {
     }
   }
 
-  // U3 FIX: Mark a picked_up delivery as out_for_delivery directly from the list.
-  // This saves 3 taps vs going to the batch screen.
   Future<void> _markOutForDelivery(String deliveryId) async {
     final ok = await confirmDialog(context,
         title: 'Mark Out for Delivery',
@@ -75,47 +70,279 @@ class _S extends ConsumerState<AgentDeliveriesScreen> {
     }
   }
 
+  // ═══════════════════════════════════════════════════════════════════
+  // BUILD
+  // ═══════════════════════════════════════════════════════════════════
+
   @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(
-      title: const Text('My Deliveries'),
-      actions: [IconButton(icon: const Icon(Icons.refresh), onPressed: _load)]),
-    body: Column(children: [
-      Container(
-        color: Colors.white,
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 10),
-        child: SegmentedButton<String>(
-          segments: const [
-            ButtonSegment(value: 'active', label: Text('Active')),
-            ButtonSegment(value: 'done',   label: Text('Delivered')),
-            ButtonSegment(value: 'all',    label: Text('All')),
-          ],
-          selected: {_filter},
-          onSelectionChanged: (s) { if (mounted) setState(() => _filter = s.first); _load(); })),
-      const Divider(height: 1),
-      Expanded(
-        child: _loading
-            ? const LoadingList()
-            : _list.isEmpty
-                ? EmptyState(
-                    icon: Icons.local_shipping_outlined,
-                    message: _filter == 'active' ? 'No active deliveries' : 'No deliveries found',
-                    sub: _filter == 'active' ? 'Admin needs to assign a batch to you' : null)
-                : RefreshIndicator(
-                    onRefresh: _load,
-                    child: ListView.separated(
-                      padding: const EdgeInsets.all(16),
-                      itemCount: _list.length,
-                      separatorBuilder: (_, __) => const SizedBox(height: 10),
-                      itemBuilder: (_, i) => _deliveryCard(_list[i]),
-                    ))),
-    ]),
+  Widget build(BuildContext context) {
+    final isSimple = ref.watch(uiModeProvider).isSimple;
+    if (isSimple && !_loading) return _buildSimpleView();
+    if (isSimple && _loading) return _buildSimpleLoading();
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('My Deliveries'),
+        actions: [IconButton(icon: const Icon(Icons.refresh), onPressed: _load)]),
+      body: Column(children: [
+        Container(
+          color: Colors.white,
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 10),
+          child: SegmentedButton<String>(
+            segments: const [
+              ButtonSegment(value: 'active', label: Text('Active')),
+              ButtonSegment(value: 'done',   label: Text('Delivered')),
+              ButtonSegment(value: 'all',    label: Text('All')),
+            ],
+            selected: {_filter},
+            onSelectionChanged: (s) { if (mounted) setState(() => _filter = s.first); _load(); })),
+        const Divider(height: 1),
+        Expanded(
+          child: _loading
+              ? const LoadingList()
+              : _list.isEmpty
+                  ? EmptyState(
+                      icon: Icons.local_shipping_outlined,
+                      message: _filter == 'active' ? 'No active deliveries' : 'No deliveries found',
+                      sub: _filter == 'active' ? 'Admin needs to assign a batch to you' : null)
+                  : RefreshIndicator(
+                      onRefresh: _load,
+                      child: ListView.separated(
+                        padding: const EdgeInsets.all(16),
+                        itemCount: _list.length,
+                        separatorBuilder: (_, __) => const SizedBox(height: 10),
+                        itemBuilder: (_, i) => _deliveryCard(_list[i]),
+                      ))),
+      ]),
+    );
+  }
+
+  // ═══════════════════════════════════════════════════════════════════
+  // SIMPLE MODE — large cards, emoji-first, accessible
+  // ═══════════════════════════════════════════════════════════════════
+
+  Widget _buildSimpleLoading() => Scaffold(
+    appBar: AppBar(title: const Text('📦 Deliveries')),
+    body: const Center(child: CircularProgressIndicator()),
   );
+
+  Widget _buildSimpleView() {
+    final simpleFilter = _filter == 'active' ? 'Active' : _filter == 'done' ? 'Delivered' : 'All';
+    return Scaffold(
+      backgroundColor: Colors.grey.shade50,
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        title: Text('📦 $simpleFilter Deliveries',
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+        actions: [IconButton(icon: const Icon(Icons.refresh), onPressed: _load)],
+      ),
+      body: Column(children: [
+        Container(
+          color: Colors.white,
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+          child: Row(children: [
+            _simpleFilterChip('🟢 Active', 'active'),
+            const SizedBox(width: 8),
+            _simpleFilterChip('✅ Delivered', 'done'),
+            const SizedBox(width: 8),
+            _simpleFilterChip('📋 All', 'all'),
+          ]),
+        ),
+        const Divider(height: 1),
+        Expanded(
+          child: _list.isEmpty
+              ? Center(
+                  child: Column(mainAxisSize: MainAxisSize.min, children: [
+                    const Text('📭', style: TextStyle(fontSize: 56)),
+                    const SizedBox(height: 12),
+                    Text(_filter == 'active' ? 'No active deliveries' : 'No deliveries found',
+                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: kTextSub)),
+                    const SizedBox(height: 8),
+                    Text('Waiting for admin to assign work',
+                        style: const TextStyle(fontSize: 14, color: kTextHint)),
+                  ]),
+                )
+              : RefreshIndicator(
+                  onRefresh: _load,
+                  child: ListView.builder(
+                    padding: const EdgeInsets.all(16),
+                    itemCount: _list.length,
+                    itemBuilder: (_, i) => _simpleDeliveryCard(_list[i]),
+                  ),
+                ),
+        ),
+      ]),
+    );
+  }
+
+  Widget _simpleFilterChip(String label, String value) {
+    final active = _filter == value;
+    return GestureDetector(
+      onTap: () { if (mounted) setState(() => _filter = value); _load(); },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        decoration: BoxDecoration(
+          color: active ? kPrimary : Colors.grey.shade100,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: active ? kPrimary : Colors.grey.shade300, width: active ? 2 : 1),
+        ),
+        child: Text(label,
+            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700,
+                color: active ? Colors.white : kTextSub)),
+      ),
+    );
+  }
+
+  Widget _simpleDeliveryCard(Map<String, dynamic> d) {
+    final o = d['orders'] as Map<String, dynamic>?;
+    final r = o?['retailers'] as Map<String, dynamic>?;
+    final status = d['status'] as String? ?? '-';
+    final isActive = ['assigned', 'picked_up', 'out_for_delivery'].contains(status);
+    final isDelivered = status == 'delivered';
+    final collected = (d['collected_amount'] as num?)?.toDouble() ?? 0;
+    final delivBirds = (d['delivered_bird_count'] as num?)?.toInt() ?? 0;
+    final delivWeight = (d['delivered_total_weight'] as num?)?.toDouble() ?? 0;
+    final orderBirds = (o?['estimated_birds'] as num?)?.toInt() ?? 0;
+    final orderWeight = (o?['total_quantity'] as num?)?.toDouble() ?? 0;
+    final shopName = r?['shop_name'] as String? ?? '-';
+    final address = r?['address'] as String?;
+
+    String emoji;
+    Color cardColor;
+    if (isDelivered) {
+      emoji = '✅';
+      cardColor = const Color(0xFFF1F8E9);
+    } else if (status == 'out_for_delivery') {
+      emoji = '🚛';
+      cardColor = const Color(0xFFE3F2FD);
+    } else if (status == 'picked_up') {
+      emoji = '📦';
+      cardColor = const Color(0xFFFFF3E0);
+    } else {
+      emoji = '📋';
+      cardColor = Colors.white;
+    }
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: cardColor,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: isActive ? kPrimary.withValues(alpha: 0.3) : kBorder, width: isActive ? 2 : 1),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8, offset: const Offset(0, 3)),
+        ],
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Container(
+            width: 48, height: 48,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Center(child: Text(emoji, style: const TextStyle(fontSize: 24))),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(shopName, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
+              if (address != null)
+                Text(address, style: const TextStyle(fontSize: 12, color: kTextHint),
+                    maxLines: 1, overflow: TextOverflow.ellipsis),
+            ]),
+          ),
+        ]),
+        const SizedBox(height: 14),
+        Row(children: [
+          _simpleStat(isDelivered ? '$delivBirds🐔' : '$orderBirds🐔', isDelivered ? 'Delivered' : 'Ordered'),
+          const SizedBox(width: 6),
+          _simpleStat(isDelivered ? '${delivWeight.toStringAsFixed(1)}kg' : '${orderWeight.toStringAsFixed(1)}kg', 'Weight'),
+          const SizedBox(width: 6),
+          if (collected > 0)
+            _simpleStat('₹${collected.toStringAsFixed(0)}', 'Collected', color: Colors.green.shade700)
+          else if (isActive)
+            _simpleStat('Pending', 'Payment', color: Colors.orange),
+        ]),
+        const SizedBox(height: 12),
+        Row(children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: isDelivered ? Colors.green.shade100 : (isActive ? Colors.blue.shade100 : Colors.grey.shade100),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Text(
+              isDelivered ? '✅ Delivered'
+                  : status == 'out_for_delivery' ? '🚛 Out for delivery'
+                  : status == 'picked_up' ? '📦 Picked up'
+                  : '📋 Assigned',
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700,
+                  color: isDelivered ? Colors.green.shade700
+                      : isActive ? Colors.blue.shade700 : kTextSub),
+            ),
+          ),
+          const Spacer(),
+          if (status == 'out_for_delivery')
+            SizedBox(
+              height: 44,
+              child: ElevatedButton.icon(
+                onPressed: () => context.push(R.deliveryDonePath(d['id'])),
+                icon: const Icon(Icons.check_circle_outline, size: 20),
+                label: const Text('Mark Done', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: kPrimary,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+              ),
+            )
+          else if (status == 'picked_up')
+            SizedBox(
+              height: 44,
+              child: ElevatedButton.icon(
+                onPressed: () => _markOutForDelivery(d['id'] as String),
+                icon: const Icon(Icons.local_shipping_outlined, size: 18),
+                label: const Text('Start Delivery', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.teal,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+              ),
+            ),
+        ]),
+      ]),
+    );
+  }
+
+  Widget _simpleStat(String value, String label, {Color? color}) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 6),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.8),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Column(children: [
+          Text(value,
+              style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: color ?? kTextMain),
+              textAlign: TextAlign.center),
+          Text(label,
+              style: const TextStyle(fontSize: 10, color: kTextHint),
+              textAlign: TextAlign.center),
+        ]),
+      ),
+    );
+  }
+
+  // ═══════════════════════════════════════════════════════════════════
+  // SMART MODE — original delivery card
+  // ═══════════════════════════════════════════════════════════════════
 
   Widget _deliveryCard(Map<String,dynamic> d) {
     final o          = d['orders'] as Map<String,dynamic>?;
     final r          = o?['retailers'] as Map<String,dynamic>?;
-    final status       = d['status'] as String? ?? '—';
+    final status       = d['status'] as String? ?? '-';
     final isActive     = ['assigned', 'picked_up', 'out_for_delivery'].contains(status);
     final isDelivered  = status == 'delivered';
     final collected    = (d['collected_amount'] as num?)?.toDouble() ?? 0;
@@ -139,14 +366,12 @@ class _S extends ConsumerState<AgentDeliveriesScreen> {
                 : isActive ? kPrimary.withValues(alpha: 0.3) : kBorder,
             width: isActive || isHighLoss ? 1.5 : 1)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        // Shop name + status
         Row(children: [
-          Expanded(child: Text(r?['shop_name'] as String? ?? '—',
+          Expanded(child: Text(r?['shop_name'] as String? ?? '-',
               style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15))),
           StatusBadge(status, SC.order(status)),
         ]),
 
-        // Address
         if (r?['address'] != null) Padding(
           padding: const EdgeInsets.only(top: 3),
           child: Row(children: [
@@ -157,7 +382,6 @@ class _S extends ConsumerState<AgentDeliveriesScreen> {
                 maxLines: 1, overflow: TextOverflow.ellipsis)),
           ])),
 
-        // Phone
         if (r?['phone'] != null) Padding(
           padding: const EdgeInsets.only(top: 2),
           child: Row(children: [
@@ -168,7 +392,6 @@ class _S extends ConsumerState<AgentDeliveriesScreen> {
 
         const SizedBox(height: 8),
 
-        // Birds / weight row
         Row(children: [
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Row(children: [
@@ -207,7 +430,7 @@ class _S extends ConsumerState<AgentDeliveriesScreen> {
             if (isHighLoss) Container(
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
                 decoration: BoxDecoration(color: Colors.orange.shade100, borderRadius: BorderRadius.circular(6)),
-                child: Text('⚠️ Loss ${lossPct.toStringAsFixed(1)}%',
+                child: Text('⚠ Loss ${lossPct.toStringAsFixed(1)}%',
                     style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: Colors.deepOrange))),
             if (isDelivered && !isHighLoss && lossPct > 0) const SizedBox(height: 4),
             if (isDelivered && !isHighLoss && lossPct > 0)
@@ -216,9 +439,6 @@ class _S extends ConsumerState<AgentDeliveriesScreen> {
           ]),
         ]),
 
-        // U3 FIX: Status-aware action row with Mark OFD button for picked_up.
-        // Before this fix, agents had to go to the batch screen to change status.
-        // Now they can mark directly from the deliveries list.
         if (isActive) ...[
           const SizedBox(height: 10),
           if (status == 'out_for_delivery')
@@ -227,21 +447,28 @@ class _S extends ConsumerState<AgentDeliveriesScreen> {
               child: ElevatedButton.icon(
                 onPressed: () => context.push(R.deliveryDonePath(d['id'])),
                 icon: const Icon(Icons.check_circle_outline, size: 16),
-                label: const Text('Mark as Delivered ✓',
-                    style: TextStyle(fontWeight: FontWeight.w700)),
-                style: ElevatedButton.styleFrom(
-                    minimumSize: const Size(0, 40), backgroundColor: kPrimary)))
-          else if (status == 'picked_up')
-            Row(children: [
-              Expanded(child: ElevatedButton.icon(
-                onPressed: () => _markOutForDelivery(d['id'] as String),
-                icon: const Icon(Icons.local_shipping_outlined, size: 16),
-                label: const Text('Mark Out for Delivery',
-                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+                label: const Text('Complete Delivery',
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
                 style: ElevatedButton.styleFrom(
                     minimumSize: const Size(0, 40),
-                    backgroundColor: Colors.teal))),
-            ])
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
+              ),
+            )
+          else if (status == 'picked_up')
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: () => _markOutForDelivery(d['id'] as String),
+                icon: const Icon(Icons.local_shipping_outlined, size: 16),
+                label: const Text('Start Delivery',
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+                style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.teal,
+                    foregroundColor: Colors.white,
+                    minimumSize: const Size(0, 40),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
+              ),
+            )
           else
             Container(
               width: double.infinity,
@@ -252,10 +479,10 @@ class _S extends ConsumerState<AgentDeliveriesScreen> {
                   textAlign: TextAlign.center,
                   style: TextStyle(fontSize: 12, color: kTextSub, fontWeight: FontWeight.w600))),
         ],
+
         if (isDelivered) Padding(
           padding: const EdgeInsets.only(top: 8),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            // Partial delivery indicator
             if (d['is_partial_delivery'] == true) Padding(
               padding: const EdgeInsets.only(bottom: 6),
               child: Container(
@@ -272,7 +499,6 @@ class _S extends ConsumerState<AgentDeliveriesScreen> {
                     '${(d['partial_quantity'] as num?)?.toStringAsFixed(1) ?? '0'} kg remaining',
                     style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.orange))),
                 ]))),
-            // View history button
             Padding(
               padding: const EdgeInsets.only(bottom: 6),
               child: Row(children: [
@@ -286,16 +512,17 @@ class _S extends ConsumerState<AgentDeliveriesScreen> {
                   style: OutlinedButton.styleFrom(minimumSize: const Size(0, 36)))),
               ])),
             Row(children: [
-            Icon(approvalSt == 'approved' ? Icons.verified_outlined
-                : Icons.pending_outlined,
-                size: 13,
-                color: approvalSt == 'approved' ? Colors.green : Colors.orange),
-            const SizedBox(width: 4),
-            Text(approvalSt == 'approved' ? 'Approved ✓' : 'Pending approval',
-                style: TextStyle(fontSize: 11,
-                    color: approvalSt == 'approved' ? Colors.green : Colors.orange)),
-          ]),           // close Row([Icon, Text])
-          ])),          // close Column + Padding
+              Icon(approvalSt == 'approved' ? Icons.verified_outlined
+                  : Icons.pending_outlined,
+                  size: 13,
+                  color: approvalSt == 'approved' ? Colors.green : Colors.orange),
+              const SizedBox(width: 4),
+              Text(approvalSt == 'approved' ? 'Approved ✓' : 'Pending approval',
+                  style: TextStyle(fontSize: 11,
+                      color: approvalSt == 'approved' ? Colors.green : Colors.orange)),
+            ]),
+          ]),
+        ),
       ]),
     );
   }

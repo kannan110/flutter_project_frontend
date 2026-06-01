@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/providers/session_provider.dart';
+import '../../../core/providers/ui_mode_provider.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_theme.dart';
 
@@ -139,6 +140,10 @@ class _S extends ConsumerState<BirdTransferScreen> {
     final fromAgent = _batch?['delivery_agents'] as Map<String,dynamic>?;
     final batchBirds = _deliveries.fold(0, (s, d) =>
         s + (((d['orders'] as Map?)?['estimated_birds'] as num?)?.toInt() ?? 0));
+
+    if (ref.watch(uiModeProvider).isSimple) {
+      return _buildSimpleView(fromAgent, batchBirds);
+    }
 
     return Scaffold(
       appBar: AppBar(
@@ -318,6 +323,250 @@ class _S extends ConsumerState<BirdTransferScreen> {
           style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 52))),
         const SizedBox(height: 20),
       ]),
+    );
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // SIMPLE MODE — large cards, emoji-first, minimal
+  // ═══════════════════════════════════════════════════════════════════════
+  Widget _buildSimpleView(Map<String,dynamic>? fromAgent, int batchBirds) {
+    return Scaffold(
+      backgroundColor: Colors.grey.shade50,
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        leading: IconButton(icon: const Icon(Icons.arrow_back),
+            onPressed: () { if (context.canPop()) context.pop(); else context.go(R.agentHome); }),
+        title: const Text('🔄 Transfer Birds',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+        actions: [IconButton(icon: const Icon(Icons.refresh), onPressed: _load)],
+      ),
+      body: ListView(padding: const EdgeInsets.all(16), children: [
+
+        // ── From agent card ──────────────────────────────────────
+        Container(
+          padding: const EdgeInsets.all(18),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: Colors.orange.shade200, width: 2),
+            boxShadow: [
+              BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8, offset: const Offset(0, 3)),
+            ],
+          ),
+          child: Row(children: [
+            Container(
+              width: 56, height: 56,
+              decoration: BoxDecoration(
+                color: Colors.orange.shade50,
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: const Center(child: Text('📤', style: TextStyle(fontSize: 28))),
+            ),
+            const SizedBox(width: 14),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              const Text('FROM YOU',
+                  style: TextStyle(fontSize: 11, color: Colors.orange, fontWeight: FontWeight.w800, letterSpacing: 0.8)),
+              Text(fromAgent?['name'] as String? ?? '—',
+                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
+              Text('$batchBirds birds in batch · ${fromAgent?['vehicle_no'] ?? '—'}',
+                  style: const TextStyle(fontSize: 13, color: kTextSub)),
+            ])),
+          ]),
+        ),
+        const SizedBox(height: 12),
+
+        // ── Select agent ────────────────────────────────────────
+        const Padding(
+          padding: EdgeInsets.only(bottom: 8),
+          child: Text('👤 TRANSFER TO',
+              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: kTextHint)),
+        ),
+        if (_agents.isEmpty)
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(color: Colors.red.shade50, borderRadius: BorderRadius.circular(14)),
+            child: const Text('No other agents found',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Colors.red)),
+          )
+        else
+          ..._agents.map((a) {
+            final selected = _toAgent?['id'] == a['id'];
+            return GestureDetector(
+              onTap: () => setState(() => _toAgent = selected ? null : a),
+              child: Container(
+                margin: const EdgeInsets.only(bottom: 8),
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: selected ? kPrimary.withValues(alpha: 0.08) : Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                      color: selected ? kPrimary : kBorder,
+                      width: selected ? 2.5 : 1.5),
+                ),
+                child: Row(children: [
+                  CircleAvatar(radius: 24, backgroundColor: kPrimary.withValues(alpha: 0.15),
+                      child: Text((a['name'] as String)[0].toUpperCase(),
+                          style: const TextStyle(fontSize: 20, color: kPrimary, fontWeight: FontWeight.w900))),
+                  const SizedBox(width: 12),
+                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text(a['name'] as String,
+                        style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+                    Text('${a['vehicle_no'] ?? '—'}  ${a['phone'] ?? ''}',
+                        style: const TextStyle(fontSize: 13, color: kTextSub)),
+                  ])),
+                  if (selected) const Icon(Icons.check_circle, color: kPrimary, size: 26),
+                ])),
+            );
+          }),
+        const SizedBox(height: 16),
+
+        // ── Quantity to transfer ────────────────────────────────
+        _simpleTransferCard(
+          emoji: '🐔',
+          title: 'Transfer Quantity',
+          children: [
+            Row(children: [
+              Expanded(
+                child: _simpleTransferInput(
+                  controller: _birdsCtrl,
+                  hint: '0',
+                  suffix: 'birds',
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _simpleTransferInput(
+                  controller: _weightCtrl,
+                  hint: '0.0',
+                  suffix: 'kg',
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                ),
+              ),
+            ]),
+          ],
+        ),
+        const SizedBox(height: 12),
+
+        // ── Reason ──────────────────────────────────────────────
+        _simpleTransferCard(
+          emoji: '📝',
+          title: 'Reason (optional)',
+          children: [
+            TextFormField(
+              controller: _reasonCtrl,
+              textCapitalization: TextCapitalization.sentences,
+              style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600),
+              decoration: InputDecoration(
+                hintText: 'e.g. Urgent delivery',
+                filled: true,
+                fillColor: Colors.grey.shade50,
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+                contentPadding: const EdgeInsets.all(16),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+
+        // ── Info banner ─────────────────────────────────────────
+        Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: Colors.amber.shade50,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.amber.shade200),
+          ),
+          child: const Row(children: [
+            Text('💡', style: TextStyle(fontSize: 22)),
+            SizedBox(width: 10),
+            Expanded(
+              child: Text('Birds deducted from your stock, added to selected agent',
+                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.brown)),
+            ),
+          ]),
+        ),
+        const SizedBox(height: 20),
+
+        // ── Submit ──────────────────────────────────────────────
+        SizedBox(
+          width: double.infinity,
+          height: 60,
+          child: ElevatedButton(
+            onPressed: (_submitting || _toAgent == null) ? null : _submit,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: kPrimary,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+              elevation: 3,
+            ),
+            child: _submitting
+                ? const SizedBox(width: 26, height: 26,
+                    child: CircularProgressIndicator(strokeWidth: 3, color: Colors.white))
+                : Text(
+                    _toAgent == null ? '👆 Select an Agent First'
+                        : '🔄 Transfer to ${_toAgent!['name']}',
+                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Colors.white)),
+          ),
+        ),
+        const SizedBox(height: 30),
+      ]),
+    );
+  }
+
+  Widget _simpleTransferCard({
+    required String emoji, required String title,
+    required List<Widget> children,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: kBorder),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8, offset: const Offset(0, 3)),
+        ],
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Text(emoji, style: const TextStyle(fontSize: 22)),
+          const SizedBox(width: 10),
+          Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+        ]),
+        const SizedBox(height: 14),
+        ...children,
+      ]),
+    );
+  }
+
+  Widget _simpleTransferInput({
+    required TextEditingController controller,
+    required String hint,
+    String? suffix,
+    TextInputType? keyboardType,
+  }) {
+    return TextFormField(
+      controller: controller,
+      keyboardType: keyboardType ?? TextInputType.number,
+      style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
+      decoration: InputDecoration(
+        hintText: hint,
+        suffixText: suffix,
+        filled: true,
+        fillColor: Colors.grey.shade50,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(color: kBorder),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(color: kBorder),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: kPrimary, width: 2),
+        ),
+      ),
     );
   }
 }

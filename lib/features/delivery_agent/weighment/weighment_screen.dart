@@ -3,8 +3,10 @@ import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bluetooth_serial/flutter_bluetooth_serial.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../../core/providers/ui_mode_provider.dart';
 import '../../../core/theme/app_theme.dart';
 
 // ═══════════════════════════════════════════════════════════════════
@@ -83,7 +85,7 @@ class WeighmentResult {
 //       paired Classic BT devices including SLE scales.
 // ═══════════════════════════════════════════════════════════════════
 
-class WeighmentScreen extends StatefulWidget {
+class WeighmentScreen extends ConsumerStatefulWidget {
   final String deliveryId;
   final String shopName;
   final int expectedBirds;
@@ -100,10 +102,10 @@ class WeighmentScreen extends StatefulWidget {
   });
 
   @override
-  State<WeighmentScreen> createState() => _WS();
+  ConsumerState<WeighmentScreen> createState() => _WS();
 }
 
-class _WS extends State<WeighmentScreen> {
+class _WS extends ConsumerState<WeighmentScreen> {
   // ── Weighment data ──────────────────────────────────
   final List<WeighmentRow> _rows = [];
   bool _loadLocked = false;
@@ -1093,7 +1095,10 @@ class _WS extends State<WeighmentScreen> {
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
+  Widget build(BuildContext context) {
+    final isSimple = ref.watch(uiModeProvider).isSimple;
+    if (isSimple) return _buildSimpleView();
+    return Scaffold(
         backgroundColor: const Color(0xFFF0F4F0),
         appBar: AppBar(
           title:
@@ -1162,6 +1167,7 @@ class _WS extends State<WeighmentScreen> {
         ]),
         bottomNavigationBar: _buildBottomBar(),
       );
+  }
 
   Widget _buildWeightDisplay() => Container(
         padding: const EdgeInsets.all(16),
@@ -1623,6 +1629,538 @@ class _WS extends State<WeighmentScreen> {
                         minimumSize: const Size(0, 48)))),
         ]),
       );
+
+  // ═══════════════════════════════════════════════════════
+  //  SIMPLE MODE VIEW — Large touch targets, high contrast
+  // ═══════════════════════════════════════════════════════
+
+  Widget _buildSimpleView() {
+    // Session locked state — show locked view
+    if (_sessionLocked) {
+      return Scaffold(
+        backgroundColor: const Color(0xFFF0F4F0),
+        appBar: AppBar(
+          title: const Text('Weighment',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+        ),
+        body: Center(
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            const Icon(Icons.lock, size: 56, color: Colors.green),
+            const SizedBox(height: 16),
+            const Text('Weighment Submitted',
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
+            const SizedBox(height: 8),
+            Text('This delivery weighment has been submitted and is locked.',
+                style: const TextStyle(fontSize: 14, color: kTextSub)),
+          ]),
+        ),
+      );
+    }
+
+    return Scaffold(
+      backgroundColor: const Color(0xFFF0F4F0),
+      appBar: AppBar(
+        title: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          const Text('Weighment',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+          Text(widget.shopName,
+              style: const TextStyle(fontSize: 12, color: kTextHint)),
+        ]),
+        actions: [
+          Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: GestureDetector(
+                onTap: _connected ? _disconnect : _showScalePicker,
+                child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(
+                        color: _connected ? Colors.green.shade50 : Colors.grey.shade100,
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                            color: _connected ? Colors.green.shade300 : Colors.grey.shade300)),
+                    child: Row(mainAxisSize: MainAxisSize.min, children: [
+                      Container(
+                          width: 8, height: 8,
+                          decoration: BoxDecoration(
+                              color: _connected
+                                  ? Colors.green
+                                  : (_connecting ? Colors.orange : Colors.grey),
+                              shape: BoxShape.circle)),
+                      const SizedBox(width: 6),
+                      Text(
+                          _connecting ? 'Connecting…'
+                              : _connected ? '🔵 SCALE ON' : '⚪ NO SCALE',
+                          style: TextStyle(
+                              fontSize: 13, fontWeight: FontWeight.w700,
+                              color: _connected ? Colors.green.shade700 : kTextHint)),
+                    ]))),
+          ),
+        ],
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: Column(children: [
+          // ── Hero Weight Display ──
+          _buildSimpleWeightHero(),
+          const SizedBox(height: 16),
+
+          // ── Phase Indicator ──
+          _buildSimplePhaseCard(),
+          const SizedBox(height: 16),
+
+          // ── Weight Entry ──
+          _buildSimpleEntryCard(),
+          const SizedBox(height: 16),
+
+          // ── Summary ──
+          if (_rows.isNotEmpty) _buildSimpleSummaryCard(),
+          const SizedBox(height: 16),
+
+          // ── Table ──
+          if (_rows.isNotEmpty) _buildSimpleTablePreview(),
+        ]),
+      ),
+      bottomNavigationBar: _buildSimpleBottomBar(),
+    );
+  }
+
+  Widget _buildSimpleWeightHero() {
+    final liveWt = _connected ? _liveWeight : 0.0;
+    final displayWt = _manualWtCtrl.text.isNotEmpty
+        ? double.tryParse(_manualWtCtrl.text.trim()) ?? liveWt
+        : liveWt;
+
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF1B5E20), Color(0xFF2E7D32)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.green.shade900.withValues(alpha: 0.3),
+            blurRadius: 15,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Column(children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              _connected ? Icons.bluetooth_connected : Icons.edit,
+              color: Colors.white.withValues(alpha: 0.7),
+              size: 20,
+            ),
+            const SizedBox(width: 8),
+            Text(
+              _connected ? 'SLE SCALE (LIVE)' : 'MANUAL ENTRY',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: Colors.white.withValues(alpha: 0.7),
+                letterSpacing: 1,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        Text(
+          '${displayWt > 0 ? displayWt.toStringAsFixed(3) : '0.000'} kg',
+          style: const TextStyle(
+            fontSize: 48,
+            fontWeight: FontWeight.w900,
+            color: Colors.white,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'Net: ${_totalNetWt.toStringAsFixed(2)} kg  ·  Birds: $_totalBirds  ·  Avg: ${_avgBirdWtG > 0 ? '${_avgBirdWtG.toStringAsFixed(1)}g' : '—'}',
+          style: TextStyle(
+            fontSize: 13,
+            color: Colors.white.withValues(alpha: 0.8),
+          ),
+        ),
+      ]),
+    );
+  }
+
+  Widget _buildSimplePhaseCard() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(children: [
+        Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+          _simplePhaseChip('1. LOAD WT', !_loadLocked),
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 12),
+            child: Icon(Icons.arrow_forward, size: 20, color: kTextHint),
+          ),
+          _simplePhaseChip('2. EMPTY WT', _loadLocked),
+        ]),
+        if (!_cagesMatch && _filledEmpty > 0)
+          Padding(
+            padding: const EdgeInsets.only(top: 10),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.red.shade50,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.warning, color: Colors.red, size: 20),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Cage mismatch! Load: $_totalLoadCages ≠ $_totalEmptyCages',
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.red,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+      ]),
+    );
+  }
+
+  Widget _simplePhaseChip(String label, bool active) {
+    final bgColor = active ? const Color(0xFFE8F5E9) : Colors.grey.shade100;
+    final textColor = active ? const Color(0xFF2E7D32) : kTextHint;
+    final icon = active ? Icons.check_circle : Icons.radio_button_unchecked;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: active ? const Color(0xFF2E7D32) : Colors.grey.shade300,
+          width: 2,
+        ),
+      ),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        Icon(icon, size: 18, color: textColor),
+        const SizedBox(width: 6),
+        Text(label,
+            style: TextStyle(
+                fontSize: 14, fontWeight: FontWeight.w800, color: textColor)),
+      ]),
+    );
+  }
+
+  Widget _buildSimpleEntryCard() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Text('ENTER WEIGHT',
+              style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: kTextHint,
+                  letterSpacing: 1)),
+          const SizedBox(height: 12),
+          Row(children: [
+            Expanded(
+              child: TextField(
+                controller: _manualWtCtrl,
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
+                decoration: InputDecoration(
+                  labelText: 'Weight (kg)',
+                  hintText: _connected ? '${_liveWeight.toStringAsFixed(3)}' : '0.000',
+                  suffixText: 'kg',
+                  filled: true,
+                  fillColor: const Color(0xFFF5F5F5),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: BorderSide.none,
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            SizedBox(
+              width: 100,
+              child: TextField(
+                controller: _manualCagesCtrl,
+                keyboardType: TextInputType.number,
+                style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
+                decoration: InputDecoration(
+                  labelText: 'Cages',
+                  filled: true,
+                  fillColor: const Color(0xFFF5F5F5),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: BorderSide.none,
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                ),
+              ),
+            ),
+          ]),
+          const SizedBox(height: 14),
+          ElevatedButton.icon(
+            onPressed: !_loadLocked ? _captureLoadWt : (_mode == 'EMPTY' ? _captureEmptyWt : null),
+            icon: Icon(
+              !_loadLocked ? Icons.add_circle_outline : Icons.scale_outlined,
+              size: 24,
+            ),
+            label: Text(
+              !_loadLocked
+                  ? 'CAPTURE LOAD WEIGHT'
+                  : (_mode == 'EMPTY'
+                      ? 'CAPTURE EMPTY WEIGHT — Row ${_filledEmpty + 1}'
+                      : 'ALL DONE ✓'),
+              style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800),
+            ),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: !_loadLocked ? const Color(0xFF2E7D32) : Colors.orange,
+              foregroundColor: Colors.white,
+              minimumSize: const Size(double.infinity, 58),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              elevation: 2,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSimpleSummaryCard() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(children: [
+        const Text('📊 TOTALS',
+            style: TextStyle(
+                fontSize: 12, fontWeight: FontWeight.w700, color: kTextHint, letterSpacing: 1)),
+        const SizedBox(height: 12),
+        Row(children: [
+          _simpleStat('${_totalLoadWt.toStringAsFixed(1)} kg', 'Load WT', Colors.blue),
+          _simpleStat('${_totalEmptyWt.toStringAsFixed(1)} kg', 'Empty WT', Colors.orange),
+          _simpleStat('${_totalNetWt.toStringAsFixed(1)} kg', 'Net WT', Colors.green),
+        ]),
+        const Divider(height: 20),
+        Row(children: [
+          _simpleStat('$_totalLoadCages', 'Load Cages', kTextMain),
+          _simpleStat('$_totalBirds', 'Total Birds', kTextMain),
+          _simpleStat('${_avgBirdWtG.toStringAsFixed(0)}g', 'Avg/Bird', Colors.teal),
+        ]),
+      ]),
+    );
+  }
+
+  Widget _simpleStat(String value, String label, Color color) {
+    return Expanded(
+      child: Column(children: [
+        Text(value,
+            style: TextStyle(
+                fontSize: 16, fontWeight: FontWeight.w900, color: color)),
+        const SizedBox(height: 2),
+        Text(label,
+            style: const TextStyle(fontSize: 11, color: kTextHint)),
+      ]),
+    );
+  }
+
+  Widget _buildSimpleTablePreview() {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(children: [
+        const Text('📋 ROWS',
+            style: TextStyle(
+                fontSize: 12, fontWeight: FontWeight.w700, color: kTextHint, letterSpacing: 1)),
+        const SizedBox(height: 8),
+        ..._rows.map((r) => Container(
+              margin: const EdgeInsets.only(bottom: 6),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                color: r.emptyFilled ? const Color(0xFFF1F8E9) : Colors.grey.shade50,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: r.emptyFilled ? Colors.green.shade200 : Colors.grey.shade200,
+                ),
+              ),
+              child: Row(children: [
+                Container(
+                  width: 32,
+                  height: 32,
+                  decoration: BoxDecoration(
+                    color: r.emptyFilled ? Colors.green.shade100 : Colors.grey.shade200,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Center(
+                    child: Text('${r.seqNo}',
+                        style: TextStyle(
+                            fontSize: 14, fontWeight: FontWeight.w800,
+                            color: r.emptyFilled ? Colors.green.shade800 : kTextSub)),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Load: ${r.loadWt.toStringAsFixed(2)} kg · ${r.loadCages} cages',
+                          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                      if (r.emptyFilled)
+                        Text(
+                            'Empty: ${r.emptyWt.toStringAsFixed(2)} kg · Net: ${r.netWt.toStringAsFixed(2)} kg',
+                            style: TextStyle(fontSize: 12, color: Colors.green.shade700)),
+                    ],
+                  ),
+                ),
+                Icon(
+                  r.emptyFilled ? Icons.check_circle : Icons.circle_outlined,
+                  color: r.emptyFilled ? Colors.green : kTextHint,
+                  size: 24,
+                ),
+              ]),
+            )),
+      ]),
+    );
+  }
+
+  Widget _buildSimpleBottomBar() {
+    return Container(
+      color: Colors.white,
+      padding: EdgeInsets.fromLTRB(16, 12, 16, MediaQuery.of(context).padding.bottom + 12),
+      child: Row(children: [
+        if (!_loadLocked) ...[
+          Expanded(
+            child: ElevatedButton.icon(
+              onPressed: _rows.isEmpty ? null : _lockLoad,
+              icon: const Icon(Icons.lock_outline, size: 20),
+              label: const Text('Lock Load', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.orange,
+                foregroundColor: Colors.white,
+                minimumSize: const Size(0, 54),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          SizedBox(
+            width: 54,
+            height: 54,
+            child: ElevatedButton(
+              onPressed: _captureLoadWt,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF2E7D32),
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              ),
+              child: const Icon(Icons.add, size: 28),
+            ),
+          ),
+        ],
+        if (_loadLocked && _mode == 'EMPTY') ...[
+          Expanded(
+            child: ElevatedButton.icon(
+              onPressed: _rows.any((r) => !r.emptyFilled) ? _captureEmptyWt : null,
+              icon: const Icon(Icons.scale_outlined, size: 20),
+              label: Text('Empty WT — Row ${_filledEmpty + 1}',
+                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.orange,
+                foregroundColor: Colors.white,
+                minimumSize: const Size(0, 54),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          SizedBox(
+            width: 54,
+            height: 54,
+            child: OutlinedButton(
+              onPressed: () => setState(() {
+                _loadLocked = false;
+                _mode = 'LOAD';
+              }),
+              style: OutlinedButton.styleFrom(
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                side: const BorderSide(color: Colors.orange),
+              ),
+              child: const Icon(Icons.lock_open, size: 22, color: Colors.orange),
+            ),
+          ),
+        ],
+        if (_mode == 'DONE' ||
+            (_loadLocked && _filledEmpty == _rows.length && _rows.isNotEmpty))
+          Expanded(
+            child: ElevatedButton.icon(
+              onPressed: _saving ? null : _submit,
+              icon: const Icon(Icons.check_circle_outline, size: 22),
+              label: const Text('Use This Weight',
+                  style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.green,
+                foregroundColor: Colors.white,
+                minimumSize: const Size(0, 56),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              ),
+            ),
+          ),
+      ]),
+    );
+  }
 
   Future<void> _playSuccessSound() async {
     final now = DateTime.now();
