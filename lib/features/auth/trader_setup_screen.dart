@@ -81,68 +81,98 @@ class _S extends ConsumerState<TraderSetupScreen> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    backgroundColor: kBgGrey,
+    backgroundColor: kBgPage,
     appBar: AppBar(
+      backgroundColor: kSurface,
       title: const Text('Company Setup'),
       actions: [TextButton(
-        onPressed: () async {
-          await ref.read(appUserProvider.notifier).signOut();
-        },
-        child: const Text('Sign Out', style: TextStyle(color: kError)))],
+          onPressed: () async {
+            await ref.read(appUserProvider.notifier).signOut();
+          },
+          child: const Text('Sign Out', style: TextStyle(color: kError)))],
     ),
-    body: SingleChildScrollView(padding: const EdgeInsets.all(24), child: Column(children: [
-      const SizedBox(height: 12),
+    body: SingleChildScrollView(padding: const EdgeInsets.fromLTRB(24, 20, 24, 40), child: Column(children: [
+      // Hero banner — navy gradient
       Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(color: kPrimary.withValues(alpha: 0.08),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: kPrimary.withValues(alpha: 0.2))),
-        child: const Column(children: [
-          Icon(Icons.business_outlined, size: 40, color: kPrimary),
-          SizedBox(height: 8),
-          Text('Almost there!', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
-          SizedBox(height: 4),
-          Text('Your account is ready. Now set up your trading company.',
-              textAlign: TextAlign.center, style: TextStyle(fontSize: 13, color: kTextSub)),
-        ])),
-      const SizedBox(height: 20),
+          width: double.infinity,
+          padding: const EdgeInsets.all(22),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+                colors: [kNavy, kNavyMid],
+                begin: Alignment.topLeft, end: Alignment.bottomRight),
+            borderRadius: BorderRadius.circular(kRadiusHero),
+            boxShadow: kCardShadow,
+          ),
+          child: Column(children: [
+            Container(
+                width: 56, height: 56,
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(kRadiusChip),
+                  border: Border.all(color: kGoldLight.withValues(alpha: 0.4)),
+                ),
+                child: const Center(child: Text('🏢', style: TextStyle(fontSize: 28)))),
+            const SizedBox(height: 12),
+            const Text('Almost there!',
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: Colors.white)),
+            const SizedBox(height: 4),
+            const Text('Your account is ready. Now set up your trading company.',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 13, color: Color(0xFFB4C6F4), height: 1.5)),
+          ])),
+      const SizedBox(height: 24),
 
-      // Toggle
-      Row(children: [
-        Expanded(child: GestureDetector(
-          onTap: () => setState(() { _createNew = true; _err = null; }),
-          child: Container(
-            padding: const EdgeInsets.symmetric(vertical: 12),
-            decoration: BoxDecoration(
-                color: _createNew ? kPrimary : Colors.grey.shade100,
-                borderRadius: const BorderRadius.horizontal(left: Radius.circular(10))),
-            child: Column(children: [
-              Icon(Icons.add_business_outlined, color: _createNew ? Colors.white : kTextSub),
-              const SizedBox(height: 4),
-              Text('New Company', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700,
-                  color: _createNew ? Colors.white : kTextSub)),
-            ])))),
-        Expanded(child: GestureDetector(
-          onTap: () => setState(() { _createNew = false; _err = null; }),
-          child: Container(
-            padding: const EdgeInsets.symmetric(vertical: 12),
-            decoration: BoxDecoration(
-                color: !_createNew ? kPrimary : Colors.grey.shade100,
-                borderRadius: const BorderRadius.horizontal(right: Radius.circular(10))),
-            child: Column(children: [
-              Icon(Icons.group_add_outlined, color: !_createNew ? Colors.white : kTextSub),
-              const SizedBox(height: 4),
-              Text('Join Existing', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700,
-                  color: !_createNew ? Colors.white : kTextSub)),
-            ])))),
-      ]),
+      // Toggle — navy active
+      Container(
+          decoration: BoxDecoration(
+            color: kBgGrey,
+            borderRadius: BorderRadius.circular(kRadiusCard),
+            border: Border.all(color: kBorderLight),
+          ),
+          child: Row(children: [
+            Expanded(child: GestureDetector(
+                onTap: () => setState(() { _createNew = true; _err = null; }),
+                child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 150),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    decoration: BoxDecoration(
+                        color: _createNew ? kNavy : Colors.transparent,
+                        borderRadius: BorderRadius.circular(kRadiusCard)),
+                    child: Column(children: [
+                      Icon(Icons.add_business_outlined, color: _createNew ? kGoldLight : kTextSub),
+                      const SizedBox(height: 4),
+                      Text('New Company', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800,
+                          color: _createNew ? Colors.white : kTextSub)),
+                    ])))),
+            Expanded(child: GestureDetector(
+                onTap: () => setState(() { _createNew = false; _err = null; }),
+                child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 150),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    decoration: BoxDecoration(
+                        color: !_createNew ? kNavy : Colors.transparent,
+                        borderRadius: BorderRadius.circular(kRadiusCard)),
+                    child: Column(children: [
+                      Icon(Icons.group_add_outlined, color: !_createNew ? kGoldLight : kTextSub),
+                      const SizedBox(height: 4),
+                      Text('Join Existing', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800,
+                          color: !_createNew ? Colors.white : kTextSub)),
+                    ])))),
+          ])),
       const SizedBox(height: 20),
 
       if (_err != null) Container(
-        width: double.infinity, margin: const EdgeInsets.only(bottom: 14),
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(color: Colors.red.shade50, borderRadius: BorderRadius.circular(8)),
-        child: Text(_err!, style: const TextStyle(color: kError, fontSize: 13))),
+          width: double.infinity, margin: const EdgeInsets.only(bottom: 14),
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(color: kErrorBg,
+              borderRadius: BorderRadius.circular(kRadiusCard),
+              border: Border.all(color: kError.withValues(alpha: 0.3))),
+          child: Row(children: [
+            const Icon(Icons.error_outline_rounded, color: kError, size: 18),
+            const SizedBox(width: 10),
+            Expanded(child: Text(_err!, style: const TextStyle(color: kError, fontSize: 13,
+                fontWeight: FontWeight.w600))),
+          ])),
 
       if (_createNew) ...[
         TextFormField(controller: _coName, textCapitalization: TextCapitalization.words,
@@ -179,16 +209,18 @@ class _S extends ConsumerState<TraderSetupScreen> {
         ]),
         const SizedBox(height: 20),
         SizedBox(width: double.infinity, height: 50,
-          child: ElevatedButton.icon(
-            onPressed: _busy ? null : _createTrader,
-            icon: _busy
-                ? const SizedBox(width: 18, height: 18,
+            child: ElevatedButton.icon(
+                onPressed: _busy ? null : _createTrader,
+                icon: _busy
+                    ? const SizedBox(width: 18, height: 18,
                     child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                : const Icon(Icons.add_business),
-            label: const Text('Create Company', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700)))),
+                    : const Icon(Icons.add_business),
+                label: const Text('Create Company', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700)))),
       ] else ...[
-        Container(padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(8)),
+        Container(padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(color: Colors.blue.withValues(alpha: 0.07),
+                borderRadius: BorderRadius.circular(kRadiusCard),
+                border: Border.all(color: Colors.blue.withValues(alpha: 0.2))),
             child: const Text('Get the Company Code from the existing admin and enter it below.',
                 style: TextStyle(fontSize: 12, color: Colors.blue))),
         const SizedBox(height: 14),
@@ -203,13 +235,13 @@ class _S extends ConsumerState<TraderSetupScreen> {
             }),
         const SizedBox(height: 20),
         SizedBox(width: double.infinity, height: 50,
-          child: ElevatedButton.icon(
-            onPressed: _busy ? null : _joinTrader,
-            icon: _busy
-                ? const SizedBox(width: 18, height: 18,
+            child: ElevatedButton.icon(
+                onPressed: _busy ? null : _joinTrader,
+                icon: _busy
+                    ? const SizedBox(width: 18, height: 18,
                     child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                : const Icon(Icons.group_add),
-            label: const Text('Join Company', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700)))),
+                    : const Icon(Icons.group_add),
+                label: const Text('Join Company', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700)))),
       ],
     ])),
   );

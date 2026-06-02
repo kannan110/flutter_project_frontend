@@ -53,12 +53,14 @@ class _S extends ConsumerState<AlertsScreen> {
   Widget build(BuildContext context) {
     final tid = ref.read(appUserProvider).valueOrNull?.traderId;
     return Scaffold(
+      backgroundColor: kBgPage,
       appBar: AppBar(
+        backgroundColor: kSurface,
         title: Row(children: [
           const Text('Alerts'),
           if (_alerts.isNotEmpty) ...[const SizedBox(width: 8),
             Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2), decoration: BoxDecoration(color: Colors.red, borderRadius: BorderRadius.circular(10)),
-              child: Text('${_alerts.length}', style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700)))],
+                child: Text('${_alerts.length}', style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700)))],
         ]),
         actions: [
           if (_alerts.isNotEmpty) TextButton(onPressed: () async {
@@ -71,19 +73,19 @@ class _S extends ConsumerState<AlertsScreen> {
       body: _loading ? const LoadingList() : _alerts.isEmpty
           ? const EmptyState(icon: Icons.notifications_none_outlined, message: "All clear! No alerts.", sub: "You're up to date")
           : ListView.separated(padding: const EdgeInsets.all(16), itemCount: _alerts.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 8),
-              itemBuilder: (_, i) {
-                final a = _alerts[i];
-                final type  = a['alert_type'] as String? ?? '';
-                final sev   = a['severity']   as String? ?? 'info';
-                final date  = DateTime.tryParse(a['created_at'] as String? ?? '');
-                final color = _color(type);
-                return Dismissible(key: Key(a['id'] as String), direction: DismissDirection.endToStart,
-                  background: Container(alignment: Alignment.centerRight, padding: const EdgeInsets.only(right: 20),
-                      decoration: BoxDecoration(color: Colors.green.shade100, borderRadius: BorderRadius.circular(12)),
-                      child: const Icon(Icons.check, color: Colors.green)),
-                  onDismissed: (_) => _dismiss(a['id'] as String),
-                  child: Container(padding: const EdgeInsets.all(14),
+          separatorBuilder: (_, __) => const SizedBox(height: 8),
+          itemBuilder: (_, i) {
+            final a = _alerts[i];
+            final type  = a['alert_type'] as String? ?? '';
+            final sev   = a['severity']   as String? ?? 'info';
+            final date  = DateTime.tryParse(a['created_at'] as String? ?? '');
+            final color = _color(type);
+            return Dismissible(key: Key(a['id'] as String), direction: DismissDirection.endToStart,
+                background: Container(alignment: Alignment.centerRight, padding: const EdgeInsets.only(right: 20),
+                    decoration: BoxDecoration(color: Colors.green.shade100, borderRadius: BorderRadius.circular(12)),
+                    child: const Icon(Icons.check, color: Colors.green)),
+                onDismissed: (_) => _dismiss(a['id'] as String),
+                child: Container(padding: const EdgeInsets.all(14),
                     decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12),
                         border: Border.all(color: sev == 'critical' ? Colors.red.shade300 : color.withValues(alpha: 0.3), width: sev == 'critical' ? 2 : 1)),
                     child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -98,7 +100,7 @@ class _S extends ConsumerState<AlertsScreen> {
                       ])),
                       IconButton(icon: const Icon(Icons.close, size: 16, color: kTextHint), onPressed: () => _dismiss(a['id'] as String), padding: EdgeInsets.zero, constraints: const BoxConstraints()),
                     ])));
-              }),
+          }),
     );
   }
 }

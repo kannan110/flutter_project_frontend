@@ -107,13 +107,13 @@ class _S extends ConsumerState<PurchaseScreen>
           var q = _c
               .from('purchase_entries')
               .select('id,dc_number,dc_date,farmer_name,farm_location,'
-                  'bird_count,arrival_birds,net_weight_kg,arrival_weight_kg,'
-                  'shortage_birds,shortage_kg,purchase_rate_per_kg,purchase_rate_per_bird,'
-                  'base_purchase_amount,total_landed_cost,cost_per_kg_landed,'
-                  'transport_cost,loading_cost,handling_cost,other_cost,'
-                  'total_paid,advance_paid,claim_amount,payment_status,payment_due_date,'
-                  'status,locked_at,batch_id,challan_id,farm_id,'
-                  'farms(farmer_name,farm_name,credit_days,default_rate_per_kg)')
+              'bird_count,arrival_birds,net_weight_kg,arrival_weight_kg,'
+              'shortage_birds,shortage_kg,purchase_rate_per_kg,purchase_rate_per_bird,'
+              'base_purchase_amount,total_landed_cost,cost_per_kg_landed,'
+              'transport_cost,loading_cost,handling_cost,other_cost,'
+              'total_paid,advance_paid,claim_amount,payment_status,payment_due_date,'
+              'status,locked_at,batch_id,challan_id,farm_id,'
+              'farms(farmer_name,farm_name,credit_days,default_rate_per_kg)')
               .eq('trader_id', tid)
               .gte('dc_date', _fromStr)
               .lte('dc_date', _toStr);
@@ -137,18 +137,18 @@ class _S extends ConsumerState<PurchaseScreen>
           final r = await _c
               .from('farms')
               .select('id,farmer_name,farm_name,phone,location,credit_days,'
-                  'default_rate_per_kg,is_active,company_id,updated_at,'
-                  'poultry_companies(company_name)')
+              'default_rate_per_kg,is_active,company_id,updated_at,'
+              'poultry_companies(company_name)')
               .eq('trader_id', tid)
               .order('farmer_name');
           final pe = await _c
               .from('purchase_entries')
               .select(
-                  'farm_id,total_landed_cost,total_paid,claim_amount,payment_status')
+              'farm_id,total_landed_cost,total_paid,claim_amount,payment_status')
               .eq('trader_id', tid);
           final Map<String, Map<String, dynamic>> farmStats = {};
           for (final row
-              in List<Map<String, dynamic>>.from(pe as List? ?? [])) {
+          in List<Map<String, dynamic>>.from(pe as List? ?? [])) {
             final fid = row['farm_id'] as String?;
             if (fid == null) continue;
             farmStats[fid] ??= {
@@ -183,8 +183,8 @@ class _S extends ConsumerState<PurchaseScreen>
         case 3: // Ledger
           var lq = _c.from('supplier_ledger').select(
               'id,entry_type,amount,reason,payment_mode,entry_date,'
-              'description,reference_number,payment_id,'
-              'farms(farmer_name),purchase_entries(dc_number,net_weight_kg)');
+                  'description,reference_number,payment_id,'
+                  'farms(farmer_name),purchase_entries(dc_number,net_weight_kg)');
           lq = lq
               .eq('trader_id', tid)
               .gte('entry_date', _fromStr)
@@ -197,17 +197,17 @@ class _S extends ConsumerState<PurchaseScreen>
             });
 
         case 4: // Costing
-          // FIX: purchase_entries is 1-to-many per batch — join returns ARRAY not Map
-          // Use a separate query to get farmer info per batch
+        // FIX: purchase_entries is 1-to-many per batch — join returns ARRAY not Map
+        // Use a separate query to get farmer info per batch
           final r = await _c
               .from('batch_costing')
               .select('id,batch_id,dc_birds,dc_weight_kg,purchase_amount,'
-                  'transport_cost,loading_cost,handling_cost,operational_cost,total_cost,'
-                  'cost_per_kg,delivered_birds,delivered_kg,revenue,revenue_per_kg,'
-                  'shrinkage_kg,mortality_birds,mortality_kg,shrinkage_loss_amount,'
-                  'gross_profit,net_profit,profit_margin_pct,profit_per_kg,'
-                  'status,calculated_at,'
-                  'delivery_batches(farm_name,picked_up_at)')
+              'transport_cost,loading_cost,handling_cost,operational_cost,total_cost,'
+              'cost_per_kg,delivered_birds,delivered_kg,revenue,revenue_per_kg,'
+              'shrinkage_kg,mortality_birds,mortality_kg,shrinkage_loss_amount,'
+              'gross_profit,net_profit,profit_margin_pct,profit_per_kg,'
+              'status,calculated_at,'
+              'delivery_batches(farm_name,picked_up_at)')
               .eq('trader_id', tid)
               .order('created_at', ascending: false)
               .limit(50);
@@ -304,15 +304,15 @@ class _S extends ConsumerState<PurchaseScreen>
   // ==========================================================================
   @override
   Widget build(BuildContext context) => Scaffold(
-      backgroundColor: kBgGrey,
+      backgroundColor: kBgPage,
       appBar: AppBar(
-          backgroundColor: Colors.white,
+          backgroundColor: kSurface,
           title: const Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text('Purchase Management',
                     style:
-                        TextStyle(fontSize: 15, fontWeight: FontWeight.w800)),
+                    TextStyle(fontSize: 15, fontWeight: FontWeight.w800)),
                 Text('Procurement + Accounting + Profitability',
                     style: TextStyle(fontSize: 9, color: kTextHint)),
               ]),
@@ -332,11 +332,11 @@ class _S extends ConsumerState<PurchaseScreen>
                   if (v == 'company') _showAddCompany();
                 },
                 itemBuilder: (_) => [
-                      const PopupMenuItem(
-                          value: 'farm', child: Text('Add Supplier')),
-                      const PopupMenuItem(
-                          value: 'company', child: Text('Add Company')),
-                    ]),
+                  const PopupMenuItem(
+                      value: 'farm', child: Text('Add Supplier')),
+                  const PopupMenuItem(
+                      value: 'company', child: Text('Add Company')),
+                ]),
             IconButton(icon: const Icon(Icons.refresh), onPressed: _load),
           ],
           bottom: TabBar(
@@ -344,21 +344,21 @@ class _S extends ConsumerState<PurchaseScreen>
               isScrollable: true,
               tabAlignment: TabAlignment.start,
               labelStyle:
-                  const TextStyle(fontSize: 11, fontWeight: FontWeight.w800),
+              const TextStyle(fontSize: 11, fontWeight: FontWeight.w800),
               unselectedLabelStyle:
-                  const TextStyle(fontSize: 11, fontWeight: FontWeight.w500),
+              const TextStyle(fontSize: 11, fontWeight: FontWeight.w500),
               tabs: _tabs.map((t) => Tab(text: t)).toList())),
       body: _loading
           ? const LoadingList()
           : TabBarView(controller: _tab, children: [
-              _tabOverview(),
-              _tabPurchases(),
-              _tabSuppliers(),
-              _tabLedger(),
-              _tabCosting(),
-              _tabReports(),
-              _tabHistory(),
-            ]));
+        _tabOverview(),
+        _tabPurchases(),
+        _tabSuppliers(),
+        _tabLedger(),
+        _tabCosting(),
+        _tabReports(),
+        _tabHistory(),
+      ]));
 
   // ==========================================================================
   // TAB 0: OVERVIEW
@@ -391,8 +391,8 @@ class _S extends ConsumerState<PurchaseScreen>
               margin: const EdgeInsets.only(bottom: 10),
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(8),
+                  color: kSurface,
+                  borderRadius: BorderRadius.circular(kRadiusInner),
                   border: Border.all(color: kBorder)),
               child: Row(children: [
                 const Icon(Icons.calendar_today_outlined,
@@ -406,7 +406,7 @@ class _S extends ConsumerState<PurchaseScreen>
                 GestureDetector(
                     onTap: _pickRange,
                     child: const Text('Change',
-                        style: TextStyle(fontSize: 11, color: kPrimary))),
+                        style: TextStyle(fontSize: 11, color: kNavy))),
               ])),
 
           // Alerts row
@@ -425,12 +425,12 @@ class _S extends ConsumerState<PurchaseScreen>
             if (overdue > 0)
               _alertBanner(Icons.warning_amber_rounded,
                   '$overdue payment(s) overdue', Colors.red, onTap: () {
-                _tab.animateTo(1);
-                setState(() {
-                  _filterPayStatus = 'overdue';
-                });
-                _load();
-              }),
+                    _tab.animateTo(1);
+                    setState(() {
+                      _filterPayStatus = 'overdue';
+                    });
+                    _load();
+                  }),
             const SizedBox(height: 8),
           ],
 
@@ -485,33 +485,33 @@ class _S extends ConsumerState<PurchaseScreen>
                           horizontal: 12, vertical: 10),
                       decoration: BoxDecoration(
                           color: Colors.white,
-                          borderRadius: BorderRadius.circular(10),
+                          borderRadius: BorderRadius.circular(kRadiusCard),
                           border: Border.all(color: kBorder)),
                       child: Row(children: [
                         CircleAvatar(
                             radius: 16,
-                            backgroundColor: kPrimary.withValues(alpha: 0.1),
+                            backgroundColor: kNavy.withValues(alpha: 0.08),
                             child: Text(
                                 (f['farmer_name'] as String? ?? '?')[0]
                                     .toUpperCase(),
                                 style: const TextStyle(
                                     fontSize: 12,
                                     fontWeight: FontWeight.w800,
-                                    color: kPrimary))),
+                                    color: kNavy))),
                         const SizedBox(width: 10),
                         Expanded(
                             child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                              Text(f['farmer_name'] as String? ?? '--',
-                                  style: const TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w700)),
-                              Text(
-                                  '${(f['dc_count'] as num?)?.toInt() ?? 0} DCs  |  ${Fmt.amount(total2)} total',
-                                  style: const TextStyle(
-                                      fontSize: 10, color: kTextHint)),
-                            ])),
+                                  Text(f['farmer_name'] as String? ?? '--',
+                                      style: const TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w700)),
+                                  Text(
+                                      '${(f['dc_count'] as num?)?.toInt() ?? 0} DCs  |  ${Fmt.amount(total2)} total',
+                                      style: const TextStyle(
+                                          fontSize: 10, color: kTextHint)),
+                                ])),
                         Column(
                             crossAxisAlignment: CrossAxisAlignment.end,
                             children: [
@@ -541,7 +541,7 @@ class _S extends ConsumerState<PurchaseScreen>
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
                     color: Colors.white,
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(kRadiusCard),
                     border: Border.all(color: kBorder)),
                 child: Column(children: [
                   Row(
@@ -551,16 +551,16 @@ class _S extends ConsumerState<PurchaseScreen>
                             (t['total_amount'] as num?)?.toDouble() ?? 0;
                         final maxAmt = trend
                             .map((x) =>
-                                (x['total_amount'] as num?)?.toDouble() ?? 0)
+                        (x['total_amount'] as num?)?.toDouble() ?? 0)
                             .reduce((a, b) => a > b ? a : b)
                             .clamp(1.0, double.infinity);
                         final frac = amt / maxAmt;
                         final dt =
-                            DateTime.tryParse((t['month'] as String?) ?? '');
+                        DateTime.tryParse((t['month'] as String?) ?? '');
                         return Expanded(
                             child: Padding(
                                 padding:
-                                    const EdgeInsets.symmetric(horizontal: 2),
+                                const EdgeInsets.symmetric(horizontal: 2),
                                 child: Column(
                                     mainAxisAlignment: MainAxisAlignment.end,
                                     children: [
@@ -572,11 +572,11 @@ class _S extends ConsumerState<PurchaseScreen>
                                       const SizedBox(height: 2),
                                       ClipRRect(
                                           borderRadius:
-                                              BorderRadius.circular(3),
+                                          BorderRadius.circular(3),
                                           child: Container(
                                               height:
-                                                  (60 * frac).clamp(4.0, 60.0),
-                                              color: kPrimary)),
+                                              (60 * frac).clamp(4.0, 60.0),
+                                              color: kNavy)),
                                       const SizedBox(height: 3),
                                       Text(
                                           dt != null
@@ -599,7 +599,7 @@ class _S extends ConsumerState<PurchaseScreen>
                 padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
                     color: Colors.white,
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(kRadiusCard),
                     border: Border.all(color: Colors.teal.shade200)),
                 child: Column(children: [
                   Row(children: [
@@ -617,7 +617,7 @@ class _S extends ConsumerState<PurchaseScreen>
                         'Stock Value',
                         Fmt.amountShort(
                             (_stockVal!['total_stock_value'] as num?)
-                                    ?.toDouble() ??
+                                ?.toDouble() ??
                                 0),
                         Colors.purple,
                         Icons.currency_rupee),
@@ -655,33 +655,33 @@ class _S extends ConsumerState<PurchaseScreen>
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           decoration: BoxDecoration(
               color: Colors.white,
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: BorderRadius.circular(kRadiusCard),
               border: Border.all(
                   color: due > 0 ? Colors.orange.shade200 : kBorder)),
           child: Row(children: [
             CircleAvatar(
                 radius: 16,
-                backgroundColor: kPrimary.withValues(alpha: 0.08),
+                backgroundColor: kNavy.withValues(alpha: 0.06),
                 child: Text(
                     (farm['farmer_name'] as String? ?? '?')[0].toUpperCase(),
                     style: const TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w800,
-                        color: kPrimary))),
+                        color: kNavy))),
             const SizedBox(width: 10),
             Expanded(
                 child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                  Text(farm['farmer_name'] as String? ?? '—',
-                      style: const TextStyle(
-                          fontSize: 12, fontWeight: FontWeight.w700)),
-                  if (dueDate != null)
-                    Text('Due: $dueDate',
-                        style: TextStyle(
-                            fontSize: 9,
-                            color: due > 0 ? Colors.orange : Colors.green)),
-                ])),
+                      Text(farm['farmer_name'] as String? ?? '—',
+                          style: const TextStyle(
+                              fontSize: 12, fontWeight: FontWeight.w700)),
+                      if (dueDate != null)
+                        Text('Due: $dueDate',
+                            style: TextStyle(
+                                fontSize: 9,
+                                color: due > 0 ? Colors.orange : Colors.green)),
+                    ])),
             Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
               Text(Fmt.amount(due),
                   style: TextStyle(
@@ -757,13 +757,13 @@ class _S extends ConsumerState<PurchaseScreen>
               onRefresh: _load,
               child: _purchases.isEmpty
                   ? const EmptyState(
-                      icon: Icons.receipt_long_outlined,
-                      message: 'No purchases')
+                  icon: Icons.receipt_long_outlined,
+                  message: 'No purchases')
                   : ListView.separated(
-                      padding: const EdgeInsets.all(12),
-                      itemCount: _purchases.length,
-                      separatorBuilder: (_, __) => const SizedBox(height: 6),
-                      itemBuilder: (_, i) => _purchaseCard(_purchases[i])))),
+                  padding: const EdgeInsets.all(12),
+                  itemCount: _purchases.length,
+                  separatorBuilder: (_, __) => const SizedBox(height: 6),
+                  itemBuilder: (_, i) => _purchaseCard(_purchases[i])))),
     ]);
   }
 
@@ -788,10 +788,10 @@ class _S extends ConsumerState<PurchaseScreen>
                     'status',
                     ['All', 'draft', 'confirmed', 'finalized', 'locked'],
                     _filterStatus,
-                    (v) => setState(() {
-                          _filterStatus = v == 'All' ? null : v;
-                          _load();
-                        }))),
+                        (v) => setState(() {
+                      _filterStatus = v == 'All' ? null : v;
+                      _load();
+                    }))),
             const SizedBox(width: 6),
             _filterChip(_filterPayStatus ?? 'All Payment',
                 active: _filterPayStatus != null,
@@ -799,24 +799,24 @@ class _S extends ConsumerState<PurchaseScreen>
                     'payment',
                     ['All', 'pending', 'partial', 'paid', 'overdue'],
                     _filterPayStatus,
-                    (v) => setState(() {
-                          _filterPayStatus = v == 'All' ? null : v;
-                          _load();
-                        }))),
+                        (v) => setState(() {
+                      _filterPayStatus = v == 'All' ? null : v;
+                      _load();
+                    }))),
             const SizedBox(width: 6),
             if (_filterStatus != null || _filterPayStatus != null)
               GestureDetector(
                   onTap: () => setState(() {
-                        _filterStatus = null;
-                        _filterPayStatus = null;
-                        _load();
-                      }),
+                    _filterStatus = null;
+                    _filterPayStatus = null;
+                    _load();
+                  }),
                   child: Container(
                       padding: const EdgeInsets.symmetric(
                           horizontal: 8, vertical: 5),
                       decoration: BoxDecoration(
                           color: Colors.red.shade50,
-                          borderRadius: BorderRadius.circular(16),
+                          borderRadius: BorderRadius.circular(kRadiusCard),
                           border: Border.all(color: Colors.red.shade200)),
                       child: const Text('Clear',
                           style: TextStyle(
@@ -826,14 +826,14 @@ class _S extends ConsumerState<PurchaseScreen>
           ])));
 
   Widget _filterChip(String label,
-          {bool active = false, VoidCallback? onTap}) =>
+      {bool active = false, VoidCallback? onTap}) =>
       GestureDetector(
           onTap: onTap,
           child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
               decoration: BoxDecoration(
                   color: active ? kPrimary : Colors.white,
-                  borderRadius: BorderRadius.circular(16),
+                  borderRadius: BorderRadius.circular(kRadiusCard),
                   border: Border.all(color: active ? kPrimary : kBorder)),
               child: Text(label,
                   style: TextStyle(
@@ -847,25 +847,25 @@ class _S extends ConsumerState<PurchaseScreen>
         context: context,
         useRootNavigator: true,
         builder: (ctx) => ListView(
-                shrinkWrap: true,
-                padding: const EdgeInsets.all(16),
-                children: [
-                  Text('Filter by $title',
-                      style: const TextStyle(
-                          fontSize: 14, fontWeight: FontWeight.w800)),
-                  const SizedBox(height: 10),
-                  ...options.map((o) => ListTile(
-                        dense: true,
-                        title: Text(o, style: const TextStyle(fontSize: 13)),
-                        trailing: (current ?? 'All') == o
-                            ? const Icon(Icons.check, color: kPrimary, size: 18)
-                            : null,
-                        onTap: () {
-                          Navigator.of(ctx, rootNavigator: true).pop();
-                          onSelect(o);
-                        },
-                      )),
-                ]));
+            shrinkWrap: true,
+            padding: const EdgeInsets.all(16),
+            children: [
+              Text('Filter by $title',
+                  style: const TextStyle(
+                      fontSize: 14, fontWeight: FontWeight.w800)),
+              const SizedBox(height: 10),
+              ...options.map((o) => ListTile(
+                dense: true,
+                title: Text(o, style: const TextStyle(fontSize: 13)),
+                trailing: (current ?? 'All') == o
+                    ? const Icon(Icons.check, color: kPrimary, size: 18)
+                    : null,
+                onTap: () {
+                  Navigator.of(ctx, rootNavigator: true).pop();
+                  onSelect(o);
+                },
+              )),
+            ]));
   }
 
   Widget _buildSummaryHeader() {
@@ -904,10 +904,10 @@ class _S extends ConsumerState<PurchaseScreen>
   }
 
   Widget _hStat(String l, String v, Color c) => Expanded(
-          child: Column(children: [
+      child: Column(children: [
         Text(v,
             style:
-                TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: c),
+            TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: c),
             textAlign: TextAlign.center),
         Text(l,
             style: const TextStyle(fontSize: 8, color: kTextHint),
@@ -942,14 +942,14 @@ class _S extends ConsumerState<PurchaseScreen>
         child: Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(12),
+                color: kSurface,
+                borderRadius: BorderRadius.circular(kRadiusCard),
                 border: Border.all(
                     color: isDraft
                         ? Colors.orange.shade300
                         : isOverdue
-                            ? Colors.red.shade300
-                            : kBorder,
+                        ? Colors.red.shade300
+                        : kBorder,
                     width: isDraft || isOverdue ? 1.5 : 1),
                 boxShadow: [
                   BoxShadow(
@@ -957,27 +957,27 @@ class _S extends ConsumerState<PurchaseScreen>
                       blurRadius: 6)
                 ]),
             child:
-                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Row(children: [
                 Expanded(
                     child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                      Text(p['dc_number'] as String? ?? '--',
-                          style: const TextStyle(
-                              fontSize: 13, fontWeight: FontWeight.w800)),
-                      Text(
-                          '$farmName  |  ${dcDate != null ? DateFormat("d MMM").format(dcDate) : "--"}',
-                          style:
+                          Text(p['dc_number'] as String? ?? '--',
+                              style: const TextStyle(
+                                  fontSize: 13, fontWeight: FontWeight.w800)),
+                          Text(
+                              '$farmName  |  ${dcDate != null ? DateFormat("d MMM").format(dcDate) : "--"}',
+                              style:
                               const TextStyle(fontSize: 10, color: kTextHint)),
-                    ])),
+                        ])),
                 _statusChip(
                     isDraft ? 'RATE PENDING' : status.toUpperCase(),
                     isDraft
                         ? Colors.orange
                         : isLocked
-                            ? Colors.grey
-                            : Colors.green),
+                        ? Colors.grey
+                        : Colors.green),
               ]),
               if (shortage > 0)
                 Padding(
@@ -1018,24 +1018,24 @@ class _S extends ConsumerState<PurchaseScreen>
                         valueColor: AlwaysStoppedAnimation(pStatus == 'paid'
                             ? Colors.green
                             : isOverdue
-                                ? Colors.red
-                                : Colors.orange))),
+                            ? Colors.red
+                            : Colors.orange))),
                 const SizedBox(height: 4),
                 Row(children: [
                   Text(
                       isOverdue
                           ? 'OVERDUE'
                           : pStatus == 'paid'
-                              ? 'Paid'
-                              : '${Fmt.amount(due)} due',
+                          ? 'Paid'
+                          : '${Fmt.amount(due)} due',
                       style: TextStyle(
                           fontSize: 10,
                           fontWeight: FontWeight.w700,
                           color: isOverdue
                               ? Colors.red
                               : pStatus == 'paid'
-                                  ? Colors.green
-                                  : Colors.orange)),
+                              ? Colors.green
+                              : Colors.orange)),
                   const Spacer(),
                   if (dueDate != null && pStatus != 'paid')
                     Text('Due: $dueDate',
@@ -1108,7 +1108,7 @@ class _S extends ConsumerState<PurchaseScreen>
           borderRadius: BorderRadius.circular(6)),
       child: Text(msg,
           style:
-              TextStyle(fontSize: 9, color: c, fontWeight: FontWeight.w700)));
+          TextStyle(fontSize: 9, color: c, fontWeight: FontWeight.w700)));
 
   // ==========================================================================
   // TAB 2: SUPPLIERS
@@ -1117,14 +1117,14 @@ class _S extends ConsumerState<PurchaseScreen>
     if (_farms.isEmpty)
       return Center(
           child: Column(mainAxisSize: MainAxisSize.min, children: [
-        const EmptyState(
-            icon: Icons.agriculture_outlined, message: 'No suppliers added'),
-        const SizedBox(height: 12),
-        ElevatedButton.icon(
-            onPressed: _showAddFarm,
-            icon: const Icon(Icons.add),
-            label: const Text('Add Supplier')),
-      ]));
+            const EmptyState(
+                icon: Icons.agriculture_outlined, message: 'No suppliers added'),
+            const SizedBox(height: 12),
+            ElevatedButton.icon(
+                onPressed: _showAddFarm,
+                icon: const Icon(Icons.add),
+                label: const Text('Add Supplier')),
+          ]));
     return ListView.separated(
         padding: const EdgeInsets.all(12),
         itemCount: _farms.length,
@@ -1138,7 +1138,7 @@ class _S extends ConsumerState<PurchaseScreen>
           final outstanding = (total - pd - cl).clamp(0.0, double.infinity);
           final overdueCnt = (st['overdue'] as int?) ?? 0;
           final co =
-              (f['poultry_companies'] as Map?)?['company_name'] as String?;
+          (f['poultry_companies'] as Map?)?['company_name'] as String?;
 
           return GestureDetector(
               onTap: () => _showSupplierDashboard(f),
@@ -1146,39 +1146,39 @@ class _S extends ConsumerState<PurchaseScreen>
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
                       color: Colors.white,
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(kRadiusCard),
                       border: Border.all(
                           color:
-                              overdueCnt > 0 ? Colors.red.shade200 : kBorder)),
+                          overdueCnt > 0 ? Colors.red.shade200 : kBorder)),
                   child: Column(children: [
                     Row(children: [
                       CircleAvatar(
                           radius: 20,
-                          backgroundColor: kPrimary.withValues(alpha: 0.1),
+                          backgroundColor: kNavy.withValues(alpha: 0.08),
                           child: Text(
                               (f['farmer_name'] as String? ?? '?')[0]
                                   .toUpperCase(),
                               style: const TextStyle(
                                   fontSize: 14,
                                   fontWeight: FontWeight.w900,
-                                  color: kPrimary))),
+                                  color: kNavy))),
                       const SizedBox(width: 12),
                       Expanded(
                           child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                            Text(f['farmer_name'] as String? ?? '--',
-                                style: const TextStyle(
-                                    fontSize: 13, fontWeight: FontWeight.w800)),
-                            if (f['farm_name'] != null)
-                              Text(f['farm_name'] as String,
-                                  style: const TextStyle(
-                                      fontSize: 10, color: kTextHint)),
-                            if (co != null)
-                              Text(co,
-                                  style: const TextStyle(
-                                      fontSize: 10, color: Colors.blue)),
-                          ])),
+                                Text(f['farmer_name'] as String? ?? '--',
+                                    style: const TextStyle(
+                                        fontSize: 13, fontWeight: FontWeight.w800)),
+                                if (f['farm_name'] != null)
+                                  Text(f['farm_name'] as String,
+                                      style: const TextStyle(
+                                          fontSize: 10, color: kTextHint)),
+                                if (co != null)
+                                  Text(co,
+                                      style: const TextStyle(
+                                          fontSize: 10, color: Colors.blue)),
+                              ])),
                       Column(
                           crossAxisAlignment: CrossAxisAlignment.end,
                           children: [
@@ -1245,13 +1245,13 @@ class _S extends ConsumerState<PurchaseScreen>
     double balance = 0;
     final rows = _ledger.reversed
         .map((e) {
-          final amt = (e['amount'] as num?)?.toDouble() ?? 0;
-          if (e['entry_type'] == 'debit')
-            balance += amt;
-          else
-            balance -= amt;
-          return {...e, '_balance': balance};
-        })
+      final amt = (e['amount'] as num?)?.toDouble() ?? 0;
+      if (e['entry_type'] == 'debit')
+        balance += amt;
+      else
+        balance -= amt;
+      return {...e, '_balance': balance};
+    })
         .toList()
         .reversed
         .toList();
@@ -1286,37 +1286,37 @@ class _S extends ConsumerState<PurchaseScreen>
                 final dt = DateTime.tryParse(e['entry_date'] as String? ?? '');
                 final farm = (e['farms'] as Map?)?['farmer_name'] as String?;
                 final dc =
-                    (e['purchase_entries'] as Map?)?['dc_number'] as String?;
+                (e['purchase_entries'] as Map?)?['dc_number'] as String?;
                 final c = isD ? Colors.red : Colors.green;
                 return Container(
                     margin: const EdgeInsets.only(bottom: 6),
                     padding:
-                        const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
                     decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: kBorder),
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(kRadiusCard),
+                      border: Border.all(color: kBorder),
                     ),
                     child: Row(children: [
                       Expanded(
                           child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                            Text(e['reason'] as String? ?? '--',
-                                style: TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w700,
-                                    color: c)),
-                            Text(
-                                [farm, dc, e['description'] as String?]
-                                    .where((s) => s != null && s!.isNotEmpty)
-                                    .cast<String>()
-                                    .join(' | '),
-                                style: const TextStyle(
-                                    fontSize: 9, color: kTextHint),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis),
-                          ])),
+                                Text(e['reason'] as String? ?? '--',
+                                    style: TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w700,
+                                        color: c)),
+                                Text(
+                                    [farm, dc, e['description'] as String?]
+                                        .where((s) => s != null && s!.isNotEmpty)
+                                        .cast<String>()
+                                        .join(' | '),
+                                    style: const TextStyle(
+                                        fontSize: 9, color: kTextHint),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis),
+                              ])),
                       Column(
                           crossAxisAlignment: CrossAxisAlignment.end,
                           children: [
@@ -1349,16 +1349,16 @@ class _S extends ConsumerState<PurchaseScreen>
             children: [
               GestureDetector(
                   onTap: () => setState(() {
-                        _farmFilter = null;
-                        _load();
-                      }),
+                    _farmFilter = null;
+                    _load();
+                  }),
                   child: Container(
                       margin: const EdgeInsets.only(right: 6),
                       padding: const EdgeInsets.symmetric(
                           horizontal: 10, vertical: 4),
                       decoration: BoxDecoration(
                           color: _farmFilter == null ? kPrimary : Colors.white,
-                          borderRadius: BorderRadius.circular(16),
+                          borderRadius: BorderRadius.circular(kRadiusCard),
                           border: Border.all(
                               color: _farmFilter == null ? kPrimary : kBorder)),
                       child: Text('All',
@@ -1372,18 +1372,18 @@ class _S extends ConsumerState<PurchaseScreen>
                 final sel = _farmFilter == e.key;
                 return GestureDetector(
                     onTap: () => setState(() {
-                          _farmFilter = sel ? null : e.key;
-                          _load();
-                        }),
+                      _farmFilter = sel ? null : e.key;
+                      _load();
+                    }),
                     child: Container(
                         margin: const EdgeInsets.only(right: 6),
                         padding: const EdgeInsets.symmetric(
                             horizontal: 10, vertical: 4),
                         decoration: BoxDecoration(
                             color: sel ? kPrimary : Colors.white,
-                            borderRadius: BorderRadius.circular(16),
+                            borderRadius: BorderRadius.circular(kRadiusCard),
                             border:
-                                Border.all(color: sel ? kPrimary : kBorder)),
+                            Border.all(color: sel ? kPrimary : kBorder)),
                         child: Text(e.value,
                             style: TextStyle(
                                 fontSize: 10,
@@ -1401,7 +1401,7 @@ class _S extends ConsumerState<PurchaseScreen>
       return const EmptyState(
           icon: Icons.calculate_outlined,
           message:
-              'No costing data\nConfirm purchase rates to see profitability');
+          'No costing data\nConfirm purchase rates to see profitability');
     final totalRevenue = _costing.fold<double>(
         0, (s, c) => s + ((c['revenue'] as num?)?.toDouble() ?? 0));
     final totalCost = _costing.fold<double>(
@@ -1452,7 +1452,7 @@ class _S extends ConsumerState<PurchaseScreen>
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
                       color: Colors.white,
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(kRadiusCard),
                       border: Border.all(
                           color: isPend ? Colors.orange.shade200 : kBorder)),
                   child: Column(
@@ -1463,20 +1463,20 @@ class _S extends ConsumerState<PurchaseScreen>
                               child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                Text(batch,
-                                    style: const TextStyle(
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w800)),
-                                if (dcNum != null)
-                                  Text('DC: $dcNum',
-                                      style: const TextStyle(
-                                          fontSize: 10, color: kTextHint)),
-                              ])),
+                                    Text(batch,
+                                        style: const TextStyle(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w800)),
+                                    if (dcNum != null)
+                                      Text('DC: $dcNum',
+                                          style: const TextStyle(
+                                              fontSize: 10, color: kTextHint)),
+                                  ])),
                           _statusChip(
                               isPend
                                   ? 'PENDING'
                                   : (c['status'] as String? ?? '')
-                                      .toUpperCase(),
+                                  .toUpperCase(),
                               isPend ? Colors.orange : Colors.green),
                         ]),
                         const SizedBox(height: 8),
@@ -1564,15 +1564,15 @@ class _S extends ConsumerState<PurchaseScreen>
                                 borderRadius: BorderRadius.circular(6)),
                             child: Row(
                                 mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
+                                MainAxisAlignment.spaceBetween,
                                 children: [
                                   Expanded(
                                       child: Text(
                                           isPend
                                               ? 'Rate pending'
                                               : delKg == 0
-                                                  ? 'In progress - profit updates after delivery'
-                                                  : 'Delivery complete',
+                                              ? 'In progress - profit updates after delivery'
+                                              : 'Delivery complete',
                                           style: const TextStyle(
                                               fontSize: 9, color: kTextSub))),
                                   GestureDetector(
@@ -1617,7 +1617,7 @@ class _S extends ConsumerState<PurchaseScreen>
     final rd = _reportData;
     final aggs = rd?['aggregates'] as Map<String, dynamic>?;
     final entries =
-        List<Map<String, dynamic>>.from(rd?['entries'] as List? ?? []);
+    List<Map<String, dynamic>>.from(rd?['entries'] as List? ?? []);
 
     return Column(children: [
       _buildFilterBar(),
@@ -1649,67 +1649,67 @@ class _S extends ConsumerState<PurchaseScreen>
       Expanded(
           child: entries.isEmpty
               ? const EmptyState(
-                  icon: Icons.bar_chart_outlined,
-                  message: 'No data for this range')
+              icon: Icons.bar_chart_outlined,
+              message: 'No data for this range')
               : ListView.separated(
-                  padding: const EdgeInsets.all(12),
-                  itemCount: entries.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 4),
-                  itemBuilder: (_, i) {
-                    final e = entries[i];
-                    final total =
-                        (e['total_landed_cost'] as num?)?.toDouble() ?? 0;
-                    final paid = (e['total_paid'] as num?)?.toDouble() ?? 0;
-                    final due = (e['outstanding'] as num?)?.toDouble() ?? 0;
-                    final profit = (e['net_profit'] as num?)?.toDouble();
-                    final dt = DateTime.tryParse(e['dc_date'] as String? ?? '');
-                    return Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 12, vertical: 9),
-                        decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(color: kBorder)),
-                        child: Row(children: [
-                          Expanded(
-                              child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
+              padding: const EdgeInsets.all(12),
+              itemCount: entries.length,
+              separatorBuilder: (_, __) => const SizedBox(height: 4),
+              itemBuilder: (_, i) {
+                final e = entries[i];
+                final total =
+                    (e['total_landed_cost'] as num?)?.toDouble() ?? 0;
+                final paid = (e['total_paid'] as num?)?.toDouble() ?? 0;
+                final due = (e['outstanding'] as num?)?.toDouble() ?? 0;
+                final profit = (e['net_profit'] as num?)?.toDouble();
+                final dt = DateTime.tryParse(e['dc_date'] as String? ?? '');
+                return Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 9),
+                    decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(kRadiusCard),
+                        border: Border.all(color: kBorder)),
+                    child: Row(children: [
+                      Expanded(
+                          child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
                                 Text(e['dc_number'] as String? ?? '--',
                                     style: const TextStyle(
                                         fontSize: 12,
                                         fontWeight: FontWeight.w800)),
                                 Text(
                                     '${e['farmer_name'] ?? e['farm_farmer_name'] ?? '--'}'
-                                    '  |  ${dt != null ? DateFormat("d MMM").format(dt) : "--"}'
-                                    '  |  ${(e['net_weight_kg'] as num?)?.toStringAsFixed(0) ?? 0} kg',
+                                        '  |  ${dt != null ? DateFormat("d MMM").format(dt) : "--"}'
+                                        '  |  ${(e['net_weight_kg'] as num?)?.toStringAsFixed(0) ?? 0} kg',
                                     style: const TextStyle(
                                         fontSize: 10, color: kTextHint)),
                               ])),
-                          Column(
-                              crossAxisAlignment: CrossAxisAlignment.end,
-                              children: [
-                                Text(Fmt.amount(total),
-                                    style: const TextStyle(
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w800)),
-                                if (due > 0)
-                                  Text('Due: ${Fmt.amount(due)}',
-                                      style: const TextStyle(
-                                          fontSize: 10, color: Colors.orange)),
-                                if (profit != null)
-                                  Text(
-                                      (e['revenue'] as num? ?? 0) > 0
-                                          ? 'P: ${Fmt.amount(profit ?? 0)}'
-                                          : 'Pending',
-                                      style: TextStyle(
-                                          fontSize: 9,
-                                          color: profit >= 0
-                                              ? Colors.green
-                                              : Colors.red)),
-                              ]),
-                        ]));
-                  })),
+                      Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Text(Fmt.amount(total),
+                                style: const TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w800)),
+                            if (due > 0)
+                              Text('Due: ${Fmt.amount(due)}',
+                                  style: const TextStyle(
+                                      fontSize: 10, color: Colors.orange)),
+                            if (profit != null)
+                              Text(
+                                  (e['revenue'] as num? ?? 0) > 0
+                                      ? 'P: ${Fmt.amount(profit ?? 0)}'
+                                      : 'Pending',
+                                  style: TextStyle(
+                                      fontSize: 9,
+                                      color: profit >= 0
+                                          ? Colors.green
+                                          : Colors.red)),
+                          ]),
+                    ]));
+              })),
     ]);
   }
 
@@ -1734,17 +1734,17 @@ class _S extends ConsumerState<PurchaseScreen>
               )),
           Expanded(
               child: TabBarView(children: [
-            // Audit log
-            _auditLog.isEmpty
-                ? const EmptyState(
+                // Audit log
+                _auditLog.isEmpty
+                    ? const EmptyState(
                     icon: Icons.history_outlined, message: 'No audit entries')
-                : ListView.builder(
+                    : ListView.builder(
                     padding: const EdgeInsets.all(12),
                     itemCount: _auditLog.length,
                     itemBuilder: (_, i) {
                       final a = _auditLog[i];
                       final dt =
-                          DateTime.tryParse(a['changed_at'] as String? ?? '');
+                      DateTime.tryParse(a['changed_at'] as String? ?? '');
                       final action = a['action'] as String? ?? '--';
                       final color = _auditColor(action);
                       return Container(
@@ -1753,7 +1753,7 @@ class _S extends ConsumerState<PurchaseScreen>
                               horizontal: 12, vertical: 9),
                           decoration: BoxDecoration(
                               color: Colors.white,
-                              borderRadius: BorderRadius.circular(10),
+                              borderRadius: BorderRadius.circular(kRadiusCard),
                               border: Border(
                                   left: BorderSide(color: kBorder, width: 3),
                                   right: const BorderSide(color: kBorder),
@@ -1763,25 +1763,25 @@ class _S extends ConsumerState<PurchaseScreen>
                             Expanded(
                                 child: Column(
                                     crossAxisAlignment:
-                                        CrossAxisAlignment.start,
+                                    CrossAxisAlignment.start,
                                     children: [
-                                  Text(
-                                      action.replaceAll('_', ' ').toUpperCase(),
-                                      style: TextStyle(
-                                          fontSize: 10,
-                                          fontWeight: FontWeight.w800,
-                                          color: color)),
-                                  Text(
-                                      'DC: ${a['dc_number'] ?? '--'}  |  ${a['farmer_name'] ?? ''}',
-                                      style: const TextStyle(
-                                          fontSize: 10, color: kTextHint)),
-                                  if (a['new_value'] != null)
-                                    Text('${a['new_value']}',
-                                        style: const TextStyle(
-                                            fontSize: 9, color: kTextSub),
-                                        maxLines: 2,
-                                        overflow: TextOverflow.ellipsis),
-                                ])),
+                                      Text(
+                                          action.replaceAll('_', ' ').toUpperCase(),
+                                          style: TextStyle(
+                                              fontSize: 10,
+                                              fontWeight: FontWeight.w800,
+                                              color: color)),
+                                      Text(
+                                          'DC: ${a['dc_number'] ?? '--'}  |  ${a['farmer_name'] ?? ''}',
+                                          style: const TextStyle(
+                                              fontSize: 10, color: kTextHint)),
+                                      if (a['new_value'] != null)
+                                        Text('${a['new_value']}',
+                                            style: const TextStyle(
+                                                fontSize: 9, color: kTextSub),
+                                            maxLines: 2,
+                                            overflow: TextOverflow.ellipsis),
+                                    ])),
                             if (dt != null)
                               Text(
                                   DateFormat('d MMM HH:mm')
@@ -1790,18 +1790,18 @@ class _S extends ConsumerState<PurchaseScreen>
                                       fontSize: 9, color: kTextHint)),
                           ]));
                     }),
-            // Payment history
-            _payHistory.isEmpty
-                ? const EmptyState(
+                // Payment history
+                _payHistory.isEmpty
+                    ? const EmptyState(
                     icon: Icons.payments_outlined,
                     message: 'No payments recorded')
-                : ListView.builder(
+                    : ListView.builder(
                     padding: const EdgeInsets.all(12),
                     itemCount: _payHistory.length,
                     itemBuilder: (_, i) {
                       final p = _payHistory[i];
                       final dt =
-                          DateTime.tryParse(p['payment_date'] as String? ?? '');
+                      DateTime.tryParse(p['payment_date'] as String? ?? '');
                       final isRev = p['status'] == 'reversed';
                       return Container(
                           margin: const EdgeInsets.only(bottom: 6),
@@ -1809,50 +1809,50 @@ class _S extends ConsumerState<PurchaseScreen>
                               horizontal: 12, vertical: 9),
                           decoration: BoxDecoration(
                               color: isRev ? Colors.red.shade50 : Colors.white,
-                              borderRadius: BorderRadius.circular(10),
+                              borderRadius: BorderRadius.circular(kRadiusCard),
                               border: Border.all(
                                   color:
-                                      isRev ? Colors.red.shade200 : kBorder)),
+                                  isRev ? Colors.red.shade200 : kBorder)),
                           child: Row(children: [
                             Expanded(
                                 child: Column(
                                     crossAxisAlignment:
-                                        CrossAxisAlignment.start,
+                                    CrossAxisAlignment.start,
                                     children: [
-                                  Row(children: [
-                                    Text(
-                                        Fmt.amount(
-                                            (p['amount'] as num?)?.toDouble() ??
-                                                0),
-                                        style: TextStyle(
-                                            fontSize: 13,
-                                            fontWeight: FontWeight.w800,
-                                            color: isRev
-                                                ? Colors.red
-                                                : Colors.green)),
-                                    const SizedBox(width: 8),
-                                    _statusChip(
-                                        (p['payment_mode'] as String? ?? '')
-                                            .toUpperCase(),
-                                        Colors.blue),
-                                    if (isRev) ...[
-                                      const SizedBox(width: 4),
-                                      _statusChip('REVERSED', Colors.red),
-                                    ],
-                                  ]),
-                                  Text(
-                                      'DC: ${p['dc_number'] ?? '--'}  |  ${p['farmer_name'] ?? p['farm_name'] ?? '--'}',
-                                      style: const TextStyle(
-                                          fontSize: 10, color: kTextHint)),
-                                  if (p['reference_number'] != null)
-                                    Text('Ref: ${p['reference_number']}',
-                                        style: const TextStyle(
-                                            fontSize: 9, color: kTextSub)),
-                                  if (isRev && p['reversal_reason'] != null)
-                                    Text('Reversed: ${p['reversal_reason']}',
-                                        style: const TextStyle(
-                                            fontSize: 9, color: Colors.red)),
-                                ])),
+                                      Row(children: [
+                                        Text(
+                                            Fmt.amount(
+                                                (p['amount'] as num?)?.toDouble() ??
+                                                    0),
+                                            style: TextStyle(
+                                                fontSize: 13,
+                                                fontWeight: FontWeight.w800,
+                                                color: isRev
+                                                    ? Colors.red
+                                                    : Colors.green)),
+                                        const SizedBox(width: 8),
+                                        _statusChip(
+                                            (p['payment_mode'] as String? ?? '')
+                                                .toUpperCase(),
+                                            Colors.blue),
+                                        if (isRev) ...[
+                                          const SizedBox(width: 4),
+                                          _statusChip('REVERSED', Colors.red),
+                                        ],
+                                      ]),
+                                      Text(
+                                          'DC: ${p['dc_number'] ?? '--'}  |  ${p['farmer_name'] ?? p['farm_name'] ?? '--'}',
+                                          style: const TextStyle(
+                                              fontSize: 10, color: kTextHint)),
+                                      if (p['reference_number'] != null)
+                                        Text('Ref: ${p['reference_number']}',
+                                            style: const TextStyle(
+                                                fontSize: 9, color: kTextSub)),
+                                      if (isRev && p['reversal_reason'] != null)
+                                        Text('Reversed: ${p['reversal_reason']}',
+                                            style: const TextStyle(
+                                                fontSize: 9, color: Colors.red)),
+                                    ])),
                             Column(
                                 crossAxisAlignment: CrossAxisAlignment.end,
                                 children: [
@@ -1871,25 +1871,25 @@ class _S extends ConsumerState<PurchaseScreen>
                                 ]),
                           ]));
                     }),
-            // Rate history
-            _rateHistory.isEmpty
-                ? const EmptyState(
+                // Rate history
+                _rateHistory.isEmpty
+                    ? const EmptyState(
                     icon: Icons.price_change_outlined,
                     message: 'No rate changes')
-                : ListView.builder(
+                    : ListView.builder(
                     padding: const EdgeInsets.all(12),
                     itemCount: _rateHistory.length,
                     itemBuilder: (_, i) {
                       final r = _rateHistory[i];
                       final dt =
-                          DateTime.tryParse(r['changed_at'] as String? ?? '');
+                      DateTime.tryParse(r['changed_at'] as String? ?? '');
                       final oldR =
                           (r['old_rate_per_kg'] ?? r['old_rate_per_bird'])
-                                  ?.toString() ??
+                              ?.toString() ??
                               '--';
                       final newR =
                           (r['new_rate_per_kg'] ?? r['new_rate_per_bird'])
-                                  ?.toString() ??
+                              ?.toString() ??
                               '--';
                       return Container(
                           margin: const EdgeInsets.only(bottom: 6),
@@ -1897,37 +1897,37 @@ class _S extends ConsumerState<PurchaseScreen>
                               horizontal: 12, vertical: 9),
                           decoration: BoxDecoration(
                               color: Colors.white,
-                              borderRadius: BorderRadius.circular(10),
+                              borderRadius: BorderRadius.circular(kRadiusCard),
                               border: Border.all(color: kBorder)),
                           child: Row(children: [
                             Expanded(
                                 child: Column(
                                     crossAxisAlignment:
-                                        CrossAxisAlignment.start,
+                                    CrossAxisAlignment.start,
                                     children: [
-                                  Text(
-                                      'DC: ${r['dc_number'] ?? '--'}  |  ${r['farmer_name'] ?? '--'}',
-                                      style: const TextStyle(
-                                          fontSize: 11,
-                                          fontWeight: FontWeight.w700)),
-                                  Text('Rs.$oldR  to  Rs.$newR',
-                                      style: const TextStyle(
-                                          fontSize: 12,
-                                          color: Colors.blue,
-                                          fontWeight: FontWeight.w800)),
-                                  if (r['reason'] != null)
-                                    Text(
-                                        (r['reason'] as String)
-                                            .replaceAll('_', ' ')
-                                            .split(' ')
-                                            .map((w) => w.isEmpty
+                                      Text(
+                                          'DC: ${r['dc_number'] ?? '--'}  |  ${r['farmer_name'] ?? '--'}',
+                                          style: const TextStyle(
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.w700)),
+                                      Text('Rs.$oldR  to  Rs.$newR',
+                                          style: const TextStyle(
+                                              fontSize: 12,
+                                              color: Colors.blue,
+                                              fontWeight: FontWeight.w800)),
+                                      if (r['reason'] != null)
+                                        Text(
+                                            (r['reason'] as String)
+                                                .replaceAll('_', ' ')
+                                                .split(' ')
+                                                .map((w) => w.isEmpty
                                                 ? w
                                                 : w[0].toUpperCase() +
-                                                    w.substring(1))
-                                            .join(' '),
-                                        style: const TextStyle(
-                                            fontSize: 9, color: kTextSub)),
-                                ])),
+                                                w.substring(1))
+                                                .join(' '),
+                                            style: const TextStyle(
+                                                fontSize: 9, color: kTextSub)),
+                                    ])),
                             if (dt != null)
                               Text(
                                   DateFormat('d MMM HH:mm')
@@ -1936,7 +1936,7 @@ class _S extends ConsumerState<PurchaseScreen>
                                       fontSize: 9, color: kTextHint)),
                           ]));
                     }),
-          ])),
+              ])),
         ]));
   }
 
@@ -1993,32 +1993,32 @@ class _S extends ConsumerState<PurchaseScreen>
         shape: const RoundedRectangleBorder(
             borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
         builder: (ctx) => StatefulBuilder(builder: (ctx, ss) {
-              String rateMode = 'kg';
-              double rate = double.tryParse(rateCtrl.text) ?? 0;
-              double tran = double.tryParse(transportCtrl.text) ?? 0;
-              double load = double.tryParse(loadingCtrl.text) ?? 0;
-              double hand = double.tryParse(handlingCtrl.text) ?? 0;
-              double other = double.tryParse(otherCtrl.text) ?? 0;
-              double base = rateMode == 'bird' ? rate * birds : rate * kg;
-              double landed = base + tran + load + hand + other;
-              double ckg = kg > 0 ? landed / kg : 0;
-              double arrWt = double.tryParse(arrWtCtrl.text) ?? 0;
-              double shortage = kg > 0 && arrWt > 0 ? (kg - arrWt).abs() : 0;
+          String rateMode = 'kg';
+          double rate = double.tryParse(rateCtrl.text) ?? 0;
+          double tran = double.tryParse(transportCtrl.text) ?? 0;
+          double load = double.tryParse(loadingCtrl.text) ?? 0;
+          double hand = double.tryParse(handlingCtrl.text) ?? 0;
+          double other = double.tryParse(otherCtrl.text) ?? 0;
+          double base = rateMode == 'bird' ? rate * birds : rate * kg;
+          double landed = base + tran + load + hand + other;
+          double ckg = kg > 0 ? landed / kg : 0;
+          double arrWt = double.tryParse(arrWtCtrl.text) ?? 0;
+          double shortage = kg > 0 && arrWt > 0 ? (kg - arrWt).abs() : 0;
 
-              return Padding(
-                  padding: EdgeInsets.only(
-                      bottom: MediaQuery.of(ctx).viewInsets.bottom),
-                  child: SingleChildScrollView(
-                      padding: const EdgeInsets.all(20),
-                      child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(children: [
-                              Expanded(
-                                  child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
+          return Padding(
+              padding: EdgeInsets.only(
+                  bottom: MediaQuery.of(ctx).viewInsets.bottom),
+              child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(children: [
+                          Expanded(
+                              child: Column(
+                                  crossAxisAlignment:
+                                  CrossAxisAlignment.start,
+                                  children: [
                                     const Text('Purchase Rate Entry',
                                         style: TextStyle(
                                             fontSize: 16,
@@ -2028,239 +2028,239 @@ class _S extends ConsumerState<PurchaseScreen>
                                         style: const TextStyle(
                                             fontSize: 10, color: kTextHint)),
                                   ])),
-                              IconButton(
-                                  icon: const Icon(Icons.close),
-                                  onPressed: () =>
-                                      Navigator.of(ctx, rootNavigator: true)
-                                          .pop()),
-                            ]),
-                            const SizedBox(height: 12),
-                            // Rate mode toggle
-                            SegmentedButton<String>(
-                                segments: const [
-                                  ButtonSegment(
-                                      value: 'kg', label: Text('Rate/kg')),
-                                  ButtonSegment(
-                                      value: 'bird', label: Text('Rate/bird')),
-                                ],
-                                selected: {
-                                  rateMode
-                                },
-                                onSelectionChanged: (s) => ss(() {
-                                      rateMode = s.first;
-                                      rateCtrl.clear();
-                                    })),
-                            const SizedBox(height: 10),
-                            TextField(
-                                controller: rateCtrl,
-                                keyboardType:
-                                    const TextInputType.numberWithOptions(
-                                        decimal: true),
-                                onChanged: (_) => ss(() {}),
-                                decoration: InputDecoration(
-                                    labelText: rateMode == 'bird'
-                                        ? 'Rate per Bird *'
-                                        : 'Purchase Rate (Rs./kg) *',
-                                    prefixText: 'Rs.',
-                                    suffixText:
-                                        rateMode == 'bird' ? '/bird' : '/kg')),
-                            const SizedBox(height: 8),
-                            // Cost breakdown
-                            Row(children: [
-                              Expanded(
-                                  child: TextField(
-                                      controller: transportCtrl,
-                                      onChanged: (_) => ss(() {}),
-                                      keyboardType:
-                                          const TextInputType.numberWithOptions(
-                                              decimal: true),
-                                      decoration: const InputDecoration(
-                                          labelText: 'Transport',
-                                          prefixText: 'Rs.'))),
-                              const SizedBox(width: 6),
-                              Expanded(
-                                  child: TextField(
-                                      controller: loadingCtrl,
-                                      onChanged: (_) => ss(() {}),
-                                      keyboardType:
-                                          const TextInputType.numberWithOptions(
-                                              decimal: true),
-                                      decoration: const InputDecoration(
-                                          labelText: 'Loading',
-                                          prefixText: 'Rs.'))),
-                              const SizedBox(width: 6),
-                              Expanded(
-                                  child: TextField(
-                                      controller: handlingCtrl,
-                                      onChanged: (_) => ss(() {}),
-                                      keyboardType:
-                                          const TextInputType.numberWithOptions(
-                                              decimal: true),
-                                      decoration: const InputDecoration(
-                                          labelText: 'Handling',
-                                          prefixText: 'Rs.'))),
-                              const SizedBox(width: 6),
-                              Expanded(
-                                  child: TextField(
-                                      controller: otherCtrl,
-                                      onChanged: (_) => ss(() {}),
-                                      keyboardType:
-                                          const TextInputType.numberWithOptions(
-                                              decimal: true),
-                                      decoration: const InputDecoration(
-                                          labelText: 'Other',
-                                          prefixText: 'Rs.'))),
-                            ]),
-                            const SizedBox(height: 10),
-                            // Weighment section
-                            const Text('ARRIVAL WEIGHMENT (optional)',
-                                style: TextStyle(
-                                    fontSize: 9,
-                                    fontWeight: FontWeight.w800,
-                                    color: kTextHint,
-                                    letterSpacing: 0.5)),
-                            const SizedBox(height: 6),
-                            Row(children: [
-                              Expanded(
-                                  child: TextField(
-                                      controller: arrWtCtrl,
-                                      onChanged: (_) => ss(() {}),
-                                      keyboardType:
-                                          const TextInputType.numberWithOptions(
-                                              decimal: true),
-                                      decoration: const InputDecoration(
-                                          labelText: 'Arrival Weight kg',
-                                          suffixText: 'kg'))),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                  child: TextField(
-                                      controller: arrBirdCtrl,
-                                      onChanged: (_) => ss(() {}),
-                                      keyboardType: TextInputType.number,
-                                      decoration: const InputDecoration(
-                                          labelText: 'Arrival Birds'))),
-                            ]),
-                            if (shortage > 0.1) ...[
-                              const SizedBox(height: 6),
-                              Container(
-                                  padding: const EdgeInsets.all(8),
-                                  decoration: BoxDecoration(
-                                      color: Colors.red.shade50,
-                                      borderRadius: BorderRadius.circular(8),
-                                      border: Border.all(
-                                          color: Colors.red.shade200)),
-                                  child: Row(children: [
-                                    const Icon(Icons.warning_amber_outlined,
-                                        color: Colors.red, size: 14),
-                                    const SizedBox(width: 6),
-                                    Text(
-                                        'Weighment shortage: ${shortage.toStringAsFixed(2)} kg detected',
-                                        style: const TextStyle(
-                                            fontSize: 10,
-                                            color: Colors.red,
-                                            fontWeight: FontWeight.w700)),
-                                  ])),
+                          IconButton(
+                              icon: const Icon(Icons.close),
+                              onPressed: () =>
+                                  Navigator.of(ctx, rootNavigator: true)
+                                      .pop()),
+                        ]),
+                        const SizedBox(height: 12),
+                        // Rate mode toggle
+                        SegmentedButton<String>(
+                            segments: const [
+                              ButtonSegment(
+                                  value: 'kg', label: Text('Rate/kg')),
+                              ButtonSegment(
+                                  value: 'bird', label: Text('Rate/bird')),
                             ],
-                            // Live calculation preview
-                            if (rate > 0) ...[
-                              const SizedBox(height: 12),
-                              Container(
-                                  padding: const EdgeInsets.all(10),
-                                  decoration: BoxDecoration(
-                                      color: Colors.blue.shade50,
-                                      borderRadius: BorderRadius.circular(8)),
-                                  child: Column(children: [
-                                    _calcRow('Base Purchase',
-                                        'Rs.${base.toStringAsFixed(2)}'),
-                                    _calcRow(
-                                        'Transport + Loading + Handling + Other',
-                                        'Rs.${(tran + load + hand + other).toStringAsFixed(2)}'),
-                                    const Divider(height: 10),
-                                    _calcRow('Total Landed Cost',
-                                        'Rs.${landed.toStringAsFixed(2)}',
-                                        bold: true),
-                                    _calcRow('Cost per KG',
-                                        'Rs.${ckg.toStringAsFixed(4)}/kg',
-                                        bold: true),
-                                  ])),
-                            ],
-                            const SizedBox(height: 16),
-                            ElevatedButton(
-                                onPressed: rate <= 0
-                                    ? null
-                                    : () async {
-                                        Navigator.of(ctx, rootNavigator: true)
-                                            .pop();
-                                        try {
-                                          final uid = ref
-                                              .read(appUserProvider)
-                                              .valueOrNull
-                                              ?.userId;
-                                          await _c.rpc('update_purchase_rate',
-                                              params: {
-                                                'p_purchase_entry_id': p['id'],
-                                                'p_rate_per_kg':
-                                                    rateMode == 'kg'
-                                                        ? rate
-                                                        : null,
-                                                'p_rate_per_bird':
-                                                    rateMode == 'bird'
-                                                        ? rate
-                                                        : null,
-                                                'p_transport_cost': tran,
-                                                'p_loading_cost': load,
-                                                'p_handling_cost': hand,
-                                                'p_other_cost': other,
-                                                'p_confirmed_by': uid,
-                                              });
-                                          // Save arrival weighment if provided
-                                          final arrWtVal =
-                                              double.tryParse(arrWtCtrl.text) ??
-                                                  0;
-                                          final arrBirdVal =
-                                              int.tryParse(arrBirdCtrl.text) ??
-                                                  0;
-                                          if (arrWtVal > 0 || arrBirdVal > 0) {
-                                            await _c
-                                                .from('purchase_entries')
-                                                .update({
-                                              'arrival_weight_kg': arrWtVal > 0
-                                                  ? arrWtVal
-                                                  : null,
-                                              'arrival_birds': arrBirdVal > 0
-                                                  ? arrBirdVal
-                                                  : null,
-                                              'shortage_kg':
-                                                  arrWtVal > 0 && kg > 0
-                                                      ? (kg - arrWtVal).abs()
-                                                      : 0,
-                                              'shortage_birds':
-                                                  arrBirdVal > 0 && birds > 0
-                                                      ? (birds - arrBirdVal)
-                                                          .abs()
-                                                      : 0,
-                                            }).eq('id', p['id'] as String);
-                                          }
-                                          _load();
-                                          if (mounted)
-                                            showSuccess(context,
-                                                'Rate confirmed. Landed: Rs.${landed.toStringAsFixed(2)}');
-                                        } catch (e) {
-                                          if (mounted)
-                                            showError(
-                                                context,
-                                                e.toString().replaceAll(
-                                                    'Exception: ', ''));
-                                        }
-                                      },
-                                style: ElevatedButton.styleFrom(
-                                    minimumSize:
-                                        const Size(double.infinity, 48)),
-                                child: Text(rate > 0
-                                    ? 'Confirm Rate  Rs.${landed.toStringAsFixed(0)} total'
-                                    : 'Enter rate above')),
-                          ])));
-            }));
+                            selected: {
+                              rateMode
+                            },
+                            onSelectionChanged: (s) => ss(() {
+                              rateMode = s.first;
+                              rateCtrl.clear();
+                            })),
+                        const SizedBox(height: 10),
+                        TextField(
+                            controller: rateCtrl,
+                            keyboardType:
+                            const TextInputType.numberWithOptions(
+                                decimal: true),
+                            onChanged: (_) => ss(() {}),
+                            decoration: InputDecoration(
+                                labelText: rateMode == 'bird'
+                                    ? 'Rate per Bird *'
+                                    : 'Purchase Rate (Rs./kg) *',
+                                prefixText: 'Rs.',
+                                suffixText:
+                                rateMode == 'bird' ? '/bird' : '/kg')),
+                        const SizedBox(height: 8),
+                        // Cost breakdown
+                        Row(children: [
+                          Expanded(
+                              child: TextField(
+                                  controller: transportCtrl,
+                                  onChanged: (_) => ss(() {}),
+                                  keyboardType:
+                                  const TextInputType.numberWithOptions(
+                                      decimal: true),
+                                  decoration: const InputDecoration(
+                                      labelText: 'Transport',
+                                      prefixText: 'Rs.'))),
+                          const SizedBox(width: 6),
+                          Expanded(
+                              child: TextField(
+                                  controller: loadingCtrl,
+                                  onChanged: (_) => ss(() {}),
+                                  keyboardType:
+                                  const TextInputType.numberWithOptions(
+                                      decimal: true),
+                                  decoration: const InputDecoration(
+                                      labelText: 'Loading',
+                                      prefixText: 'Rs.'))),
+                          const SizedBox(width: 6),
+                          Expanded(
+                              child: TextField(
+                                  controller: handlingCtrl,
+                                  onChanged: (_) => ss(() {}),
+                                  keyboardType:
+                                  const TextInputType.numberWithOptions(
+                                      decimal: true),
+                                  decoration: const InputDecoration(
+                                      labelText: 'Handling',
+                                      prefixText: 'Rs.'))),
+                          const SizedBox(width: 6),
+                          Expanded(
+                              child: TextField(
+                                  controller: otherCtrl,
+                                  onChanged: (_) => ss(() {}),
+                                  keyboardType:
+                                  const TextInputType.numberWithOptions(
+                                      decimal: true),
+                                  decoration: const InputDecoration(
+                                      labelText: 'Other',
+                                      prefixText: 'Rs.'))),
+                        ]),
+                        const SizedBox(height: 10),
+                        // Weighment section
+                        const Text('ARRIVAL WEIGHMENT (optional)',
+                            style: TextStyle(
+                                fontSize: 9,
+                                fontWeight: FontWeight.w800,
+                                color: kTextHint,
+                                letterSpacing: 0.5)),
+                        const SizedBox(height: 6),
+                        Row(children: [
+                          Expanded(
+                              child: TextField(
+                                  controller: arrWtCtrl,
+                                  onChanged: (_) => ss(() {}),
+                                  keyboardType:
+                                  const TextInputType.numberWithOptions(
+                                      decimal: true),
+                                  decoration: const InputDecoration(
+                                      labelText: 'Arrival Weight kg',
+                                      suffixText: 'kg'))),
+                          const SizedBox(width: 8),
+                          Expanded(
+                              child: TextField(
+                                  controller: arrBirdCtrl,
+                                  onChanged: (_) => ss(() {}),
+                                  keyboardType: TextInputType.number,
+                                  decoration: const InputDecoration(
+                                      labelText: 'Arrival Birds'))),
+                        ]),
+                        if (shortage > 0.1) ...[
+                          const SizedBox(height: 6),
+                          Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                  color: Colors.red.shade50,
+                                  borderRadius: BorderRadius.circular(kRadiusInner),
+                                  border: Border.all(
+                                      color: Colors.red.shade200)),
+                              child: Row(children: [
+                                const Icon(Icons.warning_amber_outlined,
+                                    color: Colors.red, size: 14),
+                                const SizedBox(width: 6),
+                                Text(
+                                    'Weighment shortage: ${shortage.toStringAsFixed(2)} kg detected',
+                                    style: const TextStyle(
+                                        fontSize: 10,
+                                        color: Colors.red,
+                                        fontWeight: FontWeight.w700)),
+                              ])),
+                        ],
+                        // Live calculation preview
+                        if (rate > 0) ...[
+                          const SizedBox(height: 12),
+                          Container(
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                  color: Colors.blue.shade50,
+                                  borderRadius: BorderRadius.circular(8)),
+                              child: Column(children: [
+                                _calcRow('Base Purchase',
+                                    'Rs.${base.toStringAsFixed(2)}'),
+                                _calcRow(
+                                    'Transport + Loading + Handling + Other',
+                                    'Rs.${(tran + load + hand + other).toStringAsFixed(2)}'),
+                                const Divider(height: 10),
+                                _calcRow('Total Landed Cost',
+                                    'Rs.${landed.toStringAsFixed(2)}',
+                                    bold: true),
+                                _calcRow('Cost per KG',
+                                    'Rs.${ckg.toStringAsFixed(4)}/kg',
+                                    bold: true),
+                              ])),
+                        ],
+                        const SizedBox(height: 16),
+                        ElevatedButton(
+                            onPressed: rate <= 0
+                                ? null
+                                : () async {
+                              Navigator.of(ctx, rootNavigator: true)
+                                  .pop();
+                              try {
+                                final uid = ref
+                                    .read(appUserProvider)
+                                    .valueOrNull
+                                    ?.userId;
+                                await _c.rpc('update_purchase_rate',
+                                    params: {
+                                      'p_purchase_entry_id': p['id'],
+                                      'p_rate_per_kg':
+                                      rateMode == 'kg'
+                                          ? rate
+                                          : null,
+                                      'p_rate_per_bird':
+                                      rateMode == 'bird'
+                                          ? rate
+                                          : null,
+                                      'p_transport_cost': tran,
+                                      'p_loading_cost': load,
+                                      'p_handling_cost': hand,
+                                      'p_other_cost': other,
+                                      'p_confirmed_by': uid,
+                                    });
+                                // Save arrival weighment if provided
+                                final arrWtVal =
+                                    double.tryParse(arrWtCtrl.text) ??
+                                        0;
+                                final arrBirdVal =
+                                    int.tryParse(arrBirdCtrl.text) ??
+                                        0;
+                                if (arrWtVal > 0 || arrBirdVal > 0) {
+                                  await _c
+                                      .from('purchase_entries')
+                                      .update({
+                                    'arrival_weight_kg': arrWtVal > 0
+                                        ? arrWtVal
+                                        : null,
+                                    'arrival_birds': arrBirdVal > 0
+                                        ? arrBirdVal
+                                        : null,
+                                    'shortage_kg':
+                                    arrWtVal > 0 && kg > 0
+                                        ? (kg - arrWtVal).abs()
+                                        : 0,
+                                    'shortage_birds':
+                                    arrBirdVal > 0 && birds > 0
+                                        ? (birds - arrBirdVal)
+                                        .abs()
+                                        : 0,
+                                  }).eq('id', p['id'] as String);
+                                }
+                                _load();
+                                if (mounted)
+                                  showSuccess(context,
+                                      'Rate confirmed. Landed: Rs.${landed.toStringAsFixed(2)}');
+                              } catch (e) {
+                                if (mounted)
+                                  showError(
+                                      context,
+                                      e.toString().replaceAll(
+                                          'Exception: ', ''));
+                              }
+                            },
+                            style: ElevatedButton.styleFrom(
+                                minimumSize:
+                                const Size(double.infinity, 48)),
+                            child: Text(rate > 0
+                                ? 'Confirm Rate  Rs.${landed.toStringAsFixed(0)} total'
+                                : 'Enter rate above')),
+                      ])));
+        }));
   }
 
   void _showPurchaseDetail(Map<String, dynamic> p) {
@@ -2356,7 +2356,7 @@ class _S extends ConsumerState<PurchaseScreen>
                           _detailRow(
                               'Outstanding', 'Rs.${due.toStringAsFixed(2)}',
                               highlight:
-                                  due > 0 ? Colors.orange : Colors.green),
+                              due > 0 ? Colors.orange : Colors.green),
                           _detailRow('Due Date',
                               p['payment_due_date'] as String? ?? '--'),
                           _detailRow(
@@ -2408,7 +2408,7 @@ class _S extends ConsumerState<PurchaseScreen>
       ]);
 
   Widget _detailRow(String l, String v,
-          {bool bold = false, Color? highlight}) =>
+      {bool bold = false, Color? highlight}) =>
       Padding(
           padding: const EdgeInsets.symmetric(vertical: 3),
           child: Row(children: [
@@ -2430,7 +2430,7 @@ class _S extends ConsumerState<PurchaseScreen>
     final advance = (p['advance_paid'] as num?)?.toDouble() ?? 0;
     final dueDate = p['payment_due_date'] as String?;
     final amtCtrl =
-        TextEditingController(text: due > 0 ? due.toStringAsFixed(2) : '');
+    TextEditingController(text: due > 0 ? due.toStringAsFixed(2) : '');
     final refCtrl = TextEditingController();
     final noteCtrl = TextEditingController();
     String mode = 'cash';
@@ -2462,7 +2462,7 @@ class _S extends ConsumerState<PurchaseScreen>
                       Text(
                           'DC: ${p['dc_number']}  |  Outstanding: Rs.${due.toStringAsFixed(2)}',
                           style:
-                              const TextStyle(fontSize: 11, color: kTextHint)),
+                          const TextStyle(fontSize: 11, color: kTextHint)),
                       if (advance > 0 || dueDate != null)
                         Container(
                             margin: const EdgeInsets.only(top: 6),
@@ -2495,29 +2495,29 @@ class _S extends ConsumerState<PurchaseScreen>
                       Row(
                           children: ['cash', 'upi', 'bank', 'cheque']
                               .map((m) => Expanded(
-                                  child: GestureDetector(
-                                      onTap: () => ss(() => mode = m),
-                                      child: Container(
-                                          margin:
-                                              const EdgeInsets.only(right: 4),
-                                          padding: const EdgeInsets.symmetric(
-                                              vertical: 8),
-                                          decoration: BoxDecoration(
+                              child: GestureDetector(
+                                  onTap: () => ss(() => mode = m),
+                                  child: Container(
+                                      margin:
+                                      const EdgeInsets.only(right: 4),
+                                      padding: const EdgeInsets.symmetric(
+                                          vertical: 8),
+                                      decoration: BoxDecoration(
+                                          color: mode == m
+                                              ? kPrimary
+                                              : Colors.white,
+                                          borderRadius:
+                                          BorderRadius.circular(8),
+                                          border: Border.all(
                                               color: mode == m
                                                   ? kPrimary
-                                                  : Colors.white,
-                                              borderRadius:
-                                                  BorderRadius.circular(8),
-                                              border: Border.all(
-                                                  color: mode == m
-                                                      ? kPrimary
-                                                      : kBorder)),
-                                          child: Text(m.toUpperCase(),
-                                              textAlign: TextAlign.center,
-                                              style: TextStyle(
-                                                  fontSize: 10,
-                                                  fontWeight: FontWeight.w700,
-                                                  color: mode == m ? Colors.white : kTextSub))))))
+                                                  : kBorder)),
+                                      child: Text(m.toUpperCase(),
+                                          textAlign: TextAlign.center,
+                                          style: TextStyle(
+                                              fontSize: 10,
+                                              fontWeight: FontWeight.w700,
+                                              color: mode == m ? Colors.white : kTextSub))))))
                               .toList()),
                       const SizedBox(height: 10),
                       TextField(
@@ -2552,7 +2552,7 @@ class _S extends ConsumerState<PurchaseScreen>
                               final ok = await confirmDialog(context,
                                   title: 'Overpayment',
                                   message:
-                                      'Payment Rs.${amt.toStringAsFixed(0)} exceeds outstanding Rs.${due.toStringAsFixed(0)}. Proceed?',
+                                  'Payment Rs.${amt.toStringAsFixed(0)} exceeds outstanding Rs.${due.toStringAsFixed(0)}. Proceed?',
                                   confirmText: 'Yes, Proceed');
                               if (!ok || !mounted) return;
                             }
@@ -2594,7 +2594,7 @@ class _S extends ConsumerState<PurchaseScreen>
             ? (p['claim_amount'] as num).toStringAsFixed(2)
             : '');
     final noteCtrl =
-        TextEditingController(text: p['claim_notes'] as String? ?? '');
+    TextEditingController(text: p['claim_notes'] as String? ?? '');
 
     showModalBottomSheet(
         context: context,
@@ -2604,7 +2604,7 @@ class _S extends ConsumerState<PurchaseScreen>
             borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
         builder: (ctx) => Padding(
             padding:
-                EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
+            EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
             child: Padding(
                 padding: const EdgeInsets.all(20),
                 child: Column(mainAxisSize: MainAxisSize.min, children: [
@@ -2625,7 +2625,7 @@ class _S extends ConsumerState<PurchaseScreen>
                   TextField(
                       controller: amtCtrl,
                       keyboardType:
-                          const TextInputType.numberWithOptions(decimal: true),
+                      const TextInputType.numberWithOptions(decimal: true),
                       decoration: const InputDecoration(
                           labelText: 'Claim Amount Rs. *', prefixText: 'Rs.')),
                   const SizedBox(height: 8),
@@ -2633,7 +2633,7 @@ class _S extends ConsumerState<PurchaseScreen>
                       controller: noteCtrl,
                       maxLines: 2,
                       decoration:
-                          const InputDecoration(labelText: 'Reason / Notes *')),
+                      const InputDecoration(labelText: 'Reason / Notes *')),
                   const SizedBox(height: 14),
                   ElevatedButton(
                       style: ElevatedButton.styleFrom(
@@ -2661,9 +2661,9 @@ class _S extends ConsumerState<PurchaseScreen>
                             'amount': amt,
                             'reason': 'claim',
                             'entry_date':
-                                DateTime.now().toIso8601String().split('T')[0],
+                            DateTime.now().toIso8601String().split('T')[0],
                             'description':
-                                'Claim on DC ${p['dc_number']}: ${noteCtrl.text.trim()}',
+                            'Claim on DC ${p['dc_number']}: ${noteCtrl.text.trim()}',
                           });
                           _load();
                           if (mounted) showSuccess(context, 'Claim recorded');
@@ -2681,7 +2681,7 @@ class _S extends ConsumerState<PurchaseScreen>
     final ok = await confirmDialog(context,
         title: 'Lock Purchase Entry',
         message:
-            'Lock DC ${p['dc_number']}? After locking, no edits allowed. Admin can reopen.',
+        'Lock DC ${p['dc_number']}? After locking, no edits allowed. Admin can reopen.',
         confirmText: 'Lock',
         confirmColor: Colors.grey.shade700);
     if (!ok || !mounted) return;
@@ -2722,7 +2722,7 @@ class _S extends ConsumerState<PurchaseScreen>
     final ok = await confirmDialog(context,
         title: 'Reverse Payment',
         message:
-            'Reverse Rs.${(p['amount'] as num?)?.toStringAsFixed(2) ?? '0'} payment?',
+        'Reverse Rs.${(p['amount'] as num?)?.toStringAsFixed(2) ?? '0'} payment?',
         confirmText: 'Reverse',
         confirmColor: Colors.red);
     if (!ok || !mounted) return;
@@ -2747,7 +2747,7 @@ class _S extends ConsumerState<PurchaseScreen>
       final r = await _c
           .from('purchase_rate_history')
           .select(
-              'old_rate_per_kg,new_rate_per_kg,old_rate_per_bird,new_rate_per_bird,reason,changed_at')
+          'old_rate_per_kg,new_rate_per_kg,old_rate_per_bird,new_rate_per_bird,reason,changed_at')
           .eq('purchase_entry_id', entryId)
           .order('changed_at', ascending: false);
       history = List<Map<String, dynamic>>.from(r as List? ?? []);
@@ -2758,35 +2758,35 @@ class _S extends ConsumerState<PurchaseScreen>
         context: context,
         useRootNavigator: true,
         builder: (ctx) => ListView(
-                shrinkWrap: true,
-                padding: const EdgeInsets.all(16),
-                children: [
-                  Text('Rate History - $dcNum',
-                      style: const TextStyle(
-                          fontSize: 14, fontWeight: FontWeight.w800)),
-                  const SizedBox(height: 10),
-                  if (history.isEmpty)
-                    const Text('No rate changes recorded.',
-                        style: TextStyle(color: kTextHint)),
-                  ...history.map((h) {
-                    final oldR = h['old_rate_per_kg'] ?? h['old_rate_per_bird'];
-                    final newR = h['new_rate_per_kg'] ?? h['new_rate_per_bird'];
-                    final dt =
-                        DateTime.tryParse(h['changed_at'] as String? ?? '');
-                    return ListTile(
-                        dense: true,
-                        title: Text(
-                            'Rs.${oldR ?? '--'}  to  Rs.${newR ?? '--'}',
-                            style: const TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w700,
-                                color: Colors.blue)),
-                        subtitle: Text(
-                            '${h['reason'] ?? ''}  |  ${dt != null ? DateFormat('d MMM HH:mm').format(dt.toLocal()) : '--'}',
-                            style: const TextStyle(
-                                fontSize: 10, color: kTextHint)));
-                  }),
-                ]));
+            shrinkWrap: true,
+            padding: const EdgeInsets.all(16),
+            children: [
+              Text('Rate History - $dcNum',
+                  style: const TextStyle(
+                      fontSize: 14, fontWeight: FontWeight.w800)),
+              const SizedBox(height: 10),
+              if (history.isEmpty)
+                const Text('No rate changes recorded.',
+                    style: TextStyle(color: kTextHint)),
+              ...history.map((h) {
+                final oldR = h['old_rate_per_kg'] ?? h['old_rate_per_bird'];
+                final newR = h['new_rate_per_kg'] ?? h['new_rate_per_bird'];
+                final dt =
+                DateTime.tryParse(h['changed_at'] as String? ?? '');
+                return ListTile(
+                    dense: true,
+                    title: Text(
+                        'Rs.${oldR ?? '--'}  to  Rs.${newR ?? '--'}',
+                        style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.blue)),
+                    subtitle: Text(
+                        '${h['reason'] ?? ''}  |  ${dt != null ? DateFormat('d MMM HH:mm').format(dt.toLocal()) : '--'}',
+                        style: const TextStyle(
+                            fontSize: 10, color: kTextHint)));
+              }),
+            ]));
   }
 
   void _showSupplierDashboard(Map<String, dynamic> farm) {
@@ -2815,32 +2815,32 @@ class _S extends ConsumerState<PurchaseScreen>
                         Row(children: [
                           CircleAvatar(
                               radius: 22,
-                              backgroundColor: kPrimary.withValues(alpha: 0.1),
+                              backgroundColor: kNavy.withValues(alpha: 0.08),
                               child: Text(
                                   (farm['farmer_name'] as String? ?? '?')[0]
                                       .toUpperCase(),
                                   style: const TextStyle(
                                       fontSize: 16,
                                       fontWeight: FontWeight.w900,
-                                      color: kPrimary))),
+                                      color: kNavy))),
                           const SizedBox(width: 12),
                           Expanded(
                               child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                Text(farm['farmer_name'] as String? ?? '--',
-                                    style: const TextStyle(
-                                        fontSize: 15,
-                                        fontWeight: FontWeight.w800)),
-                                if (farm['farm_name'] != null)
-                                  Text(farm['farm_name'] as String,
-                                      style: const TextStyle(
-                                          fontSize: 11, color: kTextHint)),
-                                if (farm['phone'] != null)
-                                  Text(farm['phone'] as String,
-                                      style: const TextStyle(
-                                          fontSize: 11, color: kTextHint)),
-                              ])),
+                                    Text(farm['farmer_name'] as String? ?? '--',
+                                        style: const TextStyle(
+                                            fontSize: 15,
+                                            fontWeight: FontWeight.w800)),
+                                    if (farm['farm_name'] != null)
+                                      Text(farm['farm_name'] as String,
+                                          style: const TextStyle(
+                                              fontSize: 11, color: kTextHint)),
+                                    if (farm['phone'] != null)
+                                      Text(farm['phone'] as String,
+                                          style: const TextStyle(
+                                              fontSize: 11, color: kTextHint)),
+                                  ])),
                           IconButton(
                               icon: const Icon(Icons.close),
                               onPressed: () =>
@@ -2904,7 +2904,7 @@ class _S extends ConsumerState<PurchaseScreen>
                                     _load();
                                   },
                                   icon:
-                                      const Icon(Icons.book_outlined, size: 14),
+                                  const Icon(Icons.book_outlined, size: 14),
                                   label: const Text('Ledger')),
                               OutlinedButton.icon(
                                   onPressed: () {
@@ -2913,7 +2913,7 @@ class _S extends ConsumerState<PurchaseScreen>
                                     _showEditFarm(farm);
                                   },
                                   icon:
-                                      const Icon(Icons.edit_outlined, size: 14),
+                                  const Icon(Icons.edit_outlined, size: 14),
                                   label: const Text('Edit')),
                             ]),
                       ])));
@@ -2925,7 +2925,7 @@ class _S extends ConsumerState<PurchaseScreen>
       final r = await _c
           .from('purchase_entries')
           .select('id,dc_number,total_landed_cost,total_paid,claim_amount,'
-              'payment_status,farm_id,farm_id,farmer_name')
+          'payment_status,farm_id,farm_id,farmer_name')
           .eq('farm_id', farm['id'] as String)
           .neq('payment_status', 'paid')
           .order('dc_date', ascending: true)
@@ -2982,7 +2982,7 @@ class _S extends ConsumerState<PurchaseScreen>
                           controller: farmCtrl,
                           textCapitalization: TextCapitalization.words,
                           decoration:
-                              const InputDecoration(labelText: 'Farm Name')),
+                          const InputDecoration(labelText: 'Farm Name')),
                       const SizedBox(height: 8),
                       Row(children: [
                         Expanded(
@@ -2990,7 +2990,7 @@ class _S extends ConsumerState<PurchaseScreen>
                                 controller: phoneCtrl,
                                 keyboardType: TextInputType.phone,
                                 decoration:
-                                    const InputDecoration(labelText: 'Phone'))),
+                                const InputDecoration(labelText: 'Phone'))),
                         const SizedBox(width: 8),
                         Expanded(
                             child: TextField(
@@ -3004,7 +3004,7 @@ class _S extends ConsumerState<PurchaseScreen>
                       TextField(
                           controller: locCtrl,
                           decoration:
-                              const InputDecoration(labelText: 'Location')),
+                          const InputDecoration(labelText: 'Location')),
                       const SizedBox(height: 8),
                       TextField(
                           controller: rateCtrl,
@@ -3058,11 +3058,11 @@ class _S extends ConsumerState<PurchaseScreen>
                                     ? null
                                     : locCtrl.text.trim(),
                                 'credit_days':
-                                    int.tryParse(creditCtrl.text.trim()) ?? 7,
+                                int.tryParse(creditCtrl.text.trim()) ?? 7,
                                 'default_rate_per_kg':
-                                    rateCtrl.text.trim().isEmpty
-                                        ? null
-                                        : double.tryParse(rateCtrl.text.trim()),
+                                rateCtrl.text.trim().isEmpty
+                                    ? null
+                                    : double.tryParse(rateCtrl.text.trim()),
                                 'company_id': selectedCompanyId,
                               });
                               _load();
@@ -3080,25 +3080,25 @@ class _S extends ConsumerState<PurchaseScreen>
 
   void _showEditFarm(Map<String, dynamic> farm) {
     final nameCtrl =
-        TextEditingController(text: farm['farmer_name'] as String? ?? '');
+    TextEditingController(text: farm['farmer_name'] as String? ?? '');
     final farmCtrl =
-        TextEditingController(text: farm['farm_name'] as String? ?? '');
+    TextEditingController(text: farm['farm_name'] as String? ?? '');
     final phoneCtrl =
-        TextEditingController(text: farm['phone'] as String? ?? '');
+    TextEditingController(text: farm['phone'] as String? ?? '');
     final locCtrl =
-        TextEditingController(text: farm['location'] as String? ?? '');
+    TextEditingController(text: farm['location'] as String? ?? '');
     final creditCtrl =
-        TextEditingController(text: (farm['credit_days'] ?? 7).toString());
+    TextEditingController(text: (farm['credit_days'] ?? 7).toString());
     final rateCtrl = TextEditingController(
         text: farm['default_rate_per_kg'] != null
             ? (farm['default_rate_per_kg'] as num).toStringAsFixed(2)
             : '');
     final bankNameCtrl =
-        TextEditingController(text: farm['bank_name'] as String? ?? '');
+    TextEditingController(text: farm['bank_name'] as String? ?? '');
     final bankAcctCtrl =
-        TextEditingController(text: farm['bank_account'] as String? ?? '');
+    TextEditingController(text: farm['bank_account'] as String? ?? '');
     final bankIfscCtrl =
-        TextEditingController(text: farm['bank_ifsc'] as String? ?? '');
+    TextEditingController(text: farm['bank_ifsc'] as String? ?? '');
     String? selectedCompanyId = farm['company_id'] as String?;
 
     showModalBottomSheet(
@@ -3134,7 +3134,7 @@ class _S extends ConsumerState<PurchaseScreen>
                       TextField(
                           controller: farmCtrl,
                           decoration:
-                              const InputDecoration(labelText: 'Farm Name')),
+                          const InputDecoration(labelText: 'Farm Name')),
                       const SizedBox(height: 8),
                       Row(children: [
                         Expanded(
@@ -3142,7 +3142,7 @@ class _S extends ConsumerState<PurchaseScreen>
                                 controller: phoneCtrl,
                                 keyboardType: TextInputType.phone,
                                 decoration:
-                                    const InputDecoration(labelText: 'Phone'))),
+                                const InputDecoration(labelText: 'Phone'))),
                         const SizedBox(width: 8),
                         Expanded(
                             child: TextField(
@@ -3164,8 +3164,8 @@ class _S extends ConsumerState<PurchaseScreen>
                             child: TextField(
                                 controller: rateCtrl,
                                 keyboardType:
-                                    const TextInputType.numberWithOptions(
-                                        decimal: true),
+                                const TextInputType.numberWithOptions(
+                                    decimal: true),
                                 decoration: const InputDecoration(
                                     labelText: 'Default Rate Rs./kg',
                                     prefixText: 'Rs.'))),
@@ -3181,7 +3181,7 @@ class _S extends ConsumerState<PurchaseScreen>
                       TextField(
                           controller: bankNameCtrl,
                           decoration:
-                              const InputDecoration(labelText: 'Bank Name')),
+                          const InputDecoration(labelText: 'Bank Name')),
                       const SizedBox(height: 8),
                       Row(children: [
                         Expanded(
@@ -3201,7 +3201,7 @@ class _S extends ConsumerState<PurchaseScreen>
                         DropdownButtonFormField<String>(
                             value: selectedCompanyId,
                             decoration:
-                                const InputDecoration(labelText: 'Company'),
+                            const InputDecoration(labelText: 'Company'),
                             items: [
                               const DropdownMenuItem(
                                   value: null, child: Text('None')),
@@ -3235,11 +3235,11 @@ class _S extends ConsumerState<PurchaseScreen>
                                     ? null
                                     : locCtrl.text.trim(),
                                 'credit_days':
-                                    int.tryParse(creditCtrl.text.trim()) ?? 7,
+                                int.tryParse(creditCtrl.text.trim()) ?? 7,
                                 'default_rate_per_kg':
-                                    rateCtrl.text.trim().isEmpty
-                                        ? null
-                                        : double.tryParse(rateCtrl.text.trim()),
+                                rateCtrl.text.trim().isEmpty
+                                    ? null
+                                    : double.tryParse(rateCtrl.text.trim()),
                                 'bank_name': bankNameCtrl.text.trim().isEmpty
                                     ? null
                                     : bankNameCtrl.text.trim(),
@@ -3274,7 +3274,7 @@ class _S extends ConsumerState<PurchaseScreen>
     }
     final aggs = rd['aggregates'] as Map<String, dynamic>?;
     final entries =
-        List<Map<String, dynamic>>.from(rd['entries'] as List? ?? []);
+    List<Map<String, dynamic>>.from(rd['entries'] as List? ?? []);
 
     final lines = StringBuffer();
     lines.writeln('PURCHASE REPORT');
@@ -3340,7 +3340,7 @@ class _S extends ConsumerState<PurchaseScreen>
             borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
         builder: (ctx) => Padding(
             padding:
-                EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
+            EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
             child: Padding(
                 padding: const EdgeInsets.all(20),
                 child: Column(mainAxisSize: MainAxisSize.min, children: [
@@ -3359,7 +3359,7 @@ class _S extends ConsumerState<PurchaseScreen>
                       controller: nameCtrl,
                       textCapitalization: TextCapitalization.words,
                       decoration:
-                          const InputDecoration(labelText: 'Company Name *')),
+                      const InputDecoration(labelText: 'Company Name *')),
                   const SizedBox(height: 8),
                   Row(children: [
                     Expanded(
@@ -3373,7 +3373,7 @@ class _S extends ConsumerState<PurchaseScreen>
                             controller: phoneCtrl,
                             keyboardType: TextInputType.phone,
                             decoration:
-                                const InputDecoration(labelText: 'Phone'))),
+                            const InputDecoration(labelText: 'Phone'))),
                   ]),
                   const SizedBox(height: 8),
                   TextField(
@@ -3423,7 +3423,7 @@ class _S extends ConsumerState<PurchaseScreen>
   // ==========================================================================
 
   Widget _alertBanner(IconData icon, String msg, Color c,
-          {VoidCallback? onTap}) =>
+      {VoidCallback? onTap}) =>
       GestureDetector(
           onTap: onTap,
           child: Container(
@@ -3447,10 +3447,10 @@ class _S extends ConsumerState<PurchaseScreen>
           padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(
               color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(kRadiusCard),
               border: Border.all(color: kBorder)),
           child:
-              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Icon(icon, color: color, size: 16),
             const Spacer(),
             Text(value,
@@ -3463,7 +3463,7 @@ class _S extends ConsumerState<PurchaseScreen>
           ]));
 
   Widget _sectionHeader(String title,
-          {String? action, VoidCallback? onAction}) =>
+      {String? action, VoidCallback? onAction}) =>
       Padding(
           padding: const EdgeInsets.only(bottom: 8),
           child: Row(children: [
@@ -3488,16 +3488,16 @@ class _S extends ConsumerState<PurchaseScreen>
   Widget _ovKpi(String label, String value, Color color, IconData icon) =>
       Expanded(
           child: Column(children: [
-        Icon(icon, size: 18, color: color),
-        const SizedBox(height: 4),
-        Text(value,
-            style: TextStyle(
-                fontSize: 13, fontWeight: FontWeight.w800, color: color),
-            textAlign: TextAlign.center),
-        Text(label,
-            style: const TextStyle(fontSize: 8, color: kTextHint),
-            textAlign: TextAlign.center),
-      ]));
+            Icon(icon, size: 18, color: color),
+            const SizedBox(height: 4),
+            Text(value,
+                style: TextStyle(
+                    fontSize: 13, fontWeight: FontWeight.w800, color: color),
+                textAlign: TextAlign.center),
+            Text(label,
+                style: const TextStyle(fontSize: 8, color: kTextHint),
+                textAlign: TextAlign.center),
+          ]));
 
   Widget _statusChip(String t, Color c) => Container(
       padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
@@ -3506,13 +3506,13 @@ class _S extends ConsumerState<PurchaseScreen>
           borderRadius: BorderRadius.circular(6)),
       child: Text(t,
           style:
-              TextStyle(fontSize: 8, fontWeight: FontWeight.w800, color: c)));
+          TextStyle(fontSize: 8, fontWeight: FontWeight.w800, color: c)));
 
   Widget _pStat(String l, String v, Color c) => Expanded(
-          child: Column(children: [
+      child: Column(children: [
         Text(v,
             style:
-                TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: c),
+            TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: c),
             textAlign: TextAlign.center),
         Text(l,
             style: const TextStyle(fontSize: 8, color: kTextHint),

@@ -89,9 +89,9 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
     try {
       final d = await Supabase.instance.client.from('deliveries')
           .select('*,orders(id,estimated_birds,total_quantity,product_id,'
-              'fulfilled_birds,fulfilled_quantity,backorder_birds,backorder_quantity,'
-              'is_partial_delivery,partial_count,'
-              'retailers(shop_name,address,phone))')
+          'fulfilled_birds,fulfilled_quantity,backorder_birds,backorder_quantity,'
+          'is_partial_delivery,partial_count,'
+          'retailers(shop_name,address,phone))')
           .eq('id', widget.deliveryId)
           .maybeSingle()
           .timeout(const Duration(seconds: 10));
@@ -360,7 +360,7 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
                     Container(
                         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                         decoration: BoxDecoration(
-                            color: Colors.purple.shade50, borderRadius: BorderRadius.circular(8),
+                            color: Colors.purple.shade50, borderRadius: BorderRadius.circular(kRadiusChip),
                             border: Border.all(color: Colors.purple.shade200)),
                         child: Row(children: [
                           const Icon(Icons.person_pin_outlined, color: Colors.purple, size: 16),
@@ -386,8 +386,8 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
                                 : chosen == 'transfer' ? Colors.purple : Colors.blue),
                         child: Text(
                             chosen == 'close'    ? '✓ Confirm — Close Remaining'
-                            : chosen == 'transfer' ? '✓ Confirm — Transfer to $chosenName'
-                            : '✓ Confirm — Queue for Me',
+                                : chosen == 'transfer' ? '✓ Confirm — Transfer to $chosenName'
+                                : '✓ Confirm — Queue for Me',
                             style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Colors.white)),
                       )),
                 ]))));
@@ -406,7 +406,7 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
                 color: selected ? color.withValues(alpha: 0.08) : Colors.grey.shade50,
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(kRadiusCard),
                 border: Border.all(color: selected ? color : Colors.grey.shade200, width: selected ? 2 : 1)),
             child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Container(
@@ -519,10 +519,10 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
       if (msg.contains('Insufficient stock') || msg.contains('Stock would go negative')) {
         final avail = _stock?.availableBirds ?? 0;
         msg = 'Not enough stock.\n\nAvailable: $avail birds\nYou entered: $_deliveryBirds birds\n\n'
-              'Reduce the delivery quantity or ask admin to add more stock.';
+            'Reduce the delivery quantity or ask admin to add more stock.';
       } else if (msg.contains('negative')) {
         msg = 'Stock check failed — available birds less than entered quantity. '
-              'Reduce birds delivered or contact admin.';
+            'Reduce birds delivered or contact admin.';
       }
       showError(context, msg);
     } finally {
@@ -596,149 +596,149 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
 
           // ── Shop header ──────────────────────────────────────────────────
           if (r != null) Container(
-            padding: const EdgeInsets.all(12), margin: const EdgeInsets.only(bottom: 10),
-            decoration: BoxDecoration(color: kPrimary.withValues(alpha: 0.07),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: kPrimary.withValues(alpha: 0.2))),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(r['shop_name'] as String,
-                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: kPrimary)),
-              if (r['address'] != null) Text(r['address'] as String,
-                  style: const TextStyle(fontSize: 11, color: kTextSub)),
-              if (r['phone']   != null) Text(r['phone']   as String,
-                  style: const TextStyle(fontSize: 11, color: kTextHint)),
-            ])),
+              padding: const EdgeInsets.all(12), margin: const EdgeInsets.only(bottom: 10),
+              decoration: BoxDecoration(color: kPrimary.withValues(alpha: 0.07),
+                  borderRadius: BorderRadius.circular(kRadiusCard),
+                  border: Border.all(color: kPrimary.withValues(alpha: 0.2))),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(r['shop_name'] as String,
+                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: kPrimary)),
+                if (r['address'] != null) Text(r['address'] as String,
+                    style: const TextStyle(fontSize: 11, color: kTextSub)),
+                if (r['phone']   != null) Text(r['phone']   as String,
+                    style: const TextStyle(fontSize: 11, color: kTextHint)),
+              ])),
 
           // ── Partial continuation banner ─────────────────────────────────
           if (isAlreadyPartial) Container(
-            padding: const EdgeInsets.all(12), margin: const EdgeInsets.only(bottom: 10),
-            decoration: BoxDecoration(color: Colors.orange.shade50,
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: Colors.orange.shade300)),
-            child: Row(children: [
-              const Icon(Icons.splitscreen_outlined, color: Colors.orange, size: 18),
-              const SizedBox(width: 8),
-              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('Partial Delivery — Attempt #${partialCount + 1}',
-                    style: const TextStyle(fontWeight: FontWeight.w800, color: Colors.orange, fontSize: 13)),
-                Text('Remaining: $_orderBirds birds · ${_orderWeight.toStringAsFixed(1)} kg to deliver',
-                    style: const TextStyle(fontSize: 11, color: Colors.orange)),
+              padding: const EdgeInsets.all(12), margin: const EdgeInsets.only(bottom: 10),
+              decoration: BoxDecoration(color: Colors.orange.shade50,
+                  borderRadius: BorderRadius.circular(kRadiusCard),
+                  border: Border.all(color: Colors.orange.shade300)),
+              child: Row(children: [
+                const Icon(Icons.splitscreen_outlined, color: Colors.orange, size: 18),
+                const SizedBox(width: 8),
+                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text('Partial Delivery — Attempt #${partialCount + 1}',
+                      style: const TextStyle(fontWeight: FontWeight.w800, color: Colors.orange, fontSize: 13)),
+                  Text('Remaining: $_orderBirds birds · ${_orderWeight.toStringAsFixed(1)} kg to deliver',
+                      style: const TextStyle(fontSize: 11, color: Colors.orange)),
+                ])),
               ])),
-            ])),
 
           // ── Order expected ──────────────────────────────────────────────
           Container(
-            padding: const EdgeInsets.all(10), margin: const EdgeInsets.only(bottom: 8),
-            decoration: BoxDecoration(color: Colors.purple.shade50,
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: Colors.purple.shade200)),
-            child: Row(children: [
-              const Icon(Icons.shopping_cart_outlined, color: Colors.purple, size: 18),
-              const SizedBox(width: 8),
-              Expanded(child: Text(
-                  '${isAlreadyPartial ? 'Remaining' : 'Order'}: $_orderBirds birds · ${_orderWeight.toStringAsFixed(1)} kg',
-                  style: const TextStyle(fontSize: 12, color: Colors.purple, fontWeight: FontWeight.w600))),
-            ])),
+              padding: const EdgeInsets.all(10), margin: const EdgeInsets.only(bottom: 8),
+              decoration: BoxDecoration(color: Colors.purple.shade50,
+                  borderRadius: BorderRadius.circular(kRadiusCard),
+                  border: Border.all(color: Colors.purple.shade200)),
+              child: Row(children: [
+                const Icon(Icons.shopping_cart_outlined, color: Colors.purple, size: 18),
+                const SizedBox(width: 8),
+                Expanded(child: Text(
+                    '${isAlreadyPartial ? 'Remaining' : 'Order'}: $_orderBirds birds · ${_orderWeight.toStringAsFixed(1)} kg',
+                    style: const TextStyle(fontSize: 12, color: Colors.purple, fontWeight: FontWeight.w600))),
+              ])),
 
           // ── DC info ─────────────────────────────────────────────────────
           if (_dcBirds > 0 || _dcWeight > 0) Container(
-            padding: const EdgeInsets.all(10), margin: const EdgeInsets.only(bottom: 10),
-            decoration: BoxDecoration(color: Colors.blue.shade50,
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: Colors.blue.shade200)),
-            child: Row(children: [
-              const Icon(Icons.receipt_long_outlined, color: Colors.blue, size: 18),
-              const SizedBox(width: 8),
-              Expanded(child: Text(
-                  'Batch DC: $_dcBirds birds · ${_dcWeight.toStringAsFixed(1)} kg'
-                  '${_avgBirdWeightG > 0 ? ' · Avg ${_avgBirdWeightG.toStringAsFixed(0)}g/bird' : ''}',
-                  style: const TextStyle(fontSize: 12, color: Colors.blue, fontWeight: FontWeight.w600))),
-            ])),
+              padding: const EdgeInsets.all(10), margin: const EdgeInsets.only(bottom: 10),
+              decoration: BoxDecoration(color: Colors.blue.shade50,
+                  borderRadius: BorderRadius.circular(kRadiusCard),
+                  border: Border.all(color: Colors.blue.shade200)),
+              child: Row(children: [
+                const Icon(Icons.receipt_long_outlined, color: Colors.blue, size: 18),
+                const SizedBox(width: 8),
+                Expanded(child: Text(
+                    'Batch DC: $_dcBirds birds · ${_dcWeight.toStringAsFixed(1)} kg'
+                        '${_avgBirdWeightG > 0 ? ' · Avg ${_avgBirdWeightG.toStringAsFixed(0)}g/bird' : ''}',
+                    style: const TextStyle(fontSize: 12, color: Colors.blue, fontWeight: FontWeight.w600))),
+              ])),
 
           // ── Partial delivery toggle ─────────────────────────────────────
           Container(
-            margin: EdgeInsets.only(bottom: _isPartial ? 6 : 14),
-            decoration: BoxDecoration(
-                color: _isPartial ? Colors.orange.shade50 : Colors.green.shade50,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: _isPartial ? Colors.orange.shade400 : Colors.green.shade300, width: 1.5)),
-            child: SwitchListTile(
-              value: _isPartial,
-              onChanged: (v) => setState(() {
-                _isPartial = v;
-                if (!v) { _remainingAction = 'same'; _transferAgentId = null; _transferAgentName = null; }
-              }),
-              activeColor: Colors.orange,
-              secondary: Icon(_isPartial ? Icons.splitscreen_outlined : Icons.check_circle_outline,
-                  color: _isPartial ? Colors.orange : Colors.green, size: 26),
-              title: Text(_isPartial ? '⚡ Partial Delivery' : '✅ Full Delivery',
-                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14,
-                      color: _isPartial ? Colors.orange.shade800 : Colors.green.shade700)),
-              subtitle: Text(
-                  _isPartial ? 'Delivering part of the order today' : 'Delivering the complete order — all birds today',
-                  style: TextStyle(fontSize: 11,
-                      color: _isPartial ? Colors.orange.shade700 : Colors.green.shade700)),
-            )),
+              margin: EdgeInsets.only(bottom: _isPartial ? 6 : 14),
+              decoration: BoxDecoration(
+                  color: _isPartial ? Colors.orange.shade50 : Colors.green.shade50,
+                  borderRadius: BorderRadius.circular(kRadiusCard),
+                  border: Border.all(color: _isPartial ? Colors.orange.shade400 : Colors.green.shade300, width: 1.5)),
+              child: SwitchListTile(
+                value: _isPartial,
+                onChanged: (v) => setState(() {
+                  _isPartial = v;
+                  if (!v) { _remainingAction = 'same'; _transferAgentId = null; _transferAgentName = null; }
+                }),
+                activeColor: Colors.orange,
+                secondary: Icon(_isPartial ? Icons.splitscreen_outlined : Icons.check_circle_outline,
+                    color: _isPartial ? Colors.orange : Colors.green, size: 26),
+                title: Text(_isPartial ? '⚡ Partial Delivery' : '✅ Full Delivery',
+                    style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14,
+                        color: _isPartial ? Colors.orange.shade800 : Colors.green.shade700)),
+                subtitle: Text(
+                    _isPartial ? 'Delivering part of the order today' : 'Delivering the complete order — all birds today',
+                    style: TextStyle(fontSize: 11,
+                        color: _isPartial ? Colors.orange.shade700 : Colors.green.shade700)),
+              )),
 
           if (_isPartial) Container(
-            margin: const EdgeInsets.only(bottom: 14),
-            child: InkWell(
-              onTap: _showRemainingOptions, borderRadius: BorderRadius.circular(10),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                decoration: BoxDecoration(
-                    color: Colors.white, borderRadius: BorderRadius.circular(10),
-                    border: Border.all(
-                        color: _remainingAction == 'close' ? Colors.green.shade400
-                            : _remainingAction == 'transfer' ? Colors.purple.shade400
-                            : Colors.blue.shade400, width: 1.5)),
-                child: Row(children: [
-                  Icon(
-                      _remainingAction == 'close' ? Icons.check_circle_outline
-                          : _remainingAction == 'transfer' ? Icons.swap_horiz_rounded
-                          : Icons.delivery_dining_outlined,
-                      color: _remainingAction == 'close' ? Colors.green
-                          : _remainingAction == 'transfer' ? Colors.purple : Colors.blue,
-                      size: 22),
-                  const SizedBox(width: 10),
-                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    const Text('Handle Remaining',
-                        style: TextStyle(fontSize: 10, color: kTextHint, fontWeight: FontWeight.w600)),
-                    Text(
-                        _remainingAction == 'close' ? 'Close remaining — adjust order quantity'
-                            : _remainingAction == 'transfer' ? 'Transfer to: ${_transferAgentName ?? "select agent →"}'
-                            : 'Same agent — queue for my later delivery',
-                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700,
-                            color: _remainingAction == 'close' ? Colors.green.shade700
-                                : _remainingAction == 'transfer' ? Colors.purple.shade700
-                                : Colors.blue.shade700)),
-                  ])),
-                  const Icon(Icons.chevron_right, color: kTextHint, size: 18),
-                ]),
-              ))),
+              margin: const EdgeInsets.only(bottom: 14),
+              child: InkWell(
+                  onTap: _showRemainingOptions, borderRadius: BorderRadius.circular(kRadiusCard),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                    decoration: BoxDecoration(
+                        color: Colors.white, borderRadius: BorderRadius.circular(kRadiusCard),
+                        border: Border.all(
+                            color: _remainingAction == 'close' ? Colors.green.shade400
+                                : _remainingAction == 'transfer' ? Colors.purple.shade400
+                                : Colors.blue.shade400, width: 1.5)),
+                    child: Row(children: [
+                      Icon(
+                          _remainingAction == 'close' ? Icons.check_circle_outline
+                              : _remainingAction == 'transfer' ? Icons.swap_horiz_rounded
+                              : Icons.delivery_dining_outlined,
+                          color: _remainingAction == 'close' ? Colors.green
+                              : _remainingAction == 'transfer' ? Colors.purple : Colors.blue,
+                          size: 22),
+                      const SizedBox(width: 10),
+                      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        const Text('Handle Remaining',
+                            style: TextStyle(fontSize: 10, color: kTextHint, fontWeight: FontWeight.w600)),
+                        Text(
+                            _remainingAction == 'close' ? 'Close remaining — adjust order quantity'
+                                : _remainingAction == 'transfer' ? 'Transfer to: ${_transferAgentName ?? "select agent →"}'
+                                : 'Same agent — queue for my later delivery',
+                            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700,
+                                color: _remainingAction == 'close' ? Colors.green.shade700
+                                    : _remainingAction == 'transfer' ? Colors.purple.shade700
+                                    : Colors.blue.shade700)),
+                      ])),
+                      const Icon(Icons.chevron_right, color: kTextHint, size: 18),
+                    ]),
+                  ))),
 
           // ── Weighment button ────────────────────────────────────────────
           Container(
-            margin: const EdgeInsets.only(bottom: 10),
-            decoration: BoxDecoration(
-                gradient: LinearGradient(colors: [kPrimary, Colors.teal.shade600]),
-                borderRadius: BorderRadius.circular(12)),
-            child: InkWell(
-              onTap: _launchWeighment, borderRadius: BorderRadius.circular(12),
-              child: Padding(padding: const EdgeInsets.all(14), child: Row(children: [
-                const Icon(Icons.scale_outlined, color: Colors.white, size: 24),
-                const SizedBox(width: 12),
-                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(_weighmentDone ? '✓ Weighment done — tap to re-weigh' : '🔵 Use Weighment Machine',
-                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 14)),
-                  Text(_weighmentDone
-                      ? 'Weight: ${_weightCtrl.text} kg · Avg: ${_avgBirdWeightG.toStringAsFixed(1)}g/bird · '
-                        '${_weighmentSource == 'bluetooth' ? 'Bluetooth' : 'Manual'}'
-                      : 'Connect Bluetooth scale or enter manually',
-                      style: const TextStyle(color: Colors.white70, fontSize: 11)),
-                ])),
-                const Icon(Icons.chevron_right, color: Colors.white, size: 20),
-              ])))),
+              margin: const EdgeInsets.only(bottom: 10),
+              decoration: BoxDecoration(
+                  gradient: LinearGradient(colors: [kPrimary, Colors.teal.shade600]),
+                  borderRadius: BorderRadius.circular(12)),
+              child: InkWell(
+                  onTap: _launchWeighment, borderRadius: BorderRadius.circular(kRadiusCard),
+                  child: Padding(padding: const EdgeInsets.all(14), child: Row(children: [
+                    const Icon(Icons.scale_outlined, color: Colors.white, size: 24),
+                    const SizedBox(width: 12),
+                    Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text(_weighmentDone ? '✓ Weighment done — tap to re-weigh' : '🔵 Use Weighment Machine',
+                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 14)),
+                      Text(_weighmentDone
+                          ? 'Weight: ${_weightCtrl.text} kg · Avg: ${_avgBirdWeightG.toStringAsFixed(1)}g/bird · '
+                          '${_weighmentSource == 'bluetooth' ? 'Bluetooth' : 'Manual'}'
+                          : 'Connect Bluetooth scale or enter manually',
+                          style: const TextStyle(color: Colors.white70, fontSize: 11)),
+                    ])),
+                    const Icon(Icons.chevron_right, color: Colors.white, size: 20),
+                  ])))),
 
           Padding(padding: const EdgeInsets.symmetric(vertical: 6),
               child: Row(children: [
@@ -771,32 +771,32 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
           if (_isPartial && (_deliveryBirds > 0 || _deliveryWeight > 0)) ...[
             const SizedBox(height: 10),
             Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(color: Colors.orange.shade50,
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: Colors.orange.shade300)),
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                const Row(children: [
-                  Icon(Icons.splitscreen_outlined, color: Colors.orange, size: 16),
-                  SizedBox(width: 6),
-                  Text('Partial Delivery Breakdown',
-                      style: TextStyle(fontWeight: FontWeight.w800, color: Colors.orange, fontSize: 13)),
-                ]),
-                const SizedBox(height: 10),
-                Row(children: [
-                  _splitStat('✅ Delivering Now',
-                      '$_deliveryBirds birds\n${_deliveryWeight.toStringAsFixed(1)} kg', Colors.green),
-                  Container(width: 1, height: 44, color: Colors.orange.shade200,
-                      margin: const EdgeInsets.symmetric(horizontal: 10)),
-                  _splitStat('⏳ Remaining (queued)',
-                      '$_remainingBirds birds\n${_remainingWeight.toStringAsFixed(1)} kg',
-                      _remainingBirds > 0 ? Colors.orange : Colors.grey),
-                ]),
-                if (_remainingBirds <= 0 && _isPartial)
-                  Padding(padding: const EdgeInsets.only(top: 8),
-                      child: const Text('⚠ No remaining birds — switch to Full Delivery',
-                          style: TextStyle(fontSize: 11, color: Colors.red, fontWeight: FontWeight.w600))),
-              ])),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(color: Colors.orange.shade50,
+                    borderRadius: BorderRadius.circular(kRadiusCard),
+                    border: Border.all(color: Colors.orange.shade300)),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  const Row(children: [
+                    Icon(Icons.splitscreen_outlined, color: Colors.orange, size: 16),
+                    SizedBox(width: 6),
+                    Text('Partial Delivery Breakdown',
+                        style: TextStyle(fontWeight: FontWeight.w800, color: Colors.orange, fontSize: 13)),
+                  ]),
+                  const SizedBox(height: 10),
+                  Row(children: [
+                    _splitStat('✅ Delivering Now',
+                        '$_deliveryBirds birds\n${_deliveryWeight.toStringAsFixed(1)} kg', Colors.green),
+                    Container(width: 1, height: 44, color: Colors.orange.shade200,
+                        margin: const EdgeInsets.symmetric(horizontal: 10)),
+                    _splitStat('⏳ Remaining (queued)',
+                        '$_remainingBirds birds\n${_remainingWeight.toStringAsFixed(1)} kg',
+                        _remainingBirds > 0 ? Colors.orange : Colors.grey),
+                  ]),
+                  if (_remainingBirds <= 0 && _isPartial)
+                    Padding(padding: const EdgeInsets.only(top: 8),
+                        child: const Text('⚠ No remaining birds — switch to Full Delivery',
+                            style: TextStyle(fontSize: 11, color: Colors.red, fontWeight: FontWeight.w600))),
+                ])),
           ],
 
           // ── LOSS DISPLAY — BUG C2 + U2 FIX ─────────────────────────────
@@ -807,34 +807,34 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
           if (_showLossSection) ...[
             const SizedBox(height: 10),
             Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                  color: Colors.grey.shade50,
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: Colors.grey.shade300)),
-              child: Column(children: [
-                Row(children: [
-                  const Icon(Icons.info_outline, color: kTextSub, size: 16),
-                  const SizedBox(width: 6),
-                  const Expanded(child: Text('Preliminary Loss Estimate',
-                      style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: kTextSub))),
-                  Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(4)),
-                      child: const Text('ADVISORY', style: TextStyle(fontSize: 9, color: Colors.blue, fontWeight: FontWeight.w800))),
-                ]),
-                const SizedBox(height: 4),
-                const Text('Based on full batch DC weight — final loss is calculated at shift approval.',
-                    style: TextStyle(fontSize: 10, color: kTextHint)),
-                const SizedBox(height: 8),
-                Row(children: [
-                  _lossStat('Batch DC Wt', '${_dcWeightForLoss.toStringAsFixed(1)} kg', Colors.blue),
-                  _lossStat('Delivered',   '${_deliveryWeight.toStringAsFixed(1)} kg',  kPrimary),
-                  _lossStat('Est. Loss',   '${_transportLossKg.toStringAsFixed(2)} kg', Colors.orange),
-                  _lossStat('Est. %',      '${_lossPct.toStringAsFixed(1)}%',
-                      _isHighLoss ? Colors.orange : kTextSub),
-                ]),
-              ])),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                    color: Colors.grey.shade50,
+                    borderRadius: BorderRadius.circular(kRadiusCard),
+                    border: Border.all(color: Colors.grey.shade300)),
+                child: Column(children: [
+                  Row(children: [
+                    const Icon(Icons.info_outline, color: kTextSub, size: 16),
+                    const SizedBox(width: 6),
+                    const Expanded(child: Text('Preliminary Loss Estimate',
+                        style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: kTextSub))),
+                    Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(4)),
+                        child: const Text('ADVISORY', style: TextStyle(fontSize: 9, color: Colors.blue, fontWeight: FontWeight.w800))),
+                  ]),
+                  const SizedBox(height: 4),
+                  const Text('Based on full batch DC weight — final loss is calculated at shift approval.',
+                      style: TextStyle(fontSize: 10, color: kTextHint)),
+                  const SizedBox(height: 8),
+                  Row(children: [
+                    _lossStat('Batch DC Wt', '${_dcWeightForLoss.toStringAsFixed(1)} kg', Colors.blue),
+                    _lossStat('Delivered',   '${_deliveryWeight.toStringAsFixed(1)} kg',  kPrimary),
+                    _lossStat('Est. Loss',   '${_transportLossKg.toStringAsFixed(2)} kg', Colors.orange),
+                    _lossStat('Est. %',      '${_lossPct.toStringAsFixed(1)}%',
+                        _isHighLoss ? Colors.orange : kTextSub),
+                  ]),
+                ])),
           ],
           const SizedBox(height: 10),
 
@@ -867,11 +867,11 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
           if (_mortalityBirds > 0) Padding(
               padding: const EdgeInsets.only(top: 6),
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                decoration: BoxDecoration(color: Colors.red.shade50, borderRadius: BorderRadius.circular(8)),
-                child: Text('Mortality weight ≈ ${_mortalityWtKg.toStringAsFixed(2)} kg'
-                    '${_avgBirdWeightG > 0 ? ' ($_mortalityBirds × ${_avgBirdWeightG.toStringAsFixed(0)}g)' : ''}',
-                    style: const TextStyle(fontSize: 12, color: Colors.red, fontWeight: FontWeight.w600)))),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(color: Colors.red.shade50, borderRadius: BorderRadius.circular(8)),
+                  child: Text('Mortality weight ≈ ${_mortalityWtKg.toStringAsFixed(2)} kg'
+                      '${_avgBirdWeightG > 0 ? ' ($_mortalityBirds × ${_avgBirdWeightG.toStringAsFixed(0)}g)' : ''}',
+                      style: const TextStyle(fontSize: 12, color: Colors.red, fontWeight: FontWeight.w600)))),
           const SizedBox(height: 10),
           _imageUploadTile(
               label: 'Mortality Proof Photo',
@@ -939,12 +939,12 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
                   backgroundColor: _isPartial ? Colors.orange : null),
               child: _submitting
                   ? const SizedBox(width: 22, height: 22,
-                      child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white))
+                  child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white))
                   : Text(
-                      _isPartial
-                          ? '⚡ Submit Partial Delivery ($_deliveryBirds birds)'
-                          : '✅ Mark as Delivered',
-                      style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700))),
+                  _isPartial
+                      ? '⚡ Submit Partial Delivery ($_deliveryBirds birds)'
+                      : '✅ Mark as Delivered',
+                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700))),
           const SizedBox(height: 20),
         ])));
   }
@@ -974,30 +974,30 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
           Text(isReady
               ? 'Open a shift first, then come back.'
               : 'Status: "$_deliveryStatus"'
-                '\nMust be "out_for_delivery". Ask admin.',
+              '\nMust be "out_for_delivery". Ask admin.',
               textAlign: TextAlign.center,
               style: const TextStyle(fontSize: 16, color: kTextSub, height: 1.6)),
           const SizedBox(height: 28),
           if (!_hasOpenShift)
             SizedBox(width: double.infinity, height: 56,
-              child: ElevatedButton.icon(
-                onPressed: () => context.go(R.shiftOpen),
-                icon: const Icon(Icons.access_time, size: 24),
-                label: const Text('Open Shift',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
-                style: ElevatedButton.styleFrom(
-                    backgroundColor: kPrimary,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
-              )),
+                child: ElevatedButton.icon(
+                  onPressed: () => context.go(R.shiftOpen),
+                  icon: const Icon(Icons.access_time, size: 24),
+                  label: const Text('Open Shift',
+                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+                  style: ElevatedButton.styleFrom(
+                      backgroundColor: kPrimary,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
+                )),
           const SizedBox(height: 16),
           SizedBox(width: double.infinity, height: 56,
-            child: OutlinedButton(
-              onPressed: () { if (context.canPop()) context.pop(); else context.go(R.agentDeliveries); },
-              style: OutlinedButton.styleFrom(
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
-              child: const Text('← Back to Deliveries',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
-            )),
+              child: OutlinedButton(
+                onPressed: () { if (context.canPop()) context.pop(); else context.go(R.agentDeliveries); },
+                style: OutlinedButton.styleFrom(
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
+                child: const Text('← Back to Deliveries',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+              )),
         ])),
       ),
     );
@@ -1229,12 +1229,12 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
             ),
             child: _submitting
                 ? const SizedBox(width: 26, height: 26,
-                    child: CircularProgressIndicator(strokeWidth: 3, color: Colors.white))
+                child: CircularProgressIndicator(strokeWidth: 3, color: Colors.white))
                 : Text(
-                    _isPartial
-                        ? '⚡ Complete Partial Delivery'
-                        : '✅ Mark as Delivered',
-                    style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: Colors.white)),
+                _isPartial
+                    ? '⚡ Complete Partial Delivery'
+                    : '✅ Mark as Delivered',
+                style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: Colors.white)),
           ),
         ),
         const SizedBox(height: 30),
@@ -1290,7 +1290,7 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             decoration: BoxDecoration(
               color: Colors.white.withValues(alpha: 0.2),
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(kRadiusCard),
             ),
             child: Row(children: [
               const Text('⚡', style: TextStyle(fontSize: 18)),
@@ -1310,7 +1310,7 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
       padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 6),
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.15),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(kRadiusCard),
       ),
       child: Column(children: [
         Text(emoji, style: const TextStyle(fontSize: 20)),
@@ -1350,14 +1350,14 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(
-                _weighmentDone ? '✓ Weighment Done' : '⚖️ Weigh the Birds',
-                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 18)),
+                  _weighmentDone ? '✓ Weighment Done' : '⚖️ Weigh the Birds',
+                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 18)),
               const SizedBox(height: 4),
               Text(
-                _weighmentDone
-                    ? 'Weight: ${_weightCtrl.text} kg · Tap to re-weigh'
-                    : 'Tap to use Bluetooth scale or enter manually',
-                style: const TextStyle(color: Colors.white70, fontSize: 14)),
+                  _weighmentDone
+                      ? 'Weight: ${_weightCtrl.text} kg · Tap to re-weigh'
+                      : 'Tap to use Bluetooth scale or enter manually',
+                  style: const TextStyle(color: Colors.white70, fontSize: 14)),
             ]),
           ),
           const Icon(Icons.chevron_right, color: Colors.white, size: 28),
@@ -1425,15 +1425,15 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
         fillColor: Colors.grey.shade50,
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(kRadiusCard),
           borderSide: BorderSide(color: kBorder),
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(kRadiusCard),
           borderSide: BorderSide(color: kBorder),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(kRadiusCard),
           borderSide: const BorderSide(color: kPrimary, width: 2),
         ),
       ),
@@ -1450,10 +1450,10 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
           decoration: BoxDecoration(
             color: selected
                 ? (value == 'cash' ? Colors.green.shade100
-                    : value == 'upi' ? Colors.blue.shade100
-                    : Colors.purple.shade100)
+                : value == 'upi' ? Colors.blue.shade100
+                : Colors.purple.shade100)
                 : Colors.grey.shade100,
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(kRadiusCard),
             border: Border.all(
               color: selected ? kPrimary : Colors.grey.shade300,
               width: selected ? 2 : 1,
@@ -1489,19 +1489,19 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
           color: uploaded ? Colors.green.shade50 : (required ? Colors.red.shade50 : Colors.grey.shade50),
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(kRadiusCard),
           border: Border.all(color: c.withValues(alpha: 0.4), width: uploaded ? 2 : 1),
         ),
         child: Row(children: [
           if (image != null)
-            ClipRRect(borderRadius: BorderRadius.circular(8),
+            ClipRRect(borderRadius: BorderRadius.circular(kRadiusChip),
                 child: Image.file(image, width: 56, height: 56, fit: BoxFit.cover))
           else
             Container(
               width: 56, height: 56,
               decoration: BoxDecoration(
                 color: Colors.white,
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(kRadiusCard),
               ),
               child: Icon(Icons.camera_alt_outlined, size: 28, color: c),
             ),
@@ -1567,7 +1567,7 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
                 color: uploaded ? Colors.green.shade50 : (required ? Colors.red.shade50 : Colors.grey.shade50),
-                borderRadius: BorderRadius.circular(10),
+                borderRadius: BorderRadius.circular(kRadiusCard),
                 border: Border.all(color: c.withValues(alpha: 0.4))),
             child: Row(children: [
               if (image != null)
@@ -1596,7 +1596,7 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
         margin: const EdgeInsets.only(bottom: 12),
         padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(color: c.withValues(alpha: 0.1),
-            borderRadius: BorderRadius.circular(10), border: Border.all(color: c.withValues(alpha: 0.3))),
+            borderRadius: BorderRadius.circular(kRadiusCard), border: Border.all(color: c.withValues(alpha: 0.3))),
         child: Row(children: [
           Icon(zero ? Icons.error : over ? Icons.inventory_outlined : Icons.check_circle_outline,
               color: c, size: 18),

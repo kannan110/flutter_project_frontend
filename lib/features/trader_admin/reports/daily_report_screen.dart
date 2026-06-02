@@ -34,12 +34,12 @@ class _S extends ConsumerState<DailyReportScreen> {
       // Load delivery-wise breakdown with loss data
       final dList = await _c.from('deliveries')
           .select('id,status,delivered_bird_count,delivered_total_weight,'
-                  'dc_weight_kg,transport_loss_kg,mortality_birds,mortality_weight_kg,'
-                  'total_loss_kg,loss_percentage,is_high_loss,'
-                  'collected_amount,payment_mode,mortality_proof_url,delivery_agent_id,'
-                  'orders(retailers(shop_name)),'
-                  'delivery_batches(delivery_challans(dc_number,farmer_name)),'
-                  'delivery_agents(name)')
+          'dc_weight_kg,transport_loss_kg,mortality_birds,mortality_weight_kg,'
+          'total_loss_kg,loss_percentage,is_high_loss,'
+          'collected_amount,payment_mode,mortality_proof_url,delivery_agent_id,'
+          'orders(retailers(shop_name)),'
+          'delivery_batches(delivery_challans(dc_number,farmer_name)),'
+          'delivery_agents(name)')
           .eq('trader_id', tid)
           .eq('status', 'delivered')
           .gte('delivered_at', '${dateStr}T00:00:00')
@@ -49,9 +49,9 @@ class _S extends ConsumerState<DailyReportScreen> {
       // Load agent loss analytics
       final agentData = await _c.from('deliveries')
           .select('delivery_agent_id,dc_weight_kg,delivered_total_weight,'
-                  'transport_loss_kg,mortality_birds,mortality_weight_kg,'
-                  'total_loss_kg,loss_percentage,is_high_loss,'
-                  'delivery_agents(name)')
+          'transport_loss_kg,mortality_birds,mortality_weight_kg,'
+          'total_loss_kg,loss_percentage,is_high_loss,'
+          'delivery_agents(name)')
           .eq('trader_id', tid)
           .eq('status', 'delivered')
           .gte('delivered_at', '${dateStr}T00:00:00')
@@ -108,7 +108,7 @@ class _S extends ConsumerState<DailyReportScreen> {
         // Get the batch DC from challans via the delivery record
         final challans = (r['delivery_batches'] as Map?)?['delivery_challans'] as List?;
         final batchDcKg = challans?.fold<double>(0.0,
-            (s, c) => s + ((c['net_weight'] as num?)?.toDouble() ?? 0)) ?? 0.0;
+                (s, c) => s + ((c['net_weight'] as num?)?.toDouble() ?? 0)) ?? 0.0;
         // Only use batch-level DC if we have challan data; else use delivery's dc_weight_kg
         // (If dc_weight is 0 or no challan data, fall back — but note it may be inflated)
         if (batchDcKg > 0) {
@@ -186,25 +186,27 @@ class _S extends ConsumerState<DailyReportScreen> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
+    backgroundColor: kBgPage,
     appBar: AppBar(
+      backgroundColor: kSurface,
       title: const Text('Daily Report'),
       actions: [
         TextButton.icon(
-          onPressed: () async {
-            final d = await showDatePicker(context: context, initialDate: _date,
-                firstDate: DateTime.now().subtract(const Duration(days: 365)),
-                lastDate: DateTime.now());
-            if (d != null && mounted) { setState(() => _date = d); _load(); }
-          },
-          icon: const Icon(Icons.calendar_today_outlined, size: 16),
-          label: Text(DateFormat('d MMM').format(_date))),
+            onPressed: () async {
+              final d = await showDatePicker(context: context, initialDate: _date,
+                  firstDate: DateTime.now().subtract(const Duration(days: 365)),
+                  lastDate: DateTime.now());
+              if (d != null && mounted) { setState(() => _date = d); _load(); }
+            },
+            icon: const Icon(Icons.calendar_today_outlined, size: 16),
+            label: Text(DateFormat('d MMM').format(_date))),
         if (_d != null)
           IconButton(
-            icon: const Icon(Icons.share_outlined),
-            onPressed: () async {
-              await Clipboard.setData(ClipboardData(text: _buildShareText()));
-              if (mounted) showSuccess(context, 'Report copied — paste in WhatsApp ✓');
-            }),
+              icon: const Icon(Icons.share_outlined),
+              onPressed: () async {
+                await Clipboard.setData(ClipboardData(text: _buildShareText()));
+                if (mounted) showSuccess(context, 'Report copied — paste in WhatsApp ✓');
+              }),
         IconButton(icon: const Icon(Icons.refresh), onPressed: _load),
       ],
     ),
@@ -219,21 +221,21 @@ class _S extends ConsumerState<DailyReportScreen> {
       const Divider(height: 1),
       Expanded(child: _d == null
           ? EmptyState(icon: Icons.receipt_long_outlined,
-              message: 'No data for ${DateFormat('d MMM y').format(_date)}')
+          message: 'No data for ${DateFormat('d MMM y').format(_date)}')
           : RefreshIndicator(onRefresh: _load, child: _buildTab())),
     ]),
   );
 
   Widget _tabBtn(int idx, String label) => Expanded(child: InkWell(
-    onTap: () => setState(() => _tab = idx),
-    child: Container(
-      padding: const EdgeInsets.symmetric(vertical: 12),
-      decoration: BoxDecoration(
-          border: Border(bottom: BorderSide(
-              color: _tab == idx ? kPrimary : Colors.transparent, width: 2))),
-      child: Text(label, textAlign: TextAlign.center,
-          style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700,
-              color: _tab == idx ? kPrimary : kTextHint)))));
+      onTap: () => setState(() => _tab = idx),
+      child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          decoration: BoxDecoration(
+              border: Border(bottom: BorderSide(
+                  color: _tab == idx ? kPrimary : Colors.transparent, width: 2))),
+          child: Text(label, textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700,
+                  color: _tab == idx ? kPrimary : kTextHint)))));
 
   Widget _buildTab() {
     switch (_tab) {
@@ -250,24 +252,26 @@ class _S extends ConsumerState<DailyReportScreen> {
     final distanceData = _deliveries.fold(0.0, (s, _) => s);
     return ListView(padding: const EdgeInsets.all(16), children: [
       // Header
-      Container(padding: const EdgeInsets.all(18),
-        decoration: BoxDecoration(color: kPrimary, borderRadius: BorderRadius.circular(14)),
-        child: Column(children: [
-          Text(DateFormat('EEEE, d MMMM y').format(_date),
-              style: const TextStyle(color: Colors.white70, fontSize: 12)),
-          const SizedBox(height: 8),
-          Text(Fmt.amount((d['gross_revenue'] as num?)?.toDouble() ?? 0),
-              style: const TextStyle(color: Colors.white, fontSize: 36, fontWeight: FontWeight.w900)),
-          const Text('Gross Revenue', style: TextStyle(color: Colors.white70, fontSize: 13)),
-          const SizedBox(height: 8),
-          Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
-            _hStat('Collected', Fmt.amount((d['cash_collected'] as num?)?.toDouble() ?? 0)),
-            Container(width: 1, height: 30, color: Colors.white24),
-            _hStat('Birds', '${d['birds_delivered'] ?? 0}'),
-            Container(width: 1, height: 30, color: Colors.white24),
-            _hStat('Deliveries', '${d['orders_delivered'] ?? 0}'),
-          ]),
-        ])),
+      Container(padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+              gradient: const LinearGradient(colors: [kNavy, kNavyMid], begin: Alignment.topLeft, end: Alignment.bottomRight),
+              borderRadius: BorderRadius.circular(kRadiusCard), boxShadow: kCardShadow),
+          child: Column(children: [
+            Text(DateFormat('EEEE, d MMMM y').format(_date),
+                style: const TextStyle(color: Colors.white70, fontSize: 12)),
+            const SizedBox(height: 8),
+            Text(Fmt.amount((d['gross_revenue'] as num?)?.toDouble() ?? 0),
+                style: const TextStyle(color: Colors.white, fontSize: 36, fontWeight: FontWeight.w900)),
+            const Text('Gross Revenue', style: TextStyle(color: Colors.white70, fontSize: 13)),
+            const SizedBox(height: 8),
+            Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
+              _hStat('Collected', Fmt.amount((d['cash_collected'] as num?)?.toDouble() ?? 0)),
+              Container(width: 1, height: 30, color: Colors.white24),
+              _hStat('Birds', '${d['birds_delivered'] ?? 0}'),
+              Container(width: 1, height: 30, color: Colors.white24),
+              _hStat('Deliveries', '${d['orders_delivered'] ?? 0}'),
+            ]),
+          ])),
       const SizedBox(height: 14),
       WhiteCard(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         const SectionHeader('FINANCIAL'),
@@ -304,13 +308,13 @@ class _S extends ConsumerState<DailyReportScreen> {
       ])),
       const SizedBox(height: 14),
       ElevatedButton.icon(
-        onPressed: () async {
-          await Clipboard.setData(ClipboardData(text: _buildShareText()));
-          if (mounted) showSuccess(context, 'Copied — paste in WhatsApp ✓');
-        },
-        icon: const Icon(Icons.share_outlined, size: 18),
-        label: const Text('Copy Report for WhatsApp'),
-        style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF25D366))),
+          onPressed: () async {
+            await Clipboard.setData(ClipboardData(text: _buildShareText()));
+            if (mounted) showSuccess(context, 'Copied — paste in WhatsApp ✓');
+          },
+          icon: const Icon(Icons.share_outlined, size: 18),
+          label: const Text('Copy Report for WhatsApp'),
+          style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF25D366))),
       const SizedBox(height: 20),
     ]);
   }
@@ -320,50 +324,50 @@ class _S extends ConsumerState<DailyReportScreen> {
       return const EmptyState(icon: Icons.local_shipping_outlined, message: 'No deliveries today');
     }
     return ListView.separated(
-      padding: const EdgeInsets.all(16),
-      itemCount: _deliveries.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 8),
-      itemBuilder: (_, i) {
-        final d       = _deliveries[i];
-        final o       = d['orders'] as Map<String,dynamic>?;
-        final r       = o?['retailers'] as Map<String,dynamic>?;
-        final isHigh  = d['is_high_loss'] == true;
-        final lossPct = (d['loss_percentage'] as num?)?.toDouble() ?? 0;
-        final birds   = (d['delivered_bird_count'] as num?)?.toInt() ?? 0;
-        final weight  = (d['delivered_total_weight'] as num?)?.toDouble() ?? 0;
-        final collected = (d['collected_amount'] as num?)?.toDouble() ?? 0;
-        return Container(
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: isHigh ? Colors.orange.shade300 : kBorder, width: isHigh ? 1.5 : 1)),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Row(children: [
-              Expanded(child: Text(r?['shop_name'] as String? ?? '—',
-                  style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14))),
-              if (isHigh) Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(color: Colors.orange.shade100, borderRadius: BorderRadius.circular(6)),
-                child: Text('⚠️ Loss ${lossPct.toStringAsFixed(1)}%',
-                    style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.deepOrange))),
-            ]),
-            const SizedBox(height: 6),
-            Row(children: [
-              _dStat('Birds', '$birds', kPrimary),
-              _dStat('Weight', '${weight.toStringAsFixed(1)} kg', Colors.teal),
-              _dStat('Collected', Fmt.amount(collected), Colors.green),
-              _dStat('Loss', '${lossPct.toStringAsFixed(1)}%', isHigh ? Colors.red : kTextSub),
-            ]),
-            if (d['mortality_proof_url'] != null)
-              Padding(padding: const EdgeInsets.only(top: 6),
-                child: Row(children: [
-                  const Icon(Icons.photo_outlined, size: 13, color: Colors.purple),
-                  const SizedBox(width: 4),
-                  const Text('Mortality proof attached', style: TextStyle(fontSize: 11, color: Colors.purple)),
-                ])),
-          ]));
-      });
+        padding: const EdgeInsets.all(16),
+        itemCount: _deliveries.length,
+        separatorBuilder: (_, __) => const SizedBox(height: 8),
+        itemBuilder: (_, i) {
+          final d       = _deliveries[i];
+          final o       = d['orders'] as Map<String,dynamic>?;
+          final r       = o?['retailers'] as Map<String,dynamic>?;
+          final isHigh  = d['is_high_loss'] == true;
+          final lossPct = (d['loss_percentage'] as num?)?.toDouble() ?? 0;
+          final birds   = (d['delivered_bird_count'] as num?)?.toInt() ?? 0;
+          final weight  = (d['delivered_total_weight'] as num?)?.toDouble() ?? 0;
+          final collected = (d['collected_amount'] as num?)?.toDouble() ?? 0;
+          return Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                  color: kSurface,
+                  borderRadius: BorderRadius.circular(kRadiusCard),
+                  border: Border.all(color: isHigh ? Colors.orange.shade300 : kBorder, width: isHigh ? 1.5 : 1)),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Row(children: [
+                  Expanded(child: Text(r?['shop_name'] as String? ?? '—',
+                      style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14))),
+                  if (isHigh) Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(color: Colors.orange.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(kRadiusChip)),
+                      child: Text('⚠️ Loss ${lossPct.toStringAsFixed(1)}%',
+                          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.deepOrange))),
+                ]),
+                const SizedBox(height: 6),
+                Row(children: [
+                  _dStat('Birds', '$birds', kPrimary),
+                  _dStat('Weight', '${weight.toStringAsFixed(1)} kg', Colors.teal),
+                  _dStat('Collected', Fmt.amount(collected), Colors.green),
+                  _dStat('Loss', '${lossPct.toStringAsFixed(1)}%', isHigh ? Colors.red : kTextSub),
+                ]),
+                if (d['mortality_proof_url'] != null)
+                  Padding(padding: const EdgeInsets.only(top: 6),
+                      child: Row(children: [
+                        const Icon(Icons.photo_outlined, size: 13, color: Colors.purple),
+                        const SizedBox(width: 4),
+                        const Text('Mortality proof attached', style: TextStyle(fontSize: 11, color: Colors.purple)),
+                      ])),
+              ]));
+        });
   }
 
   Widget _buildLossAnalysis() {
@@ -381,23 +385,23 @@ class _S extends ConsumerState<DailyReportScreen> {
 
     return ListView(padding: const EdgeInsets.all(16), children: [
       Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-            color: lossPct >= 2 ? Colors.red.shade50 : Colors.green.shade50,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: lossPct >= 2 ? Colors.red.shade200 : Colors.green.shade200)),
-        child: Column(children: [
-          Text('${lossPct.toStringAsFixed(2)}%',
-              style: TextStyle(fontSize: 40, fontWeight: FontWeight.w900,
-                  color: lossPct >= 2 ? Colors.red : Colors.green)),
-          Text('Overall Loss', style: TextStyle(fontSize: 13, color: lossPct >= 2 ? Colors.red : Colors.green)),
-          const SizedBox(height: 12),
-          Row(children: [
-            _lossStat2('DC Weight',   '${totalDc.toStringAsFixed(1)} kg',    Colors.blue),
-            _lossStat2('Delivered',   '${totalDel.toStringAsFixed(1)} kg',   kPrimary),
-            _lossStat2('Total Loss',  '${totalLoss.toStringAsFixed(2)} kg',  lossPct >= 2 ? Colors.red : Colors.orange),
-          ]),
-        ])),
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+              color: lossPct >= 2 ? Colors.red.shade50 : Colors.green.shade50,
+              borderRadius: BorderRadius.circular(kRadiusCard),
+              border: Border.all(color: lossPct >= 2 ? Colors.red.shade200 : Colors.green.shade200)),
+          child: Column(children: [
+            Text('${lossPct.toStringAsFixed(2)}%',
+                style: TextStyle(fontSize: 40, fontWeight: FontWeight.w900,
+                    color: lossPct >= 2 ? Colors.red : Colors.green)),
+            Text('Overall Loss', style: TextStyle(fontSize: 13, color: lossPct >= 2 ? Colors.red : Colors.green)),
+            const SizedBox(height: 12),
+            Row(children: [
+              _lossStat2('DC Weight',   '${totalDc.toStringAsFixed(1)} kg',    Colors.blue),
+              _lossStat2('Delivered',   '${totalDel.toStringAsFixed(1)} kg',   kPrimary),
+              _lossStat2('Total Loss',  '${totalLoss.toStringAsFixed(2)} kg',  lossPct >= 2 ? Colors.red : Colors.orange),
+            ]),
+          ])),
       const SizedBox(height: 14),
       WhiteCard(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         const SectionHeader('LOSS BREAKDOWN'),
@@ -418,19 +422,19 @@ class _S extends ConsumerState<DailyReportScreen> {
           final pct = (d['loss_percentage'] as num?)?.toDouble() ?? 0;
           final loss = (d['total_loss_kg'] as num?)?.toDouble() ?? 0;
           return Container(
-            margin: const EdgeInsets.only(bottom: 8), padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(color: Colors.orange.shade50, borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: Colors.orange.shade200)),
-            child: Row(children: [
-              const Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 18),
-              const SizedBox(width: 8),
-              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(r?['shop_name'] as String? ?? '—',
-                    style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
-                Text('Loss: ${pct.toStringAsFixed(1)}% · ${loss.toStringAsFixed(2)} kg',
-                    style: const TextStyle(fontSize: 12, color: Colors.deepOrange)),
-              ])),
-            ]));
+              margin: const EdgeInsets.only(bottom: 8), padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(color: Colors.orange.withValues(alpha: 0.07), borderRadius: BorderRadius.circular(kRadiusCard),
+                  border: Border.all(color: Colors.orange.shade200)),
+              child: Row(children: [
+                const Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 18),
+                const SizedBox(width: 8),
+                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text(r?['shop_name'] as String? ?? '—',
+                      style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+                  Text('Loss: ${pct.toStringAsFixed(1)}% · ${loss.toStringAsFixed(2)} kg',
+                      style: const TextStyle(fontSize: 12, color: Colors.deepOrange)),
+                ])),
+              ]));
         }),
       ],
     ]);
@@ -447,34 +451,34 @@ class _S extends ConsumerState<DailyReportScreen> {
         final lossPct = dcWt > 0 ? ((a['total_loss'] as double) / dcWt * 100) : 0.0;
         final isHigh  = lossPct >= 2;
         return Container(
-          margin: const EdgeInsets.only(bottom: 12),
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-              color: Colors.white, borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: isHigh ? Colors.orange.shade300 : kBorder, width: isHigh ? 1.5 : 1)),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Row(children: [
-              const Icon(Icons.delivery_dining, size: 16, color: kPrimary),
-              const SizedBox(width: 6),
-              Text(a['agent_name'] as String, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800)),
-              const Spacer(),
-              if (isHigh) Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(color: Colors.orange.shade100, borderRadius: BorderRadius.circular(6)),
-                child: Text('⚠️ High Loss', style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: Colors.deepOrange))),
-            ]),
-            const SizedBox(height: 10),
-            Row(children: [
-              _dStat('Deliveries', '${a['deliveries']}', kPrimary),
-              _dStat('DC Weight', '${(a['dc_weight'] as double).toStringAsFixed(1)} kg', Colors.blue),
-              _dStat('Mortality', '${a['mortality_birds']} birds', Colors.red),
-              _dStat('Loss', '${lossPct.toStringAsFixed(1)}%', isHigh ? Colors.red : kTextSub),
-            ]),
-            if ((a['high_loss_count'] as int) > 0) Padding(
-              padding: const EdgeInsets.only(top: 6),
-              child: Text('${a['high_loss_count']} high-loss deliveries need attention',
-                  style: const TextStyle(fontSize: 11, color: Colors.orange, fontWeight: FontWeight.w600))),
-          ]));
+            margin: const EdgeInsets.only(bottom: 12),
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+                color: Colors.white, borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: isHigh ? Colors.orange.shade300 : kBorder, width: isHigh ? 1.5 : 1)),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(children: [
+                const Icon(Icons.delivery_dining, size: 16, color: kPrimary),
+                const SizedBox(width: 6),
+                Text(a['agent_name'] as String, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800)),
+                const Spacer(),
+                if (isHigh) Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(color: Colors.orange.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(kRadiusChip)),
+                    child: Text('⚠️ High Loss', style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: Colors.deepOrange))),
+              ]),
+              const SizedBox(height: 10),
+              Row(children: [
+                _dStat('Deliveries', '${a['deliveries']}', kPrimary),
+                _dStat('DC Weight', '${(a['dc_weight'] as double).toStringAsFixed(1)} kg', Colors.blue),
+                _dStat('Mortality', '${a['mortality_birds']} birds', Colors.red),
+                _dStat('Loss', '${lossPct.toStringAsFixed(1)}%', isHigh ? Colors.red : kTextSub),
+              ]),
+              if ((a['high_loss_count'] as int) > 0) Padding(
+                  padding: const EdgeInsets.only(top: 6),
+                  child: Text('${a['high_loss_count']} high-loss deliveries need attention',
+                      style: const TextStyle(fontSize: 11, color: Colors.orange, fontWeight: FontWeight.w600))),
+            ]));
       }),
     ]);
   }
@@ -485,21 +489,21 @@ class _S extends ConsumerState<DailyReportScreen> {
   ]);
 
   Widget _rowInfo(String label, String subtitle, String value, Color color) => Padding(
-    padding: const EdgeInsets.symmetric(vertical: 4),
-    child: Row(children: [
-      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: kTextMain)),
-        Text(subtitle, style: const TextStyle(fontSize: 10, color: kTextHint)),
-      ])),
-      Text(value, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: color)),
-    ]));
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(children: [
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: kTextMain)),
+          Text(subtitle, style: const TextStyle(fontSize: 10, color: kTextHint)),
+        ])),
+        Text(value, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: color)),
+      ]));
 
   Widget _row(String l, String v, [Color? c]) => Padding(
-    padding: const EdgeInsets.symmetric(vertical: 3),
-    child: Row(children: [
-      Expanded(child: Text(l, style: const TextStyle(fontSize: 12, color: kTextSub))),
-      Text(v, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: c ?? kTextMain)),
-    ]));
+      padding: const EdgeInsets.symmetric(vertical: 3),
+      child: Row(children: [
+        Expanded(child: Text(l, style: const TextStyle(fontSize: 12, color: kTextSub))),
+        Text(v, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: c ?? kTextMain)),
+      ]));
 
   Widget _dStat(String l, String v, Color c) => Expanded(child: Column(children: [
     Text(v, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: c), textAlign: TextAlign.center),

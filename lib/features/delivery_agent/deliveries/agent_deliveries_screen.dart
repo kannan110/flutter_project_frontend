@@ -27,11 +27,11 @@ class _S extends ConsumerState<AgentDeliveriesScreen> {
     try {
       var q = _c.from('deliveries')
           .select('id,status,collected_amount,payment_mode,delivered_at,'
-                  'delivered_bird_count,delivered_total_weight,'
-                  'dc_weight_kg,total_loss_kg,loss_percentage,is_high_loss,'
-                  'is_partial_delivery,partial_birds,partial_quantity,order_id,'
-                  'mortality_birds,approval_status,'
-                  'orders(id,estimated_birds,total_quantity,retailers(shop_name,address,phone))')
+          'delivered_bird_count,delivered_total_weight,'
+          'dc_weight_kg,total_loss_kg,loss_percentage,is_high_loss,'
+          'is_partial_delivery,partial_birds,partial_quantity,order_id,'
+          'mortality_birds,approval_status,'
+          'orders(id,estimated_birds,total_quantity,retailers(shop_name,address,phone))')
           .eq('delivery_agent_id', agentId);
 
       if (_filter == 'active')
@@ -82,37 +82,37 @@ class _S extends ConsumerState<AgentDeliveriesScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('My Deliveries'),
-        actions: [IconButton(icon: const Icon(Icons.refresh), onPressed: _load)]),
+          title: const Text('My Deliveries'),
+          actions: [IconButton(icon: const Icon(Icons.refresh), onPressed: _load)]),
       body: Column(children: [
         Container(
-          color: Colors.white,
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 10),
-          child: SegmentedButton<String>(
-            segments: const [
-              ButtonSegment(value: 'active', label: Text('Active')),
-              ButtonSegment(value: 'done',   label: Text('Delivered')),
-              ButtonSegment(value: 'all',    label: Text('All')),
-            ],
-            selected: {_filter},
-            onSelectionChanged: (s) { if (mounted) setState(() => _filter = s.first); _load(); })),
+            color: Colors.white,
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 10),
+            child: SegmentedButton<String>(
+                segments: const [
+                  ButtonSegment(value: 'active', label: Text('Active')),
+                  ButtonSegment(value: 'done',   label: Text('Delivered')),
+                  ButtonSegment(value: 'all',    label: Text('All')),
+                ],
+                selected: {_filter},
+                onSelectionChanged: (s) { if (mounted) setState(() => _filter = s.first); _load(); })),
         const Divider(height: 1),
         Expanded(
-          child: _loading
-              ? const LoadingList()
-              : _list.isEmpty
-                  ? EmptyState(
-                      icon: Icons.local_shipping_outlined,
-                      message: _filter == 'active' ? 'No active deliveries' : 'No deliveries found',
-                      sub: _filter == 'active' ? 'Admin needs to assign a batch to you' : null)
-                  : RefreshIndicator(
-                      onRefresh: _load,
-                      child: ListView.separated(
-                        padding: const EdgeInsets.all(16),
-                        itemCount: _list.length,
-                        separatorBuilder: (_, __) => const SizedBox(height: 10),
-                        itemBuilder: (_, i) => _deliveryCard(_list[i]),
-                      ))),
+            child: _loading
+                ? const LoadingList()
+                : _list.isEmpty
+                ? EmptyState(
+                icon: Icons.local_shipping_outlined,
+                message: _filter == 'active' ? 'No active deliveries' : 'No deliveries found',
+                sub: _filter == 'active' ? 'Admin needs to assign a batch to you' : null)
+                : RefreshIndicator(
+                onRefresh: _load,
+                child: ListView.separated(
+                  padding: const EdgeInsets.all(16),
+                  itemCount: _list.length,
+                  separatorBuilder: (_, __) => const SizedBox(height: 10),
+                  itemBuilder: (_, i) => _deliveryCard(_list[i]),
+                ))),
       ]),
     );
   }
@@ -152,24 +152,24 @@ class _S extends ConsumerState<AgentDeliveriesScreen> {
         Expanded(
           child: _list.isEmpty
               ? Center(
-                  child: Column(mainAxisSize: MainAxisSize.min, children: [
-                    const Text('📭', style: TextStyle(fontSize: 56)),
-                    const SizedBox(height: 12),
-                    Text(_filter == 'active' ? 'No active deliveries' : 'No deliveries found',
-                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: kTextSub)),
-                    const SizedBox(height: 8),
-                    Text('Waiting for admin to assign work',
-                        style: const TextStyle(fontSize: 14, color: kTextHint)),
-                  ]),
-                )
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              const Text('📭', style: TextStyle(fontSize: 56)),
+              const SizedBox(height: 12),
+              Text(_filter == 'active' ? 'No active deliveries' : 'No deliveries found',
+                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: kTextSub)),
+              const SizedBox(height: 8),
+              Text('Waiting for admin to assign work',
+                  style: const TextStyle(fontSize: 14, color: kTextHint)),
+            ]),
+          )
               : RefreshIndicator(
-                  onRefresh: _load,
-                  child: ListView.builder(
-                    padding: const EdgeInsets.all(16),
-                    itemCount: _list.length,
-                    itemBuilder: (_, i) => _simpleDeliveryCard(_list[i]),
-                  ),
-                ),
+            onRefresh: _load,
+            child: ListView.builder(
+              padding: const EdgeInsets.all(16),
+              itemCount: _list.length,
+              itemBuilder: (_, i) => _simpleDeliveryCard(_list[i]),
+            ),
+          ),
         ),
       ]),
     );
@@ -359,12 +359,12 @@ class _S extends ConsumerState<AgentDeliveriesScreen> {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-            color: isHighLoss ? Colors.orange.shade300
-                : isActive ? kPrimary.withValues(alpha: 0.3) : kBorder,
-            width: isActive || isHighLoss ? 1.5 : 1)),
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+              color: isHighLoss ? Colors.orange.shade300
+                  : isActive ? kPrimary.withValues(alpha: 0.3) : kBorder,
+              width: isActive || isHighLoss ? 1.5 : 1)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
           Expanded(child: Text(r?['shop_name'] as String? ?? '-',
@@ -373,22 +373,22 @@ class _S extends ConsumerState<AgentDeliveriesScreen> {
         ]),
 
         if (r?['address'] != null) Padding(
-          padding: const EdgeInsets.only(top: 3),
-          child: Row(children: [
-            const Icon(Icons.location_on_outlined, size: 13, color: kTextHint),
-            const SizedBox(width: 3),
-            Expanded(child: Text(r!['address'] as String,
-                style: const TextStyle(fontSize: 11, color: kTextHint),
-                maxLines: 1, overflow: TextOverflow.ellipsis)),
-          ])),
+            padding: const EdgeInsets.only(top: 3),
+            child: Row(children: [
+              const Icon(Icons.location_on_outlined, size: 13, color: kTextHint),
+              const SizedBox(width: 3),
+              Expanded(child: Text(r!['address'] as String,
+                  style: const TextStyle(fontSize: 11, color: kTextHint),
+                  maxLines: 1, overflow: TextOverflow.ellipsis)),
+            ])),
 
         if (r?['phone'] != null) Padding(
-          padding: const EdgeInsets.only(top: 2),
-          child: Row(children: [
-            const Icon(Icons.phone_outlined, size: 12, color: kTextHint),
-            const SizedBox(width: 3),
-            Text(r!['phone'] as String, style: const TextStyle(fontSize: 11, color: kTextHint)),
-          ])),
+            padding: const EdgeInsets.only(top: 2),
+            child: Row(children: [
+              const Icon(Icons.phone_outlined, size: 12, color: kTextHint),
+              const SizedBox(width: 3),
+              Text(r!['phone'] as String, style: const TextStyle(fontSize: 11, color: kTextHint)),
+            ])),
 
         const SizedBox(height: 8),
 
@@ -398,18 +398,18 @@ class _S extends ConsumerState<AgentDeliveriesScreen> {
               const Icon(Icons.set_meal_outlined, size: 14, color: kPrimary),
               const SizedBox(width: 4),
               Text(
-                showDelivered ? '$delivBirds birds delivered' : '$orderBirds birds (est.)',
-                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600,
-                    color: showDelivered ? kPrimary : kTextSub)),
+                  showDelivered ? '$delivBirds birds delivered' : '$orderBirds birds (est.)',
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600,
+                      color: showDelivered ? kPrimary : kTextSub)),
             ]),
             Row(children: [
               const Icon(Icons.balance_outlined, size: 12, color: kTextHint),
               const SizedBox(width: 4),
               Text(
-                showDelivered
-                    ? '${delivWeight.toStringAsFixed(1)} kg delivered'
-                    : '${orderWeight.toStringAsFixed(1)} kg (est.)',
-                style: TextStyle(fontSize: 11, color: showDelivered ? kTextSub : kTextHint)),
+                  showDelivered
+                      ? '${delivWeight.toStringAsFixed(1)} kg delivered'
+                      : '${orderWeight.toStringAsFixed(1)} kg (est.)',
+                  style: TextStyle(fontSize: 11, color: showDelivered ? kTextSub : kTextHint)),
             ]),
             if (dcWt > 0 && isDelivered)
               Text('DC: ${dcWt.toStringAsFixed(1)} kg loaded',
@@ -418,14 +418,14 @@ class _S extends ConsumerState<AgentDeliveriesScreen> {
           Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
             if (collected > 0)
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                    color: Colors.green.shade50, borderRadius: BorderRadius.circular(6)),
-                child: Row(children: [
-                  const Icon(Icons.currency_rupee, size: 12, color: Colors.green),
-                  Text(Fmt.amount(collected),
-                      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Colors.green)),
-                ])),
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                      color: Colors.green.shade50, borderRadius: BorderRadius.circular(6)),
+                  child: Row(children: [
+                    const Icon(Icons.currency_rupee, size: 12, color: Colors.green),
+                    Text(Fmt.amount(collected),
+                        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Colors.green)),
+                  ])),
             if (isHighLoss) const SizedBox(height: 4),
             if (isHighLoss) Container(
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
@@ -471,46 +471,46 @@ class _S extends ConsumerState<AgentDeliveriesScreen> {
             )
           else
             Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(vertical: 10),
-              decoration: BoxDecoration(
-                  color: Colors.grey.shade100, borderRadius: BorderRadius.circular(10)),
-              child: const Text('Assigned — awaiting pickup',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 12, color: kTextSub, fontWeight: FontWeight.w600))),
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 10),
+                decoration: BoxDecoration(
+                    color: Colors.grey.shade100, borderRadius: BorderRadius.circular(10)),
+                child: const Text('Assigned — awaiting pickup',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 12, color: kTextSub, fontWeight: FontWeight.w600))),
         ],
 
         if (isDelivered) Padding(
           padding: const EdgeInsets.only(top: 8),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             if (d['is_partial_delivery'] == true) Padding(
-              padding: const EdgeInsets.only(bottom: 6),
-              child: Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                decoration: BoxDecoration(color: Colors.orange.shade50,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.orange.shade300)),
-                child: Row(children: [
-                  const Icon(Icons.splitscreen_outlined, size: 14, color: Colors.orange),
-                  const SizedBox(width: 6),
-                  Expanded(child: Text(
-                    'Partial — ${(d['partial_birds'] as num?)?.toInt() ?? 0} birds · '
-                    '${(d['partial_quantity'] as num?)?.toStringAsFixed(1) ?? '0'} kg remaining',
-                    style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.orange))),
-                ]))),
+                padding: const EdgeInsets.only(bottom: 6),
+                child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(color: Colors.orange.shade50,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.orange.shade300)),
+                    child: Row(children: [
+                      const Icon(Icons.splitscreen_outlined, size: 14, color: Colors.orange),
+                      const SizedBox(width: 6),
+                      Expanded(child: Text(
+                          'Partial — ${(d['partial_birds'] as num?)?.toInt() ?? 0} birds · '
+                              '${(d['partial_quantity'] as num?)?.toStringAsFixed(1) ?? '0'} kg remaining',
+                          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.orange))),
+                    ]))),
             Padding(
-              padding: const EdgeInsets.only(bottom: 6),
-              child: Row(children: [
-                Expanded(child: OutlinedButton.icon(
-                  onPressed: () {
-                    final orderId = (d['order_id'] ?? (d['orders'] as Map?)?['id']) as String?;
-                    if (orderId != null) context.push(R.deliveryHistoryPath(orderId));
-                  },
-                  icon: const Icon(Icons.history, size: 14),
-                  label: const Text('View History', style: TextStyle(fontSize: 12)),
-                  style: OutlinedButton.styleFrom(minimumSize: const Size(0, 36)))),
-              ])),
+                padding: const EdgeInsets.only(bottom: 6),
+                child: Row(children: [
+                  Expanded(child: OutlinedButton.icon(
+                      onPressed: () {
+                        final orderId = (d['order_id'] ?? (d['orders'] as Map?)?['id']) as String?;
+                        if (orderId != null) context.push(R.deliveryHistoryPath(orderId));
+                      },
+                      icon: const Icon(Icons.history, size: 14),
+                      label: const Text('View History', style: TextStyle(fontSize: 12)),
+                      style: OutlinedButton.styleFrom(minimumSize: const Size(0, 36)))),
+                ])),
             Row(children: [
               Icon(approvalSt == 'approved' ? Icons.verified_outlined
                   : Icons.pending_outlined,

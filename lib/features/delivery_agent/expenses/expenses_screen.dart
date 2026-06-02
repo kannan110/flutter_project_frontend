@@ -43,77 +43,91 @@ class _S extends ConsumerState<ExpensesScreen> {
     String type = 'fuel';
 
     await showModalBottomSheet(context: context, isScrollControlled: true, useRootNavigator: true,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (ctx) => Padding(padding: EdgeInsets.fromLTRB(20, 20, 20, MediaQuery.of(ctx).viewInsets.bottom + 20),
-        child: StatefulBuilder(builder: (_, ss) => Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          const Text('Add Expense', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
-          const SizedBox(height: 12),
-          SegmentedButton<String>(
-            segments: const [
-              ButtonSegment(value:'fuel',  icon: Icon(Icons.local_gas_station,size:14), label: Text('Fuel')),
-              ButtonSegment(value:'toll',  icon: Icon(Icons.toll,size:14), label: Text('Toll')),
-              ButtonSegment(value:'food',  icon: Icon(Icons.fastfood,size:14), label: Text('Food')),
-              ButtonSegment(value:'other', icon: Icon(Icons.more_horiz,size:14), label: Text('Other')),
-            ],
-            selected: {type}, onSelectionChanged: (s) => ss(() => type = s.first)),
-          const SizedBox(height: 10),
-          TextField(controller: amtCtrl, keyboardType: const TextInputType.numberWithOptions(decimal: true), autofocus: true,
-              decoration: const InputDecoration(labelText: 'Amount (₹) *', prefixText: '₹')),
-          const SizedBox(height: 8),
-          TextField(controller: notesCtrl, decoration: const InputDecoration(labelText: 'Notes (optional)')),
-          const SizedBox(height: 14),
-          ElevatedButton(onPressed: () async {
-            final amt = double.tryParse(amtCtrl.text.trim());
-            if (amt == null || amt <= 0) return;
-            Navigator.of(ctx, rootNavigator: true).pop();
-            try {
-              // delivery_expenses columns: shift_id, trader_id, expense_type, amount, notes
-              await _c.from('delivery_expenses').insert({
-                'shift_id': _activeShift!['id'], 'trader_id': tid,
-                'expense_type': type, 'amount': amt,
-                'notes': notesCtrl.text.trim().isEmpty ? null : notesCtrl.text.trim(),
-              });
-              _load();
-              if (mounted) showSuccess(context, 'Expense recorded ✓');
-            } catch (e) { if (mounted) showError(context, e.toString()); }
-          }, child: const Text('Add Expense')),
-        ]))));
+        shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+        builder: (ctx) => Padding(padding: EdgeInsets.fromLTRB(20, 20, 20, MediaQuery.of(ctx).viewInsets.bottom + 20),
+            child: StatefulBuilder(builder: (_, ss) => Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+              const Text('Add Expense', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+              const SizedBox(height: 12),
+              SegmentedButton<String>(
+                  segments: const [
+                    ButtonSegment(value:'fuel',  icon: Icon(Icons.local_gas_station,size:14), label: Text('Fuel')),
+                    ButtonSegment(value:'toll',  icon: Icon(Icons.toll,size:14), label: Text('Toll')),
+                    ButtonSegment(value:'food',  icon: Icon(Icons.fastfood,size:14), label: Text('Food')),
+                    ButtonSegment(value:'other', icon: Icon(Icons.more_horiz,size:14), label: Text('Other')),
+                  ],
+                  selected: {type}, onSelectionChanged: (s) => ss(() => type = s.first)),
+              const SizedBox(height: 10),
+              TextField(controller: amtCtrl, keyboardType: const TextInputType.numberWithOptions(decimal: true), autofocus: true,
+                  decoration: const InputDecoration(labelText: 'Amount (₹) *', prefixText: '₹')),
+              const SizedBox(height: 8),
+              TextField(controller: notesCtrl, decoration: const InputDecoration(labelText: 'Notes (optional)')),
+              const SizedBox(height: 14),
+              ElevatedButton(onPressed: () async {
+                final amt = double.tryParse(amtCtrl.text.trim());
+                if (amt == null || amt <= 0) return;
+                Navigator.of(ctx, rootNavigator: true).pop();
+                try {
+                  // delivery_expenses columns: shift_id, trader_id, expense_type, amount, notes
+                  await _c.from('delivery_expenses').insert({
+                    'shift_id': _activeShift!['id'], 'trader_id': tid,
+                    'expense_type': type, 'amount': amt,
+                    'notes': notesCtrl.text.trim().isEmpty ? null : notesCtrl.text.trim(),
+                  });
+                  _load();
+                  if (mounted) showSuccess(context, 'Expense recorded ✓');
+                } catch (e) { if (mounted) showError(context, e.toString()); }
+              }, child: const Text('Add Expense')),
+            ]))));
     amtCtrl.dispose(); notesCtrl.dispose();
   }
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Expenses'), actions: [IconButton(icon: const Icon(Icons.refresh), onPressed: _load)]),
-    floatingActionButton: FloatingActionButton.extended(onPressed: _add, icon: const Icon(Icons.add), label: const Text('Add Expense')),
+    backgroundColor: kBgPage,
+    appBar: AppBar(
+        backgroundColor: kNavy, foregroundColor: Colors.white,
+        title: const Text('Expenses', style: TextStyle(fontWeight: FontWeight.w900)),
+        actions: [IconButton(icon: const Icon(Icons.refresh_rounded), onPressed: _load)]),
+    floatingActionButton: FloatingActionButton.extended(
+        onPressed: _add,
+        backgroundColor: const Color(0xFFD97706),
+        icon: const Icon(Icons.add), label: const Text('Add Expense', style: TextStyle(fontWeight: FontWeight.w800))),
     body: _loading ? const LoadingList() : Column(children: [
-      Container(color: Colors.white, padding: const EdgeInsets.all(16), child: Row(children: [
+      Container(
+          decoration: const BoxDecoration(
+              gradient: LinearGradient(colors: [kNavy, kNavyMid], begin: Alignment.topLeft, end: Alignment.bottomRight)),
+          padding: const EdgeInsets.all(20), child: Row(children: [
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          const Text('Today\'s Expenses', style: TextStyle(fontSize: 11, color: kTextHint)),
-          Text(Fmt.amount(_total), style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w800, color: kError)),
+          const Text('TODAY\'S EXPENSES', style: TextStyle(fontSize: 10, color: Color(0xFFB4C6F4), fontWeight: FontWeight.w800, letterSpacing: 0.6)),
+          const SizedBox(height: 4),
+          Text(Fmt.amount(_total), style: const TextStyle(fontSize: 32, fontWeight: FontWeight.w900, color: Color(0xFFFCD34D))),
         ])),
         if (_activeShift == null) const Text('Open a shift first', style: TextStyle(fontSize: 11, color: kTextHint)),
       ])),
       const Divider(height: 1),
       Expanded(child: _expenses.isEmpty ? const EmptyState(icon: Icons.receipt_outlined, message: 'No expenses')
           : ListView.separated(padding: const EdgeInsets.all(14), itemCount: _expenses.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 8),
-              itemBuilder: (_, i) {
-                final e = _expenses[i];
-                final type = e['expense_type'] as String? ?? 'other';
-                final date = DateTime.tryParse(e['created_at'] as String? ?? '');
-                final amt  = (e['amount'] as num).toDouble();
-                return WhiteCard(padding: const EdgeInsets.all(12), child: Row(children: [
-                  Container(width: 36, height: 36, decoration: BoxDecoration(color: kError.withValues(alpha: 0.1), shape: BoxShape.circle),
-                      child: Icon(_icon(type), color: kError, size: 18)),
+          separatorBuilder: (_, __) => const SizedBox(height: 8),
+          itemBuilder: (_, i) {
+            final e = _expenses[i];
+            final type = e['expense_type'] as String? ?? 'other';
+            final date = DateTime.tryParse(e['created_at'] as String? ?? '');
+            final amt  = (e['amount'] as num).toDouble();
+            return Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(color: kSurface, borderRadius: BorderRadius.circular(kRadiusCard), border: Border.all(color: kBorderLight), boxShadow: kCardShadow),
+                child: Row(children: [
+                  Container(width: 40, height: 40, decoration: BoxDecoration(color: const Color(0xFFFFFBEB), borderRadius: BorderRadius.circular(kRadiusChip)),
+                      child: Icon(_icon(type), color: const Color(0xFFD97706), size: 20)),
                   const SizedBox(width: 10),
                   Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text(type.toUpperCase(), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+                    Text(type.toUpperCase(), style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w900, color: kNavy)),
                     if (e['notes'] != null) Text(e['notes'] as String, style: const TextStyle(fontSize: 11, color: kTextSub)),
                     if (date != null) Text(DateFormat('h:mm a').format(date), style: const TextStyle(fontSize: 10, color: kTextHint)),
                   ])),
-                  Text(Fmt.amount(amt), style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: kError)),
+                  Text(Fmt.amount(amt), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: Color(0xFFD97706))),
                 ]));
-              })),
+          })),
     ]),
   );
 

@@ -164,7 +164,9 @@ class _S extends ConsumerState<DayClosureScreen> {
     final closedShifts = _shifts.where((s) => s['status'] == 'closed').length;
 
     return Scaffold(
+      backgroundColor: kBgPage,
       appBar: AppBar(
+        backgroundColor: kSurface,
         title: const Text('Close Day'),
         actions: [
           // Date picker
@@ -283,32 +285,32 @@ class _S extends ConsumerState<DayClosureScreen> {
                 const SizedBox(height: 8),
                 // Row 2: financial summary — the key numbers trader checks at day closure
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                  decoration: BoxDecoration(
-                      color: kPrimary.withValues(alpha: 0.04),
-                      borderRadius: BorderRadius.circular(8)),
-                  child: Row(children: [
-                    _mini('Cash Collected', Fmt.amount(cash), color: Colors.green),
-                    _vDivider(),
-                    _mini('Expenses',       Fmt.amount(expenses), color: expenses > 0 ? Colors.red : kTextHint),
-                    _vDivider(),
-                    _mini('Net to Hand',    Fmt.amount(netCash), color: kPrimary, bold: true),
-                  ])),
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                    decoration: BoxDecoration(
+                        color: kPrimary.withValues(alpha: 0.04),
+                        borderRadius: BorderRadius.circular(8)),
+                    child: Row(children: [
+                      _mini('Cash Collected', Fmt.amount(cash), color: Colors.green),
+                      _vDivider(),
+                      _mini('Expenses',       Fmt.amount(expenses), color: expenses > 0 ? Colors.red : kTextHint),
+                      _vDivider(),
+                      _mini('Net to Hand',    Fmt.amount(netCash), color: kPrimary, bold: true),
+                    ])),
                 // Approval status badge for closed shifts
                 if (!isOpen) Padding(
-                  padding: const EdgeInsets.only(top: 6, bottom: 4),
-                  child: Row(children: [
-                    Icon(
-                      approvalSt == 'approved' ? Icons.verified_outlined : Icons.pending_outlined,
-                      size: 13,
-                      color: approvalSt == 'approved' ? Colors.green : Colors.orange),
-                    const SizedBox(width: 4),
-                    Text(
-                      approvalSt == 'approved' ? 'Shift approved ✓' : 'Pending shift approval',
-                      style: TextStyle(fontSize: 11,
-                          color: approvalSt == 'approved' ? Colors.green : Colors.orange,
-                          fontWeight: FontWeight.w600)),
-                  ])),
+                    padding: const EdgeInsets.only(top: 6, bottom: 4),
+                    child: Row(children: [
+                      Icon(
+                          approvalSt == 'approved' ? Icons.verified_outlined : Icons.pending_outlined,
+                          size: 13,
+                          color: approvalSt == 'approved' ? Colors.green : Colors.orange),
+                      const SizedBox(width: 4),
+                      Text(
+                          approvalSt == 'approved' ? 'Shift approved ✓' : 'Pending shift approval',
+                          style: TextStyle(fontSize: 11,
+                              color: approvalSt == 'approved' ? Colors.green : Colors.orange,
+                              fontWeight: FontWeight.w600)),
+                    ])),
               ])),
 
               // Open shift — show Close button
@@ -418,11 +420,11 @@ class _S extends ConsumerState<DayClosureScreen> {
 
   Widget _mini(String label, String value, {Color? color, bool bold = false}) =>
       Expanded(child: Column(children: [
-    Text(value, style: TextStyle(fontSize: 12,
-        fontWeight: bold ? FontWeight.w900 : FontWeight.w700,
-        color: color ?? kTextMain), textAlign: TextAlign.center),
-    Text(label, style: const TextStyle(fontSize: 10, color: kTextHint), textAlign: TextAlign.center),
-  ]));
+        Text(value, style: TextStyle(fontSize: 12,
+            fontWeight: bold ? FontWeight.w900 : FontWeight.w700,
+            color: color ?? kTextMain), textAlign: TextAlign.center),
+        Text(label, style: const TextStyle(fontSize: 10, color: kTextHint), textAlign: TextAlign.center),
+      ]));
 
   Widget _vDivider() => Container(
       width: 1, height: 28, color: kBorder,

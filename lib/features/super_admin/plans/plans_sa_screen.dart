@@ -39,71 +39,71 @@ class _S extends State<PlansSaScreen> {
     final isEdit = existing != null;
 
     await showModalBottomSheet(
-      context: context, isScrollControlled: true,
-      builder: (ctx) => Padding(
-        padding: EdgeInsets.only(
-            bottom: MediaQuery.of(ctx).viewInsets.bottom + 20,
-            left: 20, right: 20, top: 24),
-        child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Text(isEdit ? 'Edit Plan' : 'New Plan',
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
-          const SizedBox(height: 16),
-          TextField(controller: nameCtrl,
-              decoration: const InputDecoration(labelText: 'Plan Name *')),
-          const SizedBox(height: 10),
-          Row(children: [
-            Expanded(child: TextField(controller: priceCtrl, keyboardType: TextInputType.number,
-                decoration: const InputDecoration(labelText: 'Price (₹)', prefixText: '₹'))),
-            const SizedBox(width: 12),
-            Expanded(child: TextField(controller: daysCtrl, keyboardType: TextInputType.number,
-                decoration: const InputDecoration(labelText: 'Duration (days)', suffixText: 'd'))),
-          ]),
-          const SizedBox(height: 10),
-          const Text('Limits (leave blank for unlimited)',
-              style: TextStyle(fontSize: 11, color: kTextHint)),
-          const SizedBox(height: 8),
-          Row(children: [
-            Expanded(child: TextField(controller: ordersCtrl, keyboardType: TextInputType.number,
-                decoration: const InputDecoration(labelText: 'Max Orders'))),
-            const SizedBox(width: 8),
-            Expanded(child: TextField(controller: retailersCtrl, keyboardType: TextInputType.number,
-                decoration: const InputDecoration(labelText: 'Max Retailers'))),
-            const SizedBox(width: 8),
-            Expanded(child: TextField(controller: agentsCtrl, keyboardType: TextInputType.number,
-                decoration: const InputDecoration(labelText: 'Max Agents'))),
-          ]),
-          const SizedBox(height: 10),
-          TextField(controller: graceCtrl, keyboardType: TextInputType.number,
-              decoration: const InputDecoration(labelText: 'Grace Days', suffixText: 'days')),
-          const SizedBox(height: 20),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 48)),
-            onPressed: () async {
-              if (nameCtrl.text.trim().isEmpty) return;
-              Navigator.pop(ctx);
-              try {
-                await _c.rpc('super_admin_manage_plan', params: {
-                  'p_action':        isEdit ? 'update' : 'create',
-                  if (isEdit) 'p_plan_id': existing['id'],
-                  'p_name':          nameCtrl.text.trim(),
-                  'p_base_price':    int.tryParse(priceCtrl.text) ?? 0,
-                  'p_duration_days': int.tryParse(daysCtrl.text),
-                  'p_max_orders':    ordersCtrl.text.isEmpty ? null : int.tryParse(ordersCtrl.text),
-                  'p_max_retailers': retailersCtrl.text.isEmpty ? null : int.tryParse(retailersCtrl.text),
-                  'p_max_agents':    agentsCtrl.text.isEmpty ? null : int.tryParse(agentsCtrl.text),
-                  'p_grace_days':    int.tryParse(graceCtrl.text) ?? 7,
-                });
-                if (mounted) {
-                  showSuccess(context, isEdit ? 'Plan updated ✓' : 'Plan created ✓');
-                  _load();
-                }
-              } catch (e) {
-                if (mounted) showError(context, e.toString());
-              }
-            },
-            child: Text(isEdit ? 'Save Changes' : 'Create Plan')),
-          const SizedBox(height: 8),
-        ]))));
+        context: context, isScrollControlled: true,
+        builder: (ctx) => Padding(
+            padding: EdgeInsets.only(
+                bottom: MediaQuery.of(ctx).viewInsets.bottom + 20,
+                left: 20, right: 20, top: 24),
+            child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
+              Text(isEdit ? 'Edit Plan' : 'New Plan',
+                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+              const SizedBox(height: 16),
+              TextField(controller: nameCtrl,
+                  decoration: const InputDecoration(labelText: 'Plan Name *')),
+              const SizedBox(height: 10),
+              Row(children: [
+                Expanded(child: TextField(controller: priceCtrl, keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(labelText: 'Price (₹)', prefixText: '₹'))),
+                const SizedBox(width: 12),
+                Expanded(child: TextField(controller: daysCtrl, keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(labelText: 'Duration (days)', suffixText: 'd'))),
+              ]),
+              const SizedBox(height: 10),
+              const Text('Limits (leave blank for unlimited)',
+                  style: TextStyle(fontSize: 11, color: kTextHint)),
+              const SizedBox(height: 8),
+              Row(children: [
+                Expanded(child: TextField(controller: ordersCtrl, keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(labelText: 'Max Orders'))),
+                const SizedBox(width: 8),
+                Expanded(child: TextField(controller: retailersCtrl, keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(labelText: 'Max Retailers'))),
+                const SizedBox(width: 8),
+                Expanded(child: TextField(controller: agentsCtrl, keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(labelText: 'Max Agents'))),
+              ]),
+              const SizedBox(height: 10),
+              TextField(controller: graceCtrl, keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(labelText: 'Grace Days', suffixText: 'days')),
+              const SizedBox(height: 20),
+              ElevatedButton(
+                  style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 48)),
+                  onPressed: () async {
+                    if (nameCtrl.text.trim().isEmpty) return;
+                    Navigator.pop(ctx);
+                    try {
+                      await _c.rpc('super_admin_manage_plan', params: {
+                        'p_action':        isEdit ? 'update' : 'create',
+                        if (isEdit) 'p_plan_id': existing['id'],
+                        'p_name':          nameCtrl.text.trim(),
+                        'p_base_price':    int.tryParse(priceCtrl.text) ?? 0,
+                        'p_duration_days': int.tryParse(daysCtrl.text),
+                        'p_max_orders':    ordersCtrl.text.isEmpty ? null : int.tryParse(ordersCtrl.text),
+                        'p_max_retailers': retailersCtrl.text.isEmpty ? null : int.tryParse(retailersCtrl.text),
+                        'p_max_agents':    agentsCtrl.text.isEmpty ? null : int.tryParse(agentsCtrl.text),
+                        'p_grace_days':    int.tryParse(graceCtrl.text) ?? 7,
+                      });
+                      if (mounted) {
+                        showSuccess(context, isEdit ? 'Plan updated ✓' : 'Plan created ✓');
+                        _load();
+                      }
+                    } catch (e) {
+                      if (mounted) showError(context, e.toString());
+                    }
+                  },
+                  child: Text(isEdit ? 'Save Changes' : 'Create Plan')),
+              const SizedBox(height: 8),
+            ]))));
   }
 
   Future<void> _toggle(Map<String,dynamic> p) async {
@@ -125,23 +125,23 @@ class _S extends State<PlansSaScreen> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(
-      title: const Text('Subscription Plans'),
-      actions: [IconButton(icon: const Icon(Icons.refresh), onPressed: _load)]),
-    floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _showForm(),
-        icon: const Icon(Icons.add),
-        label: const Text('Add Plan')),
-    body: _loading ? const LoadingList()
-        : ListView.separated(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
-            itemCount: _plans.length,
-            separatorBuilder: (_, __) => const SizedBox(height: 10),
-            itemBuilder: (_, i) {
-              final p = _plans[i];
-              final isActive = p['is_active'] == true;
-              final features = (p['features'] as Map?)?.cast<String,dynamic>() ?? {};
-              return Container(
+      appBar: AppBar(
+          title: const Text('Subscription Plans'),
+          actions: [IconButton(icon: const Icon(Icons.refresh), onPressed: _load)]),
+      floatingActionButton: FloatingActionButton.extended(
+          onPressed: () => _showForm(),
+          icon: const Icon(Icons.add),
+          label: const Text('Add Plan')),
+      body: _loading ? const LoadingList()
+          : ListView.separated(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+          itemCount: _plans.length,
+          separatorBuilder: (_, __) => const SizedBox(height: 10),
+          itemBuilder: (_, i) {
+            final p = _plans[i];
+            final isActive = p['is_active'] == true;
+            final features = (p['features'] as Map?)?.cast<String,dynamic>() ?? {};
+            return Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
                     color: isActive ? Colors.white : Colors.grey.shade100,
@@ -155,14 +155,14 @@ class _S extends State<PlansSaScreen> {
                           style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900,
                               color: isActive ? kPrimary : Colors.grey)),
                       Text('₹${p['base_price']} · ${p['duration_days'] ?? '—'} days · '
-                           '${p['grace_days'] ?? 7}d grace',
+                          '${p['grace_days'] ?? 7}d grace',
                           style: const TextStyle(fontSize: 12, color: kTextSub)),
                     ])),
                     Row(children: [
                       IconButton(
                           icon: const Icon(Icons.edit_outlined, size: 18, color: kPrimary),
                           onPressed: () => _showForm(existing: p)),
-                      Switch(value: isActive, onChanged: (_) => _toggle(p), activeColor: kPrimary),
+                      Switch(value: isActive, onChanged: (_) => _toggle(p), activeColor: kNavy),
                     ]),
                   ]),
                   const Divider(height: 14),
@@ -176,19 +176,19 @@ class _S extends State<PlansSaScreen> {
                     Wrap(spacing: 6, children: features.entries
                         .where((e) => e.value != false)
                         .map((e) => Chip(
-                            label: Text('${e.key}: ${e.value}',
-                                style: const TextStyle(fontSize: 10)),
-                            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                            padding: EdgeInsets.zero,
-                            backgroundColor: kPrimary.withValues(alpha: 0.08)))
+                        label: Text('${e.key}: ${e.value}',
+                            style: const TextStyle(fontSize: 10)),
+                        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        padding: EdgeInsets.zero,
+                        backgroundColor: kPrimary.withValues(alpha: 0.08)))
                         .toList()),
                   ],
                 ]));
-            }));
+          }));
 
   Widget _limit(String label, dynamic val) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-    decoration: BoxDecoration(color: const Color(0xFFF3F4F6), borderRadius: BorderRadius.circular(6)),
-    child: Text('$label: ${val ?? '∞'}',
-        style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600)));
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(color: const Color(0xFFF3F4F6), borderRadius: BorderRadius.circular(kRadiusChip)),
+      child: Text('$label: ${val ?? '∞'}',
+          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600)));
 }

@@ -16,7 +16,8 @@ final uiModeProvider = StateNotifierProvider<UiModeNotifier, UiMode>((_) {
 });
 
 class UiModeNotifier extends StateNotifier<UiMode> {
-  UiModeNotifier() : super(UiMode.smart) {
+  // Default is simple — delivery agents are field workers, uneducated users
+  UiModeNotifier() : super(UiMode.simple) {
     _load();
   }
 

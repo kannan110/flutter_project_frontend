@@ -118,107 +118,107 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
   // ─── BUILD ────────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) => Scaffold(
-    backgroundColor: kBgGrey,
-    appBar: AppBar(
-      backgroundColor: Colors.white, elevation: 0,
-      title: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text('Reports', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900)),
-        Text('${DateFormat("d MMM").format(_from)} – ${DateFormat("d MMM yyyy").format(_to)}',
-            style: const TextStyle(fontSize: 12, color: kTextSub)),
-      ]),
-      actions: [
-        IconButton(icon: const Icon(Icons.tune_outlined, size: 22), onPressed: _showFilters,
-            tooltip: 'Filter'),
-        IconButton(icon: const Icon(Icons.picture_as_pdf_outlined, size: 22), onPressed: _exportPdf,
-            tooltip: 'Export PDF'),
-        IconButton(icon: const Icon(Icons.share_outlined, size: 22), onPressed: _shareReport,
-            tooltip: 'Share'),
-      ]),
-    body: Column(children: [
-      _buildReportGrid(),
-      _buildDateBar(),
-      Expanded(child: _loading ? const LoadingList()
-          : _error != null ? _buildError()
-          : _data == null  ? const EmptyState(icon: Icons.bar_chart_outlined, message: 'Loading...')
-          : _buildReport()),
-    ]));
+      backgroundColor: kBgPage,
+      appBar: AppBar(
+          backgroundColor: kSurface, elevation: 0,
+          title: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('Reports', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900)),
+            Text('${DateFormat("d MMM").format(_from)} – ${DateFormat("d MMM yyyy").format(_to)}',
+                style: const TextStyle(fontSize: 12, color: kTextSub)),
+          ]),
+          actions: [
+            IconButton(icon: const Icon(Icons.tune_outlined, size: 22), onPressed: _showFilters,
+                tooltip: 'Filter'),
+            IconButton(icon: const Icon(Icons.picture_as_pdf_outlined, size: 22), onPressed: _exportPdf,
+                tooltip: 'Export PDF'),
+            IconButton(icon: const Icon(Icons.share_outlined, size: 22), onPressed: _shareReport,
+                tooltip: 'Share'),
+          ]),
+      body: Column(children: [
+        _buildReportGrid(),
+        _buildDateBar(),
+        Expanded(child: _loading ? const LoadingList()
+            : _error != null ? _buildError()
+            : _data == null  ? const EmptyState(icon: Icons.bar_chart_outlined, message: 'Loading...')
+            : _buildReport()),
+      ]));
 
   // ─── REPORT GRID (2 rows, wraps properly — no overflow) ──────────────────
   Widget _buildReportGrid() => Container(
-    color: Colors.white,
-    padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
-    child: Wrap(
-      spacing: 6, runSpacing: 6,
-      children: _kR.map((r) {
-        final sel = r.key == _sel.key;
-        return GestureDetector(
-          onTap: () { setState(() { _sel=r; _data=null; }); _load(); },
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 180),
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-            decoration: BoxDecoration(
-                color: sel ? r.color : r.color.withValues(alpha: 0.08),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: sel ? r.color : r.color.withValues(alpha: 0.3))),
-            child: Row(mainAxisSize: MainAxisSize.min, children: [
-              Icon(r.icon, size: 14, color: sel ? Colors.white : r.color),
-              const SizedBox(width: 5),
-              Text(r.label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700,
-                  color: sel ? Colors.white : r.color)),
-            ])));
-      }).toList()));
+      color: kSurface,
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+      child: Wrap(
+          spacing: 6, runSpacing: 6,
+          children: _kR.map((r) {
+            final sel = r.key == _sel.key;
+            return GestureDetector(
+                onTap: () { setState(() { _sel=r; _data=null; }); _load(); },
+                child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 180),
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                    decoration: BoxDecoration(
+                        color: sel ? r.color : r.color.withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: sel ? r.color : r.color.withValues(alpha: 0.3))),
+                    child: Row(mainAxisSize: MainAxisSize.min, children: [
+                      Icon(r.icon, size: 14, color: sel ? Colors.white : r.color),
+                      const SizedBox(width: 5),
+                      Text(r.label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700,
+                          color: sel ? Colors.white : r.color)),
+                    ])));
+          }).toList()));
 
   // ─── DATE BAR ─────────────────────────────────────────────────────────────
   Widget _buildDateBar() => Container(
-    color: Colors.white,
-    padding: const EdgeInsets.fromLTRB(10, 0, 10, 10),
-    child: Row(children: [
-      Expanded(child: Row(children: DatePreset.values.where((p)=>p!=DatePreset.custom).map((p) =>
-        Padding(padding: const EdgeInsets.only(right: 5),
-          child: GestureDetector(
-            onTap: () {
-              final (f,t)=p.range;
-              setState(() { _preset=p; _from=f; _to=t; });
-              _load();
-            },
+      color: kSurface,
+      padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
+      child: Row(children: [
+        Expanded(child: Row(children: DatePreset.values.where((p)=>p!=DatePreset.custom).map((p) =>
+            Padding(padding: const EdgeInsets.only(right: 5),
+                child: GestureDetector(
+                    onTap: () {
+                      final (f,t)=p.range;
+                      setState(() { _preset=p; _from=f; _to=t; });
+                      _load();
+                    },
+                    child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                        decoration: BoxDecoration(
+                            color: _preset==p ? kNavy : kBgGrey,
+                            borderRadius: BorderRadius.circular(kRadiusChip)),
+                        child: Text(p.label, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700,
+                            color: _preset==p ? Colors.white : kTextSub)))))).toList())),
+        GestureDetector(
+            onTap: _pickCustomRange,
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-              decoration: BoxDecoration(
-                  color: _preset==p ? kPrimary : Colors.grey.shade100,
-                  borderRadius: BorderRadius.circular(8)),
-              child: Text(p.label, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700,
-                  color: _preset==p ? Colors.white : kTextSub)))))).toList())),
-      GestureDetector(
-        onTap: _pickCustomRange,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-          decoration: BoxDecoration(
-              color: _preset==DatePreset.custom ? kPrimary : Colors.grey.shade100,
-              borderRadius: BorderRadius.circular(8)),
-          child: Row(mainAxisSize: MainAxisSize.min, children: [
-            Icon(Icons.date_range_outlined, size: 12,
-                color: _preset==DatePreset.custom ? Colors.white : kTextSub),
-            const SizedBox(width: 4),
-            Text('Custom', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700,
-                color: _preset==DatePreset.custom ? Colors.white : kTextSub)),
-          ]))),
-    ]));
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                decoration: BoxDecoration(
+                    color: _preset==DatePreset.custom ? kNavy : kBgGrey,
+                    borderRadius: BorderRadius.circular(kRadiusChip)),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  Icon(Icons.date_range_outlined, size: 12,
+                      color: _preset==DatePreset.custom ? Colors.white : kTextSub),
+                  const SizedBox(width: 4),
+                  Text('Custom', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700,
+                      color: _preset==DatePreset.custom ? Colors.white : kTextSub)),
+                ]))),
+      ]));
 
   // ─── ERROR ────────────────────────────────────────────────────────────────
   Widget _buildError() => Center(child: Padding(
-    padding: const EdgeInsets.all(24),
-    child: Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(color: Colors.red.shade50, borderRadius: BorderRadius.circular(16)),
-      child: Column(mainAxisSize: MainAxisSize.min, children: [
-        const Icon(Icons.error_outline, color: Colors.red, size: 40),
-        const SizedBox(height: 12),
-        Text(_error ?? 'Error loading report', textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 14, color: Colors.red)),
-        const SizedBox(height: 16),
-        ElevatedButton.icon(onPressed: _load,
-            icon: const Icon(Icons.refresh), label: const Text('Retry')),
-      ]))));
+      padding: const EdgeInsets.all(24),
+      child: Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(color: kErrorBg, borderRadius: BorderRadius.circular(kRadiusCard)),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            const Icon(Icons.error_outline, color: Colors.red, size: 40),
+            const SizedBox(height: 12),
+            Text(_error ?? 'Error loading report', textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 14, color: Colors.red)),
+            const SizedBox(height: 16),
+            ElevatedButton.icon(onPressed: _load,
+                icon: const Icon(Icons.refresh), label: const Text('Retry')),
+          ]))));
 
   // ─── REPORT ROUTER ────────────────────────────────────────────────────────
   Widget _buildReport() => switch (_data?['report'] as String? ?? _sel.key) {
@@ -257,16 +257,16 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
       _banner('Net Delivery Wt = Gross Weight  -  Cage/Tare Weight', Colors.teal),
       _sec('DAILY BREAKDOWN'),
       _tbl(
-        ['Date','DC Birds','Gross Wt kg','Tare Wt kg','Net Del Wt kg','Revenue','Collected','Pending'],
-        rows.map((d)=>[
-          _fd(d['dt']),'${_i(d,"dc_birds")}',
-          _kg(d,'gross_wt'), _kg(d,'tare_wt'), _kg(d,'net_wt'),
-          Fmt.amount(_d(d,'revenue')), Fmt.amount(_d(d,'collected')), Fmt.amount(_d(d,'pending')),
-        ]).toList(),
-        tots:['TOTAL','${_i(s,"total_birds_dc")}',
-          _kg(s,'total_gross_wt'), _kg(s,'total_tare_wt'), _kg(s,'total_net_wt'),
-          Fmt.amount(_d(s,'total_revenue')), Fmt.amount(_d(s,'total_collected')), Fmt.amount(_d(s,'total_pending'))],
-        hi:[5,6,7]),
+          ['Date','DC Birds','Gross Wt kg','Tare Wt kg','Net Del Wt kg','Revenue','Collected','Pending'],
+          rows.map((d)=>[
+            _fd(d['dt']),'${_i(d,"dc_birds")}',
+            _kg(d,'gross_wt'), _kg(d,'tare_wt'), _kg(d,'net_wt'),
+            Fmt.amount(_d(d,'revenue')), Fmt.amount(_d(d,'collected')), Fmt.amount(_d(d,'pending')),
+          ]).toList(),
+          tots:['TOTAL','${_i(s,"total_birds_dc")}',
+            _kg(s,'total_gross_wt'), _kg(s,'total_tare_wt'), _kg(s,'total_net_wt'),
+            Fmt.amount(_d(s,'total_revenue')), Fmt.amount(_d(s,'total_collected')), Fmt.amount(_d(s,'total_pending'))],
+          hi:[5,6,7]),
     ]);
   }
 
@@ -277,35 +277,35 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
     final s = _s(); final rows = _rows('daily');
     return _scroll([
       Container(
-        margin: const EdgeInsets.all(12),
-        decoration: BoxDecoration(color: Colors.white,
-            borderRadius: BorderRadius.circular(16), border: Border.all(color: kBorder)),
-        child: Column(children: [
-          _hdr('Stock Reconciliation', Icons.inventory_2_outlined, const Color(0xFF2E7D32)),
-          _reconR('Opening Stock',     '${_i(s,"opening")} birds',          '',                                        Colors.grey),
-          _reconR('+ DC Loaded',        '${_i(s,"dc_loaded")} birds',        '${_d(s,"dc_loaded_kg").toStringAsFixed(0)} kg',   Colors.blue),
-          _reconR('- Delivered',        '${_i(s,"delivered")} birds',        '${_d(s,"delivered_kg").toStringAsFixed(0)} kg',   Colors.green),
-          _reconR('+ Returned',         '${_i(s,"returned")} birds',         '${_d(s,"returned_kg").toStringAsFixed(0)} kg',    Colors.teal),
-          _reconR('- Mortality',        '${_i(s,"mortality")} birds',        '${_d(s,"mortality_kg").toStringAsFixed(0)} kg',   Colors.red),
-          _reconR('- Transferred Out',  '${_i(s,"transferred_out")} birds',  '',                                        Colors.orange),
-          _reconR('- Shrinkage',        '',                                   '${_d(s,"shrinkage_kg").toStringAsFixed(2)} kg',  const Color(0xFF6A1B9A)),
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(color: const Color(0xFF2E7D32).withValues(alpha: 0.07),
-                borderRadius: const BorderRadius.vertical(bottom: Radius.circular(15))),
-            child: Row(children: [
-              const Text('= Closing Stock',
-                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w900, color: Color(0xFF2E7D32))),
-              const Spacer(),
-              Text('${_i(s,"closing")} birds',
-                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Color(0xFF2E7D32))),
-            ])),
-        ])),
+          margin: const EdgeInsets.all(12),
+          decoration: BoxDecoration(color: kSurface,
+              borderRadius: BorderRadius.circular(kRadiusCard), border: Border.all(color: kBorderLight), boxShadow: kCardShadow),
+          child: Column(children: [
+            _hdr('Stock Reconciliation', Icons.inventory_2_outlined, kSuccess),
+            _reconR('Opening Stock',     '${_i(s,"opening")} birds',          '',                                        Colors.grey),
+            _reconR('+ DC Loaded',        '${_i(s,"dc_loaded")} birds',        '${_d(s,"dc_loaded_kg").toStringAsFixed(0)} kg',   Colors.blue),
+            _reconR('- Delivered',        '${_i(s,"delivered")} birds',        '${_d(s,"delivered_kg").toStringAsFixed(0)} kg',   Colors.green),
+            _reconR('+ Returned',         '${_i(s,"returned")} birds',         '${_d(s,"returned_kg").toStringAsFixed(0)} kg',    Colors.teal),
+            _reconR('- Mortality',        '${_i(s,"mortality")} birds',        '${_d(s,"mortality_kg").toStringAsFixed(0)} kg',   Colors.red),
+            _reconR('- Transferred Out',  '${_i(s,"transferred_out")} birds',  '',                                        Colors.orange),
+            _reconR('- Shrinkage',        '',                                   '${_d(s,"shrinkage_kg").toStringAsFixed(2)} kg',  const Color(0xFF6A1B9A)),
+            Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(color: const Color(0xFF2E7D32).withValues(alpha: 0.07),
+                    borderRadius: const BorderRadius.vertical(bottom: Radius.circular(15))),
+                child: Row(children: [
+                  const Text('= Closing Stock',
+                      style: TextStyle(fontSize: 15, fontWeight: FontWeight.w900, color: Color(0xFF2E7D32))),
+                  const Spacer(),
+                  Text('${_i(s,"closing")} birds',
+                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Color(0xFF2E7D32))),
+                ])),
+          ])),
       _sec('DAILY BREAKDOWN'),
       _tbl(['Date','DC Birds','DC kg','Del Birds','Del kg','Returned','Mortality','Transfer'],
-        rows.map((d)=>[_fd(d['dt']),'${_i(d,"dc_birds")}',_kg(d,'dc_kg'),'${_i(d,"del_birds")}',
-          _kg(d,'del_kg'),'${_i(d,"ret_birds")}','${_i(d,"mort_birds")}','${_i(d,"transfer_out")}']).toList(),
-        hi:[3,4]),
+          rows.map((d)=>[_fd(d['dt']),'${_i(d,"dc_birds")}',_kg(d,'dc_kg'),'${_i(d,"del_birds")}',
+            _kg(d,'del_kg'),'${_i(d,"ret_birds")}','${_i(d,"mort_birds")}','${_i(d,"transfer_out")}']).toList(),
+          hi:[3,4]),
     ]);
   }
 
@@ -324,14 +324,14 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
       ]),
       _sec('SHIFT-WISE SHRINKAGE'),
       _tbl(['Date','Agent','DC Birds','DC kg','Del kg','Ret kg','Mort kg','Shrink kg','Loss%'],
-        rows.map((r){
-          final lp=_d(r,'loss_percent');
-          return [_fd(r['shift_date']),_str(r,'agent_name'),'${_i(r,"dc_total_birds")}',
-            '${_d(r,"dc_total_weight_kg").toStringAsFixed(1)}','${_d(r,"delivered_weight_kg").toStringAsFixed(1)}',
-            '${_d(r,"returned_weight_kg").toStringAsFixed(1)}','${_d(r,"mortality_weight_kg").toStringAsFixed(1)}',
-            '${_d(r,"shrinkage_kg").toStringAsFixed(2)}','${lp.toStringAsFixed(2)}%'];
-        }).toList(),
-        hi:[7,8], warnC:8, warnT:2.0),
+          rows.map((r){
+            final lp=_d(r,'loss_percent');
+            return [_fd(r['shift_date']),_str(r,'agent_name'),'${_i(r,"dc_total_birds")}',
+              '${_d(r,"dc_total_weight_kg").toStringAsFixed(1)}','${_d(r,"delivered_weight_kg").toStringAsFixed(1)}',
+              '${_d(r,"returned_weight_kg").toStringAsFixed(1)}','${_d(r,"mortality_weight_kg").toStringAsFixed(1)}',
+              '${_d(r,"shrinkage_kg").toStringAsFixed(2)}','${lp.toStringAsFixed(2)}%'];
+          }).toList(),
+          hi:[7,8], warnC:8, warnT:2.0),
     ]);
   }
 
@@ -353,10 +353,10 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
       else ...[
         _sec('MORTALITY RECORDS'),
         _tbl(['Date','Agent','Shop','DC Birds','Delivered','Dead','Mort kg','Weak','Rejected'],
-          rows.map((r)=>[_fd(r['del_date']),_str(r,'agent_name'),_sh(_str(r,'shop_name'),12),
-            '${_i(r,"dc_birds")}','${_i(r,"del_birds")}','${_i(r,"mortality_birds")}',
-            '${_d(r,"mortality_weight_kg").toStringAsFixed(1)}','${_i(r,"weak_birds")}','${_i(r,"rejected_birds")}']).toList(),
-          hi:[5,6], warnC:5, warnT:5),
+            rows.map((r)=>[_fd(r['del_date']),_str(r,'agent_name'),_sh(_str(r,'shop_name'),12),
+              '${_i(r,"dc_birds")}','${_i(r,"del_birds")}','${_i(r,"mortality_birds")}',
+              '${_d(r,"mortality_weight_kg").toStringAsFixed(1)}','${_i(r,"weak_birds")}','${_i(r,"rejected_birds")}']).toList(),
+            hi:[5,6], warnC:5, warnT:5),
       ],
     ]);
   }
@@ -376,13 +376,13 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
       ]),
       _sec('DELIVERY RECORDS'),
       _tbl(['Date','Agent','Shop','DC#','Gross Wt','Tare Wt','Net Del Wt','DC Birds','Del Birds','Mort','Collected'],
-        rows.map((r)=>[_fd(r['del_date']),_str(r,'agent_name'),_sh(_str(r,'shop_name'),10),
-          _sh(_str(r,'dc_number'),8),
-          '${_d(r,"gross_weight").toStringAsFixed(0)}','${_d(r,"tare_weight").toStringAsFixed(0)}',
-          '${_d(r,"net_del_weight").toStringAsFixed(0)}',
-          '${_i(r,"dc_birds")}','${_i(r,"del_birds")}','${_i(r,"mortality_birds")}',
-          Fmt.amount(_d(r,'collected_amount'))]).toList(),
-        hi:[6]),
+          rows.map((r)=>[_fd(r['del_date']),_str(r,'agent_name'),_sh(_str(r,'shop_name'),10),
+            _sh(_str(r,'dc_number'),8),
+            '${_d(r,"gross_weight").toStringAsFixed(0)}','${_d(r,"tare_weight").toStringAsFixed(0)}',
+            '${_d(r,"net_del_weight").toStringAsFixed(0)}',
+            '${_i(r,"dc_birds")}','${_i(r,"del_birds")}','${_i(r,"mortality_birds")}',
+            Fmt.amount(_d(r,'collected_amount'))]).toList(),
+          hi:[6]),
     ]);
   }
 
@@ -395,46 +395,47 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
       ...agents.map((a) {
         final lp = _d(a,'loss_pct');
         return Container(
-          margin: const EdgeInsets.fromLTRB(12,10,12,0),
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(color: Colors.white,
-              borderRadius: BorderRadius.circular(14), border: Border.all(color: kBorder)),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Row(children: [
-              CircleAvatar(radius: 22, backgroundColor: kPrimary.withValues(alpha: 0.1),
-                  child: Text((_str(a,'agent_name'))[0],
-                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: kPrimary))),
-              const SizedBox(width: 12),
-              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(_str(a,'agent_name'),
-                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
-                if (a['vehicle_no'] != null) Text(_str(a,'vehicle_no'),
-                    style: const TextStyle(fontSize: 12, color: kTextSub)),
-              ])),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                decoration: BoxDecoration(
-                    color: lp>2?Colors.red.shade50:Colors.green.shade50,
-                    borderRadius: BorderRadius.circular(8)),
-                child: Text('Loss: ${lp.toStringAsFixed(2)}%',
-                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800,
-                        color: lp>2?Colors.red:Colors.green))),
-            ]),
-            const SizedBox(height: 12), const Divider(height:1), const SizedBox(height: 10),
-            Row(children: [
-              _st('Deliveries','${_i(a,"deliveries")}'),
-              _st('Birds','${_i(a,"del_birds")}'),
-              _st('Net kg','${_d(a,"del_weight").toStringAsFixed(0)}'),
-              _st('Mortality','${_i(a,"mortality")}'),
-              _st('Shrink kg','${_d(a,"shrinkage_kg").toStringAsFixed(2)}'),
-              _st('Cash',Fmt.amount(_d(a,'cash_collected'))),
-            ]),
-          ]));
+            margin: const EdgeInsets.fromLTRB(12,10,12,0),
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(color: kSurface,
+                borderRadius: BorderRadius.circular(kRadiusCard), border: Border.all(color: kBorderLight), boxShadow: kCardShadow),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(children: [
+                Container(width: 44, height: 44,
+                    decoration: BoxDecoration(color: kNavy, borderRadius: BorderRadius.circular(kRadiusChip)),
+                    child: Center(child: Text((_str(a,'agent_name'))[0],
+                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: kGoldLight)))),
+                const SizedBox(width: 12),
+                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text(_str(a,'agent_name'),
+                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+                  if (a['vehicle_no'] != null) Text(_str(a,'vehicle_no'),
+                      style: const TextStyle(fontSize: 12, color: kTextSub)),
+                ])),
+                Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                        color: lp>2?kError.withValues(alpha: 0.08):kSuccess.withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(kRadiusChip)),
+                    child: Text('Loss: ${lp.toStringAsFixed(2)}%',
+                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800,
+                            color: lp>2?Colors.red:Colors.green))),
+              ]),
+              const SizedBox(height: 12), const Divider(height:1), const SizedBox(height: 10),
+              Row(children: [
+                _st('Deliveries','${_i(a,"deliveries")}'),
+                _st('Birds','${_i(a,"del_birds")}'),
+                _st('Net kg','${_d(a,"del_weight").toStringAsFixed(0)}'),
+                _st('Mortality','${_i(a,"mortality")}'),
+                _st('Shrink kg','${_d(a,"shrinkage_kg").toStringAsFixed(2)}'),
+                _st('Cash',Fmt.amount(_d(a,'cash_collected'))),
+              ]),
+            ]));
       }),
       _sec('DAILY TREND'),
       _tbl(['Date','Del Birds','Net kg','Mortality','Shrink kg','Collected'],
-        daily.map((d)=>[_fd(d['dt']),'${_i(d,"del_birds")}','${_d(d,"del_weight").toStringAsFixed(0)}',
-          '${_i(d,"mortality")}','${_d(d,"shrinkage").toStringAsFixed(2)}',Fmt.amount(_d(d,'collected'))]).toList()),
+          daily.map((d)=>[_fd(d['dt']),'${_i(d,"del_birds")}','${_d(d,"del_weight").toStringAsFixed(0)}',
+            '${_i(d,"mortality")}','${_d(d,"shrinkage").toStringAsFixed(2)}',Fmt.amount(_d(d,'collected'))]).toList()),
     ]);
   }
 
@@ -445,51 +446,51 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
     final shifts = _rows('shifts');
     if (shifts.isEmpty) return const EmptyState(icon: Icons.assignment_outlined, message: 'No closed shifts');
     return ListView.builder(
-      padding: const EdgeInsets.fromLTRB(12,12,12,80),
-      itemCount: shifts.length,
-      itemBuilder: (_, i) {
-        final s = shifts[i];
-        final approved = s['shift_approval_status'] == 'approved';
-        final lp = _d(s,'loss_percent');
-        return Container(
-          margin: const EdgeInsets.only(bottom: 12),
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(color: Colors.white,
-              borderRadius: BorderRadius.circular(14), border: Border.all(color: kBorder)),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Row(children: [
-              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(_str(s,'agent_name'),
-                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
-                Text(_fd(s['shift_date']),
-                    style: const TextStyle(fontSize: 13, color: kTextSub)),
-              ])),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                decoration: BoxDecoration(
-                    color: approved?Colors.green.shade50:Colors.orange.shade50,
-                    borderRadius: BorderRadius.circular(8)),
-                child: Text(approved?'APPROVED':'PENDING',
-                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800,
-                        color: approved?Colors.green:Colors.orange))),
-            ]),
-            const SizedBox(height: 10), const Divider(height:1), const SizedBox(height: 10),
-            _sR('DC Loaded',  '${_d(s,"dc_loaded_kg").toStringAsFixed(0)} kg', Colors.blue),
-            _sR('Delivered',  '${_i(s,"delivered_birds")} birds / ${_d(s,"delivered_kg").toStringAsFixed(0)} kg', Colors.green),
-            _sR('Returned',   '${_d(s,"returned_weight").toStringAsFixed(0)} kg', Colors.teal),
-            _sR('Mortality',  '${_i(s,"total_mortality")} birds', Colors.red),
-            _sR('Shrinkage',  '${_d(s,"shrinkage_kg").toStringAsFixed(2)} kg  (${lp.toStringAsFixed(2)}%)',
-                lp>2?Colors.red:const Color(0xFF6A1B9A)),
-            const SizedBox(height: 8), const Divider(height:1), const SizedBox(height: 8),
-            Row(children: [
-              _st('Cash',     Fmt.amount(_d(s,'total_cash_collected'))),
-              _st('Expenses', Fmt.amount(_d(s,'total_expenses'))),
-              _st('KM',       '${_d(s,"distance_km").toStringAsFixed(0)}'),
-              _st('Crates',   '${_i(s,"crates_taken")} → ${_i(s,"crates_returned")}'),
-              _st('Orders',   '${_i(s,"total_orders")}'),
-            ]),
-          ]));
-      });
+        padding: const EdgeInsets.fromLTRB(16,16,16,80),
+        itemCount: shifts.length,
+        itemBuilder: (_, i) {
+          final s = shifts[i];
+          final approved = s['shift_approval_status'] == 'approved';
+          final lp = _d(s,'loss_percent');
+          return Container(
+              margin: const EdgeInsets.only(bottom: 12),
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(color: kSurface,
+                  borderRadius: BorderRadius.circular(kRadiusCard), border: Border.all(color: kBorderLight), boxShadow: kCardShadow),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Row(children: [
+                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text(_str(s,'agent_name'),
+                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+                    Text(_fd(s['shift_date']),
+                        style: const TextStyle(fontSize: 13, color: kTextSub)),
+                  ])),
+                  Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                      decoration: BoxDecoration(
+                          color: approved?kSuccess.withValues(alpha: 0.08):Colors.orange.withValues(alpha: 0.08),
+                          borderRadius: BorderRadius.circular(kRadiusChip)),
+                      child: Text(approved?'APPROVED':'PENDING',
+                          style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800,
+                              color: approved?Colors.green:Colors.orange))),
+                ]),
+                const SizedBox(height: 10), const Divider(height:1), const SizedBox(height: 10),
+                _sR('DC Loaded',  '${_d(s,"dc_loaded_kg").toStringAsFixed(0)} kg', Colors.blue),
+                _sR('Delivered',  '${_i(s,"delivered_birds")} birds / ${_d(s,"delivered_kg").toStringAsFixed(0)} kg', Colors.green),
+                _sR('Returned',   '${_d(s,"returned_weight").toStringAsFixed(0)} kg', Colors.teal),
+                _sR('Mortality',  '${_i(s,"total_mortality")} birds', Colors.red),
+                _sR('Shrinkage',  '${_d(s,"shrinkage_kg").toStringAsFixed(2)} kg  (${lp.toStringAsFixed(2)}%)',
+                    lp>2?Colors.red:const Color(0xFF6A1B9A)),
+                const SizedBox(height: 8), const Divider(height:1), const SizedBox(height: 8),
+                Row(children: [
+                  _st('Cash',     Fmt.amount(_d(s,'total_cash_collected'))),
+                  _st('Expenses', Fmt.amount(_d(s,'total_expenses'))),
+                  _st('KM',       '${_d(s,"distance_km").toStringAsFixed(0)}'),
+                  _st('Crates',   '${_i(s,"crates_taken")} → ${_i(s,"crates_returned")}'),
+                  _st('Orders',   '${_i(s,"total_orders")}'),
+                ]),
+              ]));
+        });
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -506,14 +507,14 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
       ]),
       _sec('BY AGENT'),
       _tbl(['Agent','Shifts','Diesel','Allowance','Total Exp','KM'],
-        byA.map((a)=>[_str(a,'agent_name'),'${_i(a,"shifts")}',Fmt.amount(_d(a,'diesel')),
-          Fmt.amount(_d(a,'allowance')),Fmt.amount(_d(a,'total_expenses')),'${_d(a,"km_driven").toStringAsFixed(0)}']).toList(),
-        hi:[4]),
+          byA.map((a)=>[_str(a,'agent_name'),'${_i(a,"shifts")}',Fmt.amount(_d(a,'diesel')),
+            Fmt.amount(_d(a,'allowance')),Fmt.amount(_d(a,'total_expenses')),'${_d(a,"km_driven").toStringAsFixed(0)}']).toList(),
+          hi:[4]),
       _sec('DAILY EXPENSES'),
       _tbl(['Date','Agent','Diesel','Allowance','Total','KM'],
-        day.map((d)=>[_fd(d['dt']),_str(d,'agent_name'),Fmt.amount(_d(d,'diesel_cost')),
-          Fmt.amount(_d(d,'allowance')),Fmt.amount(_d(d,'total_expenses')),'${_d(d,"distance_km").toStringAsFixed(0)}']).toList(),
-        hi:[4]),
+          day.map((d)=>[_fd(d['dt']),_str(d,'agent_name'),Fmt.amount(_d(d,'diesel_cost')),
+            Fmt.amount(_d(d,'allowance')),Fmt.amount(_d(d,'total_expenses')),'${_d(d,"distance_km").toStringAsFixed(0)}']).toList(),
+          hi:[4]),
     ]);
   }
 
@@ -531,23 +532,23 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
         _kpi('Outstanding', Fmt.amount(_d(s,'total_outstanding')),             Colors.red,    Icons.warning_amber_outlined),
       ]),
       Container(margin: const EdgeInsets.fromLTRB(12,0,12,8),
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), border: Border.all(color: kBorder)),
-        child: Row(children: [
-          _st('Cash', Fmt.amount(_d(s,'cash'))), _st('UPI', Fmt.amount(_d(s,'upi'))),
-          _st('Bank', Fmt.amount(_d(s,'bank'))), _st('Credit', Fmt.amount(_d(s,'credit'))),
-        ])),
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(color: kSurface, borderRadius: BorderRadius.circular(kRadiusCard), border: Border.all(color: kBorderLight), boxShadow: kCardShadow),
+          child: Row(children: [
+            _st('Cash', Fmt.amount(_d(s,'cash'))), _st('UPI', Fmt.amount(_d(s,'upi'))),
+            _st('Bank', Fmt.amount(_d(s,'bank'))), _st('Credit', Fmt.amount(_d(s,'credit'))),
+          ])),
       if (ret.isNotEmpty) ...[
         _sec('BY RETAILER'),
         _tbl(['Shop','Orders','Billed','Collected','Outstanding'],
-          ret.map((r)=>[_sh(_str(r,'shop_name'),14),'${_i(r,"orders")}',
-            Fmt.amount(_d(r,'billed')),Fmt.amount(_d(r,'collected')),Fmt.amount(_d(r,'outstanding'))]).toList(),
-          hi:[4]),
+            ret.map((r)=>[_sh(_str(r,'shop_name'),14),'${_i(r,"orders")}',
+              Fmt.amount(_d(r,'billed')),Fmt.amount(_d(r,'collected')),Fmt.amount(_d(r,'outstanding'))]).toList(),
+            hi:[4]),
       ],
       _sec('DAILY COLLECTION'),
       _tbl(['Date','Billed','Collected','Pending'],
-        day.map((d)=>[_fd(d['dt']),Fmt.amount(_d(d,'billed')),Fmt.amount(_d(d,'collected')),Fmt.amount(_d(d,'pending'))]).toList(),
-        tots:['TOTAL',Fmt.amount(bil),Fmt.amount(col),Fmt.amount(pen)], hi:[1,2,3]),
+          day.map((d)=>[_fd(d['dt']),Fmt.amount(_d(d,'billed')),Fmt.amount(_d(d,'collected')),Fmt.amount(_d(d,'pending'))]).toList(),
+          tots:['TOTAL',Fmt.amount(bil),Fmt.amount(col),Fmt.amount(pen)], hi:[1,2,3]),
     ]);
   }
 
@@ -566,16 +567,16 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
       if (ret.isNotEmpty) ...[
         _sec('BY RETAILER'),
         _tbl(['Shop','Phone','Orders','Total kg','Billed','Collected','Outstanding'],
-          ret.map((r)=>[_sh(_str(r,'shop_name'),12),_str(r,'phone'),'${_i(r,"orders")}',
-            '${_d(r,"total_kg").toStringAsFixed(0)}',Fmt.amount(_d(r,'billed')),
-            Fmt.amount(_d(r,'collected')),Fmt.amount(_d(r,'outstanding'))]).toList(), hi:[6]),
+            ret.map((r)=>[_sh(_str(r,'shop_name'),12),_str(r,'phone'),'${_i(r,"orders")}',
+              '${_d(r,"total_kg").toStringAsFixed(0)}',Fmt.amount(_d(r,'billed')),
+              Fmt.amount(_d(r,'collected')),Fmt.amount(_d(r,'outstanding'))]).toList(), hi:[6]),
       ],
       _sec('ORDER HISTORY'),
       _tbl(['Date','Shop','kg','Birds','Rate','Billed','Collected'],
-        day.map((d)=>[_fd(d['order_date']),_sh(_str(d,'shop_name'),10),
-          '${_d(d,"kg").toStringAsFixed(0)}','${_i(d,"birds")}',
-          '${_d(d,"rate").toStringAsFixed(2)}',Fmt.amount(_d(d,'billed')),Fmt.amount(_d(d,'collected'))]).toList(),
-        hi:[5]),
+          day.map((d)=>[_fd(d['order_date']),_sh(_str(d,'shop_name'),10),
+            '${_d(d,"kg").toStringAsFixed(0)}','${_i(d,"birds")}',
+            '${_d(d,"rate").toStringAsFixed(2)}',Fmt.amount(_d(d,'billed')),Fmt.amount(_d(d,'collected'))]).toList(),
+          hi:[5]),
     ]);
   }
 
@@ -590,38 +591,38 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
     final margin = rev>0 ? net/rev*100 : 0.0;
     return _scroll([
       Container(
-        margin: const EdgeInsets.all(12),
-        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: kBorder)),
-        child: Column(children: [
-          _hdr('Profit & Loss', Icons.trending_up_outlined, const Color(0xFF004D40)),
-          _plR('Revenue',            rev,  Colors.green,           '+'),
-          _plR('Purchase Cost',      pur,  Colors.blue,            '-'),
-          _plR('Operating Expenses', exp,  Colors.orange,          '-'),
-          _plR('Shrinkage Loss',     shL,  const Color(0xFF6A1B9A),'-'),
-          _plR('Mortality Loss',     morL, Colors.red,             '-'),
-          Container(
-            padding: const EdgeInsets.all(18),
-            decoration: BoxDecoration(
-                color: net>=0?Colors.green.shade50:Colors.red.shade50,
-                borderRadius: const BorderRadius.vertical(bottom: Radius.circular(15))),
-            child: Row(children: [
-              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('= Net Profit', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w900,
-                    color: net>=0?Colors.green:Colors.red)),
-                Text('${margin.toStringAsFixed(1)}% margin',
-                    style: TextStyle(fontSize: 13, color: net>=0?Colors.green:Colors.red)),
-              ]),
-              const Spacer(),
-              Text(Fmt.amount(net), style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900,
-                  color: net>=0?Colors.green:Colors.red)),
-            ])),
-        ])),
+          margin: const EdgeInsets.all(12),
+          decoration: BoxDecoration(color: kSurface, borderRadius: BorderRadius.circular(kRadiusCard), border: Border.all(color: kBorderLight), boxShadow: kCardShadow),
+          child: Column(children: [
+            _hdr('Profit & Loss', Icons.trending_up_outlined, kSuccess),
+            _plR('Revenue',            rev,  Colors.green,           '+'),
+            _plR('Purchase Cost',      pur,  Colors.blue,            '-'),
+            _plR('Operating Expenses', exp,  Colors.orange,          '-'),
+            _plR('Shrinkage Loss',     shL,  const Color(0xFF6A1B9A),'-'),
+            _plR('Mortality Loss',     morL, Colors.red,             '-'),
+            Container(
+                padding: const EdgeInsets.all(18),
+                decoration: BoxDecoration(
+                    color: net>=0?Colors.green.shade50:Colors.red.shade50,
+                    borderRadius: const BorderRadius.vertical(bottom: Radius.circular(15))),
+                child: Row(children: [
+                  Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text('= Net Profit', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w900,
+                        color: net>=0?Colors.green:Colors.red)),
+                    Text('${margin.toStringAsFixed(1)}% margin',
+                        style: TextStyle(fontSize: 13, color: net>=0?Colors.green:Colors.red)),
+                  ]),
+                  const Spacer(),
+                  Text(Fmt.amount(net), style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900,
+                      color: net>=0?Colors.green:Colors.red)),
+                ])),
+          ])),
       _sec('DAILY P&L'),
       _tbl(['Date','Revenue','Purchase','Expenses','Gross Profit'],
-        day.map((d){
-          final r2=_d(d,'revenue');final p2=_d(d,'purchase_cost');final e2=_d(d,'expenses');
-          return [_fd(d['dt']),Fmt.amount(r2),Fmt.amount(p2),Fmt.amount(e2),Fmt.amount(r2-p2-e2)];
-        }).toList(), hi:[4]),
+          day.map((d){
+            final r2=_d(d,'revenue');final p2=_d(d,'purchase_cost');final e2=_d(d,'expenses');
+            return [_fd(d['dt']),Fmt.amount(r2),Fmt.amount(p2),Fmt.amount(e2),Fmt.amount(r2-p2-e2)];
+          }).toList(), hi:[4]),
     ]);
   }
 
@@ -631,36 +632,36 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
   Widget _tbl(List<String> heads, List<List<String>> rows, {
     List<String>? tots, List<int> hi=const[], int? warnC, double warnT=0,
   }) => Container(
-    margin: const EdgeInsets.fromLTRB(12,0,12,12),
-    decoration: BoxDecoration(color: Colors.white,
-        borderRadius: BorderRadius.circular(12), border: Border.all(color: kBorder)),
-    child: SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: DataTable(
-        columnSpacing: 18,
-        headingRowHeight: 40,
-        dataRowMinHeight: 38, dataRowMaxHeight: 44,
-        headingRowColor: WidgetStateProperty.all(kPrimary.withValues(alpha: 0.07)),
-        columns: heads.asMap().entries.map((e) => DataColumn(label: Text(e.value,
-            style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800,
-                color: hi.contains(e.key) ? kPrimary : kTextMain)))).toList(),
-        rows: [
-          ...rows.asMap().entries.map((re) => DataRow(
-            color: WidgetStateProperty.resolveWith((s)=>re.key.isOdd?Colors.grey.shade50:Colors.white),
-            cells: re.value.asMap().entries.map((ce) {
-              final isHi   = hi.contains(ce.key);
-              final isWarn = warnC!=null && ce.key==warnC &&
-                  (double.tryParse(ce.value.replaceAll('%',''))??0)>=warnT;
-              return DataCell(Text(ce.value, style: TextStyle(fontSize: 13,
-                  fontWeight: isHi?FontWeight.w800:FontWeight.w500,
-                  color: isWarn?Colors.red:isHi?kPrimary:kTextMain)));
-            }).toList())),
-          if (tots!=null) DataRow(
-            color: WidgetStateProperty.all(kPrimary.withValues(alpha: 0.09)),
-            cells: tots.asMap().entries.map((e)=>DataCell(Text(e.value,
-                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w900,
-                    color: hi.contains(e.key)?kPrimary:kTextMain)))).toList()),
-        ])));
+      margin: const EdgeInsets.fromLTRB(12,0,12,12),
+      decoration: BoxDecoration(color: kSurface,
+          borderRadius: BorderRadius.circular(kRadiusCard), border: Border.all(color: kBorderLight), boxShadow: kCardShadow),
+      child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: DataTable(
+              columnSpacing: 18,
+              headingRowHeight: 40,
+              dataRowMinHeight: 38, dataRowMaxHeight: 44,
+              headingRowColor: WidgetStateProperty.all(kNavy),
+              columns: heads.asMap().entries.map((e) => DataColumn(label: Text(e.value,
+                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800,
+                      color: hi.contains(e.key) ? kGoldLight : const Color(0xFFB4C6F4))))).toList(),
+              rows: [
+                ...rows.asMap().entries.map((re) => DataRow(
+                    color: WidgetStateProperty.resolveWith((s)=>re.key.isOdd?Colors.grey.shade50:Colors.white),
+                    cells: re.value.asMap().entries.map((ce) {
+                      final isHi   = hi.contains(ce.key);
+                      final isWarn = warnC!=null && ce.key==warnC &&
+                          (double.tryParse(ce.value.replaceAll('%',''))??0)>=warnT;
+                      return DataCell(Text(ce.value, style: TextStyle(fontSize: 13,
+                          fontWeight: isHi?FontWeight.w800:FontWeight.w500,
+                          color: isWarn?Colors.red:isHi?kNavy:kTextMain)));
+                    }).toList())),
+                if (tots!=null) DataRow(
+                    color: WidgetStateProperty.all(kNavy.withValues(alpha: 0.07)),
+                    cells: tots.asMap().entries.map((e)=>DataCell(Text(e.value,
+                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w900,
+                            color: hi.contains(e.key)?kNavy:kTextMain)))).toList()),
+              ])));
 
   // ─────────────────────────────────────────────────────────────────────────
   // HELPERS
@@ -684,44 +685,44 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
   }
 
   void _showFilters() => showModalBottomSheet(
-    context: context, useRootNavigator: true, isScrollControlled: true,
-    shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-    builder: (ctx) => StatefulBuilder(builder: (ctx, ss) {
-      String? ta=_agentId; String? tr=_retailerId;
-      return Padding(padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom+20,
-          top: 20, left: 20, right: 20),
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          const Text('Filters', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
-          const SizedBox(height: 16),
-          if (_agents.isNotEmpty) DropdownButtonFormField<String>(
-              value: ta,
-              decoration: const InputDecoration(labelText: 'Agent', isDense: false),
-              items: [const DropdownMenuItem(value: null, child: Text('All Agents')),
-                ..._agents.map((a)=>DropdownMenuItem(value: a['id'] as String,
-                    child: Text(a['name'] as String? ?? '—')))],
-              onChanged: (v)=>ss(()=>ta=v)),
-          const SizedBox(height: 12),
-          if (_retailers.isNotEmpty) DropdownButtonFormField<String>(
-              value: tr,
-              decoration: const InputDecoration(labelText: 'Retailer', isDense: false),
-              items: [const DropdownMenuItem(value: null, child: Text('All Retailers')),
-                ..._retailers.map((r)=>DropdownMenuItem(value: r['id'] as String,
-                    child: Text(r['shop_name'] as String? ?? '—')))],
-              onChanged: (v)=>ss(()=>tr=v)),
-          const SizedBox(height: 20),
-          Row(children: [
-            Expanded(child: OutlinedButton(
-                onPressed: (){setState((){_agentId=null;_retailerId=null;});Navigator.of(ctx,rootNavigator:true).pop();_load();},
-                child: const Text('Clear', style: TextStyle(fontSize: 15)))),
-            const SizedBox(width: 12),
-            Expanded(child: ElevatedButton(
-                onPressed: (){setState((){_agentId=ta;_retailerId=tr;});Navigator.of(ctx,rootNavigator:true).pop();_load();},
-                child: const Text('Apply', style: TextStyle(fontSize: 15)))),
-          ]),
-          const SizedBox(height: 10),
-        ]));
-    }));
+      context: context, useRootNavigator: true, isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (ctx) => StatefulBuilder(builder: (ctx, ss) {
+        String? ta=_agentId; String? tr=_retailerId;
+        return Padding(padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom+20,
+            top: 20, left: 20, right: 20),
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              const Text('Filters', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+              const SizedBox(height: 16),
+              if (_agents.isNotEmpty) DropdownButtonFormField<String>(
+                  value: ta,
+                  decoration: const InputDecoration(labelText: 'Agent', isDense: false),
+                  items: [const DropdownMenuItem(value: null, child: Text('All Agents')),
+                    ..._agents.map((a)=>DropdownMenuItem(value: a['id'] as String,
+                        child: Text(a['name'] as String? ?? '—')))],
+                  onChanged: (v)=>ss(()=>ta=v)),
+              const SizedBox(height: 12),
+              if (_retailers.isNotEmpty) DropdownButtonFormField<String>(
+                  value: tr,
+                  decoration: const InputDecoration(labelText: 'Retailer', isDense: false),
+                  items: [const DropdownMenuItem(value: null, child: Text('All Retailers')),
+                    ..._retailers.map((r)=>DropdownMenuItem(value: r['id'] as String,
+                        child: Text(r['shop_name'] as String? ?? '—')))],
+                  onChanged: (v)=>ss(()=>tr=v)),
+              const SizedBox(height: 20),
+              Row(children: [
+                Expanded(child: OutlinedButton(
+                    onPressed: (){setState((){_agentId=null;_retailerId=null;});Navigator.of(ctx,rootNavigator:true).pop();_load();},
+                    child: const Text('Clear', style: TextStyle(fontSize: 15)))),
+                const SizedBox(width: 12),
+                Expanded(child: ElevatedButton(
+                    onPressed: (){setState((){_agentId=ta;_retailerId=tr;});Navigator.of(ctx,rootNavigator:true).pop();_load();},
+                    child: const Text('Apply', style: TextStyle(fontSize: 15)))),
+              ]),
+              const SizedBox(height: 10),
+            ]));
+      }));
 
   Future<void> _shareReport() async {
     if (_data == null) { showError(context, 'No report to share'); return; }
@@ -765,8 +766,8 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
 
   Widget _sec(String t) => Padding(
       padding: const EdgeInsets.fromLTRB(12,14,12,6),
-      child: Text(t, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800,
-          color: kTextSub, letterSpacing: 0.5)));
+      child: Text(t, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w900,
+          color: kNavy, letterSpacing: 0.6)));
 
   // KPI card — large text for readability
   Widget _kpiGrid(List<Widget> cards) => Padding(
@@ -777,8 +778,9 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
       Expanded(child: Container(
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(color: c.withValues(alpha: 0.08),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: c.withValues(alpha: 0.25))),
+              borderRadius: BorderRadius.circular(kRadiusCard),
+              border: Border.all(color: c.withValues(alpha: 0.25)),
+              boxShadow: kCardShadow),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Icon(icon, size: 16, color: c),
             const SizedBox(height: 6),
@@ -792,7 +794,7 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
       Expanded(child: Container(
           padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(color: c.withValues(alpha: 0.07),
-              borderRadius: BorderRadius.circular(10)),
+              borderRadius: BorderRadius.circular(kRadiusCard)),
           child: Column(children: [
             Icon(icon, size: 16, color: c),
             const SizedBox(height: 4),
@@ -823,7 +825,7 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
   Widget _hdr(String title, IconData icon, Color c) => Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(color: c.withValues(alpha: 0.07),
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(15))),
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(kRadiusCard))),
       child: Row(children: [
         Icon(icon, size: 16, color: c), const SizedBox(width: 8),
         Text(title, style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15, color: c)),

@@ -47,9 +47,9 @@ class _S extends State<TradersListSaScreen> {
     if (_search.isNotEmpty) {
       final q = _search.toLowerCase();
       list = list.where((t) =>
-        (t['company_name'] as String? ?? '').toLowerCase().contains(q) ||
-        (t['company_code'] as String? ?? '').toLowerCase().contains(q) ||
-        (t['city']         as String? ?? '').toLowerCase().contains(q)
+      (t['company_name'] as String? ?? '').toLowerCase().contains(q) ||
+          (t['company_code'] as String? ?? '').toLowerCase().contains(q) ||
+          (t['city']         as String? ?? '').toLowerCase().contains(q)
       ).toList();
     }
     _filtered = list;
@@ -58,9 +58,12 @@ class _S extends State<TradersListSaScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: kBgPage,
       appBar: AppBar(
+        backgroundColor: const Color(0xFF1A1A2E),
+        foregroundColor: Colors.white,
         title: const Text('All Traders'),
-        actions: [IconButton(icon: const Icon(Icons.refresh), onPressed: _load)],
+        actions: [IconButton(icon: const Icon(Icons.refresh_rounded), onPressed: _load)],
       ),
       body: Column(children: [
         Padding(
@@ -86,8 +89,8 @@ class _S extends State<TradersListSaScreen> {
                       style: const TextStyle(fontSize: 12)),
                   selected: _filter == f,
                   onSelected: (_) => setState(() { _filter = f; _applyFilter(); }),
-                  selectedColor: kPrimary.withValues(alpha: 0.15),
-                  checkmarkColor: kPrimary,
+                  selectedColor: kNavy.withValues(alpha: 0.15),
+                  checkmarkColor: kNavy,
                 ),
               ),
           ]),
@@ -106,24 +109,24 @@ class _S extends State<TradersListSaScreen> {
           child: _loading
               ? const LoadingList()
               : _filtered.isEmpty
-                  ? const EmptyState(
-                      icon: Icons.business_outlined,
-                      message: 'No traders found')
-                  : RefreshIndicator(
-                      onRefresh: _load,
-                      child: ListView.separated(
-                        padding: const EdgeInsets.all(16),
-                        itemCount: _filtered.length,
-                        separatorBuilder: (_, __) => const SizedBox(height: 8),
-                        itemBuilder: (_, i) {
-                          final t = _filtered[i];
-                          return _TraderCard(
-                            trader: t,
-                            onTap: () => context.push(
-                                R.saTraderDetail(t['id'] as String)));
-                        },
-                      ),
-                    ),
+              ? const EmptyState(
+              icon: Icons.business_outlined,
+              message: 'No traders found')
+              : RefreshIndicator(
+            onRefresh: _load,
+            child: ListView.separated(
+              padding: const EdgeInsets.all(16),
+              itemCount: _filtered.length,
+              separatorBuilder: (_, __) => const SizedBox(height: 8),
+              itemBuilder: (_, i) {
+                final t = _filtered[i];
+                return _TraderCard(
+                    trader: t,
+                    onTap: () => context.push(
+                        R.saTraderDetail(t['id'] as String)));
+              },
+            ),
+          ),
         ),
       ]),
     );
@@ -155,19 +158,20 @@ class _TraderCard extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
+            color: kSurface,
+            borderRadius: BorderRadius.circular(kRadiusCard),
             border: Border.all(
                 color: approval == 'pending'
-                    ? Colors.orange.shade300
-                    : isExpiring ? Colors.red.shade200 : kBorder,
-                width: (approval == 'pending' || isExpiring) ? 1.5 : 1)),
+                    ? Colors.orange.withValues(alpha: 0.45)
+                    : isExpiring ? Colors.red.withValues(alpha: 0.35) : kBorderLight,
+                width: (approval == 'pending' || isExpiring) ? 1.5 : 0.8),
+            boxShadow: kCardShadow),
         child: Row(children: [
           Container(
             width: 42, height: 42,
             decoration: BoxDecoration(
                 color: c.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(10)),
+                borderRadius: BorderRadius.circular(kRadiusChip)),
             child: Center(
               child: Text(
                 (trader['company_name'] as String? ?? '?')[0].toUpperCase(),
@@ -178,11 +182,11 @@ class _TraderCard extends StatelessWidget {
           const SizedBox(width: 12),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(trader['company_name'] as String? ?? '—',
-                style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
+                style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15, color: kNavy)),
             Text(
               '${trader['company_code'] ?? '—'} · '
-              '${trader['city'] ?? '—'} · '
-              '${trader['agent_count'] ?? 0} agents',
+                  '${trader['city'] ?? '—'} · '
+                  '${trader['agent_count'] ?? 0} agents',
               style: const TextStyle(fontSize: 11, color: kTextSub),
             ),
             Text(trader['plan_name'] as String? ?? 'No plan',
@@ -197,14 +201,14 @@ class _TraderCard extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
               decoration: BoxDecoration(
                   color: c.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(6)),
+                  borderRadius: BorderRadius.circular(kRadiusChip)),
               child: Text(
                 approval == 'pending' ? 'PENDING' : status.toUpperCase(),
                 style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: c),
               ),
             ),
             const SizedBox(height: 4),
-            const Icon(Icons.chevron_right, color: kTextHint, size: 18),
+            const Icon(Icons.chevron_right_rounded, color: kTextHint, size: 18),
           ]),
         ]),
       ),

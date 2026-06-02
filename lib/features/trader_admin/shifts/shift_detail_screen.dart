@@ -81,91 +81,91 @@ class _S extends ConsumerState<ShiftDetailScreen> {
 
     // Show full batch-level loss breakdown before confirm
     final ok = await showDialog<bool>(
-        context: context, useRootNavigator: true,
-        builder: (ctx) =>
-            AlertDialog(
-                title: const Text('Approve Shift',
-                    style: TextStyle(fontWeight: FontWeight.w800)),
-                content: SingleChildScrollView(
-                    child: Column(mainAxisSize: MainAxisSize.min, children: [
+      context: context, useRootNavigator: true,
+      builder: (ctx) =>
+          AlertDialog(
+              title: const Text('Approve Shift',
+                  style: TextStyle(fontWeight: FontWeight.w800)),
+              content: SingleChildScrollView(
+                  child: Column(mainAxisSize: MainAxisSize.min, children: [
                     Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(color: const Color(0xFFF3F4F6),
-                        borderRadius: BorderRadius.circular(10)),
-                    child: Column(children: [
-                        const Text('BATCH-LEVEL LOSS SUMMARY',
-                        style: TextStyle(fontSize: 10,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: 0.8,
-                            color: Color(0xFF616161))),
-                    const SizedBox(height: 10),
-                    _approvalRow(
-                        'DC Weight (Loaded)', '${dcKg.toStringAsFixed(2)} kg',
-                        false),
-                    _approvalRow(
-                        'Delivered', '${delKg.toStringAsFixed(2)} kg', false),
-                    if (retKg > 0)
-                _approvalRow('Returned (at delivery)',
-                '${retKg.toStringAsFixed(2)} kg', false),
-        if (closeRetKg > 0)
-    _approvalRow('Returned to Stock Point',
-        '$closeRetBirds birds · ${closeRetKg.toStringAsFixed(2)} kg', false)
-    ,
-    _approvalRow('Mortality', '${mortKg.toStringAsFixed(2)} kg', false),
-    const Divider(),
-    _approvalRow('Unaccounted Loss',
-    '${lossKg.toStringAsFixed(2)} kg (${lossPct.toStringAsFixed(1)}%)',
-    lossKg > 0),
-    if (lossKg > 0) Padding(
-    padding: const EdgeInsets.only(top: 8),
-    child: Container(
-    padding: const EdgeInsets.all(8),
-    decoration: BoxDecoration(color: Colors.orange.shade50, borderRadius: BorderRadius.circular(8)),
-    child: const Text('Approving will:\n'
-        '• Record this loss in audit log\n'
-        '• Reset agent stock to zero\n'
-        '• Mark shift as approved',
-    style: TextStyle(fontSize: 11, color: Colors.deepOrange)))),
-    if (lossKg == 0) Padding(
-    padding: const EdgeInsets.only(top: 8),
-    child: Container(
-    padding: const EdgeInsets.all(8),
-    decoration: BoxDecoration(color: Colors.green.shade50, borderRadius: BorderRadius.circular(8)),
-    child: const Text('No unaccounted loss. All stock accounted for.',
-    style: TextStyle(fontSize: 11, color: Colors.green)))),
-    ])),
-    ])),
-    actions: [
-    TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-    ElevatedButton(
-    onPressed: () => Navigator.pop(ctx, true),
-    style: ElevatedButton.styleFrom(backgroundColor: kPrimary),
-    child: const Text('Approve & Reset Stock')),
-    ]),
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(color: const Color(0xFFF3F4F6),
+                            borderRadius: BorderRadius.circular(kRadiusCard)),
+                        child: Column(children: [
+                          const Text('BATCH-LEVEL LOSS SUMMARY',
+                              style: TextStyle(fontSize: 10,
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: 0.8,
+                                  color: Color(0xFF616161))),
+                          const SizedBox(height: 10),
+                          _approvalRow(
+                              'DC Weight (Loaded)', '${dcKg.toStringAsFixed(2)} kg',
+                              false),
+                          _approvalRow(
+                              'Delivered', '${delKg.toStringAsFixed(2)} kg', false),
+                          if (retKg > 0)
+                            _approvalRow('Returned (at delivery)',
+                                '${retKg.toStringAsFixed(2)} kg', false),
+                          if (closeRetKg > 0)
+                            _approvalRow('Returned to Stock Point',
+                                '$closeRetBirds birds · ${closeRetKg.toStringAsFixed(2)} kg', false)
+                          ,
+                          _approvalRow('Mortality', '${mortKg.toStringAsFixed(2)} kg', false),
+                          const Divider(),
+                          _approvalRow('Unaccounted Loss',
+                              '${lossKg.toStringAsFixed(2)} kg (${lossPct.toStringAsFixed(1)}%)',
+                              lossKg > 0),
+                          if (lossKg > 0) Padding(
+                              padding: const EdgeInsets.only(top: 8),
+                              child: Container(
+                                  padding: const EdgeInsets.all(8),
+                                  decoration: BoxDecoration(color: Colors.orange.shade50, borderRadius: BorderRadius.circular(kRadiusInner)),
+                                  child: const Text('Approving will:\n'
+                                      '• Record this loss in audit log\n'
+                                      '• Reset agent stock to zero\n'
+                                      '• Mark shift as approved',
+                                      style: TextStyle(fontSize: 11, color: Colors.deepOrange)))),
+                          if (lossKg == 0) Padding(
+                              padding: const EdgeInsets.only(top: 8),
+                              child: Container(
+                                  padding: const EdgeInsets.all(8),
+                                  decoration: BoxDecoration(color: Colors.green.shade50, borderRadius: BorderRadius.circular(kRadiusInner)),
+                                  child: const Text('No unaccounted loss. All stock accounted for.',
+                                      style: TextStyle(fontSize: 11, color: Colors.green)))),
+                        ])),
+                  ])),
+              actions: [
+                TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+                ElevatedButton(
+                    onPressed: () => Navigator.pop(ctx, true),
+                    style: ElevatedButton.styleFrom(backgroundColor: kPrimary),
+                    child: const Text('Approve & Reset Stock')),
+              ]),
     ) ?? false;
 
     if (!ok || !mounted) return;
     if (mounted) setState(() => _submitting = true);
     try {
-    final user = ref.read(appUserProvider).valueOrNull;
-    final result = await _c.rpc('approve_shift', params: {
-    'p_shift_id': widget.id,
-    'p_approved_by': user?.userId,
-    'p_notes': 'Approved by trader admin',
-    });
-    final r = result as Map<String,dynamic>?;
-    final resetBirds = (r?['stock_reset_birds'] as num?)?.toInt() ?? 0;
-    final lossResult = (r?['unaccounted_loss_kg'] as num?)?.toDouble() ?? 0;
-    _load();
+      final user = ref.read(appUserProvider).valueOrNull;
+      final result = await _c.rpc('approve_shift', params: {
+        'p_shift_id': widget.id,
+        'p_approved_by': user?.userId,
+        'p_notes': 'Approved by trader admin',
+      });
+      final r = result as Map<String,dynamic>?;
+      final resetBirds = (r?['stock_reset_birds'] as num?)?.toInt() ?? 0;
+      final lossResult = (r?['unaccounted_loss_kg'] as num?)?.toDouble() ?? 0;
+      _load();
       if (mounted)
         showSuccess(
           context,
           'Shift approved ✓\n'
-          'Loss: ${lossResult.toStringAsFixed(2)} kg\n'
-          '${resetBirds > 0 ? 'Stock reset: $resetBirds birds returned' : 'No remaining stock'}',
+              'Loss: ${lossResult.toStringAsFixed(2)} kg\n'
+              '${resetBirds > 0 ? 'Stock reset: $resetBirds birds returned' : 'No remaining stock'}',
         );
     } catch (e) {
-    if (mounted) showError(context, e.toString().replaceAll('Exception: ',''));
+      if (mounted) showError(context, e.toString().replaceAll('Exception: ',''));
     }
     finally { if (mounted) setState(() => _submitting = false); }
   }
@@ -186,21 +186,21 @@ class _S extends ConsumerState<ShiftDetailScreen> {
     final reason = await showDialog<String>(context: context,
         useRootNavigator: true,
         builder: (ctx) =>
-        AlertDialog(
-          title: const Text('Reject Shift'),
-          content: TextField(controller: ctrl,
-              decoration: const InputDecoration(labelText: 'Reason *'),
-              autofocus: true),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx),
-                child: const Text('Cancel')),
-            ElevatedButton(onPressed: () {
-              if (ctrl.text
-                  .trim()
-                  .isNotEmpty) Navigator.pop(ctx, ctrl.text.trim());
-            }, child: const Text('Reject'))
-          ],
-        ));
+            AlertDialog(
+              title: const Text('Reject Shift'),
+              content: TextField(controller: ctrl,
+                  decoration: const InputDecoration(labelText: 'Reason *'),
+                  autofocus: true),
+              actions: [
+                TextButton(onPressed: () => Navigator.pop(ctx),
+                    child: const Text('Cancel')),
+                ElevatedButton(onPressed: () {
+                  if (ctrl.text
+                      .trim()
+                      .isNotEmpty) Navigator.pop(ctx, ctrl.text.trim());
+                }, child: const Text('Reject'))
+              ],
+            ));
     ctrl.dispose();
     if (reason == null || !mounted) return;
     if (mounted) setState(() => _submitting = true);
@@ -221,9 +221,10 @@ class _S extends ConsumerState<ShiftDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    if (_loading) return const Scaffold(body: LoadingList());
+    if (_loading) return const Scaffold(backgroundColor: kBgPage, body: LoadingList());
     if (_summary == null) return Scaffold(
-        appBar: AppBar(title: const Text('Shift Detail')),
+        backgroundColor: kBgPage,
+        appBar: AppBar(backgroundColor: kSurface, title: const Text('Shift Detail')),
         body: const Center(child: Text('No data')));
 
     final shift = _summary!['shift'] as Map<String, dynamic>?;
@@ -237,17 +238,19 @@ class _S extends ConsumerState<ShiftDetailScreen> {
         'pending';
 
     return Scaffold(
+      backgroundColor: kBgPage,
       appBar: AppBar(
+          backgroundColor: kSurface,
           title: Text(shift?['agent_name'] as String? ?? 'Shift Detail'),
           actions: [
             IconButton(icon: const Icon(Icons.refresh), onPressed: _load)
           ]),
-      body: ListView(padding: const EdgeInsets.all(16), children: [
+      body: ListView(padding: const EdgeInsets.fromLTRB(16,16,16,100), children: [
 
         // ── Status header ────────────────────────────────────────────
         Container(padding: const EdgeInsets.all(14), decoration: BoxDecoration(
             color: shiftStatus == 'closed' ? Colors.green.shade600 : kPrimary,
-            borderRadius: BorderRadius.circular(12)),
+            borderRadius: BorderRadius.circular(kRadiusCard)),
             child: Row(children: [
               Icon(shiftStatus == 'closed' ? Icons.check_circle_outline : Icons
                   .access_time_outlined, color: Colors.white, size: 26),
@@ -361,8 +364,8 @@ class _S extends ConsumerState<ShiftDetailScreen> {
             final mortality = d['mortality_birds'] as int? ?? 0;
             return Container(margin: const EdgeInsets.only(bottom: 8),
                 decoration: BoxDecoration(color: Colors.white,
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: kBorder)),
+                    borderRadius: BorderRadius.circular(kRadiusCard),
+                    border: Border.all(color: kBorderLight), boxShadow: kCardShadow),
                 child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Padding(padding: const EdgeInsets.fromLTRB(12, 10, 12, 4),
@@ -424,7 +427,7 @@ class _S extends ConsumerState<ShiftDetailScreen> {
           Container(padding: const EdgeInsets.all(14),
               margin: const EdgeInsets.only(bottom: 12),
               decoration: BoxDecoration(color: Colors.orange.shade50,
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(kRadiusCard),
                   border: Border.all(color: Colors.orange.shade200)),
               child: const Row(children: [
                 Icon(Icons.pending_actions_outlined, color: Colors.orange,
@@ -456,7 +459,7 @@ class _S extends ConsumerState<ShiftDetailScreen> {
           if (approvalStatus == 'approved') Container(
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(color: Colors.green.shade50,
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(kRadiusCard),
                   border: Border.all(color: Colors.green.shade200)),
               child: const Row(children: [
                 Icon(Icons.check_circle, color: Colors.green, size: 22),
@@ -487,8 +490,8 @@ class _S extends ConsumerState<ShiftDetailScreen> {
     if (!hasAnyData) return Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(color: Colors.grey.shade50,
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: kBorder)),
+            borderRadius: BorderRadius.circular(kRadiusCard),
+            border: Border.all(color: kBorderLight), boxShadow: kCardShadow),
         child: const Row(children: [
           Icon(Icons.speed_outlined, size: 16, color: kTextHint),
           SizedBox(width: 8),
@@ -498,7 +501,7 @@ class _S extends ConsumerState<ShiftDetailScreen> {
 
     return Container(
         decoration: BoxDecoration(
-            color: Colors.white, borderRadius: BorderRadius.circular(14),
+            color: Colors.white, borderRadius: BorderRadius.circular(kRadiusCard),
             border: Border.all(color: Colors.teal.shade200, width: 1.5)),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           // Header
@@ -521,7 +524,7 @@ class _S extends ConsumerState<ShiftDetailScreen> {
                           horizontal: 10, vertical: 4),
                       decoration: BoxDecoration(
                           color: Colors.white.withValues(alpha: 0.2),
-                          borderRadius: BorderRadius.circular(8)),
+                          borderRadius: BorderRadius.circular(kRadiusInner)),
                       child: Text('${distKm.toStringAsFixed(0)} km travelled',
                           style: const TextStyle(color: Colors.white,
                               fontSize: 12,
@@ -588,7 +591,7 @@ class _S extends ConsumerState<ShiftDetailScreen> {
           onTap: () => _showFullImage(context, url, label),
           child: Container(
               decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(kRadiusCard),
                   border: Border.all(color: c.withValues(alpha: 0.3))),
               child: Column(children: [
                 Container(
@@ -640,7 +643,7 @@ class _S extends ConsumerState<ShiftDetailScreen> {
       Container(
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(color: Colors.grey.shade50,
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: BorderRadius.circular(kRadiusCard),
               border: Border.all(
                   color: Colors.grey.shade300, style: BorderStyle.solid)),
           child: Column(children: [
@@ -695,7 +698,7 @@ class _S extends ConsumerState<ShiftDetailScreen> {
           onTap: () => _showFullImage(context, url, label),
           child: Container(
               decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(kRadiusInner),
                   border: Border.all(color: c.withValues(alpha: 0.3))),
               child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -774,30 +777,30 @@ class _S extends ConsumerState<ShiftDetailScreen> {
     if (_batchLoss == null) {
       return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Container(
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(color: Colors.grey.shade50,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: kBorder)),
-          child: const Row(children: [
-            SizedBox(width: 18, height: 18,
-                child: CircularProgressIndicator(strokeWidth: 2, color: kPrimary)),
-            SizedBox(width: 12),
-            Text('Loading batch loss summary...', style: TextStyle(fontSize: 12, color: kTextSub)),
-          ])),
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(color: Colors.grey.shade50,
+                borderRadius: BorderRadius.circular(kRadiusCard),
+                border: Border.all(color: kBorderLight), boxShadow: kCardShadow),
+            child: const Row(children: [
+              SizedBox(width: 18, height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2, color: kPrimary)),
+              SizedBox(width: 12),
+              Text('Loading batch loss summary...', style: TextStyle(fontSize: 12, color: kTextSub)),
+            ])),
         const SizedBox(height: 8),
         Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(color: Colors.orange.shade50,
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: Colors.orange.shade200)),
-          child: const Row(children: [
-            Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 16),
-            SizedBox(width: 8),
-            Expanded(child: Text(
-              'Wait for the batch loss summary to load before approving. '
-              'Approving without DC data will record zero loss.',
-              style: TextStyle(fontSize: 12, color: Colors.orange, fontWeight: FontWeight.w600))),
-          ])),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(color: Colors.orange.shade50,
+                borderRadius: BorderRadius.circular(kRadiusCard),
+                border: Border.all(color: Colors.orange.shade200)),
+            child: const Row(children: [
+              Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 16),
+              SizedBox(width: 8),
+              Expanded(child: Text(
+                  'Wait for the batch loss summary to load before approving. '
+                      'Approving without DC data will record zero loss.',
+                  style: TextStyle(fontSize: 12, color: Colors.orange, fontWeight: FontWeight.w600))),
+            ])),
       ]);
     }
 
@@ -806,35 +809,35 @@ class _S extends ConsumerState<ShiftDetailScreen> {
     final _checkDcKg   = (_checkTotals?['total_dc_weight_kg'] as num?)?.toDouble() ?? 0;
     if (_checkDcKg == 0) {
       return Container(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-            color: Colors.amber.shade50, borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.amber.shade300, width: 1.5)),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          const Row(children: [
-            Icon(Icons.warning_amber_rounded, color: Colors.amber, size: 20),
-            SizedBox(width: 8),
-            Text('No DC Data Found for This Shift',
-                style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14, color: Colors.amber)),
-          ]),
-          const SizedBox(height: 10),
-          const Text(
-            'No delivery challans were recorded for the batches in this shift. '
-            'This means the loss calculation cannot be computed — approving now '
-            'will record zero loss, which may be incorrect.',
-            style: TextStyle(fontSize: 12, color: kTextSub, height: 1.5)),
-          const SizedBox(height: 10),
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8)),
-            child: const Text(
-              'Checklist before approving:'
-              '• Verify with the agent that all DCs were uploaded in batch pickup'
-              '• Check Dispatch screen — does the batch show challan data?'
-              '• If DCs are genuinely missing, reject this shift and ask agent to re-upload',
-              style: TextStyle(fontSize: 11, color: kTextSub, height: 1.6)),
-          ),
-        ]));
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+              color: Colors.amber.shade50, borderRadius: BorderRadius.circular(kRadiusCard),
+              border: Border.all(color: Colors.amber.shade300, width: 1.5)),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            const Row(children: [
+              Icon(Icons.warning_amber_rounded, color: Colors.amber, size: 20),
+              SizedBox(width: 8),
+              Text('No DC Data Found for This Shift',
+                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14, color: Colors.amber)),
+            ]),
+            const SizedBox(height: 10),
+            const Text(
+                'No delivery challans were recorded for the batches in this shift. '
+                    'This means the loss calculation cannot be computed — approving now '
+                    'will record zero loss, which may be incorrect.',
+                style: TextStyle(fontSize: 12, color: kTextSub, height: 1.5)),
+            const SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(kRadiusInner)),
+              child: const Text(
+                  'Checklist before approving:'
+                      '• Verify with the agent that all DCs were uploaded in batch pickup'
+                      '• Check Dispatch screen — does the batch show challan data?'
+                      '• If DCs are genuinely missing, reject this shift and ask agent to re-upload',
+                  style: TextStyle(fontSize: 11, color: kTextSub, height: 1.6)),
+            ),
+          ]));
     }
 
     final totals = (_batchLoss!['shift_totals'] as Map?)?.cast<String,
@@ -856,7 +859,7 @@ class _S extends ConsumerState<ShiftDetailScreen> {
 
     return Container(
         decoration: BoxDecoration(color: Colors.white,
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(kRadiusCard),
             border: Border.all(
                 color: isHighLoss ? Colors.red.shade300 : Colors.green.shade300,
                 width: 1.5)),
@@ -931,7 +934,7 @@ class _S extends ConsumerState<ShiftDetailScreen> {
                   decoration: BoxDecoration(
                       color: bHigh ? Colors.red.shade50 : const Color(
                           0xFFF3F4F6),
-                      borderRadius: BorderRadius.circular(10),
+                      borderRadius: BorderRadius.circular(kRadiusCard),
                       border: Border.all(
                           color: bHigh ? Colors.red.shade200 : kBorder)),
                   child: Column(

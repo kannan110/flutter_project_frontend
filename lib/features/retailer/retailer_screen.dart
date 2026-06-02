@@ -101,14 +101,15 @@ class _RS extends ConsumerState<RetailerScreen>
     final shopName = (_dashboard?['retailer'] as Map<String,dynamic>?)?['shop_name']
     as String? ?? 'My Shop';
     return Scaffold(
-      backgroundColor: kBgGrey,
+      backgroundColor: kBgPage,
       appBar: AppBar(
-          backgroundColor: Colors.white, elevation: 0,
+          backgroundColor: kSurface, elevation: 0,
           title: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(shopName,
-                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: kTextMain)),
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: kNavy)),
             const Text('Retailer Portal',
-                style: TextStyle(fontSize: 10, color: kTextHint)),
+                style: TextStyle(fontSize: 10, color: kTextHint, fontWeight: FontWeight.w600,
+                    letterSpacing: 0.4)),
           ]),
           actions: [
             Stack(children: [
@@ -169,144 +170,156 @@ class _RS extends ConsumerState<RetailerScreen>
                     Expanded(child: Text('Account blocked. Contact your supplier.',
                         style: TextStyle(color: Colors.red, fontWeight: FontWeight.w700))),
                   ])),
-              if (rate != null) Container(color: kPrimary,
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              if (rate != null) Container(
+                  decoration: const BoxDecoration(
+                      gradient: LinearGradient(colors: [kNavy, kNavyMid],
+                          begin: Alignment.centerLeft, end: Alignment.centerRight)),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                   child: Row(children: [
-                    const Icon(Icons.trending_up, color: Colors.white, size: 16),
-                    const SizedBox(width: 8),
-                    Text('Rate: Rs.' + ((rate['rate'] as num?)?.toStringAsFixed(2) ?? '--') + '/kg',
-                        style: const TextStyle(color: Colors.white,
-                            fontWeight: FontWeight.w800, fontSize: 13)),
-                    const Spacer(),
-                    const Text('Today', style: TextStyle(color: Colors.white70, fontSize: 10)),
-                  ])),
-              const SizedBox(height: 12),
-              Padding(padding: const EdgeInsets.symmetric(horizontal: 12),
-                  child: Row(children: [
-                    _kpiCard('Outstanding', Fmt.amount(outstanding),
-                        outstanding > 0 ? Colors.orange : Colors.green, Icons.account_balance_outlined),
-                    const SizedBox(width: 8),
-                    _kpiCard('Total Paid', Fmt.amount(totalPaid),
-                        Colors.green, Icons.check_circle_outline),
-                    const SizedBox(width: 8),
-                    _kpiCard('Credit Avail.', Fmt.amount(avail),
-                        avail > 0 ? Colors.blue : Colors.grey, Icons.credit_card_outlined),
-                  ])),
-              if (creditLimit > 0) ...[
-                const SizedBox(height: 8),
-                Padding(padding: const EdgeInsets.symmetric(horizontal: 12),
-                    child: Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(color: Colors.white,
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: kBorder)),
-                        child: Column(children: [
-                          Row(children: [
-                            const Text('Credit Usage',
-                                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700)),
-                            const Spacer(),
-                            Text('${Fmt.amount(outstanding)} / ${Fmt.amount(creditLimit)}',
-                                style: const TextStyle(fontSize: 10, color: kTextSub)),
-                          ]),
-                          const SizedBox(height: 6),
-                          ClipRRect(borderRadius: BorderRadius.circular(4),
-                              child: LinearProgressIndicator(value: usedPct, minHeight: 6,
-                                  backgroundColor: Colors.grey.shade200,
-                                  valueColor: AlwaysStoppedAnimation(
-                                      usedPct > 0.8 ? Colors.red
-                                          : usedPct > 0.5 ? Colors.orange : Colors.green))),
-                          const SizedBox(height: 4),
-                          Row(children: [
-                            Text('${(usedPct*100).toStringAsFixed(0)}% used',
-                                style: TextStyle(fontSize: 9,
-                                    color: usedPct > 0.8 ? Colors.red : kTextHint)),
-                            const Spacer(),
-                            Text('${Fmt.amount(avail)} free',
-                                style: const TextStyle(fontSize: 9, color: Colors.green)),
-                          ]),
-                        ]))),
-              ],
-              const SizedBox(height: 10),
-              if (pending.isNotEmpty) ...[
-                _sectionTitle('Active Deliveries'),
-                ...pending.map((del) {
-                  final d = del as Map<String,dynamic>;
-                  final sts = d['status'] as String? ?? '';
-                  final agent = d['agent_name'] as String?;
-                  return Container(
-                      margin: const EdgeInsets.fromLTRB(12,0,12,6),
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(color: Colors.white,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.blue.shade200)),
-                      child: Row(children: [
-                        Container(width: 36, height: 36,
-                            decoration: BoxDecoration(color: Colors.blue.shade50, shape: BoxShape.circle),
-                            child: const Icon(Icons.local_shipping_outlined, color: Colors.blue, size: 18)),
-                        const SizedBox(width: 10),
-                        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                          Text(sts.replaceAll('_',' ').toUpperCase(),
-                              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Colors.blue)),
-                          if (agent != null) Text('Agent: $agent',
-                              style: const TextStyle(fontSize: 10, color: kTextHint)),
-                        ])),
-                        const Icon(Icons.chevron_right, size: 18, color: kTextHint),
-                      ]));
-                }),
-              ],
-              if (lastDel != null) ...[
-                _sectionTitle('Last Delivery'),
-                Container(
-                    margin: const EdgeInsets.fromLTRB(12,0,12,6),
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(color: Colors.white,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: kBorder)),
-                    child: Row(children: [
-                      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                        Text('${(lastDel['pickup_bird_count'] as num?)?.toInt() ?? 0} birds  |  '
-                            '${(lastDel['delivered_total_weight'] as num?)?.toStringAsFixed(1) ?? 0} kg',
-                            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
-                        if (lastDel['delivered_at'] != null)
-                          Text(DateFormat('d MMM, hh:mm a').format(
-                              DateTime.tryParse(lastDel['delivered_at'] as String)?.toLocal() ?? DateTime.now()),
-                              style: const TextStyle(fontSize: 10, color: kTextHint)),
-                      ])),
-                      if (lastDel['total_amount'] != null)
-                        Text(Fmt.amount((lastDel['total_amount'] as num).toDouble()),
-                            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: kPrimary)),
-                    ])),
-              ],
-              if (complaints > 0) GestureDetector(
-                  onTap: () => _tab.animateTo(3),
-                  child: Container(
-                      margin: const EdgeInsets.fromLTRB(12,4,12,6),
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(color: Colors.orange.shade50,
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: Colors.orange.shade200)),
-                      child: Row(children: [
-                        const Icon(Icons.warning_amber_outlined, color: Colors.orange, size: 16),
-                        const SizedBox(width: 8),
-                        Text('$complaints open complaint${complaints > 1 ? "s" : ""}',
-                            style: const TextStyle(fontSize: 11, color: Colors.orange,
-                                fontWeight: FontWeight.w700)),
-                        const Spacer(),
-                        const Text('View', style: TextStyle(fontSize: 10, color: Colors.orange)),
-                      ]))),
-              _sectionTitle('Quick Actions'),
-              Padding(padding: const EdgeInsets.symmetric(horizontal: 12),
-                  child: Row(children: [
-                    _quickAction('Order Now',  Icons.add_shopping_cart, kPrimary,     _showPlaceOrder),
-                    const SizedBox(width: 8),
-                    _quickAction('Pay Now',    Icons.payments_outlined,  Colors.green, _showPayment),
-                    const SizedBox(width: 8),
-                    _quickAction('Invoices',   Icons.receipt_outlined,   Colors.blue,  () => _tab.animateTo(4)),
-                    const SizedBox(width: 8),
-                    _quickAction('Complaint',  Icons.report_outlined,    Colors.orange, _showRaiseComplaint),
-                  ])),
-              const SizedBox(height: 80),
-            ])));
+                      const Icon(Icons.trending_up_rounded, color: kGoldLight, size: 16),
+                  const SizedBox(width: 8),
+                  Text("Today's Rate: ₹" + ((rate['rate'] as num?)?.toStringAsFixed(2) ?? '--') + '/kg',
+                  style: const TextStyle(color: Colors.white,
+                      fontWeight: FontWeight.w900, fontSize: 14)),
+              const Spacer(),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: kGold.withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(99),
+                ),
+                child: const Text('LIVE', style: TextStyle(color: kGoldLight,
+                    fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: 0.6)),
+              ),
+            ])),
+        const SizedBox(height: 12),
+        Padding(padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: Row(children: [
+              _kpiCard('Outstanding', Fmt.amount(outstanding),
+                  outstanding > 0 ? Colors.orange : Colors.green, Icons.account_balance_outlined),
+              const SizedBox(width: 8),
+              _kpiCard('Total Paid', Fmt.amount(totalPaid),
+                  Colors.green, Icons.check_circle_outline),
+              const SizedBox(width: 8),
+              _kpiCard('Credit Avail.', Fmt.amount(avail),
+                  avail > 0 ? Colors.blue : Colors.grey, Icons.credit_card_outlined),
+            ])),
+        if (creditLimit > 0) ...[
+    const SizedBox(height: 8),
+    Padding(padding: const EdgeInsets.symmetric(horizontal: 12),
+    child: Container(
+    padding: const EdgeInsets.all(12),
+    decoration: BoxDecoration(color: kSurface,
+    borderRadius: BorderRadius.circular(kRadiusCard),
+    border: Border.all(color: kBorderLight), boxShadow: kCardShadow),
+    child: Column(children: [
+    Row(children: [
+    const Text('Credit Usage',
+    style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700)),
+    const Spacer(),
+    Text('${Fmt.amount(outstanding)} / ${Fmt.amount(creditLimit)}',
+    style: const TextStyle(fontSize: 10, color: kTextSub)),
+    ]),
+    const SizedBox(height: 6),
+    ClipRRect(borderRadius: BorderRadius.circular(4),
+    child: LinearProgressIndicator(value: usedPct, minHeight: 6,
+    backgroundColor: Colors.grey.shade200,
+    valueColor: AlwaysStoppedAnimation(
+    usedPct > 0.8 ? Colors.red
+        : usedPct > 0.5 ? Colors.orange : Colors.green))),
+    const SizedBox(height: 4),
+    Row(children: [
+    Text('${(usedPct*100).toStringAsFixed(0)}% used',
+    style: TextStyle(fontSize: 9,
+    color: usedPct > 0.8 ? Colors.red : kTextHint)),
+    const Spacer(),
+    Text('${Fmt.amount(avail)} free',
+    style: const TextStyle(fontSize: 9, color: Colors.green)),
+    ]),
+    ]))),
+    ],
+    const SizedBox(height: 10),
+    if (pending.isNotEmpty) ...[
+    _sectionTitle('Active Deliveries'),
+    ...pending.map((del) {
+    final d = del as Map<String,dynamic>;
+    final sts = d['status'] as String? ?? '';
+    final agent = d['agent_name'] as String?;
+    return Container(
+    margin: const EdgeInsets.fromLTRB(12,0,12,6),
+    padding: const EdgeInsets.all(12),
+    decoration: BoxDecoration(color: Colors.white,
+    borderRadius: BorderRadius.circular(12),
+    border: Border.all(color: Colors.blue.shade200)),
+    child: Row(children: [
+    Container(width: 36, height: 36,
+    decoration: BoxDecoration(color: Colors.blue.withValues(alpha: 0.1),
+    borderRadius: BorderRadius.circular(kRadiusChip)),
+    child: const Icon(Icons.local_shipping_outlined, color: Colors.blue, size: 18)),
+    const SizedBox(width: 10),
+    Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+    Text(sts.replaceAll('_',' ').toUpperCase(),
+    style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Colors.blue)),
+    if (agent != null) Text('Agent: $agent',
+    style: const TextStyle(fontSize: 10, color: kTextHint)),
+    ])),
+    const Icon(Icons.chevron_right, size: 18, color: kTextHint),
+    ]));
+    }),
+    ],
+    if (lastDel != null) ...[
+    _sectionTitle('Last Delivery'),
+    Container(
+    margin: const EdgeInsets.fromLTRB(12,0,12,6),
+    padding: const EdgeInsets.all(12),
+    decoration: BoxDecoration(color: kSurface,
+    borderRadius: BorderRadius.circular(kRadiusCard),
+    border: Border.all(color: kBorderLight), boxShadow: kCardShadow),
+    child: Row(children: [
+    Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+    Text('${(lastDel['pickup_bird_count'] as num?)?.toInt() ?? 0} birds  |  '
+    '${(lastDel['delivered_total_weight'] as num?)?.toStringAsFixed(1) ?? 0} kg',
+    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
+    if (lastDel['delivered_at'] != null)
+    Text(DateFormat('d MMM, hh:mm a').format(
+    DateTime.tryParse(lastDel['delivered_at'] as String)?.toLocal() ?? DateTime.now()),
+    style: const TextStyle(fontSize: 10, color: kTextHint)),
+    ])),
+    if (lastDel['total_amount'] != null)
+    Text(Fmt.amount((lastDel['total_amount'] as num).toDouble()),
+    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: kPrimary)),
+    ])),
+    ],
+    if (complaints > 0) GestureDetector(
+    onTap: () => _tab.animateTo(3),
+    child: Container(
+    margin: const EdgeInsets.fromLTRB(12,4,12,6),
+    padding: const EdgeInsets.all(10),
+    decoration: BoxDecoration(color: Colors.orange.withValues(alpha: 0.07),
+    borderRadius: BorderRadius.circular(kRadiusCard),
+    border: Border.all(color: Colors.orange.withValues(alpha: 0.25))),
+    child: Row(children: [
+    const Icon(Icons.warning_amber_outlined, color: Colors.orange, size: 16),
+    const SizedBox(width: 8),
+    Text('$complaints open complaint${complaints > 1 ? "s" : ""}',
+    style: const TextStyle(fontSize: 11, color: Colors.orange,
+    fontWeight: FontWeight.w700)),
+    const Spacer(),
+    const Text('View', style: TextStyle(fontSize: 10, color: Colors.orange)),
+    ]))),
+    _sectionTitle('Quick Actions'),
+    Padding(padding: const EdgeInsets.symmetric(horizontal: 12),
+    child: Row(children: [
+    _quickAction('Order Now',  Icons.add_shopping_cart, kPrimary,     _showPlaceOrder),
+    const SizedBox(width: 8),
+    _quickAction('Pay Now',    Icons.payments_outlined,  Colors.green, _showPayment),
+    const SizedBox(width: 8),
+    _quickAction('Invoices',   Icons.receipt_outlined,   Colors.blue,  () => _tab.animateTo(4)),
+    const SizedBox(width: 8),
+    _quickAction('Complaint',  Icons.report_outlined,    Colors.orange, _showRaiseComplaint),
+    ])),
+    const SizedBox(height: 80),
+    ])));
   }
 
   // ─── ORDERS ──────────────────────────────────────────────────────────────
@@ -330,8 +343,9 @@ class _RS extends ConsumerState<RetailerScreen>
           final c       = _statusColor(status);
           return Container(
               padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(color: Colors.white,
-                  borderRadius: BorderRadius.circular(12), border: Border.all(color: kBorder)),
+              decoration: BoxDecoration(color: kSurface,
+                  borderRadius: BorderRadius.circular(kRadiusCard),
+                  border: Border.all(color: kBorderLight), boxShadow: kCardShadow),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Row(children: [
                   Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -342,8 +356,9 @@ class _RS extends ConsumerState<RetailerScreen>
                   ])),
                   Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(color: c.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(6)),
+                      decoration: BoxDecoration(color: c.withValues(alpha: 0.09),
+                          borderRadius: BorderRadius.circular(kRadiusChip),
+                          border: Border.all(color: c.withValues(alpha: 0.25))),
                       child: Text(status.toUpperCase().replaceAll('_',' '),
                           style: TextStyle(fontSize: 8, fontWeight: FontWeight.w800, color: c))),
                 ]),
@@ -389,7 +404,10 @@ class _RS extends ConsumerState<RetailerScreen>
     final balance = (summary?['balance']      as num?)?.toDouble() ?? 0;
     return Column(children: [
       _dateRangeBar(),
-      Container(color: Colors.white, padding: const EdgeInsets.fromLTRB(16,10,16,10),
+      Container(decoration: const BoxDecoration(
+          gradient: LinearGradient(colors: [kNavy, kNavyMid],
+              begin: Alignment.topLeft, end: Alignment.bottomRight)),
+          padding: const EdgeInsets.fromLTRB(16,16,16,16),
           child: Row(children: [
             _lStat('Billed', Fmt.amount(debit),   Colors.red),
             _lStat('Paid',   Fmt.amount(credit),  Colors.green),
@@ -409,12 +427,10 @@ class _RS extends ConsumerState<RetailerScreen>
             final c   = isD ? Colors.red : Colors.green;
             return Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-                decoration: BoxDecoration(color: Colors.white,
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border(left: BorderSide(color: kBorder, width: 3),
-                        right: const BorderSide(color: kBorder),
-                        top: const BorderSide(color: kBorder),
-                        bottom: const BorderSide(color: kBorder))),
+                decoration: BoxDecoration(color: kSurface,
+                    borderRadius: BorderRadius.circular(kRadiusCard),
+                    border: Border.all(color: kBorderLight),
+                    boxShadow: kCardShadow),
                 child: Row(children: [
                   Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Text(isD ? 'Purchase / Bill' : 'Payment',
@@ -463,8 +479,9 @@ class _RS extends ConsumerState<RetailerScreen>
               : sts == 'rejected' ? Colors.grey : Colors.orange;
           return Container(
               padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(color: Colors.white,
-                  borderRadius: BorderRadius.circular(12), border: Border.all(color: kBorder)),
+              decoration: BoxDecoration(color: kSurface,
+                  borderRadius: BorderRadius.circular(kRadiusCard),
+                  border: Border.all(color: kBorderLight), boxShadow: kCardShadow),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Row(children: [
                   Expanded(child: Text(
@@ -474,8 +491,9 @@ class _RS extends ConsumerState<RetailerScreen>
                       style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800))),
                   Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(color: c.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(6)),
+                      decoration: BoxDecoration(color: c.withValues(alpha: 0.09),
+                          borderRadius: BorderRadius.circular(kRadiusChip),
+                          border: Border.all(color: c.withValues(alpha: 0.25))),
                       child: Text(sts.toUpperCase(),
                           style: TextStyle(fontSize: 8, fontWeight: FontWeight.w800, color: c))),
                 ]),
@@ -513,11 +531,13 @@ class _RS extends ConsumerState<RetailerScreen>
           final inv    = o['invoice_number'] as String?;
           return Container(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-              decoration: BoxDecoration(color: Colors.white,
-                  borderRadius: BorderRadius.circular(12), border: Border.all(color: kBorder)),
+              decoration: BoxDecoration(color: kSurface,
+                  borderRadius: BorderRadius.circular(kRadiusCard),
+                  border: Border.all(color: kBorderLight), boxShadow: kCardShadow),
               child: Row(children: [
-                Container(width: 36, height: 36,
-                    decoration: BoxDecoration(color: kPrimary.withValues(alpha: 0.08), shape: BoxShape.circle),
+                Container(width: 40, height: 40,
+                    decoration: BoxDecoration(color: kNavy.withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(kRadiusChip)),
                     child: Center(child: Text(dt != null ? DateFormat('d').format(dt) : '—',
                         style: const TextStyle(fontWeight: FontWeight.w900, color: kPrimary)))),
                 const SizedBox(width: 10),
@@ -539,10 +559,10 @@ class _RS extends ConsumerState<RetailerScreen>
                       child: Container(
                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                           decoration: BoxDecoration(
-                              color: kPrimary.withValues(alpha: 0.08),
-                              borderRadius: BorderRadius.circular(6)),
+                              color: kNavy.withValues(alpha: 0.08),
+                              borderRadius: BorderRadius.circular(kRadiusChip)),
                           child: const Text('Reorder',
-                              style: TextStyle(fontSize: 9, color: kPrimary,
+                              style: TextStyle(fontSize: 9, color: kNavy,
                                   fontWeight: FontWeight.w700)))),
                 ]),
               ]));
@@ -566,35 +586,41 @@ class _RS extends ConsumerState<RetailerScreen>
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           // Profile header card
           Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(color: Colors.white,
-                  borderRadius: BorderRadius.circular(14), border: Border.all(color: kBorder)),
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                  gradient: const LinearGradient(colors: [kNavy, kNavyMid],
+                      begin: Alignment.topLeft, end: Alignment.bottomRight),
+                  borderRadius: BorderRadius.circular(kRadiusHero),
+                  boxShadow: kCardShadow),
               child: Row(children: [
-                CircleAvatar(radius: 28, backgroundColor: kPrimary.withValues(alpha: 0.1),
+                CircleAvatar(radius: 28, backgroundColor: Colors.white.withValues(alpha: 0.15),
                     child: Text((r['shop_name'] as String? ?? 'S')[0].toUpperCase(),
-                        style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w900, color: kPrimary))),
+                        style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w900, color: kGoldLight))),
                 const SizedBox(width: 14),
                 Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Text(r['shop_name'] as String? ?? '—',
-                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+                      style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w900,
+                          color: Colors.white)),
                   if (r['owner_name'] != null)
                     Text(r['owner_name'] as String,
-                        style: const TextStyle(fontSize: 12, color: kTextSub)),
+                        style: const TextStyle(fontSize: 12, color: Color(0xFFB4C6F4),
+                            fontWeight: FontWeight.w600)),
                   if (r['phone'] != null)
                     Text(r['phone'] as String,
-                        style: const TextStyle(fontSize: 11, color: kTextHint)),
+                        style: const TextStyle(fontSize: 11, color: Color(0xFFB4C6F4))),
                 ])),
-                IconButton(icon: const Icon(Icons.edit_outlined, color: kPrimary, size: 20),
+                IconButton(icon: const Icon(Icons.edit_outlined, color: kGoldLight, size: 20),
                     onPressed: () => _showEditProfile(r)),
               ])),
           const SizedBox(height: 12),
 
           // Credit card
           Container(
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(color: Colors.white,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.blue.shade200)),
+              padding: const EdgeInsets.all(18),
+              decoration: BoxDecoration(color: kSurface,
+                  borderRadius: BorderRadius.circular(kRadiusCard),
+                  border: Border.all(color: Colors.blue.withValues(alpha: 0.25)),
+                  boxShadow: kCardShadow),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 const Row(children: [
                   Icon(Icons.credit_card_outlined, size: 16, color: Colors.blue),
@@ -623,9 +649,10 @@ class _RS extends ConsumerState<RetailerScreen>
 
           // Shop details
           Container(
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(color: Colors.white,
-                  borderRadius: BorderRadius.circular(12), border: Border.all(color: kBorder)),
+              padding: const EdgeInsets.all(18),
+              decoration: BoxDecoration(color: kSurface,
+                  borderRadius: BorderRadius.circular(kRadiusCard),
+                  border: Border.all(color: kBorderLight), boxShadow: kCardShadow),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 const Text('Shop Details',
                     style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800)),
@@ -644,15 +671,16 @@ class _RS extends ConsumerState<RetailerScreen>
 
           // Supplier info
           if (trader != null) Container(
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(color: Colors.white,
-                  borderRadius: BorderRadius.circular(12), border: Border.all(color: kBorder)),
+              padding: const EdgeInsets.all(18),
+              decoration: BoxDecoration(color: kSurface,
+                  borderRadius: BorderRadius.circular(kRadiusCard),
+                  border: Border.all(color: kBorderLight), boxShadow: kCardShadow),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 const Row(children: [
-                  Icon(Icons.store_mall_directory_outlined, size: 16, color: kPrimary),
+                  Icon(Icons.store_mall_directory_outlined, size: 16, color: kNavy),
                   SizedBox(width: 6),
                   Text('Your Supplier', style: TextStyle(fontSize: 12,
-                      fontWeight: FontWeight.w800, color: kPrimary)),
+                      fontWeight: FontWeight.w800, color: kNavy)),
                 ]),
                 const SizedBox(height: 10),
                 _detailRow(Icons.business_outlined,    'Company', trader['company_name'] as String? ?? '—'),
@@ -1176,49 +1204,65 @@ class _RS extends ConsumerState<RetailerScreen>
   // ─── HELPERS ─────────────────────────────────────────────────────────────
   Widget _kpiCard(String l, String v, Color c, IconData icon) =>
       Expanded(child: Container(
-          padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: c.withValues(alpha: 0.2))),
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(color: kSurface,
+              borderRadius: BorderRadius.circular(kRadiusCard),
+              border: Border.all(color: c.withValues(alpha: 0.2)),
+              boxShadow: kCardShadow),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Icon(icon, size: 16, color: c), const SizedBox(height: 4),
-            Text(v, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w900, color: c)),
-            Text(l, style: const TextStyle(fontSize: 8, color: kTextHint)),
+            Container(width: 30, height: 30,
+                decoration: BoxDecoration(
+                    color: c.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(kRadiusInner)),
+                child: Icon(icon, size: 16, color: c)),
+            const SizedBox(height: 6),
+            Text(v, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: c)),
+            Text(l, style: const TextStyle(fontSize: 9, color: kTextHint, fontWeight: FontWeight.w600)),
           ])));
 
   Widget _quickAction(String l, IconData icon, Color c, VoidCallback onTap) =>
       Expanded(child: GestureDetector(onTap: onTap,
           child: Container(
-              padding: const EdgeInsets.symmetric(vertical: 10),
-              decoration: BoxDecoration(color: c.withValues(alpha: 0.08),
-                  borderRadius: BorderRadius.circular(12)),
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              decoration: BoxDecoration(color: c.withValues(alpha: 0.07),
+                  borderRadius: BorderRadius.circular(kRadiusCard),
+                  border: Border.all(color: c.withValues(alpha: 0.15)),
+                  boxShadow: kCardShadow),
               child: Column(children: [
-                Icon(icon, size: 20, color: c), const SizedBox(height: 4),
+                Container(width: 36, height: 36,
+                    decoration: BoxDecoration(color: kSurface,
+                        borderRadius: BorderRadius.circular(kRadiusChip),
+                        boxShadow: [BoxShadow(color: c.withValues(alpha: 0.15),
+                            blurRadius: 6, offset: const Offset(0,2))]),
+                    child: Icon(icon, size: 20, color: c)),
+                const SizedBox(height: 6),
                 Text(l, textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 8, fontWeight: FontWeight.w700, color: c)),
+                    style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: c)),
               ]))));
 
   Widget _sectionTitle(String t) => Padding(
-      padding: const EdgeInsets.fromLTRB(12,10,12,6),
-      child: Text(t.toUpperCase(), style: const TextStyle(fontSize: 9,
-          fontWeight: FontWeight.w800, color: kTextHint, letterSpacing: 0.5)));
+      padding: const EdgeInsets.fromLTRB(16,14,16,8),
+      child: Text(t.toUpperCase(), style: const TextStyle(fontSize: 10,
+          fontWeight: FontWeight.w900, color: kNavy, letterSpacing: 0.6)));
 
   Widget _dateRangeBar() => Container(
-      color: Colors.white,
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      color: kSurface,
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
       child: GestureDetector(onTap: _pickDateRange,
           child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(color: kPrimary.withValues(alpha: 0.08),
-                  borderRadius: BorderRadius.circular(20)),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              decoration: BoxDecoration(color: kNavy.withValues(alpha: 0.07),
+                  borderRadius: BorderRadius.circular(99),
+                  border: Border.all(color: kNavy.withValues(alpha: 0.15))),
               child: Row(mainAxisSize: MainAxisSize.min, children: [
-                const Icon(Icons.calendar_today_outlined, size: 14, color: kPrimary),
+                const Icon(Icons.calendar_today_outlined, size: 14, color: kNavy),
                 const SizedBox(width: 6),
-                Text('${DateFormat("d MMM").format(_from)} - ${DateFormat("d MMM").format(_to)}',
+                Text('${DateFormat("d MMM").format(_from)} – ${DateFormat("d MMM").format(_to)}',
                     style: const TextStyle(fontSize: 12,
-                        fontWeight: FontWeight.w700, color: kPrimary)),
-                const SizedBox(width: 4),
-                const Text('Change', style: TextStyle(fontSize: 10, color: kPrimary)),
+                        fontWeight: FontWeight.w800, color: kNavy)),
+                const SizedBox(width: 6),
+                const Text('Change', style: TextStyle(fontSize: 10, color: kNavy,
+                    fontWeight: FontWeight.w600)),
               ]))));
 
   Widget _oStat(String l, String v, Color c) => Expanded(child: Column(children: [
@@ -1228,9 +1272,10 @@ class _RS extends ConsumerState<RetailerScreen>
   ]));
 
   Widget _lStat(String l, String v, Color c) => Expanded(child: Column(children: [
-    Text(v, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: c),
+    Text(v, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w900, color: Colors.white),
         textAlign: TextAlign.center),
-    Text(l, style: const TextStyle(fontSize: 8, color: kTextHint), textAlign: TextAlign.center),
+    Text(l, style: const TextStyle(fontSize: 9, color: Color(0xFFB4C6F4),
+        fontWeight: FontWeight.w700), textAlign: TextAlign.center),
   ]));
 
   Widget _creditStat(String l, String v, Color c) => Expanded(child: Column(children: [
@@ -1251,15 +1296,20 @@ class _RS extends ConsumerState<RetailerScreen>
   Widget _profileAction(IconData icon, String label, Color c, VoidCallback onTap) =>
       GestureDetector(onTap: onTap,
           child: Container(
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(color: Colors.white,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: c.withValues(alpha: 0.3))),
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(color: kSurface,
+                  borderRadius: BorderRadius.circular(kRadiusCard),
+                  border: Border.all(color: c.withValues(alpha: 0.25)),
+                  boxShadow: kCardShadow),
               child: Row(children: [
-                Icon(icon, size: 18, color: c), const SizedBox(width: 12),
-                Text(label, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: c)),
+                Container(width: 36, height: 36,
+                    decoration: BoxDecoration(color: c.withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(kRadiusChip)),
+                    child: Icon(icon, size: 18, color: c)),
+                const SizedBox(width: 14),
+                Text(label, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: c)),
                 const Spacer(),
-                Icon(Icons.chevron_right, size: 18, color: c),
+                Icon(Icons.chevron_right_rounded, size: 18, color: c),
               ])));
 
   Future<void> _pickDateRange() async {

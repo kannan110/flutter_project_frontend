@@ -278,7 +278,7 @@ class _S extends ConsumerState<BatchDetailScreen> {
                           padding: const EdgeInsets.all(10),
                           decoration: BoxDecoration(
                               color: Colors.orange.shade50,
-                              borderRadius: BorderRadius.circular(8),
+                              borderRadius: BorderRadius.circular(kRadiusInner),
                               border: Border.all(color: Colors.orange.shade200)),
                           child: const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                             Row(children: [
@@ -364,7 +364,7 @@ class _S extends ConsumerState<BatchDetailScreen> {
                                 })),
                             child: Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
-                                decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(10),
+                                decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(kRadiusCard),
                                     border: Border.all(color: selectedFarmId != null ? kPrimary : kBorder,
                                         width: selectedFarmId != null ? 1.5 : 1)),
                                 child: Row(children: [
@@ -512,8 +512,8 @@ class _S extends ConsumerState<BatchDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    if (_loading) return const Scaffold(body: LoadingList());
-    if (_batch == null) return Scaffold(appBar: AppBar(), body: const Center(child: Text('Not found')));
+    if (_loading) return const Scaffold(backgroundColor: kBgPage, body: LoadingList());
+    if (_batch == null) return Scaffold(backgroundColor: kBgPage, appBar: AppBar(backgroundColor: kSurface), body: const Center(child: Text('Not found')));
     final a       = _batch!['delivery_agents'] as Map<String,dynamic>?;
     final status  = _batch!['status'] as String? ?? 'assigned';
     final canEdit = !['completed', 'cancelled'].contains(status);
@@ -524,7 +524,9 @@ class _S extends ConsumerState<BatchDetailScreen> {
     final dcWeight = _challans.fold(0.0, (s, c) => s + ((c['net_weight']  as num?)?.toDouble() ?? 0));
 
     return Scaffold(
+      backgroundColor: kBgPage,
       appBar: AppBar(
+        backgroundColor: kSurface,
         title: const Text('Batch Detail'),
         actions: [
           if (canEdit) ...[
@@ -544,7 +546,7 @@ class _S extends ConsumerState<BatchDetailScreen> {
           IconButton(icon: const Icon(Icons.refresh), onPressed: _load),
         ],
       ),
-      body: ListView(padding: const EdgeInsets.all(16), children: [
+      body: ListView(padding: const EdgeInsets.fromLTRB(16,16,16,100), children: [
 
         // ── Agent card ────────────────────────────────────────────
         WhiteCard(child: Row(children: [
@@ -597,7 +599,7 @@ class _S extends ConsumerState<BatchDetailScreen> {
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
                 color: Colors.orange.shade50,
-                borderRadius: BorderRadius.circular(10),
+                borderRadius: BorderRadius.circular(kRadiusCard),
                 border: Border.all(color: Colors.orange.shade200)),
             child: const Row(children: [
               Icon(Icons.info_outline, color: Colors.orange, size: 18), SizedBox(width: 8),
@@ -689,7 +691,7 @@ class _S extends ConsumerState<BatchDetailScreen> {
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
                   color: Colors.blue.shade50,
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(kRadiusCard),
                   border: Border.all(color: Colors.blue.shade100)),
               child: const Text(
                   'DC saved — batch is out for delivery. Agent can now complete deliveries.',
@@ -699,7 +701,7 @@ class _S extends ConsumerState<BatchDetailScreen> {
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
                   color: Colors.green.shade50,
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(kRadiusCard),
                   border: Border.all(color: Colors.green.shade200)),
               child: const Row(children: [
                 Icon(Icons.local_shipping, color: Colors.green, size: 18),
@@ -863,7 +865,7 @@ class _DcCardState extends State<_DcCard> {
                   GestureDetector(
                       onTap: () => _showImageFull(context, photoUrl!),
                       child: ClipRRect(
-                          borderRadius: BorderRadius.circular(10),
+                          borderRadius: BorderRadius.circular(kRadiusCard),
                           child: Stack(children: [
                             Image.network(
                               photoUrl!,
@@ -898,7 +900,7 @@ class _DcCardState extends State<_DcCard> {
                   Container(
                       padding: const EdgeInsets.all(10),
                       decoration: BoxDecoration(color: Colors.orange.shade50,
-                          borderRadius: BorderRadius.circular(8),
+                          borderRadius: BorderRadius.circular(kRadiusInner),
                           border: Border.all(color: Colors.orange.shade200)),
                       child: const Row(children: [
                         Icon(Icons.camera_alt_outlined, size: 14, color: Colors.orange),

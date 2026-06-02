@@ -300,7 +300,9 @@ class _S extends ConsumerState<RetailerDetailScreen> {
     final isActive = r['is_active'] as bool? ?? true;
 
     return Scaffold(
+      backgroundColor: kBgPage,
       appBar: AppBar(
+        backgroundColor: kSurface,
         title: Text(_editing ? 'Edit Customer' : (r['shop_name'] as String)),
         actions: [
           if (!_editing) ...[

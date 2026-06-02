@@ -70,47 +70,48 @@ class _S extends ConsumerState<CratesScreen> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Crate Management'), actions: [
+    backgroundColor: kBgPage,
+    appBar: AppBar(backgroundColor: kSurface, title: const Text('Crate Management'), actions: [
       IconButton(icon: const Icon(Icons.settings_outlined), onPressed: _setInventory, tooltip: 'Set inventory'),
       IconButton(icon: const Icon(Icons.refresh), onPressed: _load),
     ]),
     body: _loading ? const LoadingList() : _summary == null ? const EmptyState(icon: Icons.inventory_2_outlined, message: 'No crate data')
         : RefreshIndicator(onRefresh: _load, child: ListView(padding: const EdgeInsets.all(16), children: [
-            GridView.count(crossAxisCount: 3, shrinkWrap: true, physics: const NeverScrollableScrollPhysics(),
-              crossAxisSpacing: 10, mainAxisSpacing: 10, childAspectRatio: 1.2, children: [
-              KpiCard('Total', '${_summary!['total_crates'] ?? 0}', Icons.inventory_2_outlined, kPrimary),
-              KpiCard('With Agents', '${_summary!['with_agents'] ?? 0}', Icons.delivery_dining, Colors.orange),
-              KpiCard('With Retailers', '${_summary!['with_retailers'] ?? 0}', Icons.store_outlined, Colors.purple),
-            ]),
-            const SizedBox(height: 14),
-            if ((_summary!['agent_balances'] as List?)?.isNotEmpty == true) ...[
-              const SectionHeader('WITH AGENTS'),
-              ...(_summary!['agent_balances'] as List).map((b) {
-                final row = b as Map<String,dynamic>;
-                return Container(margin: const EdgeInsets.only(bottom: 8), child: WhiteCard(padding: const EdgeInsets.all(12),
-                  child: Row(children: [
-                    Expanded(child: Text(row['agent_name'] as String? ?? '—', style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13))),
-                    Text('${row['balance'] ?? 0} crates', style: const TextStyle(fontWeight: FontWeight.w700, color: Colors.orange)),
-                    const SizedBox(width: 8),
-                    IconButton(icon: const Icon(Icons.tune_outlined, size: 16), padding: EdgeInsets.zero, constraints: const BoxConstraints(),
-                        onPressed: () => _adjust('agent', row['agent_id'] as String, row['agent_name'] as String)),
-                  ])));
-              }),
-            ],
-            if ((_summary!['retailer_balances'] as List?)?.isNotEmpty == true) ...[
-              const SectionHeader('WITH RETAILERS'),
-              ...(_summary!['retailer_balances'] as List).map((b) {
-                final row = b as Map<String,dynamic>;
-                return Container(margin: const EdgeInsets.only(bottom: 8), child: WhiteCard(padding: const EdgeInsets.all(12),
-                  child: Row(children: [
-                    Expanded(child: Text(row['shop_name'] as String? ?? '—', style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13))),
-                    Text('${row['balance'] ?? 0} crates', style: const TextStyle(fontWeight: FontWeight.w700, color: Colors.purple)),
-                    const SizedBox(width: 8),
-                    IconButton(icon: const Icon(Icons.tune_outlined, size: 16), padding: EdgeInsets.zero, constraints: const BoxConstraints(),
-                        onPressed: () => _adjust('retailer', row['retailer_id'] as String, row['shop_name'] as String)),
-                  ])));
-              }),
-            ],
-          ])),
+      GridView.count(crossAxisCount: 3, shrinkWrap: true, physics: const NeverScrollableScrollPhysics(),
+          crossAxisSpacing: 10, mainAxisSpacing: 10, childAspectRatio: 1.2, children: [
+            KpiCard('Total', '${_summary!['total_crates'] ?? 0}', Icons.inventory_2_outlined, kPrimary),
+            KpiCard('With Agents', '${_summary!['with_agents'] ?? 0}', Icons.delivery_dining, Colors.orange),
+            KpiCard('With Retailers', '${_summary!['with_retailers'] ?? 0}', Icons.store_outlined, Colors.purple),
+          ]),
+      const SizedBox(height: 14),
+      if ((_summary!['agent_balances'] as List?)?.isNotEmpty == true) ...[
+        const SectionHeader('WITH AGENTS'),
+        ...(_summary!['agent_balances'] as List).map((b) {
+          final row = b as Map<String,dynamic>;
+          return Container(margin: const EdgeInsets.only(bottom: 8), child: WhiteCard(padding: const EdgeInsets.all(12),
+              child: Row(children: [
+                Expanded(child: Text(row['agent_name'] as String? ?? '—', style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13))),
+                Text('${row['balance'] ?? 0} crates', style: const TextStyle(fontWeight: FontWeight.w700, color: Colors.orange)),
+                const SizedBox(width: 8),
+                IconButton(icon: const Icon(Icons.tune_outlined, size: 16), padding: EdgeInsets.zero, constraints: const BoxConstraints(),
+                    onPressed: () => _adjust('agent', row['agent_id'] as String, row['agent_name'] as String)),
+              ])));
+        }),
+      ],
+      if ((_summary!['retailer_balances'] as List?)?.isNotEmpty == true) ...[
+        const SectionHeader('WITH RETAILERS'),
+        ...(_summary!['retailer_balances'] as List).map((b) {
+          final row = b as Map<String,dynamic>;
+          return Container(margin: const EdgeInsets.only(bottom: 8), child: WhiteCard(padding: const EdgeInsets.all(12),
+              child: Row(children: [
+                Expanded(child: Text(row['shop_name'] as String? ?? '—', style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13))),
+                Text('${row['balance'] ?? 0} crates', style: const TextStyle(fontWeight: FontWeight.w700, color: Colors.purple)),
+                const SizedBox(width: 8),
+                IconButton(icon: const Icon(Icons.tune_outlined, size: 16), padding: EdgeInsets.zero, constraints: const BoxConstraints(),
+                    onPressed: () => _adjust('retailer', row['retailer_id'] as String, row['shop_name'] as String)),
+              ])));
+        }),
+      ],
+    ])),
   );
 }

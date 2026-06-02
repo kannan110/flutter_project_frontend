@@ -155,182 +155,188 @@ class _S extends ConsumerState<CreateOrderScreen> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('New Order')),
+    backgroundColor: kBgPage,
+    appBar: AppBar(
+      backgroundColor: kSurface,
+      title: const Text('New Order'),
+    ),
     body: _dataLoading ? const LoadingList() : Form(
-      key: _form,
-      child: ListView(padding: const EdgeInsets.all(16), children: [
+        key: _form,
+        child: ListView(padding: const EdgeInsets.all(16), children: [
 
-        // ── Customer ───────────────────────────────────────────
-        const SectionHeader('CUSTOMER'),
-        DropdownButtonFormField<Map<String,dynamic>>(
-          value: _selRetailer,
-          hint: const Text('Select Customer'),
-          decoration: const InputDecoration(
-              prefixIcon: Icon(Icons.store_outlined, size: 20, color: kPrimary)),
-          isExpanded: true,
-          items: _retailers.map((r) => DropdownMenuItem(value: r,
-              child: Text(r['shop_name'] as String,
-                  overflow: TextOverflow.ellipsis))).toList(),
-          onChanged: (v) {
-            setState(() { _selRetailer = v; });
-            for (int i = 0; i < _lines.length; i++) _fetchRate(i);
-          },
-          validator: (v) => v == null ? 'Select a customer' : null),
-        const SizedBox(height: 16),
+          // ── Customer ───────────────────────────────────────────
+          const SectionHeader('CUSTOMER'),
+          DropdownButtonFormField<Map<String,dynamic>>(
+              value: _selRetailer,
+              hint: const Text('Select Customer'),
+              decoration: const InputDecoration(
+                  prefixIcon: Icon(Icons.store_outlined, size: 20, color: kPrimary)),
+              isExpanded: true,
+              items: _retailers.map((r) => DropdownMenuItem(value: r,
+                  child: Text(r['shop_name'] as String,
+                      overflow: TextOverflow.ellipsis))).toList(),
+              onChanged: (v) {
+                setState(() { _selRetailer = v; });
+                for (int i = 0; i < _lines.length; i++) _fetchRate(i);
+              },
+              validator: (v) => v == null ? 'Select a customer' : null),
+          const SizedBox(height: 16),
 
-        // ── Order Lines (multi-product) ────────────────────────
-        const SectionHeader('PRODUCTS'),
-        ..._lines.asMap().entries.map((e) => _buildProductLine(e.key)),
+          // ── Order Lines (multi-product) ────────────────────────
+          const SectionHeader('PRODUCTS'),
+          ..._lines.asMap().entries.map((e) => _buildProductLine(e.key)),
 
-        // Add product line button
-        OutlinedButton.icon(
-          onPressed: _addLine,
-          icon: const Icon(Icons.add, size: 18),
-          label: const Text('Add Another Product'),
-          style: OutlinedButton.styleFrom(minimumSize: const Size(double.infinity, 44))),
-        const SizedBox(height: 16),
+          // Add product line button
+          OutlinedButton.icon(
+              onPressed: _addLine,
+              icon: const Icon(Icons.add, size: 18),
+              label: const Text('Add Another Product'),
+              style: OutlinedButton.styleFrom(minimumSize: const Size(double.infinity, 44))),
+          const SizedBox(height: 16),
 
-        // ── Order total summary ───────────────────────────────
-        if (_lines.length > 1 || _totalKg > 0) Container(
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-              color: kPrimary.withValues(alpha: 0.07),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: kPrimary.withValues(alpha: 0.2))),
-          child: Row(children: [
-            _summStat('Birds',  '$_totalBirds', Colors.blue),
-            _summStat('Weight', '${_totalKg.toStringAsFixed(1)} kg', Colors.teal),
-            _summStat('Total',  Fmt.amount(_totalAmt), kPrimary),
-          ])),
+          // ── Order total summary ───────────────────────────────
+          if (_lines.length > 1 || _totalKg > 0) Container(
+              padding: const EdgeInsets.all(18),
+              decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                      colors: [kNavy, kNavyMid],
+                      begin: Alignment.topLeft, end: Alignment.bottomRight),
+                  borderRadius: BorderRadius.circular(kRadiusCard),
+                  boxShadow: kCardShadow),
+              child: Row(children: [
+                _summStat('Birds',  '$_totalBirds', Colors.blue),
+                _summStat('Weight', '${_totalKg.toStringAsFixed(1)} kg', Colors.teal),
+                _summStat('Total',  Fmt.amount(_totalAmt), kPrimary),
+              ])),
 
-        const SizedBox(height: 14),
-        TextFormField(
-          controller: _notesCtrl, maxLines: 2,
-          decoration: const InputDecoration(
-              labelText: 'Notes (optional)',
-              alignLabelWithHint: true,
-              prefixIcon: Icon(Icons.notes_outlined, size: 20, color: kPrimary))),
-        const SizedBox(height: 24),
+          const SizedBox(height: 14),
+          TextFormField(
+              controller: _notesCtrl, maxLines: 2,
+              decoration: const InputDecoration(
+                  labelText: 'Notes (optional)',
+                  alignLabelWithHint: true,
+                  prefixIcon: Icon(Icons.notes_outlined, size: 20, color: kPrimary))),
+          const SizedBox(height: 24),
 
-        // Auto-confirm info banner
-        Container(
-          padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(color: Colors.green.shade50,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.green.shade200)),
-          child: const Row(children: [
-            Icon(Icons.check_circle_outline, color: Colors.green, size: 16),
-            SizedBox(width: 8),
-            Expanded(child: Text('Order will be auto-confirmed immediately upon creation.',
-                style: TextStyle(fontSize: 12, color: Colors.green))),
-          ])),
-        const SizedBox(height: 14),
+          // Auto-confirm info banner
+          Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(color: Colors.green.shade50,
+                  borderRadius: BorderRadius.circular(kRadiusInner),
+                  border: Border.all(color: Colors.green.withValues(alpha: 0.3))),
+              child: const Row(children: [
+                Icon(Icons.check_circle_outline, color: Colors.green, size: 16),
+                SizedBox(width: 8),
+                Expanded(child: Text('Order will be auto-confirmed immediately upon creation.',
+                    style: TextStyle(fontSize: 12, color: Colors.green))),
+              ])),
+          const SizedBox(height: 14),
 
-        ElevatedButton(
-          onPressed: _saving ? null : _save,
-          style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 52)),
-          child: _saving
-              ? const SizedBox(width: 22, height: 22,
+          ElevatedButton(
+              onPressed: _saving ? null : _save,
+              style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 52)),
+              child: _saving
+                  ? const SizedBox(width: 22, height: 22,
                   child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white))
-              : const Text('Create & Confirm Order',
+                  : const Text('Create & Confirm Order',
                   style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700))),
-        const SizedBox(height: 20),
-      ])),
+          const SizedBox(height: 20),
+        ])),
   );
 
   Widget _buildProductLine(int idx) {
     final line = _lines[idx];
     return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-          color: Colors.white, borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: kBorder),
-          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04),
-              blurRadius: 4, offset: const Offset(0, 2))]),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(color: kPrimary, borderRadius: BorderRadius.circular(6)),
-            child: Text('Item ${idx + 1}',
-                style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w800))),
-          const Spacer(),
-          if (_lines.length > 1) IconButton(
-            icon: const Icon(Icons.remove_circle_outline, color: Colors.red, size: 20),
-            onPressed: () => _removeLine(idx),
-            padding: EdgeInsets.zero, constraints: const BoxConstraints()),
-        ]),
-        const SizedBox(height: 10),
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+            color: kSurface, borderRadius: BorderRadius.circular(kRadiusCard),
+            border: Border.all(color: kBorderLight),
+            boxShadow: kCardShadow),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(color: kPrimary, borderRadius: BorderRadius.circular(6)),
+                child: Text('Item ${idx + 1}',
+                    style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w800))),
+            const Spacer(),
+            if (_lines.length > 1) IconButton(
+                icon: const Icon(Icons.remove_circle_outline, color: Colors.red, size: 20),
+                onPressed: () => _removeLine(idx),
+                padding: EdgeInsets.zero, constraints: const BoxConstraints()),
+          ]),
+          const SizedBox(height: 10),
 
-        // Product dropdown
-        DropdownButtonFormField<Map<String,dynamic>>(
-          value: line.product,
-          hint: const Text('Select Product'),
-          decoration: const InputDecoration(
-              prefixIcon: Icon(Icons.set_meal_outlined, size: 18, color: kPrimary),
-              contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12)),
-          isExpanded: true,
-          items: _products.map((p) => DropdownMenuItem(
-              value: p, child: Text(p['name'] as String))).toList(),
-          onChanged: (v) { setState(() => line.product = v); _fetchRate(idx); },
-          validator: (v) => v == null ? 'Select product' : null),
-        const SizedBox(height: 8),
+          // Product dropdown
+          DropdownButtonFormField<Map<String,dynamic>>(
+              value: line.product,
+              hint: const Text('Select Product'),
+              decoration: const InputDecoration(
+                  prefixIcon: Icon(Icons.set_meal_outlined, size: 18, color: kPrimary),
+                  contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12)),
+              isExpanded: true,
+              items: _products.map((p) => DropdownMenuItem(
+                  value: p, child: Text(p['name'] as String))).toList(),
+              onChanged: (v) { setState(() => line.product = v); _fetchRate(idx); },
+              validator: (v) => v == null ? 'Select product' : null),
+          const SizedBox(height: 8),
 
-        // Birds + Avg weight
-        Row(children: [
-          Expanded(child: TextFormField(
-            controller: line.birds,
-            keyboardType: TextInputType.number,
-            decoration: const InputDecoration(labelText: 'Birds', suffixText: 'birds',
-                contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12)),
-            onChanged: (_) { line.autoCalcWeight(); setState(() {}); })),
-          const SizedBox(width: 8),
-          Expanded(child: TextFormField(
-            controller: line.avgWt,
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            decoration: const InputDecoration(labelText: 'Avg wt/bird', suffixText: 'kg',
-                contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12)),
-            onChanged: (_) { line.autoCalcWeight(); setState(() {}); })),
-        ]),
-        const SizedBox(height: 8),
+          // Birds + Avg weight
+          Row(children: [
+            Expanded(child: TextFormField(
+                controller: line.birds,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(labelText: 'Birds', suffixText: 'birds',
+                    contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12)),
+                onChanged: (_) { line.autoCalcWeight(); setState(() {}); })),
+            const SizedBox(width: 8),
+            Expanded(child: TextFormField(
+                controller: line.avgWt,
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                decoration: const InputDecoration(labelText: 'Avg wt/bird', suffixText: 'kg',
+                    contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12)),
+                onChanged: (_) { line.autoCalcWeight(); setState(() {}); })),
+          ]),
+          const SizedBox(height: 8),
 
-        // Total weight + Rate
-        Row(children: [
-          Expanded(child: TextFormField(
-            controller: line.totalWt,
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            decoration: const InputDecoration(labelText: 'Weight (kg) *', suffixText: 'kg',
-                contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12)),
-            onChanged: (v) { line.wtManual = v.isNotEmpty; setState(() {}); },
-            validator: (v) => (double.tryParse(v ?? '') ?? 0) <= 0 ? 'Enter weight' : null)),
-          const SizedBox(width: 8),
-          Expanded(child: TextFormField(
-            controller: line.rate,
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            decoration: InputDecoration(
-                labelText: 'Rate (₹/kg)',
-                prefixText: '₹',
-                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                suffixIcon: line.suggestRate != null
-                    ? Tooltip(message: 'Suggested: ₹${line.suggestRate!.toStringAsFixed(2)}',
+          // Total weight + Rate
+          Row(children: [
+            Expanded(child: TextFormField(
+                controller: line.totalWt,
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                decoration: const InputDecoration(labelText: 'Weight (kg) *', suffixText: 'kg',
+                    contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12)),
+                onChanged: (v) { line.wtManual = v.isNotEmpty; setState(() {}); },
+                validator: (v) => (double.tryParse(v ?? '') ?? 0) <= 0 ? 'Enter weight' : null)),
+            const SizedBox(width: 8),
+            Expanded(child: TextFormField(
+                controller: line.rate,
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                decoration: InputDecoration(
+                    labelText: 'Rate (₹/kg)',
+                    prefixText: '₹',
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                    suffixIcon: line.suggestRate != null
+                        ? Tooltip(message: 'Suggested: ₹${line.suggestRate!.toStringAsFixed(2)}',
                         child: const Icon(Icons.info_outline, size: 16, color: Colors.blue))
-                    : null),
-            onChanged: (_) => setState(() {}))),
-        ]),
+                        : null),
+                onChanged: (_) => setState(() {}))),
+          ]),
 
-        // Line total
-        if (line.kg > 0 && line.r > 0) Padding(
-          padding: const EdgeInsets.only(top: 8),
-          child: Row(mainAxisAlignment: MainAxisAlignment.end, children: [
-            Text('Line total: ${Fmt.amount(line.amt)}',
-                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: kPrimary)),
-          ])),
-      ]));
+          // Line total
+          if (line.kg > 0 && line.r > 0) Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Row(mainAxisAlignment: MainAxisAlignment.end, children: [
+                Text('Line total: ${Fmt.amount(line.amt)}',
+                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: kPrimary)),
+              ])),
+        ]));
   }
 
   Widget _summStat(String l, String v, Color c) => Expanded(child: Column(children: [
-    Text(v, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: c)),
-    Text(l, style: const TextStyle(fontSize: 10, color: kTextHint)),
+    Text(v, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: kGoldLight)),
+    Text(l, style: const TextStyle(fontSize: 10, color: Color(0xFFB4C6F4),
+        fontWeight: FontWeight.w700, letterSpacing: 0.4)),
   ]));
 }

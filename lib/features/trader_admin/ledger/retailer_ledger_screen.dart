@@ -67,37 +67,37 @@ class _S extends ConsumerState<RetailerLedgerScreen> {
     final uid = ref.read(appUserProvider).valueOrNull?.userId;
 
     await showModalBottomSheet(context: context, isScrollControlled: true, useRootNavigator: true,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (ctx) => Padding(
-        padding: EdgeInsets.fromLTRB(20, 20, 20, MediaQuery.of(ctx).viewInsets.bottom + 20),
-        child: StatefulBuilder(builder: (_, ss) => Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          Text('Collect Payment — ${_retailer?['shop_name'] ?? ''}', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
-          Text('Outstanding: ${Fmt.amount(_outstanding)}', style: TextStyle(fontSize: 12, color: _outstanding > 0 ? Colors.orange : Colors.green, fontWeight: FontWeight.w600)),
-          const SizedBox(height: 14),
-          TextField(controller: amtCtrl, keyboardType: const TextInputType.numberWithOptions(decimal: true), autofocus: true,
-              decoration: const InputDecoration(labelText: 'Amount received (₹) *', prefixText: '₹')),
-          const SizedBox(height: 10),
-          SegmentedButton<String>(
-            segments: const [ButtonSegment(value:'cash',label:Text('Cash')), ButtonSegment(value:'upi',label:Text('UPI')), ButtonSegment(value:'bank',label:Text('Bank'))],
-            selected: {mode}, onSelectionChanged: (s) => ss(() => mode = s.first)),
-          const SizedBox(height: 10),
-          TextField(controller: descCtrl, decoration: const InputDecoration(labelText: 'Reference / Notes (optional)')),
-          const SizedBox(height: 16),
-          ElevatedButton(onPressed: () async {
-            final amt = double.tryParse(amtCtrl.text.trim());
-            if (amt == null || amt <= 0) return;
-            Navigator.of(ctx, rootNavigator: true).pop();
-            try {
-              await _c.rpc('record_payment', params: {
-                'p_trader_id': tid, 'p_retailer_id': widget.retailerId,
-                'p_amount': amt, 'p_payment_mode': mode,
-                'p_description': descCtrl.text.trim().isEmpty ? 'Payment via $mode' : descCtrl.text.trim(),
-                'p_recorded_by': uid,
-              });
-              _load(); if (mounted) showSuccess(context, 'Payment recorded ✓');
-            } catch (e) { if (mounted) showError(context, e.toString()); }
-          }, child: const Text('Record Payment')),
-        ]))));
+        shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+        builder: (ctx) => Padding(
+            padding: EdgeInsets.fromLTRB(20, 20, 20, MediaQuery.of(ctx).viewInsets.bottom + 20),
+            child: StatefulBuilder(builder: (_, ss) => Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+              Text('Collect Payment — ${_retailer?['shop_name'] ?? ''}', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
+              Text('Outstanding: ${Fmt.amount(_outstanding)}', style: TextStyle(fontSize: 12, color: _outstanding > 0 ? Colors.orange : Colors.green, fontWeight: FontWeight.w600)),
+              const SizedBox(height: 14),
+              TextField(controller: amtCtrl, keyboardType: const TextInputType.numberWithOptions(decimal: true), autofocus: true,
+                  decoration: const InputDecoration(labelText: 'Amount received (₹) *', prefixText: '₹')),
+              const SizedBox(height: 10),
+              SegmentedButton<String>(
+                  segments: const [ButtonSegment(value:'cash',label:Text('Cash')), ButtonSegment(value:'upi',label:Text('UPI')), ButtonSegment(value:'bank',label:Text('Bank'))],
+                  selected: {mode}, onSelectionChanged: (s) => ss(() => mode = s.first)),
+              const SizedBox(height: 10),
+              TextField(controller: descCtrl, decoration: const InputDecoration(labelText: 'Reference / Notes (optional)')),
+              const SizedBox(height: 16),
+              ElevatedButton(onPressed: () async {
+                final amt = double.tryParse(amtCtrl.text.trim());
+                if (amt == null || amt <= 0) return;
+                Navigator.of(ctx, rootNavigator: true).pop();
+                try {
+                  await _c.rpc('record_payment', params: {
+                    'p_trader_id': tid, 'p_retailer_id': widget.retailerId,
+                    'p_amount': amt, 'p_payment_mode': mode,
+                    'p_description': descCtrl.text.trim().isEmpty ? 'Payment via $mode' : descCtrl.text.trim(),
+                    'p_recorded_by': uid,
+                  });
+                  _load(); if (mounted) showSuccess(context, 'Payment recorded ✓');
+                } catch (e) { if (mounted) showError(context, e.toString()); }
+              }, child: const Text('Record Payment')),
+            ]))));
     amtCtrl.dispose(); descCtrl.dispose();
   }
 
@@ -112,95 +112,120 @@ class _S extends ConsumerState<RetailerLedgerScreen> {
   Widget build(BuildContext context) {
     if (_loading) return const Scaffold(body: LoadingList());
     return Scaffold(
+      backgroundColor: kBgPage,
       appBar: AppBar(
+        backgroundColor: kSurface,
         title: Text(_retailer?['shop_name'] as String? ?? 'Ledger'),
         actions: [
           IconButton(icon: const Icon(Icons.date_range_outlined), onPressed: _pickDateRange, tooltip: 'Filter by date'),
-          IconButton(icon: const Icon(Icons.refresh), onPressed: _load),
+          IconButton(icon: const Icon(Icons.refresh_rounded), onPressed: _load),
         ],
       ),
       body: Column(children: [
 
-        // Summary header
-        Container(color: Colors.white, padding: const EdgeInsets.all(16), child: Column(children: [
-          Row(children: [
-            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              const Text('Total Outstanding', style: TextStyle(fontSize: 11, color: kTextHint)),
-              Text(Fmt.amount(_outstanding), style: TextStyle(fontSize: 26, fontWeight: FontWeight.w900, color: _outstanding > 0 ? Colors.orange : Colors.green)),
+        // Summary header — navy gradient
+        Container(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                colors: [kNavy, kNavyMid],
+                begin: Alignment.topLeft, end: Alignment.bottomRight,
+              ),
+            ),
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
+            child: Column(children: [
+              Row(children: [
+                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  const Text('OUTSTANDING', style: TextStyle(fontSize: 10, color: Color(0xFFB4C6F4),
+                      fontWeight: FontWeight.w800, letterSpacing: 0.6)),
+                  const SizedBox(height: 4),
+                  Text(Fmt.amount(_outstanding), style: TextStyle(fontSize: 30, fontWeight: FontWeight.w900,
+                      color: _outstanding > 0 ? kGoldLight : const Color(0xFF86EFAC))),
+                ])),
+                ElevatedButton.icon(
+                    onPressed: _recordPayment,
+                    icon: const Icon(Icons.add, size: 16),
+                    label: const Text('Collect'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: kGold,
+                      foregroundColor: kNavy,
+                      minimumSize: const Size(0, 42),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kRadiusChip)),
+                    )),
+              ]),
+              const SizedBox(height: 16),
+              Row(children: [
+                Expanded(child: _statBox('Total Billed', Fmt.amount(_totalDebit), Colors.red)),
+                const SizedBox(width: 10),
+                Expanded(child: _statBox('Total Received', Fmt.amount(_totalCredit), Colors.green)),
+              ]),
+              if (_fromDate != null) ...[const SizedBox(height: 12),
+                Container(padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(kRadiusInner)),
+                    child: Row(children: [
+                      const Icon(Icons.date_range, size: 14, color: Color(0xFFB4C6F4)),
+                      const SizedBox(width: 6),
+                      Text('${DateFormat('d MMM').format(_fromDate!)} – ${DateFormat('d MMM y').format(_toDate!)}', style: const TextStyle(fontSize: 11, color: Color(0xFFB4C6F4), fontWeight: FontWeight.w600)),
+                      const Spacer(),
+                      GestureDetector(onTap: () { if (mounted) setState(() { _fromDate = null; _toDate = null; }); _load(); },
+                          child: const Icon(Icons.close, size: 14, color: Color(0xFFB4C6F4))),
+                    ])),
+              ],
             ])),
-            ElevatedButton.icon(onPressed: _recordPayment, icon: const Icon(Icons.add, size: 16), label: const Text('Collect'), style: ElevatedButton.styleFrom(minimumSize: const Size(0, 38))),
-          ]),
-          const SizedBox(height: 10),
-          Row(children: [
-            Expanded(child: _statBox('Total Billed', Fmt.amount(_totalDebit), Colors.red)),
-            const SizedBox(width: 8),
-            Expanded(child: _statBox('Total Received', Fmt.amount(_totalCredit), Colors.green)),
-          ]),
-          if (_fromDate != null) ...[const SizedBox(height: 8),
-            Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(8)),
-              child: Row(children: [
-                const Icon(Icons.date_range, size: 14, color: Colors.blue),
-                const SizedBox(width: 6),
-                Text('${DateFormat('d MMM').format(_fromDate!)} – ${DateFormat('d MMM y').format(_toDate!)}', style: const TextStyle(fontSize: 11, color: Colors.blue, fontWeight: FontWeight.w600)),
-                const Spacer(),
-                GestureDetector(onTap: () { if (mounted) setState(() { _fromDate = null; _toDate = null; }); _load(); },
-                    child: const Icon(Icons.close, size: 14, color: Colors.blue)),
-              ])),
-          ],
-        ])),
 
         // Filter tabs
         Container(
-          color: Colors.white, padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
-          child: SegmentedButton<String>(
-            segments: const [ButtonSegment(value:'all',label:Text('All')), ButtonSegment(value:'debit',label:Text('Purchases')), ButtonSegment(value:'credit',label:Text('Payments'))],
-            selected: {_filter}, onSelectionChanged: (s) { if (mounted) setState(() => _filter = s.first); _load(); })),
+            color: Colors.white, padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+            child: SegmentedButton<String>(
+                segments: const [ButtonSegment(value:'all',label:Text('All')), ButtonSegment(value:'debit',label:Text('Purchases')), ButtonSegment(value:'credit',label:Text('Payments'))],
+                selected: {_filter}, onSelectionChanged: (s) { if (mounted) setState(() => _filter = s.first); _load(); })),
         const Divider(height: 1),
 
         // Transactions list
         Expanded(child: _entries.isEmpty
             ? const EmptyState(icon: Icons.receipt_long_outlined, message: 'No transactions', sub: 'Transactions appear here after orders and payments')
             : ListView.separated(
-                padding: const EdgeInsets.all(16), itemCount: _entries.length,
-                separatorBuilder: (_, __) => const SizedBox(height: 6),
-                itemBuilder: (_, i) {
-                  final e = _entries[i];
-                  final isDebit = e['entry_type'] == 'debit';
-                  final amt  = (e['amount'] as num).toDouble();
-                  final date = DateTime.tryParse(e['entry_date'] as String? ?? '') ?? DateTime.now();
-                  return Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(10), border: Border.all(color: kBorder)),
-                    child: Row(children: [
-                      Container(width: 38, height: 38,
+            padding: const EdgeInsets.all(16), itemCount: _entries.length,
+            separatorBuilder: (_, __) => const SizedBox(height: 6),
+            itemBuilder: (_, i) {
+              final e = _entries[i];
+              final isDebit = e['entry_type'] == 'debit';
+              final amt  = (e['amount'] as num).toDouble();
+              final date = DateTime.tryParse(e['entry_date'] as String? ?? '') ?? DateTime.now();
+              return Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(10), border: Border.all(color: kBorder)),
+                  child: Row(children: [
+                    Container(width: 38, height: 38,
                         decoration: BoxDecoration(color: (isDebit ? Colors.red : Colors.green).withValues(alpha: 0.1), shape: BoxShape.circle),
                         child: Icon(isDebit ? Icons.arrow_upward_rounded : Icons.arrow_downward_rounded,
                             size: 18, color: isDebit ? Colors.red : Colors.green)),
-                      const SizedBox(width: 10),
-                      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                        Text(e['description'] as String? ?? (isDebit ? 'Purchase' : 'Payment'),
-                            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600), maxLines: 1, overflow: TextOverflow.ellipsis),
-                        Row(children: [
-                          Text(DateFormat('d MMM y').format(date), style: const TextStyle(fontSize: 10, color: kTextHint)),
-                          if (e['payment_mode'] != null) ...[
-                            const Text(' · ', style: TextStyle(fontSize: 10, color: kTextHint)),
-                            Text((e['payment_mode'] as String).toUpperCase(), style: const TextStyle(fontSize: 10, color: kTextHint)),
-                          ],
-                        ]),
-                      ])),
-                      Text('${isDebit ? '+' : '−'}${Fmt.amount(amt)}',
-                          style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14, color: isDebit ? Colors.red : Colors.green)),
-                    ]));
-                })),
+                    const SizedBox(width: 10),
+                    Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text(e['description'] as String? ?? (isDebit ? 'Purchase' : 'Payment'),
+                          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600), maxLines: 1, overflow: TextOverflow.ellipsis),
+                      Row(children: [
+                        Text(DateFormat('d MMM y').format(date), style: const TextStyle(fontSize: 10, color: kTextHint)),
+                        if (e['payment_mode'] != null) ...[
+                          const Text(' · ', style: TextStyle(fontSize: 10, color: kTextHint)),
+                          Text((e['payment_mode'] as String).toUpperCase(), style: const TextStyle(fontSize: 10, color: kTextHint)),
+                        ],
+                      ]),
+                    ])),
+                    Text('${isDebit ? '+' : '−'}${Fmt.amount(amt)}',
+                        style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14, color: isDebit ? Colors.red : Colors.green)),
+                  ]));
+            })),
       ]),
     );
   }
 
   Widget _statBox(String l, String v, Color c) => Container(
-    padding: const EdgeInsets.all(10),
-    decoration: BoxDecoration(color: c.withValues(alpha: 0.06), borderRadius: BorderRadius.circular(8), border: Border.all(color: c.withValues(alpha: 0.2))),
-    child: Column(children: [
-      Text(v, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: c)),
-      Text(l, style: const TextStyle(fontSize: 10, color: kTextHint)),
-    ]));
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(kRadiusInner)),
+      child: Column(children: [
+        Text(v, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: Colors.white)),
+        Text(l, style: const TextStyle(fontSize: 10, color: Color(0xFFB4C6F4), fontWeight: FontWeight.w700)),
+      ]));
 }

@@ -62,122 +62,124 @@ class _RLS extends ConsumerState<RetailerLinkScreen> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    backgroundColor: kBgGrey,
-    body: SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const SizedBox(height: 40),
+      backgroundColor: kBgPage,
+      body: SafeArea(
+          child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const SizedBox(height: 40),
 
-            // Logo / icon
-            Center(child: Container(
-                width: 72, height: 72,
-                decoration: BoxDecoration(
-                    color: kPrimary.withValues(alpha: 0.1),
-                    shape: BoxShape.circle),
-                child: const Icon(Icons.store_outlined, size: 36, color: kPrimary))),
+                    // Logo / icon
+                    Center(child: Container(
+                        width: 80, height: 80,
+                        decoration: BoxDecoration(
+                            gradient: const LinearGradient(colors: [kNavy, kNavyMid], begin: Alignment.topLeft, end: Alignment.bottomRight),
+                            shape: BoxShape.circle,
+                            boxShadow: kCardShadow),
+                        child: const Icon(Icons.store_outlined, size: 38, color: kGoldLight))),
 
-            const SizedBox(height: 24),
+                    const SizedBox(height: 24),
 
-            const Center(child: Text('Enter Supplier Code',
-                style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900))),
+                    const Center(child: Text('Enter Supplier Code',
+                        style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900, color: kNavy))),
 
-            const SizedBox(height: 8),
+                    const SizedBox(height: 8),
 
-            Center(child: Text(
-                'Your supplier (trader) will share a 6-character code with you.\n'
-                'Enter it below to link your account.',
-                textAlign: TextAlign.center,
-                style: const TextStyle(fontSize: 13, color: kTextSub, height: 1.4))),
+                    Center(child: Text(
+                        'Your supplier (trader) will share a 6-character code with you.\n'
+                            'Enter it below to link your account.',
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(fontSize: 13, color: kTextSub, height: 1.4))),
 
-            const SizedBox(height: 40),
+                    const SizedBox(height: 40),
 
-            // Code input
-            TextField(
-              controller: _codeCtrl,
-              maxLength: 6,
-              textCapitalization: TextCapitalization.characters,
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                  fontSize: 28, fontWeight: FontWeight.w900,
-                  letterSpacing: 8),
-              decoration: InputDecoration(
-                  counterText: '',
-                  hintText: 'XXXXXX',
-                  hintStyle: const TextStyle(letterSpacing: 8, color: kTextHint),
-                  filled: true,
-                  fillColor: Colors.white,
-                  border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(color: kBorder)),
-                  focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(color: kPrimary, width: 2))),
-              onChanged: (v) {
-                setState(() => _error = null);
-                if (v.length == 6) _claimInvite();
-              }),
+                    // Code input
+                    TextField(
+                        controller: _codeCtrl,
+                        maxLength: 6,
+                        textCapitalization: TextCapitalization.characters,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                            fontSize: 28, fontWeight: FontWeight.w900,
+                            letterSpacing: 8),
+                        decoration: InputDecoration(
+                            counterText: '',
+                            hintText: 'XXXXXX',
+                            hintStyle: const TextStyle(letterSpacing: 8, color: kTextHint),
+                            filled: true,
+                            fillColor: Colors.white,
+                            border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(kRadiusCard),
+                                borderSide: const BorderSide(color: kBorderLight)),
+                            focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(kRadiusCard),
+                                borderSide: const BorderSide(color: kNavy, width: 2))),
+                        onChanged: (v) {
+                          setState(() => _error = null);
+                          if (v.length == 6) _claimInvite();
+                        }),
 
-            const SizedBox(height: 16),
+                    const SizedBox(height: 16),
 
-            if (_error != null) Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                    color: Colors.red.shade50,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.red.shade200)),
-                child: Row(children: [
-                  const Icon(Icons.error_outline, color: Colors.red, size: 16),
-                  const SizedBox(width: 8),
-                  Expanded(child: Text(_error!,
-                      style: const TextStyle(color: Colors.red, fontSize: 12))),
-                ])),
+                    if (_error != null) Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                            color: kErrorBg,
+                            borderRadius: BorderRadius.circular(kRadiusCard),
+                            border: Border.all(color: kError.withValues(alpha: 0.3))),
+                        child: Row(children: [
+                          const Icon(Icons.error_outline, color: Colors.red, size: 16),
+                          const SizedBox(width: 8),
+                          Expanded(child: Text(_error!,
+                              style: const TextStyle(color: Colors.red, fontSize: 12))),
+                        ])),
 
-            if (_success != null) Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                    color: Colors.green.shade50,
-                    borderRadius: BorderRadius.circular(8)),
-                child: Row(children: [
-                  const Icon(Icons.check_circle_outline, color: Colors.green, size: 16),
-                  const SizedBox(width: 8),
-                  Text(_success!, style: const TextStyle(color: Colors.green, fontSize: 12)),
-                ])),
+                    if (_success != null) Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                            color: kSuccess.withValues(alpha: 0.08),
+                            borderRadius: BorderRadius.circular(kRadiusCard),
+                            border: Border.all(color: kSuccess.withValues(alpha: 0.25))),
+                        child: Row(children: [
+                          const Icon(Icons.check_circle_outline, color: Colors.green, size: 16),
+                          const SizedBox(width: 8),
+                          Text(_success!, style: const TextStyle(color: Colors.green, fontSize: 12)),
+                        ])),
 
-            const SizedBox(height: 24),
+                    const SizedBox(height: 24),
 
-            ElevatedButton(
-                onPressed: _loading ? null : _claimInvite,
-                style: ElevatedButton.styleFrom(
-                    minimumSize: const Size(double.infinity, 52),
-                    backgroundColor: kPrimary),
-                child: _loading
-                    ? const SizedBox(width: 20, height: 20,
-                        child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                    : const Text('Link Account',
-                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700))),
+                    ElevatedButton(
+                        onPressed: _loading ? null : _claimInvite,
+                        style: ElevatedButton.styleFrom(
+                            minimumSize: const Size(double.infinity, 52),
+                            backgroundColor: kPrimary),
+                        child: _loading
+                            ? const SizedBox(width: 20, height: 20,
+                            child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                            : const Text('Link Account',
+                            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700))),
 
-            const Spacer(),
+                    const Spacer(),
 
-            // Help text
-            Center(child: Column(children: [
-              const Text("Don't have a code?",
-                  style: TextStyle(fontSize: 12, color: kTextHint)),
-              const SizedBox(height: 4),
-              const Text(
-                  'Contact your poultry supplier and ask them to share your invite code from Rooster Trader.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 11, color: kTextHint)),
-              const SizedBox(height: 16),
-              TextButton(
-                  onPressed: () async {
-                    await _c.auth.signOut();
-                    if (mounted) context.go(R.login);
-                  },
-                  child: const Text('Sign out',
-                      style: TextStyle(color: kTextHint, fontSize: 12))),
-            ])),
-          ]))));
+                    // Help text
+                    Center(child: Column(children: [
+                      const Text("Don't have a code?",
+                          style: TextStyle(fontSize: 12, color: kTextHint)),
+                      const SizedBox(height: 4),
+                      const Text(
+                          'Contact your poultry supplier and ask them to share your invite code from Rooster Trader.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(fontSize: 11, color: kTextHint)),
+                      const SizedBox(height: 16),
+                      TextButton(
+                          onPressed: () async {
+                            await _c.auth.signOut();
+                            if (mounted) context.go(R.login);
+                          },
+                          child: const Text('Sign out',
+                              style: TextStyle(color: kTextHint, fontSize: 12))),
+                    ])),
+                  ]))));
 }

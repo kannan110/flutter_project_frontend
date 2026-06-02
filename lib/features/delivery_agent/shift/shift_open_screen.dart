@@ -98,15 +98,17 @@ class _S extends ConsumerState<ShiftOpenScreen> {
   Widget build(BuildContext context) {
     final isSimple = ref.watch(uiModeProvider).isSimple;
     return Scaffold(
+      backgroundColor: kBgPage,
       appBar: AppBar(
+        backgroundColor: isSimple ? Colors.white : const Color(0xFF1A7A3C),
+        foregroundColor: Colors.white,
         title: Text(isSimple ? '🚀 Open Shift' : 'Open Shift'),
-        backgroundColor: isSimple ? Colors.white : null,
       ),
       body: _checking
           ? const LoadingList()
           : _existing != null
-              ? (isSimple ? _buildSimpleAlreadyOpenView() : _alreadyOpenView())
-              : (isSimple ? _buildSimpleOpenNewView() : _openNewView()),
+          ? (isSimple ? _buildSimpleAlreadyOpenView() : _alreadyOpenView())
+          : (isSimple ? _buildSimpleOpenNewView() : _openNewView()),
     );
   }
 
@@ -114,40 +116,40 @@ class _S extends ConsumerState<ShiftOpenScreen> {
   // SMART MODE VIEWS
   // ══════════════════════════════════════════════════════════════════════════
   Widget _alreadyOpenView() => Padding(
-    padding: const EdgeInsets.all(24),
-    child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-      Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-            color: Colors.green.shade50,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: Colors.green.shade200)),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          const Row(children: [
-            Icon(Icons.check_circle, color: Colors.green, size: 22),
-            SizedBox(width: 10),
-            Text('Shift Already Open',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: Colors.green)),
-          ]),
-          const SizedBox(height: 10),
-          _infoRow('Odometer start', '${_existing!['odometer_start'] ?? '—'} km'),
-          if ((_existing!['total_orders'] as int? ?? 0) > 0)
-            _infoRow('Deliveries done', '${_existing!['total_orders']}'),
-          if ((_existing!['total_cash_collected'] as num? ?? 0) > 0)
-            _infoRow('Cash collected', Fmt.amount((_existing!['total_cash_collected'] as num).toDouble())),
-        ])),
-      const SizedBox(height: 24),
-      ElevatedButton.icon(
-          onPressed: () => context.go(R.agentHome),
-          icon: const Icon(Icons.home_outlined),
-          label: const Text('Go to Home', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700))),
-      const SizedBox(height: 12),
-      OutlinedButton.icon(
-          onPressed: () => context.go(R.shiftClose),
-          icon: const Icon(Icons.lock_outline, size: 18),
-          label: const Text('Close This Shift'),
-          style: OutlinedButton.styleFrom(foregroundColor: kError, side: const BorderSide(color: kError))),
-    ]));
+      padding: const EdgeInsets.all(24),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+                color: Colors.green.shade50,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: Colors.green.shade200)),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              const Row(children: [
+                Icon(Icons.check_circle, color: Colors.green, size: 22),
+                SizedBox(width: 10),
+                Text('Shift Already Open',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: Colors.green)),
+              ]),
+              const SizedBox(height: 10),
+              _infoRow('Odometer start', '${_existing!['odometer_start'] ?? '—'} km'),
+              if ((_existing!['total_orders'] as int? ?? 0) > 0)
+                _infoRow('Deliveries done', '${_existing!['total_orders']}'),
+              if ((_existing!['total_cash_collected'] as num? ?? 0) > 0)
+                _infoRow('Cash collected', Fmt.amount((_existing!['total_cash_collected'] as num).toDouble())),
+            ])),
+        const SizedBox(height: 24),
+        ElevatedButton.icon(
+            onPressed: () => context.go(R.agentHome),
+            icon: const Icon(Icons.home_outlined),
+            label: const Text('Go to Home', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700))),
+        const SizedBox(height: 12),
+        OutlinedButton.icon(
+            onPressed: () => context.go(R.shiftClose),
+            icon: const Icon(Icons.lock_outline, size: 18),
+            label: const Text('Close This Shift'),
+            style: OutlinedButton.styleFrom(foregroundColor: kError, side: const BorderSide(color: kError))),
+      ]));
 
   // ══════════════════════════════════════════════════════════════════════════
   // SIMPLE MODE — SHIFT ALREADY OPEN
@@ -351,7 +353,7 @@ class _S extends ConsumerState<ShiftOpenScreen> {
           onPressed: (_loading || _uploading) ? null : _open,
           icon: _loading
               ? const SizedBox(width: 26, height: 26,
-                  child: CircularProgressIndicator(strokeWidth: 3, color: Colors.white))
+              child: CircularProgressIndicator(strokeWidth: 3, color: Colors.white))
               : const Icon(Icons.play_arrow_rounded, size: 32),
           label: Text(
             _loading ? 'Opening...' : 'OPEN SHIFT',
@@ -390,79 +392,79 @@ class _S extends ConsumerState<ShiftOpenScreen> {
   );
 
   Widget _openNewView() => SingleChildScrollView(
-    padding: const EdgeInsets.all(24),
-    child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-      const Icon(Icons.directions_car_outlined, size: 60, color: kPrimary),
-      const SizedBox(height: 16),
-      const Text('Start Your Shift',
-          style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800), textAlign: TextAlign.center),
-      const SizedBox(height: 8),
-      const Text('Record odometer reading before starting deliveries.',
-          style: TextStyle(fontSize: 13, color: kTextSub), textAlign: TextAlign.center),
-      const SizedBox(height: 28),
+      padding: const EdgeInsets.all(24),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        const Icon(Icons.directions_car_outlined, size: 60, color: kPrimary),
+        const SizedBox(height: 16),
+        const Text('Start Your Shift',
+            style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800), textAlign: TextAlign.center),
+        const SizedBox(height: 8),
+        const Text('Record odometer reading before starting deliveries.',
+            style: TextStyle(fontSize: 13, color: kTextSub), textAlign: TextAlign.center),
+        const SizedBox(height: 28),
 
-      // Odometer + camera
-      const SectionHeader('ODOMETER READING'),
-      TextField(
-        controller: _odo,
-        keyboardType: TextInputType.number,
-        autofocus: true,
-        decoration: const InputDecoration(
-            labelText: 'Start Reading (km) *',
-            prefixIcon: Icon(Icons.speed_outlined, size: 20),
-            suffixText: 'km')),
-      const SizedBox(height: 12),
+        // Odometer + camera
+        const SectionHeader('ODOMETER READING'),
+        TextField(
+            controller: _odo,
+            keyboardType: TextInputType.number,
+            autofocus: true,
+            decoration: const InputDecoration(
+                labelText: 'Start Reading (km) *',
+                prefixIcon: Icon(Icons.speed_outlined, size: 20),
+                suffixText: 'km')),
+        const SizedBox(height: 12),
 
-      // Camera tile
-      GestureDetector(
-        onTap: _uploading ? null : _takeOdoPhoto,
-        child: Container(
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-              color: _odoPhoto != null ? Colors.green.shade50 : Colors.grey.shade50,
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: _odoPhoto != null ? Colors.green.shade300 : Colors.grey.shade300)),
-          child: Row(children: [
-            if (_odoPhoto != null)
-              ClipRRect(borderRadius: BorderRadius.circular(6),
-                  child: Image.file(_odoPhoto!, width: 52, height: 52, fit: BoxFit.cover))
-            else
-              const Icon(Icons.camera_alt_outlined, size: 40, color: kTextHint),
-            const SizedBox(width: 14),
-            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(_odoPhoto != null ? 'Odometer photo captured' : 'Take Odometer Photo',
-                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600,
-                      color: _odoPhoto != null ? Colors.green : kTextSub)),
-              Text(_uploading ? 'Uploading...' : _odoPhotoUrl != null
-                  ? '✓ Uploaded' : 'Optional — recommended for audit',
-                  style: const TextStyle(fontSize: 11, color: kTextHint)),
-            ])),
-            if (_uploading)
-              const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
-            else if (_odoPhotoUrl != null)
-              const Icon(Icons.check_circle, color: Colors.green, size: 22)
-            else
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                decoration: BoxDecoration(color: kPrimary.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(6)),
-                child: const Text('Capture', style: TextStyle(fontSize: 12, color: kPrimary, fontWeight: FontWeight.w700))),
-          ])),
-      ),
-      const SizedBox(height: 28),
+        // Camera tile
+        GestureDetector(
+          onTap: _uploading ? null : _takeOdoPhoto,
+          child: Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                  color: _odoPhoto != null ? Colors.green.shade50 : Colors.grey.shade50,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: _odoPhoto != null ? Colors.green.shade300 : Colors.grey.shade300)),
+              child: Row(children: [
+                if (_odoPhoto != null)
+                  ClipRRect(borderRadius: BorderRadius.circular(6),
+                      child: Image.file(_odoPhoto!, width: 52, height: 52, fit: BoxFit.cover))
+                else
+                  const Icon(Icons.camera_alt_outlined, size: 40, color: kTextHint),
+                const SizedBox(width: 14),
+                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text(_odoPhoto != null ? 'Odometer photo captured' : 'Take Odometer Photo',
+                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600,
+                          color: _odoPhoto != null ? Colors.green : kTextSub)),
+                  Text(_uploading ? 'Uploading...' : _odoPhotoUrl != null
+                      ? '✓ Uploaded' : 'Optional — recommended for audit',
+                      style: const TextStyle(fontSize: 11, color: kTextHint)),
+                ])),
+                if (_uploading)
+                  const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                else if (_odoPhotoUrl != null)
+                  const Icon(Icons.check_circle, color: Colors.green, size: 22)
+                else
+                  Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(color: kPrimary.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(6)),
+                      child: const Text('Capture', style: TextStyle(fontSize: 12, color: kPrimary, fontWeight: FontWeight.w700))),
+              ])),
+        ),
+        const SizedBox(height: 28),
 
-      ElevatedButton(
-        onPressed: (_loading || _uploading) ? null : _open,
-        child: _loading
-            ? const SizedBox(width: 22, height: 22,
+        ElevatedButton(
+            onPressed: (_loading || _uploading) ? null : _open,
+            child: _loading
+                ? const SizedBox(width: 22, height: 22,
                 child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-            : const Text('Open Shift', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700))),
-    ]));
+                : const Text('Open Shift', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700))),
+      ]));
 
   Widget _infoRow(String l, String v) => Padding(
-    padding: const EdgeInsets.only(top: 4),
-    child: Row(children: [
-      Text('$l: ', style: const TextStyle(fontSize: 12, color: kTextSub)),
-      Text(v, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
-    ]));
+      padding: const EdgeInsets.only(top: 4),
+      child: Row(children: [
+        Text('$l: ', style: const TextStyle(fontSize: 12, color: kTextSub)),
+        Text(v, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+      ]));
 }

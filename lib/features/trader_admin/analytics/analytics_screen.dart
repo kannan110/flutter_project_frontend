@@ -40,22 +40,23 @@ class _S extends ConsumerState<AnalyticsScreen> {
   Widget build(BuildContext context) {
     final d = _analytics ?? {};
     return Scaffold(
-      appBar: AppBar(title: const Text('Analytics'), actions: [IconButton(icon: const Icon(Icons.refresh), onPressed: _load)]),
-      body: _loading ? const LoadingList() : ListView(padding: const EdgeInsets.all(16), children: [
+      backgroundColor: kBgPage,
+      appBar: AppBar(backgroundColor: kSurface, title: const Text('Analytics'), actions: [IconButton(icon: const Icon(Icons.refresh_rounded), onPressed: _load)]),
+      body: _loading ? const LoadingList() : ListView(padding: const EdgeInsets.fromLTRB(16,16,16,40), children: [
 
         const SectionHeader('REVENUE'),
         GridView.count(crossAxisCount: 2, shrinkWrap: true, physics: const NeverScrollableScrollPhysics(),
-          crossAxisSpacing: 10, mainAxisSpacing: 10, childAspectRatio: 1.4, children: [
-          KpiCard('Today', Fmt.amount((d['today_revenue'] as num?)?.toDouble() ?? 0), Icons.today_outlined, kPrimary),
-          KpiCard('This Week', Fmt.amount((d['week_revenue'] as num?)?.toDouble() ?? 0), Icons.date_range_outlined, Colors.blue),
-          KpiCard('This Month', Fmt.amount((d['month_revenue'] as num?)?.toDouble() ?? 0), Icons.calendar_month_outlined, Colors.purple),
-          KpiCard('Outstanding', Fmt.amount((d['total_outstanding'] as num?)?.toDouble() ?? 0), Icons.account_balance_wallet_outlined, Colors.orange),
-        ]),
+            crossAxisSpacing: 10, mainAxisSpacing: 10, childAspectRatio: 1.4, children: [
+              KpiCard('Today', Fmt.amount((d['today_revenue'] as num?)?.toDouble() ?? 0), Icons.today_outlined, kPrimary),
+              KpiCard('This Week', Fmt.amount((d['week_revenue'] as num?)?.toDouble() ?? 0), Icons.date_range_outlined, Colors.blue),
+              KpiCard('This Month', Fmt.amount((d['month_revenue'] as num?)?.toDouble() ?? 0), Icons.calendar_month_outlined, Colors.purple),
+              KpiCard('Outstanding', Fmt.amount((d['total_outstanding'] as num?)?.toDouble() ?? 0), Icons.account_balance_wallet_outlined, Colors.orange),
+            ]),
         const SizedBox(height: 16),
 
         const SectionHeader('STOCK (CUMULATIVE)'),
         ..._stock.map((s) => Container(margin: const EdgeInsets.only(bottom: 10), child: WhiteCard(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(s.productName, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
+          Text(s.productName, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w900, color: kNavy)),
           const SizedBox(height: 8),
           Row(children: [
             _stat('Total In', '${s.totalInBirds}', Colors.blue),
@@ -85,6 +86,6 @@ class _S extends ConsumerState<AnalyticsScreen> {
   ]));
 
   Widget _r(String l, String v, [Color? c]) => Padding(padding: const EdgeInsets.symmetric(vertical: 3),
-    child: Row(children: [Expanded(child: Text(l, style: const TextStyle(fontSize: 12, color: kTextSub))),
-      Text(v, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: c ?? kTextMain))]));
+      child: Row(children: [Expanded(child: Text(l, style: const TextStyle(fontSize: 12, color: kTextSub))),
+        Text(v, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: c ?? kTextMain))]));
 }
