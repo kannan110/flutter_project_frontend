@@ -9,6 +9,7 @@ import '../../../core/providers/ui_mode_provider.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_theme.dart';
 import 'agent_home_simple_screen.dart';
+import 'agent_shell.dart' show agentShiftOpenProvider;
 
 class AgentHomeScreen extends ConsumerStatefulWidget {
   const AgentHomeScreen({super.key});
@@ -57,6 +58,9 @@ class _S extends ConsumerState<AgentHomeScreen> {
 
     if (!mounted) return;
     setState(() { _dash = dash; _activeBatches = batches; _loading = false; });
+    // Phase 1 B-04: push shift state to provider so AgentShell tab dot updates
+    final shiftOpen = (dash?['shift'] as Map?) != null;
+    ref.read(agentShiftOpenProvider.notifier).state = shiftOpen;
   }
 
   // ── Data accessors ───────────────────────────────────────────────────────

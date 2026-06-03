@@ -7,6 +7,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/providers/session_provider.dart';
 import '../../../core/theme/app_theme.dart';
 import 'report_pdf_generator.dart';
+import '../../../shared/layouts/responsive_layout.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // REPORTS HUB  — designed for 40+ age traders
@@ -117,31 +118,35 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
 
   // ─── BUILD ────────────────────────────────────────────────────────────────
   @override
-  Widget build(BuildContext context) => Scaffold(
-      backgroundColor: kBgPage,
-      appBar: AppBar(
-          backgroundColor: kSurface, elevation: 0,
-          title: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('Reports', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900)),
-            Text('${DateFormat("d MMM").format(_from)} – ${DateFormat("d MMM yyyy").format(_to)}',
-                style: const TextStyle(fontSize: 12, color: kTextSub)),
-          ]),
-          actions: [
-            IconButton(icon: const Icon(Icons.tune_outlined, size: 22), onPressed: _showFilters,
-                tooltip: 'Filter'),
-            IconButton(icon: const Icon(Icons.picture_as_pdf_outlined, size: 22), onPressed: _exportPdf,
-                tooltip: 'Export PDF'),
-            IconButton(icon: const Icon(Icons.share_outlined, size: 22), onPressed: _shareReport,
-                tooltip: 'Share'),
-          ]),
-      body: Column(children: [
-        _buildReportGrid(),
-        _buildDateBar(),
-        Expanded(child: _loading ? const LoadingList()
-            : _error != null ? _buildError()
-            : _data == null  ? const EmptyState(icon: Icons.bar_chart_outlined, message: 'Loading...')
-            : _buildReport()),
-      ]));
+  Widget build(BuildContext context) {
+    final _scaffold = Scaffold(
+        backgroundColor: kBgPage,
+        appBar: AppBar(
+            backgroundColor: kSurface, elevation: 0,
+            title: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('Reports', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900)),
+              Text('${DateFormat("d MMM").format(_from)} – ${DateFormat("d MMM yyyy").format(_to)}',
+                  style: const TextStyle(fontSize: 12, color: kTextSub)),
+            ]),
+            actions: [
+              IconButton(icon: const Icon(Icons.tune_outlined, size: 22), onPressed: _showFilters,
+                  tooltip: 'Filter'),
+              IconButton(icon: const Icon(Icons.picture_as_pdf_outlined, size: 22), onPressed: _exportPdf,
+                  tooltip: 'Export PDF'),
+              IconButton(icon: const Icon(Icons.share_outlined, size: 22), onPressed: _shareReport,
+                  tooltip: 'Share'),
+            ]),
+        body: Column(children: [
+          _buildReportGrid(),
+          _buildDateBar(),
+          Expanded(child: _loading ? const LoadingList()
+              : _error != null ? _buildError()
+              : _data == null  ? const EmptyState(icon: Icons.bar_chart_outlined, message: 'Loading...')
+              : _buildReport()),
+        ]));
+
+    return ResponsiveLayout(mobile: (_) => _scaffold, desktop: (_) => _scaffold);
+  }
 
   // ─── REPORT GRID (2 rows, wraps properly — no overflow) ──────────────────
   Widget _buildReportGrid() => Container(

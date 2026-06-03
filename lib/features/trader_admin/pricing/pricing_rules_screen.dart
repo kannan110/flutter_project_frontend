@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/providers/session_provider.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../shared/layouts/responsive_layout.dart';
 
 class PricingRulesScreen extends ConsumerStatefulWidget {
   const PricingRulesScreen({super.key});
@@ -81,8 +82,7 @@ class _S extends ConsumerState<PricingRulesScreen> {
     for (final c in [rateCtrl, discPctCtrl, minQtyCtrl]) c.dispose();
   }
 
-  @override
-  Widget build(BuildContext context) => Scaffold(
+  Widget _buildScaffold(BuildContext context) => Scaffold(
     backgroundColor: kBgPage,
     appBar: AppBar(backgroundColor: kSurface, title: const Text('Pricing Rules'), actions: [IconButton(icon: const Icon(Icons.refresh_rounded), onPressed: _load)]),
     floatingActionButton: FloatingActionButton.extended(onPressed: _addRule, icon: const Icon(Icons.add), label: const Text('Add Rule')),
@@ -114,4 +114,10 @@ class _S extends ConsumerState<PricingRulesScreen> {
           ]));
         }),
   );
+  @override
+  Widget build(BuildContext context) => ResponsiveLayout(
+    mobile:  (_) => _buildScaffold(context),
+    desktop: (_) => _buildScaffold(context),
+  );
+
 }

@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/providers/session_provider.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../shared/layouts/responsive_layout.dart';
 
 class RetailerLedgerScreen extends ConsumerStatefulWidget {
   const RetailerLedgerScreen({super.key, required this.retailerId});
@@ -108,8 +109,7 @@ class _S extends ConsumerState<RetailerLedgerScreen> {
     if (range != null) { if (mounted) setState(() { _fromDate = range.start; _toDate = range.end; }); _load(); }
   }
 
-  @override
-  Widget build(BuildContext context) {
+  Widget _buildScaffold(BuildContext context) {
     if (_loading) return const Scaffold(body: LoadingList());
     return Scaffold(
       backgroundColor: kBgPage,
@@ -228,4 +228,10 @@ class _S extends ConsumerState<RetailerLedgerScreen> {
         Text(v, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: Colors.white)),
         Text(l, style: const TextStyle(fontSize: 10, color: Color(0xFFB4C6F4), fontWeight: FontWeight.w700)),
       ]));
+  @override
+  Widget build(BuildContext context) => ResponsiveLayout(
+    mobile:  (_) => _buildScaffold(context),
+    desktop: (_) => _buildScaffold(context),
+  );
+
 }

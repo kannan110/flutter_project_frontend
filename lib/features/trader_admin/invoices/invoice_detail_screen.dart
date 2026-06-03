@@ -6,6 +6,7 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../shared/layouts/responsive_layout.dart';
 
 class InvoiceDetailScreen extends StatefulWidget {
   const InvoiceDetailScreen({super.key, required this.id});
@@ -296,8 +297,7 @@ class _S extends State<InvoiceDetailScreen> {
         ]));
   }
 
-  @override
-  Widget build(BuildContext context) {
+  Widget _buildScaffold(BuildContext context) {
     if (_loading) return const Scaffold(body: LoadingList());
     if (_inv == null) return Scaffold(
         appBar: AppBar(), body: const Center(child: Text('Invoice not found')));
@@ -527,4 +527,10 @@ class _S extends State<InvoiceDetailScreen> {
     Text(label, style: const TextStyle(fontSize: 9, color: kTextHint)),
     Text(value,  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: color)),
   ]));
+  @override
+  Widget build(BuildContext context) => ResponsiveLayout(
+    mobile:  (_) => _buildScaffold(context),
+    desktop: (_) => _buildScaffold(context),
+  );
+
 }

@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/providers/session_provider.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../shared/layouts/responsive_layout.dart';
 
 class DailyReportScreen extends ConsumerStatefulWidget {
   const DailyReportScreen({super.key});
@@ -184,8 +185,7 @@ class _S extends ConsumerState<DailyReportScreen> {
     return buf.toString();
   }
 
-  @override
-  Widget build(BuildContext context) => Scaffold(
+  Widget _buildScaffold(BuildContext context) => Scaffold(
     backgroundColor: kBgPage,
     appBar: AppBar(
       backgroundColor: kSurface,
@@ -514,4 +514,10 @@ class _S extends ConsumerState<DailyReportScreen> {
     Text(v, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: c)),
     Text(l, style: const TextStyle(fontSize: 10, color: kTextHint)),
   ]));
+  @override
+  Widget build(BuildContext context) => ResponsiveLayout(
+    mobile:  (_) => _buildScaffold(context),
+    desktop: (_) => _buildScaffold(context),
+  );
+
 }

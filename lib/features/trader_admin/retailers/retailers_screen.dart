@@ -6,6 +6,7 @@ import '../../../core/providers/session_provider.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../shared/layouts/responsive_layout.dart';
+import '../../../shared/widgets/cards/metric_card.dart';
 import '../../../shared/widgets/common/async_state_view.dart';
 import '../../../shared/widgets/common/status_chip.dart';
 import '../../../shared/widgets/filters/search_bar.dart' hide ListToolbar;
@@ -13,17 +14,18 @@ import '../../../shared/widgets/tables/app_table.dart';
 
 class RetailersScreen extends ConsumerStatefulWidget {
   const RetailersScreen({super.key});
+
   @override
   ConsumerState<RetailersScreen> createState() => _S();
 }
 
 class _S extends ConsumerState<RetailersScreen> {
-  final _c          = Supabase.instance.client;
+  final _c = Supabase.instance.client;
   final _searchCtrl = TextEditingController();
 
-  List<Map<String, dynamic>> _list     = [];
+  List<Map<String, dynamic>> _list = [];
   List<Map<String, dynamic>> _filtered = [];
-  bool    _loading = true;
+  bool _loading = true;
   String? _error;
 
   @override
@@ -41,34 +43,50 @@ class _S extends ConsumerState<RetailersScreen> {
 
   void _applySearch(String q) {
     if (!mounted) return;
-    if (q.trim().isEmpty) { setState(() => _filtered = List.from(_list)); return; }
+    if (q
+        .trim()
+        .isEmpty) {
+      setState(() => _filtered = List.from(_list));
+      return;
+    }
     final lower = q.toLowerCase();
-    setState(() => _filtered = _list.where((r) =>
-    (r['shop_name']  as String? ?? '').toLowerCase().contains(lower) ||
+    setState(() =>
+    _filtered = _list.where((r) =>
+    (r['shop_name'] as String? ?? '').toLowerCase().contains(lower) ||
         (r['owner_name'] as String? ?? '').toLowerCase().contains(lower) ||
-        (r['phone']      as String? ?? '').toLowerCase().contains(lower) ||
-        (r['address']    as String? ?? '').toLowerCase().contains(lower),
+        (r['phone'] as String? ?? '').toLowerCase().contains(lower) ||
+        (r['address'] as String? ?? '').toLowerCase().contains(lower),
     ).toList());
   }
 
   Future<void> _load() async {
-    final tid = ref.read(appUserProvider).valueOrNull?.traderId;
+    final tid = ref
+        .read(appUserProvider)
+        .valueOrNull
+        ?.traderId;
     if (tid == null) return;
-    if (mounted) setState(() { _loading = true; _error = null; });
+    if (mounted) setState(() {
+      _loading = true;
+      _error = null;
+    });
     try {
       final data = await _c.from('retailers')
-          .select('id,shop_name,owner_name,phone,address,risk_level,is_active,is_blocked')
+          .select(
+          'id,shop_name,owner_name,phone,address,risk_level,is_active,is_blocked')
           .eq('trader_id', tid)
           .order('shop_name');
       if (!mounted) return;
       setState(() {
-        _list     = List<Map<String, dynamic>>.from(data);
+        _list = List<Map<String, dynamic>>.from(data);
         _filtered = List.from(_list);
-        _loading  = false;
+        _loading = false;
       });
       _applySearch(_searchCtrl.text);
     } catch (e) {
-      if (mounted) setState(() { _error = e.toString(); _loading = false; });
+      if (mounted) setState(() {
+        _error = e.toString();
+        _loading = false;
+      });
     }
   }
 
@@ -79,42 +97,70 @@ class _S extends ConsumerState<RetailersScreen> {
     return ListScreenScaffold(
       appBar: isDesktop ? null : AppBar(
         title: const Text('Retailers'),
-        actions: [IconButton(icon: const Icon(Icons.refresh_outlined), onPressed: _load)],
+        actions: [
+          IconButton(icon: const Icon(Icons.refresh_outlined), onPressed: _load)
+        ],
       ),
 
       toolbar: ListToolbar(
         searchController: _searchCtrl,
-        searchHint:       'Search by name, phone, address…',
-        onSearch:         _applySearch,
-        onClearSearch:    () { _searchCtrl.clear(); _applySearch(''); },
-        primaryLabel:     'Add Retailer',
-        primaryIcon:      Icons.add_rounded,
-        onPrimary:        () => context.push(R.retailerCreate),
+        searchHint: 'Search by name, phone, address…',
+        onSearch: _applySearch,
+        onClearSearch: () {
+          _searchCtrl.clear();
+          _applySearch('');
+        },
+        primaryLabel: 'Add Retailer',
+        primaryIcon: Icons.add_rounded,
+        onPrimary: () => context.push(R.retailerCreate),
         secondaryActions: isDesktop
             ? [IconButton(
             icon: const Icon(Icons.refresh_outlined),
-            onPressed: _load, tooltip: 'Refresh')]
+            onPressed: _load, tooltip: 'Refresh')
+        ]
             : null,
       ),
 
+      summaryStrip: isDesktop ? MetricStrip(metrics: [
+        MetricCard(label: 'Total Retailers', value: '${_list.length}',
+            icon: Icons.store_outlined),
+        MetricCard(label: 'Active', value: '${_list
+            .where((r) => r['is_active'] as bool? ?? true)
+            .length}',
+            color: Colors.green, icon: Icons.check_circle_outline),
+        MetricCard(
+          label: 'High Risk',
+          value: _list
+              .where((r) => (r['risk_level'] as String?) == 'high')
+              .length
+              .toString(),
+        ),
+        MetricCard(label: 'Blocked', value: '${_list
+            .where((r) => r['is_blocked'] as bool? ?? false)
+            .length}',
+            color: Colors.red, icon: Icons.block_outlined),
+      ]) : null,
+
       fab: isDesktop ? null : FloatingActionButton.extended(
         onPressed: () => context.push(R.retailerCreate),
-        icon:      const Icon(Icons.add),
-        label:     const Text('Add Retailer'),
+        icon: const Icon(Icons.add),
+        label: const Text('Add Retailer'),
       ),
 
       content: AsyncStateView(
-        loading:      _loading,
-        error:        _error,
-        empty:        _filtered.isEmpty && !_loading,
-        emptyIcon:    Icons.store_outlined,
+        loading: _loading,
+        error: _error,
+        empty: _filtered.isEmpty && !_loading,
+        emptyIcon: Icons.store_outlined,
         emptyMessage: _list.isEmpty ? 'No retailers yet' : 'No retailers match',
-        emptySub:     _list.isEmpty ? 'Add your first retailer to get started' : null,
-        onAction:     _list.isEmpty ? () => context.push(R.retailerCreate) : null,
-        actionLabel:  'Add Retailer',
-        onRetry:      _load,
+        emptySub: _list.isEmpty
+            ? 'Add your first retailer to get started'
+            : null,
+        onAction: _list.isEmpty ? () => context.push(R.retailerCreate) : null,
+        actionLabel: 'Add Retailer',
+        onRetry: _load,
         child: ResponsiveLayout(
-          mobile:  (_) => _buildMobileList(),
+          mobile: (_) => _buildMobileList(),
           desktop: (_) => _buildDesktopTable(),
         ),
       ),
@@ -128,10 +174,10 @@ class _S extends ConsumerState<RetailersScreen> {
       columns: [
         AppTableColumn(
           label: 'Shop Name',
-          flex:  3,
+          flex: 3,
           cellBuilder: (r) {
             final blocked = r['is_blocked'] as bool? ?? false;
-            final active  = r['is_active']  as bool? ?? true;
+            final active = r['is_active'] as bool? ?? true;
             return Row(children: [
               // Avatar circle
               Container(
@@ -164,68 +210,82 @@ class _S extends ConsumerState<RetailersScreen> {
         ),
         AppTableColumn(
           label: 'Owner',
-          flex:  2,
-          cellBuilder: (r) => Text(
-            r['owner_name'] as String? ?? '—',
-            style: const TextStyle(fontSize: 13, color: kTextSub),
-            overflow: TextOverflow.ellipsis,
-          ),
+          flex: 2,
+          cellBuilder: (r) =>
+              Text(
+                r['owner_name'] as String? ?? '—',
+                style: const TextStyle(fontSize: 13, color: kTextSub),
+                overflow: TextOverflow.ellipsis,
+              ),
         ),
         AppTableColumn(
           label: 'Phone',
           width: 130,
-          cellBuilder: (r) => Text(
-            r['phone'] as String? ?? '—',
-            style: const TextStyle(fontSize: 13, color: kTextSub),
-          ),
+          cellBuilder: (r) =>
+              Text(
+                r['phone'] as String? ?? '—',
+                style: const TextStyle(fontSize: 13, color: kTextSub),
+              ),
         ),
         AppTableColumn(
           label: 'Address',
-          flex:  2,
-          cellBuilder: (r) => Text(
-            r['address'] as String? ?? '—',
-            style: const TextStyle(fontSize: 12, color: kTextHint),
-            overflow: TextOverflow.ellipsis,
-          ),
+          flex: 2,
+          cellBuilder: (r) =>
+              Text(
+                r['address'] as String? ?? '—',
+                style: const TextStyle(fontSize: 12, color: kTextHint),
+                overflow: TextOverflow.ellipsis,
+              ),
         ),
         AppTableColumn(
-          label:     'Risk',
-          width:     90,
+          label: 'Risk',
+          width: 90,
           alignment: Alignment.center,
           cellBuilder: (r) {
-            final risk    = r['risk_level'] as String? ?? 'low';
+            final risk = r['risk_level'] as String? ?? 'low';
             final blocked = r['is_blocked'] as bool? ?? false;
-            final active  = r['is_active']  as bool? ?? true;
-            if (blocked) return const StatusChip(label: 'Blocked', color: Colors.red, size: StatusChipSize.small);
-            if (!active) return const StatusChip(label: 'Inactive', color: Colors.grey, size: StatusChipSize.small);
-            if (risk == 'high')   return const StatusChip(label: 'High Risk', color: Colors.red, size: StatusChipSize.small);
-            if (risk == 'medium') return const StatusChip(label: 'Med Risk', color: Colors.orange, size: StatusChipSize.small);
+            final active = r['is_active'] as bool? ?? true;
+            if (blocked) return const StatusChip(label: 'Blocked',
+                color: Colors.red,
+                size: StatusChipSize.small);
+            if (!active) return const StatusChip(label: 'Inactive',
+                color: Colors.grey,
+                size: StatusChipSize.small);
+            if (risk == 'high') return const StatusChip(label: 'High Risk',
+                color: Colors.red,
+                size: StatusChipSize.small);
+            if (risk == 'medium') return const StatusChip(label: 'Med Risk',
+                color: Colors.orange,
+                size: StatusChipSize.small);
             return const SizedBox.shrink();
           },
         ),
         AppTableColumn(
-          label:     '',
-          width:     40,
+          label: '',
+          width: 40,
           alignment: Alignment.center,
-          cellBuilder: (_) => const Icon(Icons.chevron_right, size: 16, color: kTextHint),
+          cellBuilder: (_) =>
+          const Icon(Icons.chevron_right, size: 16, color: kTextHint),
         ),
       ],
-      rows:     _filtered,
+      rows: _filtered,
       onRowTap: (r) => context.push(R.retailerDetailPath(r['id'])),
       desktopPadding: const EdgeInsets.symmetric(horizontal: 16),
       rowDecoration: (r) {
         final blocked = r['is_blocked'] as bool? ?? false;
-        final risk    = r['risk_level'] as String? ?? 'low';
+        final risk = r['risk_level'] as String? ?? 'low';
         Color? tint;
-        if (blocked)          tint = Colors.red.withValues(alpha: 0.03);
+        if (blocked)
+          tint = Colors.red.withValues(alpha: 0.03);
         else if (risk == 'high') tint = Colors.orange.withValues(alpha: 0.03);
         return BoxDecoration(
-          color:  tint ?? Colors.transparent,
+          color: tint ?? Colors.transparent,
           border: const Border(bottom: BorderSide(color: kBorder, width: 0.5)),
         );
       },
       emptyWidget: AsyncStateView(
-        loading: false, empty: true,
+        loading: false,
+        empty: true,
         emptyIcon: Icons.store_outlined,
         emptyMessage: 'No retailers found',
         child: const SizedBox.shrink(),
@@ -244,10 +304,10 @@ class _S extends ConsumerState<RetailersScreen> {
     return RefreshIndicator(
       onRefresh: _load,
       child: ListView.separated(
-        padding:          const EdgeInsets.fromLTRB(16, 4, 16, 100),
-        itemCount:        _filtered.length,
+        padding: const EdgeInsets.fromLTRB(16, 4, 16, 100),
+        itemCount: _filtered.length,
         separatorBuilder: (_, __) => const SizedBox(height: 8),
-        itemBuilder:      (_, i)  => _RetailerCard(retailer: _filtered[i]),
+        itemBuilder: (_, i) => _RetailerCard(retailer: _filtered[i]),
       ),
     );
   }
@@ -257,21 +317,22 @@ class _S extends ConsumerState<RetailersScreen> {
 
 class _RetailerCard extends StatelessWidget {
   const _RetailerCard({required this.retailer});
+
   final Map<String, dynamic> retailer;
 
   @override
   Widget build(BuildContext context) {
-    final risk    = retailer['risk_level'] as String? ?? 'low';
+    final risk = retailer['risk_level'] as String? ?? 'low';
     final blocked = retailer['is_blocked'] as bool? ?? false;
-    final active  = retailer['is_active']  as bool? ?? true;
+    final active = retailer['is_active'] as bool? ?? true;
 
     return InkWell(
-      onTap:        () => context.push(R.retailerDetailPath(retailer['id'])),
+      onTap: () => context.push(R.retailerDetailPath(retailer['id'])),
       borderRadius: BorderRadius.circular(14),
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color:        Colors.white,
+          color: Colors.white,
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
             color: blocked ? Colors.red.shade200
@@ -281,7 +342,8 @@ class _RetailerCard extends StatelessWidget {
           boxShadow: [BoxShadow(
             color: Colors.black.withValues(alpha: 0.025),
             blurRadius: 6, offset: const Offset(0, 1),
-          )],
+          )
+          ],
         ),
         child: Row(children: [
           Container(
@@ -301,7 +363,8 @@ class _RetailerCard extends StatelessWidget {
             )),
           ),
           const SizedBox(width: 14),
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Expanded(child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start, children: [
             Row(children: [
               Expanded(child: Text(
                 retailer['shop_name'] as String? ?? '—',
@@ -310,13 +373,20 @@ class _RetailerCard extends StatelessWidget {
                   color: active ? kTextMain : kTextSub,
                 ),
               )),
-              if (blocked) const StatusChip(label: 'blocked', color: Colors.red, size: StatusChipSize.small)
-              else if (!active) const StatusChip(label: 'inactive', color: Colors.grey, size: StatusChipSize.small),
+              if (blocked) const StatusChip(label: 'blocked',
+                  color: Colors.red,
+                  size: StatusChipSize.small)
+              else
+                if (!active) const StatusChip(label: 'inactive',
+                    color: Colors.grey,
+                    size: StatusChipSize.small),
             ]),
             if (retailer['owner_name'] != null) ...[
               const SizedBox(height: 2),
               Text(retailer['owner_name'] as String,
-                  style: const TextStyle(fontSize: 13, color: kTextSub, fontWeight: FontWeight.w500)),
+                  style: const TextStyle(fontSize: 13,
+                      color: kTextSub,
+                      fontWeight: FontWeight.w500)),
             ],
             if (retailer['phone'] != null) ...[
               const SizedBox(height: 1),
@@ -331,9 +401,14 @@ class _RetailerCard extends StatelessWidget {
           const SizedBox(width: 8),
           Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
             if (risk == 'high')
-              const StatusChip(label: 'High Risk', color: Colors.red, size: StatusChipSize.small)
-            else if (risk == 'medium')
-              const StatusChip(label: 'Med Risk', color: Colors.orange, size: StatusChipSize.small),
+              const StatusChip(label: 'High Risk',
+                  color: Colors.red,
+                  size: StatusChipSize.small)
+            else
+              if (risk == 'medium')
+                const StatusChip(label: 'Med Risk',
+                    color: Colors.orange,
+                    size: StatusChipSize.small),
             const SizedBox(height: 6),
             const Icon(Icons.chevron_right, color: kTextHint, size: 20),
           ]),

@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/providers/session_provider.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../shared/layouts/responsive_layout.dart';
 
 class AgentDetailScreen extends ConsumerStatefulWidget {
   const AgentDetailScreen({super.key, required this.id});
@@ -132,8 +133,7 @@ class _S extends ConsumerState<AgentDetailScreen> {
     nameCtrl.dispose(); phoneCtrl.dispose(); vehicleCtrl.dispose();
   }
 
-  @override
-  Widget build(BuildContext context) {
+  Widget _buildScaffold(BuildContext context) {
     if (_loading) return const Scaffold(body: LoadingList());
     if (_agent == null) return Scaffold(appBar: AppBar(), body: const Center(child: Text('Not found')));
     final a = _agent!;
@@ -311,4 +311,10 @@ class _S extends ConsumerState<AgentDetailScreen> {
     Text(l, style: const TextStyle(fontSize: 9, color: kTextHint),
         textAlign: TextAlign.center),
   ]));
+  @override
+  Widget build(BuildContext context) => ResponsiveLayout(
+    mobile:  (_) => _buildScaffold(context),
+    desktop: (_) => _buildScaffold(context),
+  );
+
 }

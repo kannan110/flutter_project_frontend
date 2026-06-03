@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/providers/session_provider.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../shared/layouts/responsive_layout.dart';
 
 class AgentsScreen extends ConsumerStatefulWidget {
   const AgentsScreen({super.key});
@@ -113,7 +114,7 @@ class _S extends ConsumerState<AgentsScreen> {
     final companyCode = ref.watch(appUserProvider).valueOrNull?.companyCode ?? '—';
     final unlinked = _agents.where((a) => a['auth_user_id'] == null).length;
 
-    return Scaffold(
+    final _scaffold = Scaffold(
       backgroundColor: kBgPage,
       appBar: AppBar(title: const Text('Delivery Agents'), actions: [IconButton(icon: const Icon(Icons.refresh), onPressed: _load)]),
       floatingActionButton: FloatingActionButton.extended(
@@ -213,5 +214,6 @@ class _S extends ConsumerState<AgentsScreen> {
             }))),
       ]),
     );
+    return ResponsiveLayout(mobile: (_) => _scaffold, desktop: (_) => _scaffold);
   }
 }

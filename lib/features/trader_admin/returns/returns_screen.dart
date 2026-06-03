@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/providers/session_provider.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../shared/layouts/responsive_layout.dart';
 
 class ReturnsScreen extends ConsumerStatefulWidget {
   const ReturnsScreen({super.key});
@@ -124,8 +125,7 @@ class _S extends ConsumerState<ReturnsScreen> {
     for (final c in [birdsCtrl, wtCtrl, rateCtrl, reasonCtrl]) c.dispose();
   }
 
-  @override
-  Widget build(BuildContext context) => Scaffold(
+  Widget _buildScaffold(BuildContext context) => Scaffold(
     backgroundColor: kBgPage,
     appBar: AppBar(backgroundColor: kSurface, title: const Text('Returns'), actions: [IconButton(icon: const Icon(Icons.refresh_rounded), onPressed: _load)]),
     floatingActionButton: FloatingActionButton.extended(onPressed: _processReturn, icon: const Icon(Icons.assignment_return_outlined), label: const Text('Process Return')),
@@ -193,4 +193,10 @@ class _S extends ConsumerState<ReturnsScreen> {
           })),
     ]),
   );
+  @override
+  Widget build(BuildContext context) => ResponsiveLayout(
+    mobile:  (_) => _buildScaffold(context),
+    desktop: (_) => _buildScaffold(context),
+  );
+
 }

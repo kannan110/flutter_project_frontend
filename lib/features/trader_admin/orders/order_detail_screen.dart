@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/providers/session_provider.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../shared/layouts/responsive_layout.dart';
 
 class OrderDetailScreen extends ConsumerStatefulWidget {
   const OrderDetailScreen({super.key, required this.id});
@@ -240,294 +241,337 @@ class _S extends ConsumerState<OrderDetailScreen> {
         : (_order!['final_price']      as num?)?.toDouble();
     final invKg   = hasInv ? (_invoice!['quantity_kg'] as num?)?.toDouble() : null;
 
+    final isDesktop = context.isDesktop;
+
+    // Build shared content sections as widget lists
+    final contentSections = <Widget>[
+
+      // ── Customer hero card ─────────────────────────────────────────
+      Container(
+        margin: const EdgeInsets.only(bottom: 14),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [kNavy, kNavyMid],
+            begin: Alignment.topLeft, end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(kRadiusHero),
+          boxShadow: [BoxShadow(
+              color: kNavy.withValues(alpha: 0.3),
+              blurRadius: 20, offset: const Offset(0, 6))],
+        ),
+        padding: const EdgeInsets.all(22),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(r?['shop_name'] as String? ?? '—',
+              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900,
+                  color: Colors.white)),
+          if (r?['owner_name'] != null) ...[
+            const SizedBox(height: 4),
+            Text(r!['owner_name'] as String,
+                style: const TextStyle(fontSize: 14, color: Color(0xFFB4C6F4),
+                    fontWeight: FontWeight.w600)),
+          ],
+          if (r?['phone'] != null) ...[
+            const SizedBox(height: 2),
+            Text(r!['phone'] as String,
+                style: const TextStyle(fontSize: 13, color: Color(0xFFB4C6F4))),
+          ],
+          const SizedBox(height: 14),
+          Row(children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              decoration: BoxDecoration(
+                color:        sc.withValues(alpha: 0.2),
+                borderRadius: BorderRadius.circular(kRadiusChip),
+                border:       Border.all(color: sc.withValues(alpha: 0.4)),
+              ),
+              child: Text(status.replaceAll('_', ' ').toUpperCase(),
+                  style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900,
+                      color: status == 'delivered' || status == 'closed'
+                          ? const Color(0xFF86EFAC)
+                          : const Color(0xFFFED7AA),
+                      letterSpacing: 0.5)),
+            ),
+            const SizedBox(width: 10),
+            if (date != null)
+              Text(DateFormat('d MMM y').format(date),
+                  style: const TextStyle(fontSize: 12,
+                      color: Color(0xFFB4C6F4))),
+          ]),
+        ]),
+      ),
+
+      // ── Partial delivery progress ──────────────────────────────────
+      if (_order!['is_partial_delivery'] == true ||
+          _order!['status'] == 'partially_delivered')
+        _buildPartialProgress(),
+
+      // ── Order items ────────────────────────────────────────────────
+      Container(
+        margin: const EdgeInsets.only(bottom: 14),
+        decoration: BoxDecoration(
+          color:        kSurface,
+          borderRadius: BorderRadius.circular(kRadiusCard),
+          border:       Border.all(color: kBorderLight),
+          boxShadow:    kCardShadow,
+        ),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(18, 16, 18, 0),
+            child: Row(children: [
+              const Icon(Icons.shopping_basket_outlined,
+                  color: kGold, size: 16),
+              const SizedBox(width: 8),
+              const Text('ORDER ITEMS',
+                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900,
+                      color: kNavy, letterSpacing: 0.6)),
+            ]),
+          ),
+          const Divider(height: 20, indent: 18, endIndent: 18, color: kBorderLight),
+          if (_items.isEmpty)
+            const Padding(
+              padding: EdgeInsets.fromLTRB(18, 0, 18, 16),
+              child: Text('No items', style: TextStyle(color: kTextHint, fontSize: 13)),
+            )
+          else
+            ..._items.asMap().entries.map((e) {
+              final i    = e.key;
+              final item = e.value;
+              final p    = item['master_products'] as Map<String,dynamic>?;
+              final w    = (item['total_weight'] as num?)?.toDouble();
+              return Container(
+                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+                decoration: BoxDecoration(
+                  border: i < _items.length - 1
+                      ? const Border(bottom: BorderSide(color: kBorderLight))
+                      : null,
+                ),
+                child: Row(children: [
+                  Container(
+                    width: 32, height: 32,
+                    decoration: BoxDecoration(
+                      color:        kNavy.withValues(alpha: 0.07),
+                      borderRadius: BorderRadius.circular(kRadiusInner),
+                    ),
+                    child: const Center(child: Text('🐔',
+                        style: TextStyle(fontSize: 16))),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(child: Text(p?['name'] as String? ?? '—',
+                      style: const TextStyle(fontSize: 15,
+                          fontWeight: FontWeight.w700, color: kNavy))),
+                  Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                    if (item['bird_count'] != null)
+                      Text('${item['bird_count']} birds',
+                          style: const TextStyle(fontSize: 14,
+                              fontWeight: FontWeight.w900, color: kNavy)),
+                    if (w != null)
+                      Text('${w.toStringAsFixed(2)} kg',
+                          style: const TextStyle(fontSize: 12, color: kTextSub,
+                              fontWeight: FontWeight.w600)),
+                  ]),
+                ]),
+              );
+            }),
+          const SizedBox(height: 4),
+        ]),
+      ),
+
+      // ── Amount card ────────────────────────────────────────────────
+      Container(
+        margin: const EdgeInsets.only(bottom: 14),
+        decoration: BoxDecoration(
+          color:        kSurface,
+          borderRadius: BorderRadius.circular(kRadiusCard),
+          border:       Border.all(color: kBorderLight),
+          boxShadow:    kCardShadow,
+        ),
+        padding: const EdgeInsets.all(18),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            const Icon(Icons.currency_rupee_rounded, color: kGold, size: 16),
+            const SizedBox(width: 8),
+            const Text('AMOUNT',
+                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900,
+                    color: kNavy, letterSpacing: 0.6)),
+            const Spacer(),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color:        hasInv ? kSuccess.withValues(alpha: 0.1)
+                    : Colors.orange.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(kRadiusChip),
+                border: Border.all(
+                  color: hasInv ? kSuccess.withValues(alpha: 0.3)
+                      : Colors.orange.withValues(alpha: 0.3),
+                ),
+              ),
+              child: Text(hasInv ? 'Billed ✓' : 'Estimate',
+                  style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800,
+                      color: hasInv ? kSuccess : Colors.orange)),
+            ),
+          ]),
+          const Divider(height: 20, color: kBorderLight),
+          if (birds > 0)   _amtRow('Birds ordered',     '$birds'),
+          if (totalKg > 0) _amtRow('Weight ordered',    '${totalKg.toStringAsFixed(2)} kg'),
+          if (hasInv) ...[
+            _amtRow('Delivered weight', '${(invKg ?? 0).toStringAsFixed(2)} kg'),
+            if (rateKg != null)
+              _amtRow('Rate', '₹${rateKg.toStringAsFixed(2)} / kg'),
+          ],
+          if (_order!['payment_type'] != null)
+            _amtRow('Payment', (_order!['payment_type'] as String).toUpperCase()),
+          const Divider(height: 20, color: kBorderLight),
+          // Total
+          Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+            Text(hasInv ? 'Invoice Amount' : 'Estimated Amount',
+                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700,
+                    color: kNavy)),
+            Text(Fmt.amount(displayAmt),
+                style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w900,
+                    color: kNavy)),
+          ]),
+          if (hasInv) ...[
+            const SizedBox(height: 8),
+            _amtRow('Collected', Fmt.amount(collAmt),
+                valueColor: kSuccess),
+            _amtRowBold('Balance', Fmt.amount(balAmt),
+                valueColor: balAmt > 0 ? Colors.orange : kSuccess),
+          ] else ...[
+            const SizedBox(height: 6),
+            const Text('Actual amount set at delivery approval',
+                style: TextStyle(fontSize: 11, color: kTextHint)),
+          ],
+          if (_order!['notes'] != null) ...[
+            const Divider(height: 20, color: kBorderLight),
+            _amtRow('Notes', _order!['notes'] as String),
+          ],
+        ]),
+      ),
+
+      // ── Invoice link ───────────────────────────────────────────────
+      if (hasInv)
+        Container(
+          margin: const EdgeInsets.only(bottom: 14),
+          child: OutlinedButton.icon(
+            onPressed: () => context.push(R.invoiceDetailPath(_invoice!['id'])),
+            icon: const Icon(Icons.receipt_long_outlined, size: 18),
+            label: Text('View Invoice ${_invoice!['invoice_number'] ?? ''}'),
+            style: OutlinedButton.styleFrom(
+                minimumSize: const Size(double.infinity, 50)),
+          ),
+        ),
+
+      // ── Actions ────────────────────────────────────────────────────
+      if (!['cancelled','invoiced','closed'].contains(status)) ...[
+
+        // Retailer order pending confirmation
+        if (status == 'pending' && _order!['source'] == 'retailer') ...[
+          Container(
+            margin: const EdgeInsets.only(bottom: 12),
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color:        Colors.orange.shade50,
+              borderRadius: BorderRadius.circular(kRadiusCard),
+              border:       Border.all(color: Colors.orange.withValues(alpha: 0.35)),
+            ),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(children: [
+                const Icon(Icons.store_outlined, size: 14, color: Colors.orange),
+                const SizedBox(width: 6),
+                const Text('Retailer Order — Awaiting Confirmation',
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800,
+                        color: Colors.orange)),
+              ]),
+              const SizedBox(height: 4),
+              const Text('Review the order, set delivery date and confirm.',
+                  style: TextStyle(fontSize: 11, color: kTextSub)),
+            ]),
+          ),
+          ElevatedButton.icon(
+            onPressed: _confirmRetailerOrder,
+            icon: const Icon(Icons.check_circle_outline, size: 18),
+            label: const Text('Confirm Order + Set Delivery Date'),
+            style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.green,
+                minimumSize: const Size(double.infinity, 52)),
+          ),
+          const SizedBox(height: 10),
+        ],
+
+        if (status == 'confirmed') ...[
+          OutlinedButton.icon(
+            onPressed: () => context.go(R.dispatch),
+            icon: const Icon(Icons.local_shipping_outlined, size: 18),
+            label: const Text('Assign to Batch → Dispatch'),
+            style: OutlinedButton.styleFrom(
+                minimumSize: const Size(double.infinity, 50)),
+          ),
+          const SizedBox(height: 10),
+        ],
+
+        OutlinedButton.icon(
+          onPressed: _cancelOrder,
+          icon: const Icon(Icons.cancel_outlined, size: 18, color: kError),
+          label: const Text('Cancel Order'),
+          style: OutlinedButton.styleFrom(
+              foregroundColor:  kError,
+              side:             const BorderSide(color: kError),
+              minimumSize:      const Size(double.infinity, 50)),
+        ),
+      ],
+    ];
+
+    if (!isDesktop) {
+      return Scaffold(
+        backgroundColor: kBgPage,
+        appBar: AppBar(
+          backgroundColor: kSurface,
+          title: const Text('Order Detail'),
+          actions: [IconButton(icon: const Icon(Icons.refresh_rounded), onPressed: _load)],
+        ),
+        body: ListView(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+          children: contentSections,
+        ),
+      );
+    }
+
+    // ── Desktop 2-column layout ──────────────────────────────────────────
+    // Split: first N sections go left, financial + actions go right
+    // We put the last 2 whitecard blocks (billing + actions) in the right panel
+    final leftSections  = contentSections.length > 3
+        ? contentSections.sublist(0, contentSections.length - 2)
+        : contentSections;
+    final rightSections = contentSections.length > 3
+        ? contentSections.sublist(contentSections.length - 2)
+        : <Widget>[];
+
     return Scaffold(
       backgroundColor: kBgPage,
       appBar: AppBar(
         backgroundColor: kSurface,
         title: const Text('Order Detail'),
-        actions: [
-          IconButton(icon: const Icon(Icons.refresh_rounded), onPressed: _load),
-        ],
+        actions: [IconButton(icon: const Icon(Icons.refresh_rounded), onPressed: _load)],
       ),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
-        children: [
-
-          // ── Customer hero card ─────────────────────────────────────────
-          Container(
-            margin: const EdgeInsets.only(bottom: 14),
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [kNavy, kNavyMid],
-                begin: Alignment.topLeft, end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.circular(kRadiusHero),
-              boxShadow: [BoxShadow(
-                  color: kNavy.withValues(alpha: 0.3),
-                  blurRadius: 20, offset: const Offset(0, 6))],
-            ),
-            padding: const EdgeInsets.all(22),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(r?['shop_name'] as String? ?? '—',
-                  style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900,
-                      color: Colors.white)),
-              if (r?['owner_name'] != null) ...[
-                const SizedBox(height: 4),
-                Text(r!['owner_name'] as String,
-                    style: const TextStyle(fontSize: 14, color: Color(0xFFB4C6F4),
-                        fontWeight: FontWeight.w600)),
-              ],
-              if (r?['phone'] != null) ...[
-                const SizedBox(height: 2),
-                Text(r!['phone'] as String,
-                    style: const TextStyle(fontSize: 13, color: Color(0xFFB4C6F4))),
-              ],
-              const SizedBox(height: 14),
-              Row(children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                  decoration: BoxDecoration(
-                    color:        sc.withValues(alpha: 0.2),
-                    borderRadius: BorderRadius.circular(kRadiusChip),
-                    border:       Border.all(color: sc.withValues(alpha: 0.4)),
-                  ),
-                  child: Text(status.replaceAll('_', ' ').toUpperCase(),
-                      style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900,
-                          color: status == 'delivered' || status == 'closed'
-                              ? const Color(0xFF86EFAC)
-                              : const Color(0xFFFED7AA),
-                          letterSpacing: 0.5)),
-                ),
-                const SizedBox(width: 10),
-                if (date != null)
-                  Text(DateFormat('d MMM y').format(date),
-                      style: const TextStyle(fontSize: 12,
-                          color: Color(0xFFB4C6F4))),
-              ]),
-            ]),
+      body: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        // ── Left: customer + items ─────────────────────────────────────
+        Expanded(
+          flex: 6,
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(24, 16, 16, 40),
+            children: leftSections,
           ),
-
-          // ── Partial delivery progress ──────────────────────────────────
-          if (_order!['is_partial_delivery'] == true ||
-              _order!['status'] == 'partially_delivered')
-            _buildPartialProgress(),
-
-          // ── Order items ────────────────────────────────────────────────
-          Container(
-            margin: const EdgeInsets.only(bottom: 14),
-            decoration: BoxDecoration(
-              color:        kSurface,
-              borderRadius: BorderRadius.circular(kRadiusCard),
-              border:       Border.all(color: kBorderLight),
-              boxShadow:    kCardShadow,
-            ),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(18, 16, 18, 0),
-                child: Row(children: [
-                  const Icon(Icons.shopping_basket_outlined,
-                      color: kGold, size: 16),
-                  const SizedBox(width: 8),
-                  const Text('ORDER ITEMS',
-                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900,
-                          color: kNavy, letterSpacing: 0.6)),
-                ]),
-              ),
-              const Divider(height: 20, indent: 18, endIndent: 18, color: kBorderLight),
-              if (_items.isEmpty)
-                const Padding(
-                  padding: EdgeInsets.fromLTRB(18, 0, 18, 16),
-                  child: Text('No items', style: TextStyle(color: kTextHint, fontSize: 13)),
-                )
-              else
-                ..._items.asMap().entries.map((e) {
-                  final i    = e.key;
-                  final item = e.value;
-                  final p    = item['master_products'] as Map<String,dynamic>?;
-                  final w    = (item['total_weight'] as num?)?.toDouble();
-                  return Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-                    decoration: BoxDecoration(
-                      border: i < _items.length - 1
-                          ? const Border(bottom: BorderSide(color: kBorderLight))
-                          : null,
-                    ),
-                    child: Row(children: [
-                      Container(
-                        width: 32, height: 32,
-                        decoration: BoxDecoration(
-                          color:        kNavy.withValues(alpha: 0.07),
-                          borderRadius: BorderRadius.circular(kRadiusInner),
-                        ),
-                        child: const Center(child: Text('🐔',
-                            style: TextStyle(fontSize: 16))),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(child: Text(p?['name'] as String? ?? '—',
-                          style: const TextStyle(fontSize: 15,
-                              fontWeight: FontWeight.w700, color: kNavy))),
-                      Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-                        if (item['bird_count'] != null)
-                          Text('${item['bird_count']} birds',
-                              style: const TextStyle(fontSize: 14,
-                                  fontWeight: FontWeight.w900, color: kNavy)),
-                        if (w != null)
-                          Text('${w.toStringAsFixed(2)} kg',
-                              style: const TextStyle(fontSize: 12, color: kTextSub,
-                                  fontWeight: FontWeight.w600)),
-                      ]),
-                    ]),
-                  );
-                }),
-              const SizedBox(height: 4),
-            ]),
+        ),
+        Container(width: 1, color: kBorderLight),
+        // ── Right: billing + actions ───────────────────────────────────
+        SizedBox(
+          width: 340,
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(20, 16, 24, 40),
+            children: rightSections,
           ),
-
-          // ── Amount card ────────────────────────────────────────────────
-          Container(
-            margin: const EdgeInsets.only(bottom: 14),
-            decoration: BoxDecoration(
-              color:        kSurface,
-              borderRadius: BorderRadius.circular(kRadiusCard),
-              border:       Border.all(color: kBorderLight),
-              boxShadow:    kCardShadow,
-            ),
-            padding: const EdgeInsets.all(18),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Row(children: [
-                const Icon(Icons.currency_rupee_rounded, color: kGold, size: 16),
-                const SizedBox(width: 8),
-                const Text('AMOUNT',
-                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900,
-                        color: kNavy, letterSpacing: 0.6)),
-                const Spacer(),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                    color:        hasInv ? kSuccess.withValues(alpha: 0.1)
-                        : Colors.orange.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(kRadiusChip),
-                    border: Border.all(
-                      color: hasInv ? kSuccess.withValues(alpha: 0.3)
-                          : Colors.orange.withValues(alpha: 0.3),
-                    ),
-                  ),
-                  child: Text(hasInv ? 'Billed ✓' : 'Estimate',
-                      style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800,
-                          color: hasInv ? kSuccess : Colors.orange)),
-                ),
-              ]),
-              const Divider(height: 20, color: kBorderLight),
-              if (birds > 0)   _amtRow('Birds ordered',     '$birds'),
-              if (totalKg > 0) _amtRow('Weight ordered',    '${totalKg.toStringAsFixed(2)} kg'),
-              if (hasInv) ...[
-                _amtRow('Delivered weight', '${(invKg ?? 0).toStringAsFixed(2)} kg'),
-                if (rateKg != null)
-                  _amtRow('Rate', '₹${rateKg.toStringAsFixed(2)} / kg'),
-              ],
-              if (_order!['payment_type'] != null)
-                _amtRow('Payment', (_order!['payment_type'] as String).toUpperCase()),
-              const Divider(height: 20, color: kBorderLight),
-              // Total
-              Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                Text(hasInv ? 'Invoice Amount' : 'Estimated Amount',
-                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700,
-                        color: kNavy)),
-                Text(Fmt.amount(displayAmt),
-                    style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w900,
-                        color: kNavy)),
-              ]),
-              if (hasInv) ...[
-                const SizedBox(height: 8),
-                _amtRow('Collected', Fmt.amount(collAmt),
-                    valueColor: kSuccess),
-                _amtRowBold('Balance', Fmt.amount(balAmt),
-                    valueColor: balAmt > 0 ? Colors.orange : kSuccess),
-              ] else ...[
-                const SizedBox(height: 6),
-                const Text('Actual amount set at delivery approval',
-                    style: TextStyle(fontSize: 11, color: kTextHint)),
-              ],
-              if (_order!['notes'] != null) ...[
-                const Divider(height: 20, color: kBorderLight),
-                _amtRow('Notes', _order!['notes'] as String),
-              ],
-            ]),
-          ),
-
-          // ── Invoice link ───────────────────────────────────────────────
-          if (hasInv)
-            Container(
-              margin: const EdgeInsets.only(bottom: 14),
-              child: OutlinedButton.icon(
-                onPressed: () => context.push(R.invoiceDetailPath(_invoice!['id'])),
-                icon: const Icon(Icons.receipt_long_outlined, size: 18),
-                label: Text('View Invoice ${_invoice!['invoice_number'] ?? ''}'),
-                style: OutlinedButton.styleFrom(
-                    minimumSize: const Size(double.infinity, 50)),
-              ),
-            ),
-
-          // ── Actions ────────────────────────────────────────────────────
-          if (!['cancelled','invoiced','closed'].contains(status)) ...[
-
-            // Retailer order pending confirmation
-            if (status == 'pending' && _order!['source'] == 'retailer') ...[
-              Container(
-                margin: const EdgeInsets.only(bottom: 12),
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color:        Colors.orange.shade50,
-                  borderRadius: BorderRadius.circular(kRadiusCard),
-                  border:       Border.all(color: Colors.orange.withValues(alpha: 0.35)),
-                ),
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Row(children: [
-                    const Icon(Icons.store_outlined, size: 14, color: Colors.orange),
-                    const SizedBox(width: 6),
-                    const Text('Retailer Order — Awaiting Confirmation',
-                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800,
-                            color: Colors.orange)),
-                  ]),
-                  const SizedBox(height: 4),
-                  const Text('Review the order, set delivery date and confirm.',
-                      style: TextStyle(fontSize: 11, color: kTextSub)),
-                ]),
-              ),
-              ElevatedButton.icon(
-                onPressed: _confirmRetailerOrder,
-                icon: const Icon(Icons.check_circle_outline, size: 18),
-                label: const Text('Confirm Order + Set Delivery Date'),
-                style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.green,
-                    minimumSize: const Size(double.infinity, 52)),
-              ),
-              const SizedBox(height: 10),
-            ],
-
-            if (status == 'confirmed') ...[
-              OutlinedButton.icon(
-                onPressed: () => context.go(R.dispatch),
-                icon: const Icon(Icons.local_shipping_outlined, size: 18),
-                label: const Text('Assign to Batch → Dispatch'),
-                style: OutlinedButton.styleFrom(
-                    minimumSize: const Size(double.infinity, 50)),
-              ),
-              const SizedBox(height: 10),
-            ],
-
-            OutlinedButton.icon(
-              onPressed: _cancelOrder,
-              icon: const Icon(Icons.cancel_outlined, size: 18, color: kError),
-              label: const Text('Cancel Order'),
-              style: OutlinedButton.styleFrom(
-                  foregroundColor:  kError,
-                  side:             const BorderSide(color: kError),
-                  minimumSize:      const Size(double.infinity, 50)),
-            ),
-          ],
-        ],
-      ),
+        ),
+      ]),
     );
   }
 

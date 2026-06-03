@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/providers/session_provider.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../shared/layouts/responsive_layout.dart';
 
 class UserManagementScreen extends ConsumerStatefulWidget {
   const UserManagementScreen({super.key});
@@ -130,8 +131,7 @@ class _S extends ConsumerState<UserManagementScreen> {
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
+  Widget _buildScaffold(BuildContext context) {
     final unassigned = _users.where((u) => u['role_exists'] != true).toList();
     final assigned   = _users.where((u) => u['role_exists'] == true).toList();
 
@@ -304,4 +304,10 @@ class _S extends ConsumerState<UserManagementScreen> {
       return '${d.day}/${d.month}/${d.year}';
     } catch (_) { return iso; }
   }
+  @override
+  Widget build(BuildContext context) => ResponsiveLayout(
+    mobile:  (_) => _buildScaffold(context),
+    desktop: (_) => _buildScaffold(context),
+  );
+
 }

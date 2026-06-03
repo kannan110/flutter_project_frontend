@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/providers/session_provider.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../shared/layouts/responsive_layout.dart';
 
 class ShiftsScreen extends ConsumerStatefulWidget {
   const ShiftsScreen({super.key});
@@ -33,7 +34,7 @@ class _S extends ConsumerState<ShiftsScreen> {
   @override
   Widget build(BuildContext context) {
     final pendingApprovals = _shifts.where((s) => s['status'] == 'closed' && s['shift_approval_status'] == 'pending').length;
-    return Scaffold(
+    final _scaffold = Scaffold(
       backgroundColor: kBgPage,
       appBar: AppBar(
         backgroundColor: kSurface,
@@ -89,5 +90,6 @@ class _S extends ConsumerState<ShiftsScreen> {
             );
           }),
     );
+    return ResponsiveLayout(mobile: (_) => _scaffold, desktop: (_) => _scaffold);
   }
 }

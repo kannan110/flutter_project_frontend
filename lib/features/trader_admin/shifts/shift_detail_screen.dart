@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/providers/session_provider.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../shared/layouts/responsive_layout.dart';
 
 class ShiftDetailScreen extends ConsumerStatefulWidget {
   const ShiftDetailScreen({super.key, required this.id});
@@ -219,8 +220,7 @@ class _S extends ConsumerState<ShiftDetailScreen> {
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
+  Widget _buildScaffold(BuildContext context) {
     if (_loading) return const Scaffold(backgroundColor: kBgPage, body: LoadingList());
     if (_summary == null) return Scaffold(
         backgroundColor: kBgPage,
@@ -1000,4 +1000,10 @@ class _S extends ConsumerState<ShiftDetailScreen> {
         Text(l, style: const TextStyle(fontSize: 9, color: kTextHint),
             textAlign: TextAlign.center),
       ]);
+  @override
+  Widget build(BuildContext context) => ResponsiveLayout(
+    mobile:  (_) => _buildScaffold(context),
+    desktop: (_) => _buildScaffold(context),
+  );
+
 }

@@ -9,6 +9,7 @@ import '../../../core/theme/app_theme.dart';
 import '../../../shared/layouts/responsive_layout.dart';
 import '../../../shared/widgets/common/async_state_view.dart';
 import '../../../shared/widgets/common/status_chip.dart';
+import '../../../shared/widgets/cards/metric_card.dart';
 import '../../../shared/widgets/filters/filter_bar.dart';
 import '../../../shared/widgets/filters/search_bar.dart' hide ListToolbar;
 import '../../../shared/widgets/tables/app_table.dart';
@@ -122,6 +123,33 @@ class _S extends ConsumerState<OrdersScreen> {
         labelBuilder: (s) => s == 'all' ? 'All' : _capitalize(s),
         padding:      const EdgeInsets.fromLTRB(14, 8, 14, 8),
       ),
+
+      // Summary strip — only visible on desktop
+      summaryStrip: isDesktop ? MetricStrip(metrics: [
+        MetricCard(
+          label: 'Total Orders',
+          value: '${_orders.length}',
+          icon: Icons.shopping_bag_outlined,
+        ),
+        MetricCard(
+          label: 'Pending',
+          value: '${_orders.where((o) => (o['status'] as String?)=='pending' || (o['status'] as String?)=='confirmed').length}',
+          color: Colors.orange,
+          icon: Icons.pending_outlined,
+        ),
+        MetricCard(
+          label: 'Dispatched',
+          value: '${_orders.where((o) => (o['status'] as String?)=='out_for_delivery' || (o['status'] as String?)=='assigned').length}',
+          color: kPrimary,
+          icon: Icons.local_shipping_outlined,
+        ),
+        MetricCard(
+          label: 'Delivered Today',
+          value: '${_orders.where((o) => (o['status'] as String?)=='delivered').length}',
+          color: Colors.green,
+          icon: Icons.check_circle_outline,
+        ),
+      ]) : null,
 
       // FAB on mobile only — desktop has toolbar button
       fab: isDesktop ? null : FloatingActionButton.extended(

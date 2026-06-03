@@ -6,6 +6,8 @@ import '../../../core/models/dashboard_models.dart';
 import '../../../core/providers/session_provider.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../shared/layouts/responsive_layout.dart';
+import '../../../shared/widgets/cards/metric_card.dart';
 
 class StockScreen extends ConsumerStatefulWidget {
   const StockScreen({super.key});
@@ -111,27 +113,136 @@ class _S extends ConsumerState<StockScreen> {
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    backgroundColor: kBgPage,
-    appBar: AppBar(
-        backgroundColor: kSurface,
-        title: const Text('Stock Management'),
-        actions: [IconButton(icon: const Icon(Icons.refresh), onPressed: _load)]),
-    floatingActionButton: FloatingActionButton.extended(
-        onPressed: _recordOpening,
-        icon: const Icon(Icons.add),
-        label: const Text('Opening Stock')),
-    body: _loading ? const LoadingList() : Column(children: [
-      // Tab bar
-      Container(color: Colors.white, child: Row(children: [
-        _tabBtn(0, 'Summary'),
-        _tabBtn(1, 'Movements'),
-        _tabBtn(2, 'DCs (${_challans.length})'),
-      ])),
-      const Divider(height: 1),
-      Expanded(child: RefreshIndicator(onRefresh: _load, child: _buildTab())),
-    ]),
-  );
+  Widget build(BuildContext context) {
+    final isDesktop = context.isDesktop;
+
+    if (isDesktop) {
+      return Scaffold(
+        backgroundColor: kBgPage,
+        body: Column(children: [
+          // ── Page header ─────────────────────────────────────────────────
+          Container(
+            decoration: const BoxDecoration(
+              color: kSurface,
+              border: Border(bottom: BorderSide(color: kBorderLight)),
+            ),
+            padding: const EdgeInsets.fromLTRB(24, 14, 24, 14),
+            child: Row(children: [
+              const Text('Stock Management', style: TextStyle(fontSize: 22,
+                  fontWeight: FontWeight.w800, color: kNavy)),
+              const Spacer(),
+              IconButton(icon: const Icon(Icons.refresh_outlined),
+                  onPressed: _load, tooltip: 'Refresh'),
+              const SizedBox(width: 8),
+              GestureDetector(
+                onTap: _recordOpening,
+                child: Container(
+                  height: 40,
+                  padding: const EdgeInsets.symmetric(horizontal: 18),
+                  decoration: BoxDecoration(color: kNavy,
+                      borderRadius: BorderRadius.circular(kRadiusCard),
+                      boxShadow: [BoxShadow(color: kNavy.withValues(alpha: 0.3),
+                          blurRadius: 8, offset: const Offset(0, 2))]),
+                  child: const Row(mainAxisSize: MainAxisSize.min, children: [
+                    Icon(Icons.add_rounded, color: kGoldLight, size: 18),
+                    SizedBox(width: 8),
+                    Text('Opening Stock', style: TextStyle(fontSize: 14,
+                        fontWeight: FontWeight.w800, color: Colors.white)),
+                  ]),
+                ),
+              ),
+            ]),
+          ),
+          // ── Desktop body: 2-column layout ─────────────────────────────
+          Expanded(
+            child: _loading
+                ? const LoadingList()
+                : _positions.isEmpty
+                ? _buildSummary()
+                : Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              // Left 40%: Stock position cards
+              SizedBox(
+                width: 420,
+                child: Container(
+                  decoration: const BoxDecoration(
+                    border: Border(right: BorderSide(color: kBorderLight)),
+                  ),
+                  child: Column(children: [
+                    // Section header
+                    Container(
+                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+                      child: Row(children: [
+                        const Icon(Icons.inventory_2_outlined, size: 16, color: kNavy),
+                        const SizedBox(width: 6),
+                        const Text('STOCK POSITIONS', style: TextStyle(fontSize: 11,
+                            fontWeight: FontWeight.w800, color: kNavy, letterSpacing: 0.8)),
+                        const Spacer(),
+                        Text('${_positions.length} product${_positions.length == 1 ? '' : 's'}',
+                            style: const TextStyle(fontSize: 11, color: kTextHint)),
+                      ]),
+                    ),
+                    const Divider(height: 1),
+                    Expanded(child: RefreshIndicator(
+                      onRefresh: _load,
+                      child: ListView(
+                        padding: const EdgeInsets.all(12),
+                        children: _positions.map((p) => _stockCard(p)).toList(),
+                      ),
+                    )),
+                  ]),
+                ),
+              ),
+              // Right 60%: Tab view (Movements / DCs)
+              Expanded(
+                child: Column(children: [
+                  // Tab bar
+                  Container(
+                    color: Colors.white,
+                    child: Row(children: [
+                      _tabBtn(1, 'Movements (${_ledger.length})'),
+                      _tabBtn(2, 'DCs (${_challans.length})'),
+                    ]),
+                  ),
+                  const Divider(height: 1),
+                  Expanded(child: RefreshIndicator(
+                    onRefresh: _load,
+                    child: _tab == 0
+                        ? (_ledger.isEmpty
+                        ? const EmptyState(icon: Icons.receipt_long_outlined,
+                        message: 'No movements recorded')
+                        : _buildMovements())
+                        : _buildDCs(),
+                  )),
+                ]),
+              ),
+            ]),
+          ),
+        ]),
+      );
+    }
+
+    // ── Mobile: original layout unchanged ─────────────────────────────────
+    return Scaffold(
+      backgroundColor: kBgPage,
+      appBar: AppBar(
+          backgroundColor: kSurface,
+          title: const Text('Stock Management'),
+          actions: [IconButton(icon: const Icon(Icons.refresh), onPressed: _load)]),
+      floatingActionButton: FloatingActionButton.extended(
+          onPressed: _recordOpening,
+          icon: const Icon(Icons.add),
+          label: const Text('Opening Stock')),
+      body: _loading ? const LoadingList() : Column(children: [
+        Container(color: Colors.white, child: Row(children: [
+          _tabBtn(0, 'Summary'),
+          _tabBtn(1, 'Movements'),
+          _tabBtn(2, 'DCs (${_challans.length})'),
+        ])),
+        const Divider(height: 1),
+        Expanded(child: RefreshIndicator(onRefresh: _load, child: _buildTab())),
+      ]),
+    );
+  }
 
   Widget _tabBtn(int idx, String label) => Expanded(child: InkWell(
       onTap: () => setState(() => _tab = idx),

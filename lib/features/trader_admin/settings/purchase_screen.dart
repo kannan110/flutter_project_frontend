@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../../core/providers/session_provider.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../shared/layouts/responsive_layout.dart';
 
 // =============================================================================
 // PURCHASE MANAGEMENT — 7-TAB ERP
@@ -302,8 +303,8 @@ class _S extends ConsumerState<PurchaseScreen>
   // ==========================================================================
   // BUILD
   // ==========================================================================
-  @override
-  Widget build(BuildContext context) => Scaffold(
+
+  Widget _buildScaffold(BuildContext context) => Scaffold(
       backgroundColor: kBgPage,
       appBar: AppBar(
           backgroundColor: kSurface,
@@ -3534,6 +3535,12 @@ class _S extends ConsumerState<PurchaseScreen>
                 fontWeight: bold ? FontWeight.w900 : FontWeight.w600,
                 color: bold ? kPrimary : kTextMain)),
       ]));
+
+  @override
+  Widget build(BuildContext context) => ResponsiveLayout(
+    mobile:  (_) => _buildScaffold(context),
+    desktop: (_) => _buildScaffold(context),
+  );
 }
 
 // =============================================================================

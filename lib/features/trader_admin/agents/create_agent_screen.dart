@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/providers/session_provider.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../shared/layouts/responsive_layout.dart';
 
 class CreateAgentScreen extends ConsumerStatefulWidget {
   const CreateAgentScreen({super.key});
@@ -40,8 +41,7 @@ class _S extends ConsumerState<CreateAgentScreen> {
     finally { if (mounted) setState(() => _submitting = false); }
   }
 
-  @override
-  Widget build(BuildContext context) {
+  Widget _buildScaffold(BuildContext context) {
     final code = ref.watch(appUserProvider).valueOrNull?.companyCode ?? '—';
     return Scaffold(
       backgroundColor: kBgPage,
@@ -78,4 +78,10 @@ class _S extends ConsumerState<CreateAgentScreen> {
           ]))),
     );
   }
+  @override
+  Widget build(BuildContext context) => ResponsiveLayout(
+    mobile:  (_) => _buildScaffold(context),
+    desktop: (_) => _buildScaffold(context),
+  );
+
 }

@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/providers/session_provider.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../shared/layouts/responsive_layout.dart';
 
 class DayClosureScreen extends ConsumerStatefulWidget {
   const DayClosureScreen({super.key});
@@ -157,8 +158,7 @@ class _S extends ConsumerState<DayClosureScreen> {
     finally { if (mounted) setState(() => _submitting = false); }
   }
 
-  @override
-  Widget build(BuildContext context) {
+  Widget _buildScaffold(BuildContext context) {
     final isClosed = _status?['status'] == 'closed' || _status?['status'] == 'locked';
     final openShifts   = _shifts.where((s) => s['status'] == 'open').length;
     final closedShifts = _shifts.where((s) => s['status'] == 'closed').length;
@@ -429,4 +429,10 @@ class _S extends ConsumerState<DayClosureScreen> {
   Widget _vDivider() => Container(
       width: 1, height: 28, color: kBorder,
       margin: const EdgeInsets.symmetric(horizontal: 4));
+  @override
+  Widget build(BuildContext context) => ResponsiveLayout(
+    mobile:  (_) => _buildScaffold(context),
+    desktop: (_) => _buildScaffold(context),
+  );
+
 }

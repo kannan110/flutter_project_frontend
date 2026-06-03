@@ -55,12 +55,6 @@ class AppTopbar extends ConsumerWidget {
             if (actions != null) ...actions!,
 
             // ── Icon cluster ───────────────────────────────────────────────
-            _TopIconBtn(
-              icon:    Icons.wb_sunny_outlined,
-              tooltip: 'Toggle theme',
-              onTap:   () {},
-            ),
-            const SizedBox(width: 4),
             // Alert bell with badge
             Stack(clipBehavior: Clip.none, children: [
               _TopIconBtn(
@@ -82,12 +76,6 @@ class AppTopbar extends ConsumerWidget {
                               fontWeight: FontWeight.w800, color: Colors.white)),
                     )),
             ]),
-            const SizedBox(width: 4),
-            _TopIconBtn(
-              icon:    Icons.grid_view_outlined,
-              tooltip: 'Apps',
-              onTap:   () {},
-            ),
             const SizedBox(width: 12),
 
             // ── Profile cluster ────────────────────────────────────────────

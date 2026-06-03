@@ -7,13 +7,32 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/models/dashboard_models.dart';
 import '../../../core/providers/session_provider.dart';
 import '../../../core/router/app_router.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../shared/layouts/responsive_layout.dart';
 import '../../../shared/layouts/trader_shell.dart' show shellBadgesProvider;
-import '../dashboard/trader_shell.dart' hide shellBadgesProvider;
 
-// ── Language provider ─────────────────────────────────────────────────────────
-final langProvider = StateProvider<String>((ref) => 'en');
+
+const _kLangPrefKey = 'trader_lang_pref';
+
+final langProvider =
+StateNotifierProvider<LangNotifier, String>((ref) => LangNotifier());
+
+class LangNotifier extends StateNotifier<String> {
+  LangNotifier() : super('en') { _load(); }
+
+  Future<void> _load() async {
+    final prefs = await SharedPreferences.getInstance();
+    final saved = prefs.getString(_kLangPrefKey);
+    if (saved != null && mounted) state = saved;
+  }
+
+  Future<void> setLang(String lang) async {
+    state = lang;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_kLangPrefKey, lang);
+  }
+}
 
 // ── Design tokens (enterprise SaaS — desktop-first) ──────────────────────────
 const _kPageBg = Color(0xFFF8F9FB); // near-white, not cream
@@ -56,6 +75,9 @@ class _S extends ConsumerState<DashboardScreen> {
   DashboardData? _data;
   List<StockPosition> _stock = [];
   List<Map<String, dynamic>> _recentOrders = [];
+  // Phase 2: real 7-day trend data + real overdue count
+  List<Map<String, dynamic>> _trendData = [];
+  int _overdueCount = 0;
   bool _loading = true;
   String? _error;
 
@@ -80,6 +102,21 @@ class _S extends ConsumerState<DashboardScreen> {
           .rpc('dashboard_summary', params: {'p_trader_id': tid});
       final stockRes = await Supabase.instance.client
           .rpc('get_available_stock', params: {'p_trader_id': tid});
+
+      // Phase 2: fetch real 7-day revenue trend + overdue count
+      List<Map<String, dynamic>> trendData = [];
+      int overdueCount = 0;
+      try {
+        final trendRes = await Supabase.instance.client
+            .rpc('get_7day_revenue_trend', params: {'p_trader_id': tid});
+        trendData = List<Map<String, dynamic>>.from(trendRes as List? ?? []);
+      } catch (_) {}
+      try {
+        final overdueRes = await Supabase.instance.client
+            .rpc('get_overdue_retailer_count', params: {'p_trader_id': tid});
+        overdueCount = (overdueRes as num?)?.toInt() ?? 0;
+      } catch (_) {}
+
       List<Map<String, dynamic>> recentOrders = [];
       try {
         final r = await Supabase.instance.client
@@ -99,6 +136,8 @@ class _S extends ConsumerState<DashboardScreen> {
         _stock = (sl ?? []).map((s) =>
             StockPosition.fromMap(s as Map<String, dynamic>)).toList();
         _recentOrders = recentOrders;
+        _trendData = trendData;
+        _overdueCount = overdueCount;
         _loading = false;
       });
       if (mounted && _data != null) {
@@ -158,7 +197,7 @@ class _S extends ConsumerState<DashboardScreen> {
               crossAxisAlignment: CrossAxisAlignment.start, children: [
 
             // ── Row 1: 5 metric panels ──────────────────────────────────────
-            _MetricStrip(data: d, stock: _stock),
+            _MetricStrip(data: d, stock: _stock, trendData: _trendData),
             const SizedBox(height: 20),
 
             // ── Row 2: Operations Board ────────────────────────────────────
@@ -169,7 +208,7 @@ class _S extends ConsumerState<DashboardScreen> {
             Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
               // Left: Revenue Trend + Live Stock
               Expanded(flex: 7, child: Column(children: [
-                _RevenueTrendPanel(data: d),
+                _RevenueTrendPanel(data: d, trendData: _trendData),
                 const SizedBox(height: 16),
                 _LiveStockPanel(stock: _stock, data: d),
               ])),
@@ -180,6 +219,7 @@ class _S extends ConsumerState<DashboardScreen> {
                     onTap: () => context.go(R.agents)),
                 const SizedBox(height: 16),
                 _FinancialHealth(data: d,
+                    overdueCount: _overdueCount,
                     onLedger: () => context.go(R.ledger),
                     onClosure: () => context.go(R.dayClosure)),
                 if (d.unreadAlerts > 0 || d.remainingBirds < 50) ...[
@@ -277,9 +317,9 @@ class _S extends ConsumerState<DashboardScreen> {
               fontSize: 11, fontWeight: FontWeight.w700, color: kGold)),
         ])),
         GestureDetector(onTap: () =>
-        ref
-            .read(langProvider.notifier)
-            .state = lang == 'en' ? 'ta' : 'en',
+            ref
+                .read(langProvider.notifier)
+                .setLang(lang == 'en' ? 'ta' : 'en'),
             child: Container(margin: const EdgeInsets.only(right: 10),
                 padding: const EdgeInsets.symmetric(
                     horizontal: 10, vertical: 6),
@@ -891,7 +931,7 @@ class _S extends ConsumerState<DashboardScreen> {
                           fontWeight: FontWeight.w800,
                           color: kGoldLight))))
             ])));
-    }
+  }
 
   Widget _agentOwnershipRow(AgentStockStatus a) {
     final hasStock = a.liveStockBirds > 0;
@@ -1162,10 +1202,23 @@ class _HdrBtnState extends State<_HdrBtn> {
 
 // ── Metric Strip — 5 premium gradient panels ──────────────────────────────────
 class _MetricStrip extends StatelessWidget {
-  const _MetricStrip({required this.data, required this.stock});
+  const _MetricStrip({required this.data, required this.stock,
+    required this.trendData});
 
   final DashboardData data;
   final List<StockPosition> stock;
+  // Phase 2: real 7-day trend rows [{day_date, revenue, kg_delivered, order_count}]
+  final List<Map<String, dynamic>> trendData;
+
+  // Returns "+X%" / "-X%" / "—" comparing today vs yesterday in the trend data
+  String _trendStr(String field) {
+    if (trendData.length < 2) return '—';
+    final today = (trendData.last[field] as num?)?.toDouble() ?? 0;
+    final yesterday = (trendData[trendData.length - 2][field] as num?)?.toDouble() ?? 0;
+    if (yesterday == 0) return today > 0 ? '+100%' : '—';
+    final pct = ((today - yesterday) / yesterday * 100).round();
+    return pct >= 0 ? '+$pct%' : '$pct%';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1179,7 +1232,7 @@ class _MetricStrip extends StatelessWidget {
         sub: '${stock.isEmpty ? 0 : stock.first.availableBirds} Available',
         icon: Icons.egg_alt_outlined,
         grad: [const Color(0xFFDC2626), const Color(0xFFB91C1C)],
-        trend: null,
+        trend: _trendStr('kg_delivered'),
       ),
       _MetricDef(
         label: 'Sold Today',
@@ -1187,7 +1240,7 @@ class _MetricStrip extends StatelessWidget {
         sub: '${data.todayDeliveredKgLedger.toStringAsFixed(0)} kg',
         icon: Icons.local_shipping_outlined,
         grad: [const Color(0xFFD97706), const Color(0xFFB45309)],
-        trend: null,
+        trend: _trendStr('order_count'),
       ),
       _MetricDef(
         label: 'Dispatch Pending',
@@ -1203,7 +1256,7 @@ class _MetricStrip extends StatelessWidget {
         sub: '${data.totalRetailers} Customers',
         icon: Icons.account_balance_wallet_outlined,
         grad: [const Color(0xFF059669), const Color(0xFF047857)],
-        trend: null,
+        trend: _trendStr('revenue'),
       ),
       _MetricDef(
         label: 'Mortality Today',
@@ -1273,9 +1326,32 @@ class _MetricPanel extends StatelessWidget {
               child: Icon(def.icon, color: Colors.white, size: 18),
             ),
             const Spacer(),
-            // Sparkline placeholder — 5 points
-            SizedBox(width: 48, height: 24,
-                child: CustomPaint(painter: _SparkPainter())),
+            // Phase 2: real trend indicator (replaces fake _SparkPainter)
+            if (def.trend != null)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  Icon(
+                    def.trend!.startsWith('+')
+                        ? Icons.trending_up_rounded
+                        : def.trend!.startsWith('-')
+                        ? Icons.trending_down_rounded
+                        : Icons.trending_flat_rounded,
+                    color: Colors.white,
+                    size: 12,
+                  ),
+                  const SizedBox(width: 2),
+                  Text(def.trend!,
+                      style: const TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.white)),
+                ]),
+              )
           ]),
           const SizedBox(height: 12),
           Text(def.value,
@@ -1292,28 +1368,6 @@ class _MetricPanel extends StatelessWidget {
                   color: Colors.white.withValues(alpha: 0.6))),
         ]),
       );
-}
-
-class _SparkPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final rng = [0.4, 0.7, 0.5, 0.9, 0.65, 0.8, 1.0];
-    final paint = Paint()
-      ..color = Colors.white.withOpacity(0.5)
-      ..strokeWidth = 1.5
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round;
-    final path = Path();
-    for (int i = 0; i < rng.length; i++) {
-      final x = size.width * i / (rng.length - 1);
-      final y = size.height * (1 - rng[i]);
-      i == 0 ? path.moveTo(x, y) : path.lineTo(x, y);
-    }
-    canvas.drawPath(path, paint);
-  }
-
-  @override bool shouldRepaint(_) => false;
 }
 
 // ── Operations Board ──────────────────────────────────────────────────────────
@@ -1437,81 +1491,129 @@ class _OpsBoardCol extends StatelessWidget {
       );
 }
 
-// ── Revenue Trend Panel (area chart simulation) ───────────────────────────────
+// ── Revenue Trend Panel — REAL 7-day data (Phase 2 fix) ──────────────────────
 class _RevenueTrendPanel extends StatelessWidget {
-  const _RevenueTrendPanel({required this.data});
+  const _RevenueTrendPanel({required this.data, required this.trendData});
 
   final DashboardData data;
+  // Phase 2: real rows from get_7day_revenue_trend RPC
+  final List<Map<String, dynamic>> trendData;
+
+  static String _yLabel(double maxVal) {
+    if (maxVal >= 100000) return '₹${(maxVal / 100000).toStringAsFixed(1)}L';
+    if (maxVal >= 1000)   return '₹${(maxVal / 1000).toStringAsFixed(0)}K';
+    return '₹${maxVal.toStringAsFixed(0)}';
+  }
 
   @override
-  Widget build(BuildContext context) =>
-      Container(
-        decoration: BoxDecoration(
-          color: _kPanel,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: _kBorder),
-          boxShadow: _kShadow,
-        ),
-        padding: const EdgeInsets.all(20),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(children: [
-            const Text('SALES & REVENUE TREND',
-                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800,
-                    color: _kText1, letterSpacing: 0.8)),
-            const Spacer(),
-            _ChipFilter('This Week'),
-          ]),
-          const SizedBox(height: 4),
-          Row(children: [
-            _Legend(color: _kBlue, label: 'Revenue (₹)'),
-            const SizedBox(width: 16),
-            _Legend(color: _kText3, label: 'Sold (kg)'),
-          ]),
-          const SizedBox(height: 16),
-          SizedBox(height: 160, child: CustomPaint(
+  Widget build(BuildContext context) {
+    // Build normalised revenue points (0.0–1.0) from real data
+    final revenues = trendData
+        .map((r) => (r['revenue'] as num?)?.toDouble() ?? 0)
+        .toList();
+    final kgValues = trendData
+        .map((r) => (r['kg_delivered'] as num?)?.toDouble() ?? 0)
+        .toList();
+
+    final maxRevenue = revenues.isEmpty
+        ? 1.0
+        : revenues.reduce((a, b) => a > b ? a : b).clamp(1.0, double.infinity);
+    final maxKg = kgValues.isEmpty
+        ? 1.0
+        : kgValues.reduce((a, b) => a > b ? a : b).clamp(1.0, double.infinity);
+
+    final revPts = revenues.map((v) => v / maxRevenue).toList();
+    final kgPts  = kgValues.map((v) => v / maxKg).toList();
+
+    // Dynamic date labels from real data
+    final dateLabels = trendData.map((r) {
+      final s = r['day_date'] as String? ?? '';
+      final d = DateTime.tryParse(s);
+      return d != null ? DateFormat('d MMM').format(d) : '';
+    }).toList();
+
+    final yMax = _yLabel(maxRevenue);
+
+    return Container(
+      decoration: BoxDecoration(
+        color: _kPanel,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: _kBorder),
+        boxShadow: _kShadow,
+      ),
+      padding: const EdgeInsets.all(20),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          const Text('SALES & REVENUE TREND',
+              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800,
+                  color: _kText1, letterSpacing: 0.8)),
+          const Spacer(),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF1F5F9),
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(color: _kBorder),
+            ),
+            child: const Text('Last 7 Days',
+                style: TextStyle(fontSize: 11, color: _kText2,
+                    fontWeight: FontWeight.w500)),
+          ),
+        ]),
+        const SizedBox(height: 4),
+        Row(children: [
+          _Legend(color: _kBlue, label: 'Revenue (₹)'),
+          const SizedBox(width: 16),
+          _Legend(color: _kText3, label: 'Sold (kg)'),
+          const Spacer(),
+          Text('Max: $yMax',
+              style: const TextStyle(fontSize: 10, color: _kText3)),
+        ]),
+        const SizedBox(height: 16),
+        SizedBox(
+          height: 160,
+          child: revPts.isEmpty
+              ? Center(
+              child: Text('No delivery data yet',
+                  style: const TextStyle(fontSize: 12, color: _kText3)))
+              : CustomPaint(
             size: const Size(double.infinity, 160),
             painter: _AreaChartPainter(
+              revPts: revPts,
+              kgPts: kgPts,
+              maxRevenue: maxRevenue,
               primaryColor: _kBlue,
               secondaryColor: _kText3,
             ),
-          )),
-          const SizedBox(height: 8),
-          Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-            for (final d in [
-              '9 May',
-              '10 May',
-              '11 May',
-              '12 May',
-              '13 May',
-              '14 May',
-              '15 May'
-            ])
-              Text(d, style: const TextStyle(fontSize: 9, color: _kText3)),
-          ]),
-          const SizedBox(height: 16),
-          // Today revenue summary
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-                color: const Color(0xFFF8FAFC),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: _kBorder)),
-            child: Row(children: [
-              _MiniStat(
-                  'Today\'s Revenue', Fmt.amount(data.todayCollected), _kBlue),
-              _Divider(),
-              _MiniStat('Cash Collected', Fmt.amount(data.todayCashCollected),
-                  _kGreen),
-              _Divider(),
-              _MiniStat('UPI Collected', Fmt.amount(data.todayUpiCollected),
-                  _kIndigo),
-              _Divider(),
-              _MiniStat(
-                  'Outstanding', Fmt.amount(data.totalOutstanding), _kOrange),
-            ]),
           ),
-        ]),
-      );
+        ),
+        const SizedBox(height: 8),
+        Row(mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: dateLabels
+                .map((d) => Text(d,
+                style: const TextStyle(fontSize: 9, color: _kText3)))
+                .toList()),
+        const SizedBox(height: 16),
+        // Today revenue summary — always real data
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+              color: const Color(0xFFF8FAFC),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: _kBorder)),
+          child: Row(children: [
+            _MiniStat('Today\'s Revenue', Fmt.amount(data.todayCollected), _kBlue),
+            _Divider(),
+            _MiniStat('Cash Collected', Fmt.amount(data.todayCashCollected), _kGreen),
+            _Divider(),
+            _MiniStat('UPI Collected', Fmt.amount(data.todayUpiCollected), _kIndigo),
+            _Divider(),
+            _MiniStat('Outstanding', Fmt.amount(data.totalOutstanding), _kOrange),
+          ]),
+        ),
+      ]),
+    );
+  }
 }
 
 class _ChipFilter extends StatelessWidget {
@@ -1579,30 +1681,52 @@ class _Divider extends StatelessWidget {
           margin: const EdgeInsets.symmetric(horizontal: 8));
 }
 
+// ── Area chart painter — REAL normalised data (Phase 2 fix) ──────────────────
 class _AreaChartPainter extends CustomPainter {
-  const _AreaChartPainter(
-      {required this.primaryColor, required this.secondaryColor});
+  const _AreaChartPainter({
+    required this.revPts,
+    required this.kgPts,
+    required this.maxRevenue,
+    required this.primaryColor,
+    required this.secondaryColor,
+  });
 
+  final List<double> revPts;
+  final List<double> kgPts;
+  final double maxRevenue;
   final Color primaryColor, secondaryColor;
 
   @override
   void paint(Canvas canvas, Size size) {
-    // Revenue line (simulated — 7 points)
-    final rev = [0.3, 0.55, 0.45, 0.72, 0.68, 0.85, 0.78];
-    final sol = [0.2, 0.40, 0.35, 0.58, 0.52, 0.65, 0.60];
+    if (revPts.isEmpty) return;
 
-    _drawAreaLine(canvas, size, rev, primaryColor);
-    _drawLine(canvas, size, sol, secondaryColor);
+    _drawAreaLine(canvas, size, revPts, primaryColor);
+    if (kgPts.isNotEmpty) _drawLine(canvas, size, kgPts, secondaryColor);
 
-    // Y-axis labels
-    final labels = ['₹5L', '₹4L', '₹3L', '₹2L', '₹1L', '₹0'];
+    // Dynamic Y-axis labels based on real maxRevenue
     final tp = TextPainter(textDirection: TextDirection.ltr);
+    final labels = _buildYLabels(maxRevenue);
     for (int i = 0; i < labels.length; i++) {
       tp.text = TextSpan(text: labels[i],
-          style: const TextStyle(fontSize: 8, color: _kText3));
+          style: TextStyle(fontSize: 8, color: _kText3));
       tp.layout();
       tp.paint(canvas, Offset(0, size.height * i / (labels.length - 1) - 6));
     }
+  }
+
+  List<String> _buildYLabels(double maxVal) {
+    String fmt(double v) {
+      if (v >= 100000) return '₹${(v / 100000).toStringAsFixed(1)}L';
+      if (v >= 1000)   return '₹${(v / 1000).toStringAsFixed(0)}K';
+      return '₹${v.toStringAsFixed(0)}';
+    }
+    return [
+      fmt(maxVal),
+      fmt(maxVal * 0.75),
+      fmt(maxVal * 0.5),
+      fmt(maxVal * 0.25),
+      '₹0',
+    ];
   }
 
   void _drawAreaLine(Canvas canvas, Size size, List<double> pts, Color color) {
@@ -1613,15 +1737,13 @@ class _AreaChartPainter extends CustomPainter {
       ..strokeCap = StrokeCap.round;
     final ap = Paint()
       ..shader = LinearGradient(
-        colors: [color.withOpacity(0.15), color.withOpacity(0)],
+        colors: [color.withValues(alpha: 0.15), color.withValues(alpha: 0)],
         begin: Alignment.topCenter, end: Alignment.bottomCenter,
       ).createShader(Rect.fromLTWH(0, 0, size.width, size.height))
       ..style = PaintingStyle.fill;
 
-    final path = Path(),
-        area = Path();
-    final w = size.width * 0.85,
-        ox = size.width * 0.15;
+    final path = Path(), area = Path();
+    final w = size.width * 0.85, ox = size.width * 0.15;
 
     for (int i = 0; i < pts.length; i++) {
       final x = ox + w * i / (pts.length - 1);
@@ -1636,10 +1758,7 @@ class _AreaChartPainter extends CustomPainter {
     canvas.drawPath(area, ap);
     canvas.drawPath(path, lp);
 
-    // Dots
-    final dp = Paint()
-      ..color = color
-      ..style = PaintingStyle.fill;
+    final dp = Paint()..color = color..style = PaintingStyle.fill;
     for (int i = 0; i < pts.length; i++) {
       final x = ox + w * i / (pts.length - 1);
       final y = size.height * (1 - pts[i]) * 0.9 + size.height * 0.05;
@@ -1655,8 +1774,7 @@ class _AreaChartPainter extends CustomPainter {
       ..strokeCap = StrokeCap.round
       ..strokeJoin = StrokeJoin.round;
     final path = Path();
-    final w = size.width * 0.85,
-        ox = size.width * 0.15;
+    final w = size.width * 0.85, ox = size.width * 0.15;
     for (int i = 0; i < pts.length; i++) {
       final x = ox + w * i / (pts.length - 1);
       final y = size.height * (1 - pts[i]) * 0.9 + size.height * 0.05;
@@ -1665,7 +1783,8 @@ class _AreaChartPainter extends CustomPainter {
     canvas.drawPath(path, lp);
   }
 
-  @override bool shouldRepaint(_) => false;
+  @override bool shouldRepaint(_AreaChartPainter o) =>
+      o.revPts != revPts || o.maxRevenue != maxRevenue;
 }
 
 // ── Live Stock Panel ──────────────────────────────────────────────────────────
@@ -1862,9 +1981,11 @@ class _AgentRow extends StatelessWidget {
 // ── Financial Health ──────────────────────────────────────────────────────────
 class _FinancialHealth extends StatelessWidget {
   const _FinancialHealth({required this.data,
+    required this.overdueCount,
     required this.onLedger, required this.onClosure});
 
   final DashboardData data;
+  final int overdueCount; // Phase 2: real count from get_overdue_retailer_count
   final VoidCallback onLedger, onClosure;
 
   @override
@@ -1908,11 +2029,11 @@ class _FinancialHealth extends StatelessWidget {
                 label: 'Cash In Hand',
                 value: Fmt.amount(data.todayCashCollected)),
             const SizedBox(height: 10),
-            // Overdue customers — using open shifts as proxy
+            // Overdue customers — Phase 2: real count from DB
             _CollRow(icon: Icons.people_outline,
                 color: _kRed,
                 label: 'Overdue Customers',
-                value: '${(data.openShifts * 2).clamp(0, 99)}',
+                value: '$overdueCount',
                 isCount: true),
             if (data.allClear) ...[
               const Divider(height: 20, color: _kBorder),
@@ -2151,62 +2272,66 @@ class _RecentOrdersTableState extends State<_RecentOrdersTable> {
                             color: Colors.white)))),
           ]),
         ),
-        // Column headers
-        Container(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(colors: [_kNavBg, Color(0xFF1E293B)]),
-          ),
-          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 11),
-          child: Row(children: const [
-            _TH('Order ID', 90),
-            _TH('Customer', 200),
-            _TH('Birds / Weight', 140),
-            _TH('Amount', 120, right: true),
-            _TH('Status', 110, center: true),
-            _TH('Agent', 120),
-            _TH('Time', 90),
-            _TH('Action', 60, center: true),
+        // Column headers + Data rows (horizontally scrollable)
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Container(
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(colors: [_kNavBg, Color(0xFF1E293B)]),
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 11),
+              child: Row(children: const [
+                _TH('Order ID', 90),
+                _TH('Customer', 200),
+                _TH('Birds / Weight', 140),
+                _TH('Amount', 120, right: true),
+                _TH('Status', 110, center: true),
+                _TH('Agent', 120),
+                _TH('Time', 90),
+                _TH('Action', 60, center: true),
+              ]),
+            ),
+            if (rows.isEmpty)
+              const Padding(padding: EdgeInsets.all(32),
+                  child: Center(child: Text('No orders found',
+                      style: TextStyle(color: _kText3))))
+            else
+              ...rows
+                  .asMap()
+                  .entries
+                  .map((e) {
+                final i = e.key;
+                final o = e.value;
+                final status = o['status'] as String? ?? 'pending';
+                final retailer = o['retailers'] as Map<String, dynamic>?;
+                final shopName = retailer?['shop_name'] as String? ?? '—';
+                final birds = (o['estimated_birds'] as num?)?.toInt() ?? 0;
+                final wt = (o['total_quantity'] as num?)?.toDouble() ?? 0;
+                final amt = (o['total_amount'] as num?)?.toDouble() ?? 0;
+                final createdAt = DateTime.tryParse(
+                    o['created_at'] as String? ?? '');
+                final timeStr = createdAt != null
+                    ? DateFormat('hh:mm a').format(createdAt) : '—';
+                final sc = _statusColor(status);
+
+                return _OrderRow(
+                  index: i,
+                  orderId: '#${(o['id'] as String? ?? '')
+                      .substring(0, 6)
+                      .toUpperCase()}',
+                  shopName: shopName,
+                  birds: birds,
+                  weight: wt,
+                  amount: amt,
+                  status: status,
+                  statusColor: sc,
+                  time: timeStr,
+                  onTap: () => widget.onOrder(o['id'] as String? ?? ''),
+                );
+              }),
           ]),
         ),
-        // Data rows
-        if (rows.isEmpty)
-          const Padding(padding: EdgeInsets.all(32),
-              child: Center(child: Text('No orders found',
-                  style: TextStyle(color: _kText3))))
-        else
-          ...rows
-              .asMap()
-              .entries
-              .map((e) {
-            final i = e.key;
-            final o = e.value;
-            final status = o['status'] as String? ?? 'pending';
-            final retailer = o['retailers'] as Map<String, dynamic>?;
-            final shopName = retailer?['shop_name'] as String? ?? '—';
-            final birds = (o['estimated_birds'] as num?)?.toInt() ?? 0;
-            final wt = (o['total_quantity'] as num?)?.toDouble() ?? 0;
-            final amt = (o['total_amount'] as num?)?.toDouble() ?? 0;
-            final createdAt = DateTime.tryParse(
-                o['created_at'] as String? ?? '');
-            final timeStr = createdAt != null
-                ? DateFormat('hh:mm a').format(createdAt) : '—';
-            final sc = _statusColor(status);
-
-            return _OrderRow(
-              index: i,
-              orderId: '#${(o['id'] as String? ?? '')
-                  .substring(0, 6)
-                  .toUpperCase()}',
-              shopName: shopName,
-              birds: birds,
-              weight: wt,
-              amount: amt,
-              status: status,
-              statusColor: sc,
-              time: timeStr,
-              onTap: () => widget.onOrder(o['id'] as String? ?? ''),
-            );
-          }),
         // Footer
         Container(
           padding: const EdgeInsets.fromLTRB(18, 12, 18, 12),

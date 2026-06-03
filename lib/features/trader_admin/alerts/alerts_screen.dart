@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/providers/session_provider.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../shared/layouts/responsive_layout.dart';
 
 class AlertsScreen extends ConsumerStatefulWidget {
   const AlertsScreen({super.key});
@@ -52,7 +53,7 @@ class _S extends ConsumerState<AlertsScreen> {
   @override
   Widget build(BuildContext context) {
     final tid = ref.read(appUserProvider).valueOrNull?.traderId;
-    return Scaffold(
+    final _scaffold = Scaffold(
       backgroundColor: kBgPage,
       appBar: AppBar(
         backgroundColor: kSurface,
@@ -102,5 +103,6 @@ class _S extends ConsumerState<AlertsScreen> {
                     ])));
           }),
     );
+    return ResponsiveLayout(mobile: (_) => _scaffold, desktop: (_) => _scaffold);
   }
 }

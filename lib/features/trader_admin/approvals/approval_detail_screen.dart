@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/providers/session_provider.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../shared/layouts/responsive_layout.dart';
 
 class ApprovalDetailScreen extends ConsumerStatefulWidget {
   const ApprovalDetailScreen({super.key, required this.id});
@@ -268,259 +269,302 @@ class _S extends ConsumerState<ApprovalDetailScreen> {
     final batch = _delivery!['delivery_batches'] as Map<String,dynamic>?;
     final challans = (batch?['delivery_challans'] as List? ?? []).cast<Map<String,dynamic>>();
 
-    return Scaffold(
-      backgroundColor: kBgPage,
-      appBar: AppBar(
-          backgroundColor: kSurface,
-          title: const Text('Approve Delivery'),
-          actions: [IconButton(icon: const Icon(Icons.refresh), onPressed: _load)]),
-      body: ListView(padding: const EdgeInsets.fromLTRB(16,16,16,100), children: [
+    final isDesktop = context.isDesktop;
+    final appBar = AppBar(
+      backgroundColor: kSurface,
+      title: const Text('Approve Delivery'),
+      actions: [IconButton(icon: const Icon(Icons.refresh), onPressed: _load)],
+    );
 
-        // ── Customer & Agent header ───────────────────────────────
-        WhiteCard(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(r?['shop_name'] as String? ?? '—',
-              style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
-          if (r?['owner_name'] != null)
-            Text(r!['owner_name'] as String, style: const TextStyle(fontSize: 13, color: kTextSub)),
-          if (r?['phone'] != null)
-            Text(r!['phone'] as String, style: const TextStyle(fontSize: 12, color: kTextHint)),
-          const SizedBox(height: 8),
+    // All body sections as widget list
+    final allSections = <Widget>[
+
+      // ── Customer & Agent header ───────────────────────────────
+      WhiteCard(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(r?['shop_name'] as String? ?? '—',
+            style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
+        if (r?['owner_name'] != null)
+          Text(r!['owner_name'] as String, style: const TextStyle(fontSize: 13, color: kTextSub)),
+        if (r?['phone'] != null)
+          Text(r!['phone'] as String, style: const TextStyle(fontSize: 12, color: kTextHint)),
+        const SizedBox(height: 8),
+        Row(children: [
+          const Icon(Icons.delivery_dining, size: 14, color: kPrimary),
+          const SizedBox(width: 6),
+          Text('${a?['name'] ?? '—'}  ·  ${a?['vehicle_no'] ?? ''}',
+              style: const TextStyle(fontSize: 12, color: kTextSub)),
+        ]),
+        if (_delivery!['delivered_at'] != null) ...[
+          const SizedBox(height: 4),
           Row(children: [
-            const Icon(Icons.delivery_dining, size: 14, color: kPrimary),
+            const Icon(Icons.access_time, size: 13, color: kTextHint),
             const SizedBox(width: 6),
-            Text('${a?['name'] ?? '—'}  ·  ${a?['vehicle_no'] ?? ''}',
-                style: const TextStyle(fontSize: 12, color: kTextSub)),
+            Text(DateFormat('d MMM y, hh:mm a').format(
+                DateTime.parse(_delivery!['delivered_at'] as String).toLocal()),
+                style: const TextStyle(fontSize: 12, color: kTextHint)),
           ]),
-          if (_delivery!['delivered_at'] != null) ...[
-            const SizedBox(height: 4),
-            Row(children: [
-              const Icon(Icons.access_time, size: 13, color: kTextHint),
+        ],
+      ])),
+      const SizedBox(height: 10),
+
+      // ── ORDER vs DELIVERED comparison (ORDER-level loss) ──────
+      _buildLossCard(o),
+      const SizedBox(height: 10),
+
+      // ── WEIGHMENT LOG (BLE Scale data) ────────────────────────
+      if (_weighSession != null) ...[
+        _buildWeighmentLog(challans),
+        const SizedBox(height: 10),
+      ] else ...[
+        Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(color: Colors.grey.shade50,
+                borderRadius: BorderRadius.circular(kRadiusCard),
+                border: Border.all(color: kBorder)),
+            child: const Row(children: [
+              Icon(Icons.scale_outlined, size: 18, color: kTextHint),
+              SizedBox(width: 8),
+              Text('No scale weighment recorded for this delivery',
+                  style: TextStyle(fontSize: 12, color: kTextHint)),
+            ])),
+        const SizedBox(height: 10),
+      ],
+
+      // ── DC / Farm Pickup details ──────────────────────────────
+      if (challans.isNotEmpty) ...[
+        _buildDCDetails(challans),
+        const SizedBox(height: 10),
+      ],
+
+      // ── MORTALITY & PROOF IMAGES ─────────────────────────────
+      // Always shown — trader must verify mortality before approving
+      _buildPhotos(),
+
+      // ── Rate & Bill ───────────────────────────────────────────
+      WhiteCard(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        const SectionHeader('BILLING'),
+        // Weight source label
+        Container(
+            margin: const EdgeInsets.only(bottom: 10),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+                color: _weighNetTotal > 0 ? Colors.blue.shade50 : Colors.orange.shade50,
+                borderRadius: BorderRadius.circular(8)),
+            child: Row(children: [
+              Icon(_weighNetTotal > 0 ? Icons.scale : Icons.edit_outlined,
+                  size: 14, color: _weighNetTotal > 0 ? Colors.blue : Colors.orange),
               const SizedBox(width: 6),
-              Text(DateFormat('d MMM y, hh:mm a').format(
-                  DateTime.parse(_delivery!['delivered_at'] as String).toLocal()),
-                  style: const TextStyle(fontSize: 12, color: kTextHint)),
-            ]),
-          ],
-        ])),
-        const SizedBox(height: 10),
+              Text(
+                  _weighNetTotal > 0
+                      ? 'Using BLE scale weight: ${_billingWeight.toStringAsFixed(2)} kg'
+                      : 'Using agent entry: ${_billingWeight.toStringAsFixed(2)} kg (no scale data)',
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600,
+                      color: _weighNetTotal > 0 ? Colors.blue : Colors.orange)),
+            ])),
 
-        // ── ORDER vs DELIVERED comparison (ORDER-level loss) ──────
-        _buildLossCard(o),
-        const SizedBox(height: 10),
-
-        // ── WEIGHMENT LOG (BLE Scale data) ────────────────────────
-        if (_weighSession != null) ...[
-          _buildWeighmentLog(challans),
-          const SizedBox(height: 10),
-        ] else ...[
-          Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(color: Colors.grey.shade50,
-                  borderRadius: BorderRadius.circular(kRadiusCard),
-                  border: Border.all(color: kBorder)),
-              child: const Row(children: [
-                Icon(Icons.scale_outlined, size: 18, color: kTextHint),
-                SizedBox(width: 8),
-                Text('No scale weighment recorded for this delivery',
-                    style: TextStyle(fontSize: 12, color: kTextHint)),
-              ])),
-          const SizedBox(height: 10),
-        ],
-
-        // ── DC / Farm Pickup details ──────────────────────────────
-        if (challans.isNotEmpty) ...[
-          _buildDCDetails(challans),
-          const SizedBox(height: 10),
-        ],
-
-        // ── MORTALITY & PROOF IMAGES ─────────────────────────────
-        // Always shown — trader must verify mortality before approving
-        _buildPhotos(),
-
-        // ── Rate & Bill ───────────────────────────────────────────
-        WhiteCard(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          const SectionHeader('BILLING'),
-          // Weight source label
-          Container(
-              margin: const EdgeInsets.only(bottom: 10),
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              decoration: BoxDecoration(
-                  color: _weighNetTotal > 0 ? Colors.blue.shade50 : Colors.orange.shade50,
-                  borderRadius: BorderRadius.circular(8)),
-              child: Row(children: [
-                Icon(_weighNetTotal > 0 ? Icons.scale : Icons.edit_outlined,
-                    size: 14, color: _weighNetTotal > 0 ? Colors.blue : Colors.orange),
-                const SizedBox(width: 6),
-                Text(
-                    _weighNetTotal > 0
-                        ? 'Using BLE scale weight: ${_billingWeight.toStringAsFixed(2)} kg'
-                        : 'Using agent entry: ${_billingWeight.toStringAsFixed(2)} kg (no scale data)',
-                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600,
-                        color: _weighNetTotal > 0 ? Colors.blue : Colors.orange)),
-              ])),
-
-          // ── Per-product rates (multi-product) OR single rate ──────────
-          if (_isMultiProduct) ...[
-            const Text('RATE PER PRODUCT',
-                style: TextStyle(fontSize: 11, color: kTextHint, fontWeight: FontWeight.w700, letterSpacing: 0.8)),
-            const SizedBox(height: 8),
-            ..._orderItems.map((item) {
-              final id        = item['id'] as String? ?? '';
-              final prodName  = (item['master_products'] as Map?)?['name'] as String? ?? 'Product';
-              final weight    = (item['total_weight'] as num?)?.toDouble() ?? 0;
-              final birds     = (item['bird_count'] as num?)?.toInt() ?? 0;
-              final ctrl      = _itemRateCtrls[id] ?? TextEditingController();
-              final rate      = double.tryParse(ctrl.text.trim()) ?? 0;
-              final lineTotal = weight * rate;
-              return Container(
-                  margin: const EdgeInsets.only(bottom: 10),
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                      color: const Color(0xFFF8F9FA),
-                      borderRadius: BorderRadius.circular(kRadiusCard),
-                      border: Border.all(color: kBorder)),
-                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Row(children: [
-                      Container(width: 8, height: 8,
-                          decoration: BoxDecoration(color: kPrimary, shape: BoxShape.circle)),
-                      const SizedBox(width: 8),
-                      Expanded(child: Text(prodName,
-                          style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14))),
-                      Text('${weight.toStringAsFixed(1)} kg · $birds birds',
-                          style: const TextStyle(fontSize: 11, color: kTextSub)),
-                    ]),
-                    const SizedBox(height: 8),
-                    Row(children: [
-                      Expanded(child: TextField(
-                          controller: ctrl,
-                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                          decoration: InputDecoration(
-                              labelText: 'Rate/kg *', prefixText: '₹', suffixText: '/kg',
-                              filled: true, fillColor: Colors.white,
-                              border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(kRadiusInner), borderSide: BorderSide.none)),
-                          onChanged: (_) => setState(() {}))),
-                      const SizedBox(width: 12),
-                      if (rate > 0) Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-                        Text(Fmt.amount(lineTotal),
-                            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: kPrimary)),
-                        Text('${weight.toStringAsFixed(1)} × ₹${rate.toStringAsFixed(2)}',
-                            style: const TextStyle(fontSize: 10, color: kTextSub)),
-                      ]),
-                    ]),
-                  ]));
-            }),
-          ] else ...[
-            const Text('Rate per kg *',
-                style: TextStyle(fontSize: 11, color: kTextHint, fontWeight: FontWeight.w600)),
-            const SizedBox(height: 4),
-            TextField(
-                controller: _rateCtrl,
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                decoration: InputDecoration(
-                    prefixText: '₹', suffixText: '/kg',
-                    filled: true, fillColor: const Color(0xFFF3F4F6),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(kRadiusCard), borderSide: BorderSide.none)),
-                onChanged: (_) => setState(() {})),
-          ],
-          const SizedBox(height: 12),
-
-          // Live calculation summary
-          if (_billAmount > 0)
-            Container(
-                padding: const EdgeInsets.all(14),
+        // ── Per-product rates (multi-product) OR single rate ──────────
+        if (_isMultiProduct) ...[
+          const Text('RATE PER PRODUCT',
+              style: TextStyle(fontSize: 11, color: kTextHint, fontWeight: FontWeight.w700, letterSpacing: 0.8)),
+          const SizedBox(height: 8),
+          ..._orderItems.map((item) {
+            final id        = item['id'] as String? ?? '';
+            final prodName  = (item['master_products'] as Map?)?['name'] as String? ?? 'Product';
+            final weight    = (item['total_weight'] as num?)?.toDouble() ?? 0;
+            final birds     = (item['bird_count'] as num?)?.toInt() ?? 0;
+            final ctrl      = _itemRateCtrls[id] ?? TextEditingController();
+            final rate      = double.tryParse(ctrl.text.trim()) ?? 0;
+            final lineTotal = weight * rate;
+            return Container(
+                margin: const EdgeInsets.only(bottom: 10),
+                padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                    color: kPrimary.withValues(alpha: 0.07),
+                    color: const Color(0xFFF8F9FA),
                     borderRadius: BorderRadius.circular(kRadiusCard),
-                    border: Border.all(color: kPrimary.withValues(alpha: 0.2))),
-                child: Column(children: [
-                  if (_isMultiProduct) ...[
-                    ..._orderItems.map((item) {
-                      final id       = item['id'] as String? ?? '';
-                      final prodName = (item['master_products'] as Map?)?['name'] as String? ?? '—';
-                      final weight   = (item['total_weight'] as num?)?.toDouble() ?? 0;
-                      final rate     = double.tryParse(_itemRateCtrls[id]?.text.trim() ?? '') ?? 0;
-                      if (rate <= 0) return const SizedBox.shrink();
-                      return _bRow(prodName, Fmt.amount(weight * rate), kTextSub);
-                    }),
-                    const Divider(height: 10),
-                  ] else ...[
-                    Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                      Text('${_billingWeight.toStringAsFixed(2)} kg × ₹${_rateCtrl.text}/kg',
-                          style: const TextStyle(fontSize: 12, color: kTextSub)),
-                      const SizedBox.shrink(),
-                    ]),
-                  ],
-                  Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                    const Text('Total Bill', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
-                    Text(Fmt.amount(_billAmount),
-                        style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w900, color: kPrimary)),
+                    border: Border.all(color: kBorder)),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Row(children: [
+                    Container(width: 8, height: 8,
+                        decoration: BoxDecoration(color: kPrimary, shape: BoxShape.circle)),
+                    const SizedBox(width: 8),
+                    Expanded(child: Text(prodName,
+                        style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14))),
+                    Text('${weight.toStringAsFixed(1)} kg · $birds birds',
+                        style: const TextStyle(fontSize: 11, color: kTextSub)),
                   ]),
-                  if (_collected > 0) ...[
-                    const Divider(height: 14),
-                    _bRow('Collected by agent', Fmt.amount(_collected), Colors.green),
-                    _bRow('Balance due', Fmt.amount(_balance),
-                        _balance > 0 ? Colors.orange : Colors.green),
-                  ],
-                ])),
-          const SizedBox(height: 12),
-
-          // Invoice date
-          const Text('Invoice Date',
+                  const SizedBox(height: 8),
+                  Row(children: [
+                    Expanded(child: TextField(
+                        controller: ctrl,
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        decoration: InputDecoration(
+                            labelText: 'Rate/kg *', prefixText: '₹', suffixText: '/kg',
+                            filled: true, fillColor: Colors.white,
+                            border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(kRadiusInner), borderSide: BorderSide.none)),
+                        onChanged: (_) => setState(() {}))),
+                    const SizedBox(width: 12),
+                    if (rate > 0) Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                      Text(Fmt.amount(lineTotal),
+                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: kPrimary)),
+                      Text('${weight.toStringAsFixed(1)} × ₹${rate.toStringAsFixed(2)}',
+                          style: const TextStyle(fontSize: 10, color: kTextSub)),
+                    ]),
+                  ]),
+                ]));
+          }),
+        ] else ...[
+          const Text('Rate per kg *',
               style: TextStyle(fontSize: 11, color: kTextHint, fontWeight: FontWeight.w600)),
           const SizedBox(height: 4),
-          InkWell(
-              onTap: () async {
-                final d = await showDatePicker(context: context,
-                    initialDate: _invoiceDate,
-                    firstDate: DateTime.now().subtract(const Duration(days: 90)),
-                    lastDate: DateTime.now());
-                if (d != null && mounted) setState(() => _invoiceDate = d);
-              },
-              child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                  decoration: BoxDecoration(color: const Color(0xFFF3F4F6), borderRadius: BorderRadius.circular(10)),
-                  child: Row(children: [
-                    const Icon(Icons.calendar_today_outlined, size: 16, color: kPrimary),
-                    const SizedBox(width: 10),
-                    Text(DateFormat('d MMMM y').format(_invoiceDate),
-                        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-                    const Spacer(),
-                    const Text('Change', style: TextStyle(fontSize: 12, color: kPrimary, fontWeight: FontWeight.w600)),
-                  ]))),
-          const SizedBox(height: 10),
-          TextField(controller: _notesCtrl,
-              decoration: const InputDecoration(labelText: 'Notes (optional)')),
-        ])),
-        const SizedBox(height: 16),
-
-        // ── Approve button ─────────────────────────────────────────
-        SizedBox(height: 52, child: ElevatedButton.icon(
-            onPressed: _submitting ? null : _approve,
-            icon: _submitting
-                ? const SizedBox(width: 18, height: 18,
-                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                : const Icon(Icons.check_circle_outline, size: 20),
-            label: const Text('Approve & Create Bill',
-                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700)))),
+          TextField(
+              controller: _rateCtrl,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              decoration: InputDecoration(
+                  prefixText: '₹', suffixText: '/kg',
+                  filled: true, fillColor: const Color(0xFFF3F4F6),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(kRadiusCard), borderSide: BorderSide.none)),
+              onChanged: (_) => setState(() {})),
+        ],
         const SizedBox(height: 12),
 
-        // ── Reject ─────────────────────────────────────────────────
-        ExpansionTile(
-            title: const Text('Reject Delivery',
-                style: TextStyle(color: kError, fontWeight: FontWeight.w600)),
-            leading: const Icon(Icons.cancel_outlined, color: kError, size: 20),
-            children: [Padding(padding: const EdgeInsets.fromLTRB(16, 0, 16, 16), child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-              TextField(controller: _rejectCtrl, maxLines: 2,
-                  decoration: const InputDecoration(labelText: 'Reason *', alignLabelWithHint: true)),
-              const SizedBox(height: 10),
-              OutlinedButton(
-                  onPressed: _submitting ? null : _reject,
-                  style: OutlinedButton.styleFrom(foregroundColor: kError, side: const BorderSide(color: kError)),
-                  child: const Text('Reject')),
-            ]))]),
-        const SizedBox(height: 20),
+        // Live calculation summary
+        if (_billAmount > 0)
+          Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                  color: kPrimary.withValues(alpha: 0.07),
+                  borderRadius: BorderRadius.circular(kRadiusCard),
+                  border: Border.all(color: kPrimary.withValues(alpha: 0.2))),
+              child: Column(children: [
+                if (_isMultiProduct) ...[
+                  ..._orderItems.map((item) {
+                    final id       = item['id'] as String? ?? '';
+                    final prodName = (item['master_products'] as Map?)?['name'] as String? ?? '—';
+                    final weight   = (item['total_weight'] as num?)?.toDouble() ?? 0;
+                    final rate     = double.tryParse(_itemRateCtrls[id]?.text.trim() ?? '') ?? 0;
+                    if (rate <= 0) return const SizedBox.shrink();
+                    return _bRow(prodName, Fmt.amount(weight * rate), kTextSub);
+                  }),
+                  const Divider(height: 10),
+                ] else ...[
+                  Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                    Text('${_billingWeight.toStringAsFixed(2)} kg × ₹${_rateCtrl.text}/kg',
+                        style: const TextStyle(fontSize: 12, color: kTextSub)),
+                    const SizedBox.shrink(),
+                  ]),
+                ],
+                Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                  const Text('Total Bill', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
+                  Text(Fmt.amount(_billAmount),
+                      style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w900, color: kPrimary)),
+                ]),
+                if (_collected > 0) ...[
+                  const Divider(height: 14),
+                  _bRow('Collected by agent', Fmt.amount(_collected), Colors.green),
+                  _bRow('Balance due', Fmt.amount(_balance),
+                      _balance > 0 ? Colors.orange : Colors.green),
+                ],
+              ])),
+        const SizedBox(height: 12),
+
+        // Invoice date
+        const Text('Invoice Date',
+            style: TextStyle(fontSize: 11, color: kTextHint, fontWeight: FontWeight.w600)),
+        const SizedBox(height: 4),
+        InkWell(
+            onTap: () async {
+              final d = await showDatePicker(context: context,
+                  initialDate: _invoiceDate,
+                  firstDate: DateTime.now().subtract(const Duration(days: 90)),
+                  lastDate: DateTime.now());
+              if (d != null && mounted) setState(() => _invoiceDate = d);
+            },
+            child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                decoration: BoxDecoration(color: const Color(0xFFF3F4F6), borderRadius: BorderRadius.circular(10)),
+                child: Row(children: [
+                  const Icon(Icons.calendar_today_outlined, size: 16, color: kPrimary),
+                  const SizedBox(width: 10),
+                  Text(DateFormat('d MMMM y').format(_invoiceDate),
+                      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                  const Spacer(),
+                  const Text('Change', style: TextStyle(fontSize: 12, color: kPrimary, fontWeight: FontWeight.w600)),
+                ]))),
+        const SizedBox(height: 10),
+        TextField(controller: _notesCtrl,
+            decoration: const InputDecoration(labelText: 'Notes (optional)')),
+      ])),
+      const SizedBox(height: 16),
+
+      // ── Approve button ─────────────────────────────────────────
+      SizedBox(height: 52, child: ElevatedButton.icon(
+          onPressed: _submitting ? null : _approve,
+          icon: _submitting
+              ? const SizedBox(width: 18, height: 18,
+              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+              : const Icon(Icons.check_circle_outline, size: 20),
+          label: const Text('Approve & Create Bill',
+              style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700)))),
+      const SizedBox(height: 12),
+
+      // ── Reject ─────────────────────────────────────────────────
+      ExpansionTile(
+          title: const Text('Reject Delivery',
+              style: TextStyle(color: kError, fontWeight: FontWeight.w600)),
+          leading: const Icon(Icons.cancel_outlined, color: kError, size: 20),
+          children: [Padding(padding: const EdgeInsets.fromLTRB(16, 0, 16, 16), child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            TextField(controller: _rejectCtrl, maxLines: 2,
+                decoration: const InputDecoration(labelText: 'Reason *', alignLabelWithHint: true)),
+            const SizedBox(height: 10),
+            OutlinedButton(
+                onPressed: _submitting ? null : _reject,
+                style: OutlinedButton.styleFrom(foregroundColor: kError, side: const BorderSide(color: kError)),
+                child: const Text('Reject')),
+          ]))]),
+      const SizedBox(height: 20),
+    ];
+
+    if (!isDesktop) {
+      return Scaffold(
+        backgroundColor: kBgPage,
+        appBar: appBar,
+        body: ListView(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+          children: allSections,
+        ),
+      );
+    }
+
+    // ── Desktop 2-column layout ──────────────────────────────────────────
+    // Left: delivery info + loss + weighment + DCs + photos
+    // Right: rate entry + approve/reject (always last 2 sections)
+    final splitIdx = allSections.length > 2 ? allSections.length - 2 : 0;
+    final leftSections  = allSections.sublist(0, splitIdx);
+    final rightSections = allSections.sublist(splitIdx);
+
+    return Scaffold(
+      backgroundColor: kBgPage,
+      appBar: appBar,
+      body: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        // ── Left: delivery details + loss + weighment ──────────────────
+        Expanded(
+          flex: 6,
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(24, 16, 16, 40),
+            children: leftSections,
+          ),
+        ),
+        Container(width: 1, color: kBorderLight),
+        // ── Right: rate + approve/reject ───────────────────────────────
+        SizedBox(
+          width: 360,
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(20, 16, 24, 40),
+            children: rightSections,
+          ),
+        ),
       ]),
     );
   }

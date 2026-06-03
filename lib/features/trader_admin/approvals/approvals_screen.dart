@@ -7,6 +7,7 @@ import '../../../core/providers/session_provider.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../shared/layouts/responsive_layout.dart';
+import '../../../shared/widgets/cards/metric_card.dart';
 import '../../../shared/widgets/common/async_state_view.dart';
 import '../../../shared/widgets/common/status_chip.dart';
 import '../../../shared/widgets/filters/search_bar.dart' hide ListToolbar;
@@ -127,6 +128,19 @@ class _S extends ConsumerState<ApprovalsScreen> {
                 tooltip: 'Refresh'),
         ],
       ),
+
+      summaryStrip: isDesktop ? MetricStrip(metrics: [
+        MetricCard(label: 'Pending Review',
+            value: '${_items.length}',
+            color: _items.isNotEmpty ? Colors.orange : Colors.green,
+            icon: Icons.pending_actions_outlined),
+        MetricCard(label: 'High Loss',
+            value: '${_items.where((d) { final pct = (d['loss_percentage'] as num?)?.toDouble() ?? 0; return pct >= 2; }).length}',
+            color: Colors.red, icon: Icons.warning_outlined),
+        MetricCard(label: 'Today',
+            value: '${_items.where((d) { final dt = DateTime.tryParse(d['delivered_at'] as String? ?? ''); return dt != null && dt.day == DateTime.now().day && dt.month == DateTime.now().month; }).length}',
+            icon: Icons.today_outlined),
+      ]) : null,
 
       content: AsyncStateView(
         loading:      _loading,

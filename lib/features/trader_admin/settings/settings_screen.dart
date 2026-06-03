@@ -6,12 +6,12 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/providers/session_provider.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../shared/layouts/responsive_layout.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
 
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget _buildScaffold(BuildContext context, WidgetRef ref) {
     final user = ref.watch(appUserProvider).valueOrNull;
 
     return Scaffold(
@@ -242,4 +242,10 @@ class SettingsScreen extends ConsumerWidget {
         ? '${parts[0][0]}${parts[1][0]}'.toUpperCase()
         : name[0].toUpperCase();
   }
+  @override
+  Widget build(BuildContext context, WidgetRef ref) => ResponsiveLayout(
+    mobile:  (_) => _buildScaffold(context, ref),
+    desktop: (_) => _buildScaffold(context, ref),
+  );
+
 }

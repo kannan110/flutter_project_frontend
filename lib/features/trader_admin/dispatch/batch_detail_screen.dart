@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/providers/session_provider.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../shared/layouts/responsive_layout.dart';
 
 class BatchDetailScreen extends ConsumerStatefulWidget {
   const BatchDetailScreen({super.key, required this.id});
@@ -523,204 +524,242 @@ class _S extends ConsumerState<BatchDetailScreen> {
     final dcBirds  = _challans.fold(0,   (s, c) => s + ((c['bird_count']  as num?)?.toInt()    ?? 0));
     final dcWeight = _challans.fold(0.0, (s, c) => s + ((c['net_weight']  as num?)?.toDouble() ?? 0));
 
-    return Scaffold(
-      backgroundColor: kBgPage,
-      appBar: AppBar(
-        backgroundColor: kSurface,
-        title: const Text('Batch Detail'),
-        actions: [
-          if (canEdit) ...[
-            TextButton.icon(onPressed: _addDC,
-                icon: const Icon(Icons.receipt_long_outlined, size: 16),
-                label: const Text('+ DC')),
-            IconButton(
-                icon: const Icon(Icons.person_outline, size: 20),
-                tooltip: 'Reassign Agent',
-                onPressed: _reassignAgent),
-          ],
-          if (canEdit && status == 'assigned')
-            IconButton(
-                icon: const Icon(Icons.delete_outline, size: 20, color: Colors.red),
-                tooltip: 'Delete Batch',
-                onPressed: _deleteBatch),
-          IconButton(icon: const Icon(Icons.refresh), onPressed: _load),
+    final isDesktop = context.isDesktop;
+    final appBar = AppBar(
+      backgroundColor: kSurface,
+      title: const Text('Batch Detail'),
+      actions: [
+        if (canEdit) ...[
+          TextButton.icon(onPressed: _addDC,
+              icon: const Icon(Icons.receipt_long_outlined, size: 16),
+              label: const Text('+ DC')),
+          IconButton(icon: const Icon(Icons.person_outline, size: 20),
+              tooltip: 'Reassign Agent', onPressed: _reassignAgent),
         ],
-      ),
-      body: ListView(padding: const EdgeInsets.fromLTRB(16,16,16,100), children: [
+        if (canEdit && status == 'assigned')
+          IconButton(icon: const Icon(Icons.delete_outline, size: 20, color: Colors.red),
+              tooltip: 'Delete Batch', onPressed: _deleteBatch),
+        IconButton(icon: const Icon(Icons.refresh), onPressed: _load),
+      ],
+    );
 
-        // ── Agent card ────────────────────────────────────────────
-        WhiteCard(child: Row(children: [
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(a?['name'] as String? ?? '—',
-                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
-            if (a?['vehicle_no'] != null)
-              Text('Vehicle: ${a!['vehicle_no']}', style: const TextStyle(fontSize: 12, color: kTextSub)),
-            if (a?['phone'] != null)
-              Text('Phone: ${a!['phone']}', style: const TextStyle(fontSize: 12, color: kTextHint)),
-          ])),
-          Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-            StatusBadge(status, SC.order(status)),
-            if (canEdit) ...[
-              const SizedBox(height: 6),
-              GestureDetector(
-                  onTap: _reassignAgent,
-                  child: const Row(children: [
-                    Icon(Icons.swap_horiz, size: 14, color: kPrimary),
-                    SizedBox(width: 4),
-                    Text('Swap Agent', style: TextStyle(fontSize: 11, color: kPrimary, fontWeight: FontWeight.w600)),
-                  ])),
-            ],
-          ]),
+    // Collect all body sections
+    final allSections = <Widget>[
+
+      // ── Agent card ────────────────────────────────────────────
+      WhiteCard(child: Row(children: [
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(a?['name'] as String? ?? '—',
+              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
+          if (a?['vehicle_no'] != null)
+            Text('Vehicle: ${a!['vehicle_no']}', style: const TextStyle(fontSize: 12, color: kTextSub)),
+          if (a?['phone'] != null)
+            Text('Phone: ${a!['phone']}', style: const TextStyle(fontSize: 12, color: kTextHint)),
         ])),
-        const SizedBox(height: 14),
-
-        // ── DC List ───────────────────────────────────────────────
-        Row(children: [
-          const Expanded(child: Text('Delivery Challans (DC)',
-              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700))),
-          if (canEdit) TextButton.icon(
-              onPressed: _addDC,
-              icon: const Icon(Icons.add, size: 16),
-              label: const Text('Add DC')),
+        Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+          StatusBadge(status, SC.order(status)),
+          if (canEdit) ...[
+            const SizedBox(height: 6),
+            GestureDetector(
+                onTap: _reassignAgent,
+                child: const Row(children: [
+                  Icon(Icons.swap_horiz, size: 14, color: kPrimary),
+                  SizedBox(width: 4),
+                  Text('Swap Agent', style: TextStyle(fontSize: 11, color: kPrimary, fontWeight: FontWeight.w600)),
+                ])),
+          ],
         ]),
-        if (_challans.isNotEmpty) Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                    color: kPrimary.withValues(alpha: 0.07),
-                    borderRadius: BorderRadius.circular(8)),
+      ])),
+      const SizedBox(height: 14),
+
+      // ── DC List ───────────────────────────────────────────────
+      Row(children: [
+        const Expanded(child: Text('Delivery Challans (DC)',
+            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700))),
+        if (canEdit) TextButton.icon(
+            onPressed: _addDC,
+            icon: const Icon(Icons.add, size: 16),
+            label: const Text('Add DC')),
+      ]),
+      if (_challans.isNotEmpty) Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                  color: kPrimary.withValues(alpha: 0.07),
+                  borderRadius: BorderRadius.circular(8)),
+              child: Row(children: [
+                _miniStat('Total Birds',  '$dcBirds',                          kPrimary),
+                _miniStat('Total Weight', '${dcWeight.toStringAsFixed(1)} kg', Colors.teal),
+                _miniStat('DCs',          '${_challans.length}',               Colors.blue),
+              ]))),
+      if (_challans.isEmpty) Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+              color: Colors.orange.shade50,
+              borderRadius: BorderRadius.circular(kRadiusCard),
+              border: Border.all(color: Colors.orange.shade200)),
+          child: const Row(children: [
+            Icon(Icons.info_outline, color: Colors.orange, size: 18), SizedBox(width: 8),
+            Expanded(child: Text('No DC yet. Add DC before dispatching.',
+                style: TextStyle(fontSize: 12, color: Colors.orange))),
+          ]))
+      else ..._challans.asMap().entries.map((entry) {
+        final idx = entry.key;
+        final ch  = entry.value;
+        return _DcCard(challan: ch, index: idx + 1);
+      }),
+      const SizedBox(height: 14),
+
+      // ── Orders / Deliveries ───────────────────────────────────
+      Row(children: [
+        Expanded(child: Text('Orders (${activeDeliveries.length})',
+            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700))),
+      ]),
+      const SizedBox(height: 6),
+      if (activeDeliveries.isEmpty)
+        const Center(child: Padding(padding: EdgeInsets.all(12),
+            child: Text('No orders in this batch', style: TextStyle(color: kTextHint))))
+      else ...activeDeliveries.map((d) {
+        final o     = d['orders'] as Map<String,dynamic>?;
+        final r     = o?['retailers'] as Map<String,dynamic>?;
+        final dStat = d['status'] as String? ?? '';
+        final kg    = (o?['total_quantity'] as num?)?.toStringAsFixed(1) ?? '—';
+        final birds = (o?['estimated_birds'] as num?)?.toInt() ?? 0;
+        return Container(
+            margin: const EdgeInsets.only(bottom: 6),
+            child: WhiteCard(padding: const EdgeInsets.all(12),
                 child: Row(children: [
-                  _miniStat('Total Birds',  '$dcBirds',                          kPrimary),
-                  _miniStat('Total Weight', '${dcWeight.toStringAsFixed(1)} kg', Colors.teal),
-                  _miniStat('DCs',          '${_challans.length}',               Colors.blue),
-                ]))),
-        if (_challans.isEmpty) Container(
+                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text(r?['shop_name'] as String? ?? '—',
+                        style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+                    Text('$birds birds · $kg kg',
+                        style: const TextStyle(fontSize: 11, color: kTextSub)),
+                  ])),
+                  StatusBadge(dStat, SC.order(dStat), small: true),
+                  if (canEdit && dStat == 'assigned') ...[
+                    const SizedBox(width: 8),
+                    GestureDetector(
+                        onTap: () => _removeDelivery(d['id'], r?['shop_name'] as String? ?? '—'),
+                        child: const Icon(Icons.remove_circle_outline, color: Colors.red, size: 20)),
+                  ],
+                ])));
+      }),
+
+      // Add confirmed orders (only when batch is assigned)
+      if (status == 'assigned') ...[
+        const SizedBox(height: 8),
+        const SectionHeader('ADD FROM CONFIRMED ORDERS'),
+        ...() {
+          final alreadyInBatch = _deliveries.map((d) => (d['orders'] as Map?)?.cast<String,dynamic>()?['id']).toSet();
+          final available = _confirmedOrders.where((o) => !alreadyInBatch.contains(o['id'])).toList();
+          if (available.isEmpty) {
+            return [const Padding(
+                padding: EdgeInsets.all(12),
+                child: Text('No confirmed orders available', style: TextStyle(color: kTextHint, fontSize: 13)))];
+          }
+          return available.map((o) {
+            final r = o['retailers'] as Map<String,dynamic>?;
+            return ListTile(
+                dense: true,
+                leading: const Icon(Icons.store_outlined, size: 18, color: kPrimary),
+                title: Text(r?['shop_name'] as String? ?? '—', style: const TextStyle(fontSize: 13)),
+                subtitle: Text('${o['estimated_birds'] ?? 0} birds · ${(o['total_quantity'] as num?)?.toStringAsFixed(0) ?? '—'} kg',
+                    style: const TextStyle(fontSize: 11)),
+                trailing: IconButton(
+                    icon: const Icon(Icons.add_circle_outline, color: kPrimary),
+                    onPressed: () => _addOrder(o['id'])));
+          }).toList();
+        }(),
+      ],
+
+      const SizedBox(height: 20),
+
+      // ── Action buttons ────────────────────────────────────────
+      if (status == 'picked_up')
+        ElevatedButton.icon(
+            onPressed: _submitting ? null : _start,
+            icon: _submitting
+                ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                : const Icon(Icons.play_arrow),
+            label: const Text('Start Deliveries (Out for Delivery)',
+                style: TextStyle(fontWeight: FontWeight.w700))),
+      if (status == 'assigned' && _challans.isNotEmpty)
+        Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-                color: Colors.orange.shade50,
+                color: Colors.blue.shade50,
                 borderRadius: BorderRadius.circular(kRadiusCard),
-                border: Border.all(color: Colors.orange.shade200)),
+                border: Border.all(color: Colors.blue.shade100)),
+            child: const Text(
+                'DC saved — batch is out for delivery. Agent can now complete deliveries.',
+                style: TextStyle(fontSize: 12, color: Colors.blue))),
+      if (status == 'out_for_delivery')
+        Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+                color: Colors.green.shade50,
+                borderRadius: BorderRadius.circular(kRadiusCard),
+                border: Border.all(color: Colors.green.shade200)),
             child: const Row(children: [
-              Icon(Icons.info_outline, color: Colors.orange, size: 18), SizedBox(width: 8),
-              Expanded(child: Text('No DC yet. Add DC before dispatching.',
-                  style: TextStyle(fontSize: 12, color: Colors.orange))),
-            ]))
-        else ..._challans.asMap().entries.map((entry) {
-          final idx = entry.key;
-          final ch  = entry.value;
-          return _DcCard(challan: ch, index: idx + 1);
-        }),
-        const SizedBox(height: 14),
+              Icon(Icons.local_shipping, color: Colors.green, size: 18),
+              SizedBox(width: 8),
+              Expanded(child: Text(
+                  'Batch is Out for Delivery — agent is delivering now',
+                  style: TextStyle(fontSize: 12, color: Colors.green, fontWeight: FontWeight.w600))),
+            ])),
+      if (canEdit && status == 'assigned') ...[
+        const SizedBox(height: 10),
+        OutlinedButton.icon(
+            onPressed: _deleteBatch,
+            icon: const Icon(Icons.delete_outline, size: 18, color: Colors.red),
+            label: const Text('Delete Batch'),
+            style: OutlinedButton.styleFrom(
+                foregroundColor: Colors.red,
+                side: const BorderSide(color: Colors.red))),
+      ],
+      const SizedBox(height: 20),
+    ];
 
-        // ── Orders / Deliveries ───────────────────────────────────
-        Row(children: [
-          Expanded(child: Text('Orders (${activeDeliveries.length})',
-              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700))),
-        ]),
-        const SizedBox(height: 6),
-        if (activeDeliveries.isEmpty)
-          const Center(child: Padding(padding: EdgeInsets.all(12),
-              child: Text('No orders in this batch', style: TextStyle(color: kTextHint))))
-        else ...activeDeliveries.map((d) {
-          final o     = d['orders'] as Map<String,dynamic>?;
-          final r     = o?['retailers'] as Map<String,dynamic>?;
-          final dStat = d['status'] as String? ?? '';
-          final kg    = (o?['total_quantity'] as num?)?.toStringAsFixed(1) ?? '—';
-          final birds = (o?['estimated_birds'] as num?)?.toInt() ?? 0;
-          return Container(
-              margin: const EdgeInsets.only(bottom: 6),
-              child: WhiteCard(padding: const EdgeInsets.all(12),
-                  child: Row(children: [
-                    Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Text(r?['shop_name'] as String? ?? '—',
-                          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
-                      Text('$birds birds · $kg kg',
-                          style: const TextStyle(fontSize: 11, color: kTextSub)),
-                    ])),
-                    StatusBadge(dStat, SC.order(dStat), small: true),
-                    if (canEdit && dStat == 'assigned') ...[
-                      const SizedBox(width: 8),
-                      GestureDetector(
-                          onTap: () => _removeDelivery(d['id'], r?['shop_name'] as String? ?? '—'),
-                          child: const Icon(Icons.remove_circle_outline, color: Colors.red, size: 20)),
-                    ],
-                  ])));
-        }),
+    if (!isDesktop) {
+      return Scaffold(
+        backgroundColor: kBgPage,
+        appBar: appBar,
+        body: ListView(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+          children: allSections,
+        ),
+      );
+    }
 
-        // Add confirmed orders (only when batch is assigned)
-        if (status == 'assigned') ...[
-          const SizedBox(height: 8),
-          const SectionHeader('ADD FROM CONFIRMED ORDERS'),
-          ...() {
-            final alreadyInBatch = _deliveries.map((d) => (d['orders'] as Map?)?.cast<String,dynamic>()?['id']).toSet();
-            final available = _confirmedOrders.where((o) => !alreadyInBatch.contains(o['id'])).toList();
-            if (available.isEmpty) {
-              return [const Padding(
-                  padding: EdgeInsets.all(12),
-                  child: Text('No confirmed orders available', style: TextStyle(color: kTextHint, fontSize: 13)))];
-            }
-            return available.map((o) {
-              final r = o['retailers'] as Map<String,dynamic>?;
-              return ListTile(
-                  dense: true,
-                  leading: const Icon(Icons.store_outlined, size: 18, color: kPrimary),
-                  title: Text(r?['shop_name'] as String? ?? '—', style: const TextStyle(fontSize: 13)),
-                  subtitle: Text('${o['estimated_birds'] ?? 0} birds · ${(o['total_quantity'] as num?)?.toStringAsFixed(0) ?? '—'} kg',
-                      style: const TextStyle(fontSize: 11)),
-                  trailing: IconButton(
-                      icon: const Icon(Icons.add_circle_outline, color: kPrimary),
-                      onPressed: () => _addOrder(o['id'])));
-            }).toList();
-          }(),
-        ],
+    // ── Desktop 2-column layout ──────────────────────────────────────────
+    // Left: agent card + DCs (first 3 sections)
+    // Right: orders + add orders + action buttons (remaining sections)
+    final splitIdx      = allSections.length > 4 ? 3 : allSections.length ~/ 2;
+    final leftSections  = allSections.sublist(0, splitIdx);
+    final rightSections = allSections.sublist(splitIdx);
 
-        const SizedBox(height: 20),
-
-        // ── Action buttons ────────────────────────────────────────
-        if (status == 'picked_up')
-          ElevatedButton.icon(
-              onPressed: _submitting ? null : _start,
-              icon: _submitting
-                  ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                  : const Icon(Icons.play_arrow),
-              label: const Text('Start Deliveries (Out for Delivery)',
-                  style: TextStyle(fontWeight: FontWeight.w700))),
-        if (status == 'assigned' && _challans.isNotEmpty)
-          Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                  color: Colors.blue.shade50,
-                  borderRadius: BorderRadius.circular(kRadiusCard),
-                  border: Border.all(color: Colors.blue.shade100)),
-              child: const Text(
-                  'DC saved — batch is out for delivery. Agent can now complete deliveries.',
-                  style: TextStyle(fontSize: 12, color: Colors.blue))),
-        if (status == 'out_for_delivery')
-          Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                  color: Colors.green.shade50,
-                  borderRadius: BorderRadius.circular(kRadiusCard),
-                  border: Border.all(color: Colors.green.shade200)),
-              child: const Row(children: [
-                Icon(Icons.local_shipping, color: Colors.green, size: 18),
-                SizedBox(width: 8),
-                Expanded(child: Text(
-                    'Batch is Out for Delivery — agent is delivering now',
-                    style: TextStyle(fontSize: 12, color: Colors.green, fontWeight: FontWeight.w600))),
-              ])),
-        if (canEdit && status == 'assigned') ...[
-          const SizedBox(height: 10),
-          OutlinedButton.icon(
-              onPressed: _deleteBatch,
-              icon: const Icon(Icons.delete_outline, size: 18, color: Colors.red),
-              label: const Text('Delete Batch'),
-              style: OutlinedButton.styleFrom(
-                  foregroundColor: Colors.red,
-                  side: const BorderSide(color: Colors.red))),
-        ],
-        const SizedBox(height: 20),
+    return Scaffold(
+      backgroundColor: kBgPage,
+      appBar: appBar,
+      body: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        // ── Left: agent + DCs ─────────────────────────────────────────
+        Expanded(
+          flex: 5,
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(24, 16, 16, 40),
+            children: leftSections,
+          ),
+        ),
+        Container(width: 1, color: kBorderLight),
+        // ── Right: orders + actions ────────────────────────────────────
+        Expanded(
+          flex: 5,
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(20, 16, 24, 40),
+            children: rightSections,
+          ),
+        ),
       ]),
     );
   }

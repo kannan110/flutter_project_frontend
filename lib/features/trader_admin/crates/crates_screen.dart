@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/providers/session_provider.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../shared/layouts/responsive_layout.dart';
 
 class CratesScreen extends ConsumerStatefulWidget {
   const CratesScreen({super.key});
@@ -68,8 +69,7 @@ class _S extends ConsumerState<CratesScreen> {
     } catch (e) { if (mounted) showError(context, e.toString()); }
   }
 
-  @override
-  Widget build(BuildContext context) => Scaffold(
+  Widget _buildScaffold(BuildContext context) => Scaffold(
     backgroundColor: kBgPage,
     appBar: AppBar(backgroundColor: kSurface, title: const Text('Crate Management'), actions: [
       IconButton(icon: const Icon(Icons.settings_outlined), onPressed: _setInventory, tooltip: 'Set inventory'),
@@ -114,4 +114,10 @@ class _S extends ConsumerState<CratesScreen> {
       ],
     ])),
   );
+  @override
+  Widget build(BuildContext context) => ResponsiveLayout(
+    mobile:  (_) => _buildScaffold(context),
+    desktop: (_) => _buildScaffold(context),
+  );
+
 }

@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/providers/session_provider.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../shared/layouts/responsive_layout.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // RETAILER LINK SCREEN
@@ -60,8 +61,7 @@ class _RLS extends ConsumerState<RetailerLinkScreen> {
     }
   }
 
-  @override
-  Widget build(BuildContext context) => Scaffold(
+  Widget _buildScaffold(BuildContext context) => Scaffold(
       backgroundColor: kBgPage,
       body: SafeArea(
           child: Padding(
@@ -182,4 +182,10 @@ class _RLS extends ConsumerState<RetailerLinkScreen> {
                               style: TextStyle(color: kTextHint, fontSize: 12))),
                     ])),
                   ]))));
+  @override
+  Widget build(BuildContext context) => ResponsiveLayout(
+    mobile:  (_) => _buildScaffold(context),
+    desktop: (_) => _buildScaffold(context),
+  );
+
 }
