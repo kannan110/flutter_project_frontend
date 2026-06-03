@@ -1,13 +1,18 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:rooster_trader/shared/layouts/desktop_shell.dart';
 import '../../core/providers/session_provider.dart';
 import '../../core/router/app_router.dart';
 import '../../core/theme/app_theme.dart';
 
-// ── AppTopbar ─────────────────────────────────────────────────────────────
-// White topbar with navy text — sits above content area (right of sidebar)
+// ═════════════════════════════════════════════════════════════════════════════
+// AppTopbar — Kirtwin-style top navigation bar
+// White bg, search bar, icon cluster, profile avatar
+// ═════════════════════════════════════════════════════════════════════════════
+
+const double kTopbarHeight = 56.0;
+
 class AppTopbar extends ConsumerWidget {
   const AppTopbar({
     super.key,
@@ -19,156 +24,187 @@ class AppTopbar extends ConsumerWidget {
     this.actions,
   });
 
-  final String   title;
-  final int      unreadAlerts;
-  final VoidCallback?          onRefresh;
+  final String                   title;
+  final int                      unreadAlerts;
+  final VoidCallback?            onRefresh;
   final StateController<String>? langNotifier;
-  final String?  currentLang;
-  final List<Widget>? actions;
+  final String?                  currentLang;
+  final List<Widget>?            actions;
+
+  static const _bg     = Color(0xFFFFFFFF);
+  static const _border = Color(0xFFE2E8F0);
+  static const _text2  = Color(0xFF475569);
+  static const _text3  = Color(0xFF94A3B8);
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final user = ref.watch(appUserProvider).valueOrNull;
+
     return Container(
-      height: kTopbarHeight,
-      decoration: const BoxDecoration(
-        color:  kSurface,
-        border: Border(bottom: BorderSide(color: kBorderLight, width: 1)),
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 24),
-      child: Row(
-        children: [
-          // Page title
-          Expanded(
-            child: Text(
-              title,
-              style: const TextStyle(
-                fontSize:      20,
-                fontWeight:    FontWeight.w700,
-                color:         kTextMain,
-                letterSpacing: -0.3,
-              ),
-              overflow: TextOverflow.ellipsis,
+      height:    kTopbarHeight,
+      color:     _bg,
+      child: Column(children: [
+        Expanded(child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: Row(children: [
+            // ── Search bar ─────────────────────────────────────────────────
+            Expanded(child: _SearchBar()),
+            const SizedBox(width: 16),
+
+            // ── Caller actions ─────────────────────────────────────────────
+            if (actions != null) ...actions!,
+
+            // ── Icon cluster ───────────────────────────────────────────────
+            _TopIconBtn(
+              icon:    Icons.wb_sunny_outlined,
+              tooltip: 'Toggle theme',
+              onTap:   () {},
             ),
-          ),
-
-          // Caller-provided actions
-          if (actions != null) ...actions!,
-
-          // Language toggle
-          if (langNotifier != null && currentLang != null) ...[
-            const SizedBox(width: 8),
-            _LangToggle(
-              lang:     currentLang!,
-              onToggle: () => langNotifier!.state =
-              currentLang == 'en' ? 'ta' : 'en',
-            ),
-          ],
-
-          // Refresh
-          if (onRefresh != null) ...[
             const SizedBox(width: 4),
-            _TopbarIconBtn(
-              icon:    Icons.refresh_rounded,
-              tooltip: 'Refresh',
-              onTap:   onRefresh!,
+            // Alert bell with badge
+            Stack(clipBehavior: Clip.none, children: [
+              _TopIconBtn(
+                  icon: Icons.notifications_outlined,
+                  tooltip: 'Alerts',
+                  onTap: () => context.go(R.alerts)),
+              if (unreadAlerts > 0)
+                Positioned(right: 4, top: 4,
+                    child: Container(
+                      constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+                      padding: const EdgeInsets.symmetric(horizontal: 3),
+                      decoration: BoxDecoration(
+                          color: const Color(0xFFDC2626),
+                          borderRadius: BorderRadius.circular(99),
+                          border: Border.all(color: _bg, width: 1.5)),
+                      child: Text('$unreadAlerts',
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(fontSize: 8,
+                              fontWeight: FontWeight.w800, color: Colors.white)),
+                    )),
+            ]),
+            const SizedBox(width: 4),
+            _TopIconBtn(
+              icon:    Icons.grid_view_outlined,
+              tooltip: 'Apps',
+              onTap:   () {},
             ),
-          ],
+            const SizedBox(width: 12),
 
-          // Notifications bell
-          const SizedBox(width: 4),
-          _AlertBell(unreadAlerts: unreadAlerts),
-        ],
-      ),
+            // ── Profile cluster ────────────────────────────────────────────
+            Column(mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.end, children: [
+                  Text(user?.companyName ?? 'Ramesh',
+                      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600,
+                          color: Color(0xFF0F172A))),
+                  Text(user?.role.label ?? 'Owner',
+                      style: const TextStyle(fontSize: 11, color: _text3)),
+                ]),
+            const SizedBox(width: 10),
+            // Avatar
+            GestureDetector(
+              onTap: () => context.go(R.settings),
+              child: Container(
+                width: 34, height: 34,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  image: null,
+                  color: const Color(0xFF1E293B),
+                  border: Border.all(color: const Color(0xFFE2E8F0), width: 1.5),
+                ),
+                child: Center(child: Text(
+                  _initials(user?.companyName),
+                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700,
+                      color: Colors.white),
+                )),
+              ),
+            ),
+            const SizedBox(width: 4),
+            const Icon(Icons.keyboard_arrow_down_rounded,
+                size: 16, color: _text3),
+          ]),
+        )),
+        const Divider(height: 1, color: _border),
+      ]),
     );
+  }
+
+  String _initials(String? n) {
+    if (n == null || n.isEmpty) return '?';
+    final p = n.trim().split(' ');
+    return p.length >= 2
+        ? '${p[0][0]}${p[1][0]}'.toUpperCase() : n[0].toUpperCase();
   }
 }
 
-// ── Language toggle ────────────────────────────────────────────────────────
-class _LangToggle extends StatelessWidget {
-  const _LangToggle({required this.lang, required this.onToggle});
-  final String       lang;
-  final VoidCallback onToggle;
-
+// ── Search bar ────────────────────────────────────────────────────────────────
+class _SearchBar extends StatelessWidget {
   @override
-  Widget build(BuildContext context) => GestureDetector(
-    onTap: onToggle,
-    child: Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(
-        color:        kNavy,
-        borderRadius: BorderRadius.circular(4),
-        border:       Border.all(color: kGold.withValues(alpha: 0.4)),
-      ),
-      child: Text(
-        lang == 'en' ? 'தமிழ்' : 'EN',
-        style: const TextStyle(
-          fontSize:   12,
-          fontWeight: FontWeight.w700,
-          color:      kGoldLight,
-        ),
-      ),
+  Widget build(BuildContext context) => Container(
+    constraints: const BoxConstraints(maxWidth: 360),
+    height: 34,
+    decoration: BoxDecoration(
+      color:        const Color(0xFFF8FAFC),
+      borderRadius: BorderRadius.circular(7),
+      border:       Border.all(color: const Color(0xFFE2E8F0)),
     ),
-  );
-}
-
-// ── Alert bell ─────────────────────────────────────────────────────────────
-class _AlertBell extends StatelessWidget {
-  const _AlertBell({required this.unreadAlerts});
-  final int unreadAlerts;
-
-  @override
-  Widget build(BuildContext context) => Stack(
-    clipBehavior: Clip.none,
-    children: [
-      _TopbarIconBtn(
-        icon:    Icons.notifications_outlined,
-        tooltip: 'Alerts',
-        onTap:   () => context.go(R.alerts),
-      ),
-      if (unreadAlerts > 0)
-        Positioned(
-          right: 6, top: 6,
-          child: Container(
-            width:  9, height: 9,
-            decoration: const BoxDecoration(
-                color: kError, shape: BoxShape.circle),
-          ),
+    child: Row(children: [
+      const SizedBox(width: 10),
+      const Icon(Icons.search_rounded, size: 16, color: Color(0xFF94A3B8)),
+      const SizedBox(width: 8),
+      const Expanded(child: TextField(
+        decoration: InputDecoration(
+          hintText:       'Search orders, customers, agents...',
+          hintStyle:      TextStyle(fontSize: 13, color: Color(0xFF94A3B8),
+              fontWeight: FontWeight.w400),
+          border:         InputBorder.none,
+          enabledBorder:  InputBorder.none,
+          focusedBorder:  InputBorder.none,
+          isDense:        true,
+          contentPadding: EdgeInsets.zero,
         ),
-    ],
-  );
-}
-
-// ── Icon button ────────────────────────────────────────────────────────────
-class _TopbarIconBtn extends StatelessWidget {
-  const _TopbarIconBtn({
-    required this.icon,
-    required this.tooltip,
-    required this.onTap,
-  });
-  final IconData     icon;
-  final String       tooltip;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) => Tooltip(
-    message: tooltip,
-    child: InkWell(
-      onTap:        onTap,
-      borderRadius: BorderRadius.circular(4),
-      child: Container(
-        width: 40, height: 40,
+        style: TextStyle(fontSize: 13, color: Color(0xFF0F172A)),
+      )),
+      Container(
+        margin:  const EdgeInsets.only(right: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
         decoration: BoxDecoration(
-          color:        kBgGrey,
+          color:        const Color(0xFFEFF6FF),
           borderRadius: BorderRadius.circular(4),
-          border:       Border.all(color: kBorderLight),
+          border:       Border.all(color: const Color(0xFFBFDBFE)),
         ),
-        child: Icon(icon, size: 18, color: kTextSub),
+        child: const Text('Ctrl + K',
+            style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600,
+                color: Color(0xFF3B82F6))),
       ),
-    ),
+    ]),
   );
 }
 
-// ── Route → title map ──────────────────────────────────────────────────────
+// ── Icon button ───────────────────────────────────────────────────────────────
+class _TopIconBtn extends StatefulWidget {
+  const _TopIconBtn({required this.icon, required this.tooltip,
+    required this.onTap});
+  final IconData icon; final String tooltip; final VoidCallback onTap;
+  @override State<_TopIconBtn> createState() => _TopIconBtnState();
+}
+class _TopIconBtnState extends State<_TopIconBtn> {
+  bool _hov = false;
+  @override
+  Widget build(BuildContext c) => Tooltip(message: widget.tooltip,
+      child: MouseRegion(
+          onEnter: (_) => setState(() => _hov = true),
+          onExit:  (_) => setState(() => _hov = false),
+          child: GestureDetector(onTap: widget.onTap,
+              child: AnimatedContainer(duration: const Duration(milliseconds: 100),
+                  width: 34, height: 34,
+                  decoration: BoxDecoration(
+                    color:        _hov ? const Color(0xFFF1F5F9) : Colors.transparent,
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Icon(widget.icon, size: 18, color: const Color(0xFF64748B))))));
+}
+
+// ── Route → title ──────────────────────────────────────────────────────────────
 String topbarTitleForRoute(String loc) {
   if (loc.startsWith('/t/dashboard'))        return 'Dashboard';
   if (loc.startsWith('/t/orders/create'))    return 'New Order';
@@ -204,6 +240,6 @@ String topbarTitleForRoute(String loc) {
   if (loc.startsWith('/t/reports'))          return 'Reports';
   if (loc.startsWith('/t/user-management'))  return 'User Management';
   if (loc.startsWith('/t/settings'))         return 'Settings';
-  if (loc.startsWith('/t/purchase'))         return 'Purchase';
+  if (loc.startsWith('/t/purchase'))         return 'Purchase Management';
   return 'Rooster Commerce OS';
 }

@@ -11,7 +11,7 @@ import '../../../shared/widgets/cards/metric_card.dart';
 import '../../../shared/widgets/common/async_state_view.dart';
 import '../../../shared/widgets/common/status_chip.dart';
 import '../../../shared/widgets/filters/search_bar.dart';
-import '../../../shared/widgets/tables/app_table.dart';
+import '../../../shared/widgets/tables/app_table.dart' hide ListToolbar;
 
 class InvoicesScreen extends ConsumerStatefulWidget {
   const InvoicesScreen({super.key});

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:rooster_trader/core/theme/app_theme.dart';
+import 'package:rooster_trader/shared/layouts/responsive_layout.dart';
 
 // ── AppTableColumn ─────────────────────────────────────────────────────────
 class AppTableColumn<T> {
@@ -20,8 +21,6 @@ class AppTableColumn<T> {
 }
 
 // ── AppTable ───────────────────────────────────────────────────────────────
-// Enterprise data table: Navy header, white rows, kBorderLight dividers
-// 15-16px font throughout, 52px row height for readability
 class AppTable<T> extends StatelessWidget {
   const AppTable({
     super.key,
@@ -59,15 +58,15 @@ class AppTable<T> extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final w        = MediaQuery.of(context).size.width;
-    final isMobile = w < 768;
+    final isMobile = w < kDesktopBreak;
 
     if (isMobile && mobileCardBuilder != null) {
       return _MobileList<T>(
-        rows:        rows,
-        cardBuilder: mobileCardBuilder!,
-        padding:     mobilePadding ?? const EdgeInsets.fromLTRB(16, 8, 16, 100),
-        emptyWidget: emptyWidget,
-        footerWidget:footerWidget,
+        rows:         rows,
+        cardBuilder:  mobileCardBuilder!,
+        padding:      mobilePadding ?? const EdgeInsets.fromLTRB(16, 8, 16, 100),
+        emptyWidget:  emptyWidget,
+        footerWidget: footerWidget,
       );
     }
 
@@ -121,17 +120,23 @@ class _DesktopTable<T> extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Column(children: [
-      // ── Navy header ────────────────────────────────────────────────────
+      // ── Navy header ──────────────────────────────────────────────────────
       Container(
         height:  headerHeight,
-        color:   kNavy,
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            colors: [kNavy, kNavyMid],
+            begin:  Alignment.centerLeft,
+            end:    Alignment.centerRight,
+          ),
+        ),
         padding: padding,
         child: Row(
           children: columns.map((col) => _headerCell(col)).toList(),
         ),
       ),
 
-      // ── Rows ────────────────────────────────────────────────────────────
+      // ── Rows ─────────────────────────────────────────────────────────────
       if (rows.isEmpty && emptyWidget != null)
         Expanded(child: emptyWidget!)
       else
@@ -311,8 +316,118 @@ class _MobileList<T> extends StatelessWidget {
   }
 }
 
+// ── ListToolbar ────────────────────────────────────────────────────────────
+// Consistent search + action bar across all list screens
+class ListToolbar extends StatelessWidget {
+  const ListToolbar({
+    super.key,
+    required this.searchController,
+    required this.searchHint,
+    required this.onSearch,
+    this.onClearSearch,
+    this.primaryLabel,
+    this.primaryIcon,
+    this.onPrimary,
+    this.secondaryActions,
+  });
+
+  final TextEditingController  searchController;
+  final String                 searchHint;
+  final void Function(String)  onSearch;
+  final VoidCallback?          onClearSearch;
+  final String?                primaryLabel;
+  final IconData?              primaryIcon;
+  final VoidCallback?          onPrimary;
+  final List<Widget>?          secondaryActions;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDesktop = MediaQuery.of(context).size.width >= kDesktopBreak;
+
+    return Container(
+      padding: EdgeInsets.fromLTRB(
+          isDesktop ? 24 : 16,
+          isDesktop ? 14 : 10,
+          isDesktop ? 24 : 16,
+          isDesktop ? 14 : 10),
+      color: kSurface,
+      child: Row(children: [
+        // Search box
+        Expanded(child: Container(
+          height:     42,
+          decoration: BoxDecoration(
+            color:        kBgPage,
+            borderRadius: BorderRadius.circular(kRadiusCard),
+            border:       Border.all(color: kBorderLight),
+          ),
+          child: TextField(
+            controller: searchController,
+            onChanged:  onSearch,
+            style: const TextStyle(fontSize: 14, color: kTextMain),
+            decoration: InputDecoration(
+              hintText:       searchHint,
+              hintStyle:      const TextStyle(color: kTextHint, fontSize: 14),
+              prefixIcon:     const Icon(Icons.search_rounded,
+                  color: kTextHint, size: 18),
+              suffixIcon: AnimatedBuilder(
+                animation: searchController,
+                builder: (_, __) => searchController.text.isNotEmpty
+                    ? IconButton(
+                  icon: const Icon(Icons.close_rounded,
+                      size: 16, color: kTextHint),
+                  onPressed: () {
+                    searchController.clear();
+                    onClearSearch?.call();
+                  },
+                  padding:       EdgeInsets.zero,
+                  visualDensity: VisualDensity.compact,
+                )
+                    : const SizedBox.shrink(),
+              ),
+              border:         InputBorder.none,
+              enabledBorder:  InputBorder.none,
+              focusedBorder:  InputBorder.none,
+              contentPadding: const EdgeInsets.symmetric(vertical: 12),
+            ),
+          ),
+        )),
+
+        // Secondary actions
+        if (secondaryActions != null) ...secondaryActions!,
+
+        // Primary action — navy button, always visible on desktop
+        if (onPrimary != null && primaryLabel != null) ...[
+          const SizedBox(width: 12),
+          GestureDetector(
+            onTap: onPrimary,
+            child: Container(
+              height: 42,
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              decoration: BoxDecoration(
+                color:        kNavy,
+                borderRadius: BorderRadius.circular(kRadiusCard),
+                boxShadow: [BoxShadow(
+                    color:      kNavy.withValues(alpha: 0.3),
+                    blurRadius: 8, offset: const Offset(0, 2))],
+              ),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                Icon(primaryIcon ?? Icons.add_rounded,
+                    color: kGoldLight, size: 18),
+                const SizedBox(width: 8),
+                Text(primaryLabel!,
+                    style: const TextStyle(
+                        fontSize: 14, fontWeight: FontWeight.w800,
+                        color: Colors.white)),
+              ]),
+            ),
+          ),
+        ],
+      ]),
+    );
+  }
+}
+
 // ── ListScreenScaffold ─────────────────────────────────────────────────────
-// Enterprise scaffold: white content area, navy table header
 class ListScreenScaffold extends StatelessWidget {
   const ListScreenScaffold({
     super.key,
@@ -333,8 +448,7 @@ class ListScreenScaffold extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final w         = MediaQuery.of(context).size.width;
-    final isDesktop = w >= 1200;
+    final isDesktop = MediaQuery.of(context).size.width >= kDesktopBreak;
 
     if (isDesktop) {
       return Scaffold(
@@ -342,24 +456,23 @@ class ListScreenScaffold extends StatelessWidget {
         body: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // White toolbar area
+            // Toolbar area — white, border-bottom
             Container(
-              color: kSurface,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  toolbar,
-                  if (summaryStrip != null)
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
-                      child: summaryStrip,
-                    ),
-                  if (filterBar != null) filterBar!,
-                  const Divider(height: 1, color: kBorderLight),
-                ],
+              decoration: const BoxDecoration(
+                color:  kSurface,
+                border: Border(bottom: BorderSide(color: kBorderLight)),
               ),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                toolbar,
+                if (summaryStrip != null)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(24, 0, 24, 12),
+                    child:   summaryStrip,
+                  ),
+                if (filterBar != null) filterBar!,
+              ]),
             ),
-            // Content area (table fills remaining)
+            // Content — cream bg
             Expanded(child: content),
           ],
         ),
@@ -368,21 +481,23 @@ class ListScreenScaffold extends StatelessWidget {
 
     // Mobile / Tablet
     return Scaffold(
-      appBar:              appBar,
+      appBar:               appBar,
       floatingActionButton: fab,
-      backgroundColor:     kBgPage,
+      backgroundColor:      kBgPage,
       body: Column(children: [
         Container(
-          color: kSurface,
+          decoration: const BoxDecoration(
+            color:  kSurface,
+            border: Border(bottom: BorderSide(color: kBorderLight)),
+          ),
           child: Column(children: [
             toolbar,
             if (summaryStrip != null)
               Padding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
                 child:   summaryStrip,
               ),
             if (filterBar != null) filterBar!,
-            const Divider(height: 1, color: kBorderLight),
           ]),
         ),
         Expanded(child: content),

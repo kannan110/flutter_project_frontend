@@ -9,7 +9,7 @@ import '../../../core/theme/app_theme.dart';
 import '../../../shared/layouts/responsive_layout.dart';
 import '../../../shared/widgets/common/async_state_view.dart';
 import '../../../shared/widgets/common/status_chip.dart';
-import '../../../shared/widgets/filters/search_bar.dart';
+import '../../../shared/widgets/filters/search_bar.dart' hide ListToolbar;
 import '../../../shared/widgets/tables/app_table.dart';
 
 class ApprovalsScreen extends ConsumerStatefulWidget {

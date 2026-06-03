@@ -6,8 +6,8 @@ import 'package:flutter/material.dart';
 //  Tablet  : 768–1199px → NavigationRail
 //  Desktop : ≥ 1200 px  → Sidebar + Topbar
 //
-const double kMobileBreak  = 768.0;
-const double kDesktopBreak = 1200.0;
+const double kMobileBreak  = 600.0;
+const double kDesktopBreak = 900.0;
 
 // ── BuildContext extension ────────────────────────────────────────────────────
 //
