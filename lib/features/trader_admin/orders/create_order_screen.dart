@@ -23,12 +23,6 @@ class _OrderLine {
   bool wtManual = false;
   double? suggestRate;
 
-  // Phase 6: which rule source and label was applied
-  String?
-      ruleSource; // 'retailer_rate' | 'pricing_rule' | 'daily_rate' | 'none'
-  String?
-      ruleLabel; // e.g. "Retailer Rate: ₹125/kg" / "Pricing Rule: 5% discount"
-
   double get kg => double.tryParse(totalWt.text.trim()) ?? 0;
 
   double get r => double.tryParse(rate.text.trim()) ?? 0;
@@ -108,24 +102,16 @@ class _S extends ConsumerState<CreateOrderScreen> {
     final kg = line.kg > 0 ? line.kg : line.b * 1.8;
     if (kg <= 0) return;
     try {
-      // Phase 6: use get_effective_rate_with_rule to get rate + which rule applied
-      final res = await _c.rpc('get_effective_rate_with_rule', params: {
+      final res = await _c.rpc('get_effective_rate_v2', params: {
         'p_trader_id': tid,
         'p_retailer_id': _selRetailer!['id'],
         'p_product_id': line.product!['id'],
         'p_quantity_kg': kg,
       });
-      final rows = res as List?;
-      if (rows == null || rows.isEmpty) return;
-      final row = rows.first as Map<String, dynamic>;
-      final rate = (row['rate'] as num?)?.toDouble() ?? 0;
-      final source = row['rule_source'] as String? ?? 'none';
-      final label = row['rule_label'] as String? ?? '';
+      final rate = (res as num?)?.toDouble() ?? 0;
       if (mounted && rate > 0)
         setState(() {
           line.suggestRate = rate;
-          line.ruleSource = source;
-          line.ruleLabel = label;
           if (line.rate.text.isEmpty) line.rate.text = rate.toStringAsFixed(2);
         });
     } catch (_) {}
@@ -221,122 +207,132 @@ class _S extends ConsumerState<CreateOrderScreen> {
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-        backgroundColor: kBgPage,
-        appBar: AppBar(
-          backgroundColor: kSurface,
-          title: const Text('New Order'),
-        ),
-        body: _dataLoading
-            ? const LoadingList()
-            : Form(
-                key: _form,
-                child: ListView(padding: const EdgeInsets.all(16), children: [
-                  // ── Customer ───────────────────────────────────────────
-                  const SectionHeader('CUSTOMER'),
-                  DropdownButtonFormField<Map<String, dynamic>>(
-                      value: _selRetailer,
-                      hint: const Text('Select Customer'),
-                      decoration: const InputDecoration(
-                          prefixIcon: Icon(Icons.store_outlined,
-                              size: 20, color: kPrimary)),
-                      isExpanded: true,
-                      items: _retailers
-                          .map((r) => DropdownMenuItem(
-                              value: r,
-                              child: Text(r['shop_name'] as String,
-                                  overflow: TextOverflow.ellipsis)))
-                          .toList(),
-                      onChanged: (v) {
-                        setState(() {
-                          _selRetailer = v;
-                        });
-                        for (int i = 0; i < _lines.length; i++) _fetchRate(i);
-                      },
-                      validator: (v) => v == null ? 'Select a customer' : null),
-                  const SizedBox(height: 16),
+  Widget build(BuildContext context) {
+    final bottomInset = MediaQuery.viewInsetsOf(context).bottom;
+    return Scaffold(
+      backgroundColor: kBgPage,
+      resizeToAvoidBottomInset: true,
+      appBar: AppBar(
+        backgroundColor: kSurface,
+        title: const Text('New Order'),
+      ),
+      body: _dataLoading
+          ? const LoadingList()
+          : Form(
+              key: _form,
+              child: ListView(
+                  padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + bottomInset),
+                  children: [
+                    // ── Customer ───────────────────────────────────────────
+                    const SectionHeader('CUSTOMER'),
+                    DropdownButtonFormField<Map<String, dynamic>>(
+                        value: _selRetailer,
+                        hint: const Text('Select Customer'),
+                        decoration: const InputDecoration(
+                            prefixIcon: Icon(Icons.store_outlined,
+                                size: 20, color: kPrimary)),
+                        isExpanded: true,
+                        items: _retailers
+                            .map((r) => DropdownMenuItem(
+                                value: r,
+                                child: Text(r['shop_name'] as String,
+                                    overflow: TextOverflow.ellipsis)))
+                            .toList(),
+                        onChanged: (v) {
+                          setState(() {
+                            _selRetailer = v;
+                          });
+                          for (int i = 0; i < _lines.length; i++) _fetchRate(i);
+                        },
+                        validator: (v) =>
+                            v == null ? 'Select a customer' : null),
+                    const SizedBox(height: 16),
 
-                  // ── Order Lines (multi-product) ────────────────────────
-                  const SectionHeader('PRODUCTS'),
-                  ..._lines
-                      .asMap()
-                      .entries
-                      .map((e) => _buildProductLine(e.key)),
+                    // ── Order Lines (multi-product) ────────────────────────
+                    const SectionHeader('PRODUCTS'),
+                    ..._lines
+                        .asMap()
+                        .entries
+                        .map((e) => _buildProductLine(e.key)),
 
-                  // Add product line button
-                  OutlinedButton.icon(
-                      onPressed: _addLine,
-                      icon: const Icon(Icons.add, size: 18),
-                      label: const Text('Add Another Product'),
-                      style: OutlinedButton.styleFrom(
-                          minimumSize: const Size(double.infinity, 44))),
-                  const SizedBox(height: 16),
+                    // Add product line button
+                    OutlinedButton.icon(
+                        onPressed: _addLine,
+                        icon: const Icon(Icons.add, size: 18),
+                        label: const Text('Add Another Product'),
+                        style: OutlinedButton.styleFrom(
+                            minimumSize: const Size(double.infinity, 44))),
+                    const SizedBox(height: 16),
 
-                  // ── Order total summary ───────────────────────────────
-                  if (_lines.length > 1 || _totalKg > 0)
+                    // ── Order total summary ───────────────────────────────
+                    if (_lines.length > 1 || _totalKg > 0)
+                      Container(
+                          padding: const EdgeInsets.all(18),
+                          decoration: BoxDecoration(
+                              gradient: const LinearGradient(
+                                  colors: [kNavy, kNavyMid],
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight),
+                              borderRadius: BorderRadius.circular(kRadiusCard),
+                              boxShadow: kCardShadow),
+                          child: Row(children: [
+                            _summStat('Birds', '$_totalBirds', Colors.blue),
+                            _summStat(
+                                'Weight',
+                                '${_totalKg.toStringAsFixed(1)} kg',
+                                Colors.teal),
+                            _summStat('Total', Fmt.amount(_totalAmt), kPrimary),
+                          ])),
+
+                    const SizedBox(height: 14),
+                    TextFormField(
+                        controller: _notesCtrl,
+                        maxLines: 2,
+                        decoration: const InputDecoration(
+                            labelText: 'Notes (optional)',
+                            alignLabelWithHint: true,
+                            prefixIcon: Icon(Icons.notes_outlined,
+                                size: 20, color: kPrimary))),
+                    const SizedBox(height: 24),
+
+                    // Auto-confirm info banner
                     Container(
-                        padding: const EdgeInsets.all(18),
+                        padding: const EdgeInsets.all(10),
                         decoration: BoxDecoration(
-                            gradient: const LinearGradient(
-                                colors: [kNavy, kNavyMid],
-                                begin: Alignment.topLeft,
-                                end: Alignment.bottomRight),
-                            borderRadius: BorderRadius.circular(kRadiusCard),
-                            boxShadow: kCardShadow),
-                        child: Row(children: [
-                          _summStat('Birds', '$_totalBirds', Colors.blue),
-                          _summStat('Weight',
-                              '${_totalKg.toStringAsFixed(1)} kg', Colors.teal),
-                          _summStat('Total', Fmt.amount(_totalAmt), kPrimary),
+                            color: Colors.green.shade50,
+                            borderRadius: BorderRadius.circular(kRadiusInner),
+                            border: Border.all(
+                                color: Colors.green.withValues(alpha: 0.3))),
+                        child: const Row(children: [
+                          Icon(Icons.check_circle_outline,
+                              color: Colors.green, size: 16),
+                          SizedBox(width: 8),
+                          Expanded(
+                              child: Text(
+                                  'Order will be auto-confirmed immediately upon creation.',
+                                  style: TextStyle(
+                                      fontSize: 12, color: Colors.green))),
                         ])),
+                    const SizedBox(height: 14),
 
-                  const SizedBox(height: 14),
-                  TextFormField(
-                      controller: _notesCtrl,
-                      maxLines: 2,
-                      decoration: const InputDecoration(
-                          labelText: 'Notes (optional)',
-                          alignLabelWithHint: true,
-                          prefixIcon: Icon(Icons.notes_outlined,
-                              size: 20, color: kPrimary))),
-                  const SizedBox(height: 24),
-
-                  // Auto-confirm info banner
-                  Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                          color: Colors.green.shade50,
-                          borderRadius: BorderRadius.circular(kRadiusInner),
-                          border: Border.all(
-                              color: Colors.green.withValues(alpha: 0.3))),
-                      child: const Row(children: [
-                        Icon(Icons.check_circle_outline,
-                            color: Colors.green, size: 16),
-                        SizedBox(width: 8),
-                        Expanded(
-                            child: Text(
-                                'Order will be auto-confirmed immediately upon creation.',
+                    ElevatedButton(
+                        onPressed: _saving ? null : _save,
+                        style: ElevatedButton.styleFrom(
+                            minimumSize: const Size(double.infinity, 52)),
+                        child: _saving
+                            ? const SizedBox(
+                                width: 22,
+                                height: 22,
+                                child: CircularProgressIndicator(
+                                    strokeWidth: 2.5, color: Colors.white))
+                            : const Text('Create & Confirm Order',
                                 style: TextStyle(
-                                    fontSize: 12, color: Colors.green))),
-                      ])),
-                  const SizedBox(height: 14),
-
-                  ElevatedButton(
-                      onPressed: _saving ? null : _save,
-                      style: ElevatedButton.styleFrom(
-                          minimumSize: const Size(double.infinity, 52)),
-                      child: _saving
-                          ? const SizedBox(
-                              width: 22,
-                              height: 22,
-                              child: CircularProgressIndicator(
-                                  strokeWidth: 2.5, color: Colors.white))
-                          : const Text('Create & Confirm Order',
-                              style: TextStyle(
-                                  fontSize: 15, fontWeight: FontWeight.w700))),
-                  const SizedBox(height: 20),
-                ])),
-      );
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w700))),
+                    const SizedBox(height: 20),
+                  ])),
+    );
+  }
 
   Widget _buildProductLine(int idx) {
     final line = _lines[idx];
@@ -454,37 +450,12 @@ class _S extends ConsumerState<CreateOrderScreen> {
                         prefixText: '₹',
                         contentPadding: const EdgeInsets.symmetric(
                             horizontal: 12, vertical: 12),
-                        // Phase 6: show which rule applied
-                        helperText: line.ruleLabel,
-                        helperStyle: TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w600,
-                          color: switch (line.ruleSource) {
-                            'retailer_rate' => Colors.purple,
-                            'pricing_rule' => Colors.blue,
-                            'daily_rate' => Colors.green,
-                            _ => kTextHint,
-                          },
-                        ),
                         suffixIcon: line.suggestRate != null
                             ? Tooltip(
-                                message: line.ruleLabel ??
+                                message:
                                     'Suggested: ₹${line.suggestRate!.toStringAsFixed(2)}',
-                                child: Icon(
-                                  switch (line.ruleSource) {
-                                    'retailer_rate' => Icons.person_outline,
-                                    'pricing_rule' => Icons.rule_outlined,
-                                    'daily_rate' => Icons.today_outlined,
-                                    _ => Icons.info_outline,
-                                  },
-                                  size: 16,
-                                  color: switch (line.ruleSource) {
-                                    'retailer_rate' => Colors.purple,
-                                    'pricing_rule' => Colors.blue,
-                                    'daily_rate' => Colors.green,
-                                    _ => kTextHint,
-                                  },
-                                ))
+                                child: const Icon(Icons.info_outline,
+                                    size: 16, color: Colors.blue))
                             : null),
                     onChanged: (_) => setState(() {}))),
           ]),

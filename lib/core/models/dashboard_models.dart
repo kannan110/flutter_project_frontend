@@ -1,4 +1,3 @@
-
 class StockPosition {
   final String productId;
   final String productName;
@@ -179,6 +178,36 @@ class DashboardData {
   // ── Per-agent reconciliation status (new) ────────────────────────────────
   final List<AgentStockStatus> agentStatus;
 
+  // ── Session A intelligence fields ─────────────────────────────────────────
+  // stockSurvivalDays: MIN(available_birds / 7d_avg_daily) across products.
+  //   null = no delivery data in last 7 days (infinite stock / no consumption).
+  //   < 1  = urgent — buy today.  1-3 = buy soon.  > 3 = hold.
+  final double? stockSurvivalDays;
+
+  // todayPurchaseCost: SUM(dc.net_weight × dc.farm_rate) for today's DCs.
+  //   Used to compute gross margin: todayCollected − todayPurchaseCost.
+  final double todayPurchaseCost;
+
+  // todayRate / yesterdayRate: from rate_history — for rate-movement chip.
+  //   Both nullable — null when no rate has been set yet.
+  final double? todayRate;
+  final double? yesterdayRate;
+
+  // delayedDeliveries: delivery_batches in active status not updated in 3h+.
+  //   Shows as 5th OpsBoard column. Drives dispatch urgency.
+  final int delayedDeliveries;
+
+  // creditUtilisationPct: SUM(outstanding) / SUM(credit_limit) × 100.
+  //   Drives credit exposure bar in _CollectionIntelligencePanel.
+  final double creditUtilisationPct;
+
+  // overLimitCount: retailers whose outstanding > their credit_limit.
+  final int overLimitCount;
+
+  // agingStockBatches: batches in assigned/picked_up state, created 2+ days ago.
+  //   Quality risk — triggers alert in _LiveStockPanel.
+  final int agingStockBatches;
+
   const DashboardData({
     this.pendingOrders=0, this.activeDeliveries=0, this.todayDelivered=0,
     this.pendingApprovals=0, this.pendingReturns=0,
@@ -199,6 +228,15 @@ class DashboardData {
     this.todayApprovedLossKg=0, this.todayPendingShifts=0,
     this.todayDcWeightTotal=0, this.todayMortalityBirds=0,
     this.agentStatus=const [],
+    // Session A intelligence fields — all safe defaults
+    this.stockSurvivalDays,          // null = no consumption data
+    this.todayPurchaseCost=0,
+    this.todayRate,                  // null = no rate set
+    this.yesterdayRate,              // null = no prior rate
+    this.delayedDeliveries=0,
+    this.creditUtilisationPct=0,
+    this.overLimitCount=0,
+    this.agingStockBatches=0,
   });
 
   factory DashboardData.fromMap(Map<String,dynamic> m) => DashboardData(
@@ -250,7 +288,39 @@ class DashboardData {
     agentStatus: ((m['agent_status'] as List?) ?? [])
         .map((a) => AgentStockStatus.fromMap(a as Map<String,dynamic>))
         .toList(),
+    // Session A intelligence fields
+    stockSurvivalDays:      (m['stock_survival_days']     as num?)?.toDouble(),
+    todayPurchaseCost:      (m['today_purchase_cost']     as num?)?.toDouble() ?? 0,
+    todayRate:              (m['today_rate']              as num?)?.toDouble(),
+    yesterdayRate:          (m['yesterday_rate']          as num?)?.toDouble(),
+    delayedDeliveries:      (m['delayed_deliveries']      as num?)?.toInt()    ?? 0,
+    creditUtilisationPct:   (m['credit_utilisation_pct']  as num?)?.toDouble() ?? 0,
+    overLimitCount:         (m['over_limit_count']        as num?)?.toInt()    ?? 0,
+    agingStockBatches:      (m['aging_stock_batches']     as num?)?.toInt()    ?? 0,
   );
 
   bool get isDayClosed => dayStatus == 'closed' || dayStatus == 'locked';
+
+  // ── Session A computed getters ─────────────────────────────────────────────
+  // rateDelta: positive = rate went up, negative = rate went down, null = no data
+  double? get rateDelta => (todayRate != null && yesterdayRate != null)
+      ? todayRate! - yesterdayRate!
+      : null;
+
+  // tradingSignal: derived from stockSurvivalDays + rateDelta
+  //   'buy_urgent' — survival < 1 day
+  //   'buy_soon'   — survival 1-3 days
+  //   'sell_fast'  — rate falling + stock > 3 days
+  //   'hold'       — stock healthy, rate stable or rising
+  //   'no_data'    — survival is null (no consumption recorded)
+  String get tradingSignal {
+    if (stockSurvivalDays == null) return 'no_data';
+    if (stockSurvivalDays! < 1)   return 'buy_urgent';
+    if (stockSurvivalDays! < 3)   return 'buy_soon';
+    if ((rateDelta ?? 0) < 0)     return 'sell_fast';
+    return 'hold';
+  }
+
+  // todayGrossMargin: collected today minus purchase cost today
+  double get todayGrossMargin => todayCollected - todayPurchaseCost;
 }

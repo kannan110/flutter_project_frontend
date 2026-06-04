@@ -406,7 +406,8 @@ class _S extends ConsumerState<BatchPickupScreen> {
         actions: [IconButton(icon: const Icon(Icons.refresh), onPressed: _load)],
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
+        padding: EdgeInsets.fromLTRB(16, 16, 16,
+            96 + MediaQuery.viewInsetsOf(context).bottom),
         child: Form(key: _form, child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
 
           // ── Batch info card ──────────────────────────────────
@@ -865,7 +866,7 @@ class _S extends ConsumerState<BatchPickupScreen> {
         actions: [IconButton(icon: const Icon(Icons.refresh), onPressed: _load)],
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
+        padding: EdgeInsets.fromLTRB(16, 16, 16, 96 + MediaQuery.viewInsetsOf(context).bottom),
         child: Form(key: _form, child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
 
           // ── Shift status ─────────────────────────────────────

@@ -7,7 +7,6 @@ import '../../../core/providers/session_provider.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../shared/layouts/responsive_layout.dart';
-import '../../../shared/widgets/cards/metric_card.dart';
 import '../../../shared/widgets/common/async_state_view.dart';
 import '../../../shared/widgets/common/status_chip.dart';
 import '../../../shared/widgets/filters/search_bar.dart' hide ListToolbar;
@@ -128,19 +127,6 @@ class _S extends ConsumerState<ApprovalsScreen> {
                 tooltip: 'Refresh'),
         ],
       ),
-
-      summaryStrip: isDesktop ? MetricStrip(metrics: [
-        MetricCard(label: 'Pending Review',
-            value: '${_items.length}',
-            color: _items.isNotEmpty ? Colors.orange : Colors.green,
-            icon: Icons.pending_actions_outlined),
-        MetricCard(label: 'High Loss',
-            value: '${_items.where((d) { final pct = (d['loss_percentage'] as num?)?.toDouble() ?? 0; return pct >= 2; }).length}',
-            color: Colors.red, icon: Icons.warning_outlined),
-        MetricCard(label: 'Today',
-            value: '${_items.where((d) { final dt = DateTime.tryParse(d['delivered_at'] as String? ?? ''); return dt != null && dt.day == DateTime.now().day && dt.month == DateTime.now().month; }).length}',
-            icon: Icons.today_outlined),
-      ]) : null,
 
       content: AsyncStateView(
         loading:      _loading,
@@ -310,89 +296,123 @@ class _ApprovalCard extends StatelessWidget {
   );
 
   @override
+  @override
   Widget build(BuildContext context) {
-    final o          = item['orders']          as Map<String, dynamic>?;
-    final r          = o?['retailers']         as Map<String, dynamic>?;
-    final a          = item['delivery_agents'] as Map<String, dynamic>?;
-    final w          = ((item['received_total_weight'] ?? item['delivered_total_weight']) as num?)
+    final o           = item['orders']          as Map<String, dynamic>?;
+    final r           = o?['retailers']         as Map<String, dynamic>?;
+    final a           = item['delivery_agents'] as Map<String, dynamic>?;
+    final w           = ((item['received_total_weight'] ?? item['delivered_total_weight']) as num?)
         ?.toDouble() ?? 0;
-    final birds      = (item['delivered_bird_count'] as num?)?.toInt() ?? 0;
-    final isPartial  = item['is_partial_delivery'] == true;
-    final cash       = (item['collected_amount']    as num?)?.toDouble() ?? 0;
+    final birds       = (item['delivered_bird_count'] as num?)?.toInt() ?? 0;
+    final isPartial   = item['is_partial_delivery'] == true;
+    final cash        = (item['collected_amount']     as num?)?.toDouble() ?? 0;
     final deliveredAt = DateTime.tryParse(item['delivered_at'] as String? ?? '');
-    final totalBirds = (o?['estimated_birds'] as num?)?.toInt() ?? 0;
-    final fulfilledB = (o?['fulfilled_birds']  as num?)?.toInt() ?? 0;
-    final pct        = totalBirds > 0 ? (fulfilledB / totalBirds).clamp(0.0, 1.0) : 1.0;
-    final attempt    = (o?['partial_count'] as num?)?.toInt() ?? 1;
+    final totalBirds  = (o?['estimated_birds']  as num?)?.toInt() ?? 0;
+    final fulfilledB  = (o?['fulfilled_birds']  as num?)?.toInt() ?? 0;
+    final pct         = totalBirds > 0 ? (fulfilledB / totalBirds).clamp(0.0, 1.0) : 1.0;
+    final attempt     = (o?['partial_count'] as num?)?.toInt() ?? 1;
+    final shopName    = r?['shop_name'] as String? ?? '—';
+    final agentName   = a?['name']     as String? ?? '—';
 
     return InkWell(
       onTap: () => context.push(R.approvalDetailPath(item['id'])),
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: BorderRadius.circular(kRadiusCard),
       child: Container(
-        padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color:        Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.orange.shade200, width: 1.5),
+          color: kSurface,
+          borderRadius: BorderRadius.circular(kRadiusCard),
+          border: Border.all(
+              color: Colors.orange.withValues(alpha: 0.4), width: 1.5),
+          boxShadow: kCardShadow,
         ),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(children: [
-            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(r?['shop_name'] as String? ?? '—',
-                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
-              const SizedBox(height: 2),
-              Text('Agent: ${a?['name'] ?? '—'}',
-                  style: const TextStyle(fontSize: 12, color: kTextSub)),
-            ])),
-            Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-              StatusChip(label: 'review', color: Colors.orange),
-              if (isPartial) ...[
-                const SizedBox(height: 4),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                  decoration: BoxDecoration(
-                      color: Colors.orange.shade100,
-                      borderRadius: BorderRadius.circular(4)),
-                  child: Text('Partial #$attempt',
-                      style: const TextStyle(
-                          fontSize: 9, fontWeight: FontWeight.w800,
-                          color: Colors.deepOrange)),
-                ),
-              ],
-            ]),
-            const SizedBox(width: 4),
-            const Icon(Icons.chevron_right, color: kTextHint, size: 18),
-          ]),
-          const SizedBox(height: 8),
-          Row(children: [
-            _chip('${w.toStringAsFixed(1)} kg', Icons.scale_outlined, Colors.teal),
-            if (birds > 0) ...[const SizedBox(width: 6), _chip('$birds birds', Icons.numbers, Colors.blue)],
-            if (cash > 0)  ...[const SizedBox(width: 6), _chip(Fmt.amount(cash), Icons.money_outlined, Colors.green)],
-            if (deliveredAt != null) ...[
-              const Spacer(),
-              Text(DateFormat('d MMM, h:mm a').format(deliveredAt),
-                  style: const TextStyle(fontSize: 10, color: kTextHint)),
-            ],
-          ]),
-          if (isPartial) ...[
-            const SizedBox(height: 8),
-            Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-              Text('Order: $fulfilledB / $totalBirds birds fulfilled',
-                  style: const TextStyle(fontSize: 10, color: kTextSub)),
-              Text('${(pct * 100).toStringAsFixed(0)}%',
-                  style: const TextStyle(
-                      fontSize: 10, fontWeight: FontWeight.w700, color: Colors.orange)),
-            ]),
-            const SizedBox(height: 3),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(4),
-              child: LinearProgressIndicator(
-                value:      pct, minHeight: 5,
-                backgroundColor: Colors.orange.shade100,
-                valueColor: const AlwaysStoppedAnimation(Colors.orange),
-              ),
+          // Header
+          Container(
+            padding: const EdgeInsets.fromLTRB(16, 14, 14, 12),
+            decoration: BoxDecoration(
+              color: Colors.orange.withValues(alpha: 0.04),
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(kRadiusCard)),
+              border: Border(bottom: BorderSide(color: kBorderLight.withValues(alpha: 0.5))),
             ),
-          ],
+            child: Row(children: [
+              Container(
+                width: 44, height: 44,
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                      colors: [Color(0xFFEA580C), Color(0xFFF97316)],
+                      begin: Alignment.topLeft, end: Alignment.bottomRight),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Center(child: Text(
+                  shopName.isNotEmpty ? shopName[0].toUpperCase() : '?',
+                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Colors.white),
+                )),
+              ),
+              const SizedBox(width: 12),
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(shopName, maxLines: 1, overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900,
+                        color: kNavy, letterSpacing: -0.3)),
+                Text('Agent: $agentName', style: const TextStyle(
+                    fontSize: 11, color: kTextHint, fontWeight: FontWeight.w600)),
+              ])),
+              Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: Colors.orange.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(kRadiusChip),
+                    border: Border.all(color: Colors.orange.withValues(alpha: 0.3)),
+                  ),
+                  child: const Text('REVIEW', style: TextStyle(fontSize: 9,
+                      fontWeight: FontWeight.w900, color: Colors.orange, letterSpacing: 0.5)),
+                ),
+                if (isPartial) ...[
+                  const SizedBox(height: 4),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                    decoration: BoxDecoration(
+                        color: Colors.deepOrange.withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(4)),
+                    child: Text('Partial #$attempt', style: const TextStyle(fontSize: 9,
+                        fontWeight: FontWeight.w800, color: Colors.deepOrange)),
+                  ),
+                ],
+              ]),
+            ]),
+          ),
+          // Stats
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+            child: Row(children: [
+              _chip('${w.toStringAsFixed(1)} kg', Icons.scale_outlined, Colors.teal),
+              if (birds > 0) ...[const SizedBox(width: 8),
+                _chip('$birds birds', Icons.egg_alt_outlined, kNavy)],
+              if (cash > 0) ...[const SizedBox(width: 8),
+                _chip(Fmt.amount(cash), Icons.payments_outlined, Colors.green)],
+              const Spacer(),
+              if (deliveredAt != null)
+                Text(DateFormat('d MMM, h:mm a').format(deliveredAt.toLocal()),
+                    style: const TextStyle(fontSize: 10, color: kTextHint)),
+            ]),
+          ),
+          if (isPartial) Padding(
+            padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                Text('Fulfilled: $fulfilledB / $totalBirds birds',
+                    style: const TextStyle(fontSize: 11, color: kTextSub, fontWeight: FontWeight.w600)),
+                Text('${(pct * 100).toStringAsFixed(0)}%',
+                    style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Colors.orange)),
+              ]),
+              const SizedBox(height: 4),
+              ClipRRect(borderRadius: BorderRadius.circular(4),
+                  child: LinearProgressIndicator(value: pct, minHeight: 6,
+                      backgroundColor: Colors.orange.withValues(alpha: 0.15),
+                      valueColor: const AlwaysStoppedAnimation(Colors.orange))),
+            ]),
+          ),
+          const SizedBox(height: 14),
         ]),
       ),
     );

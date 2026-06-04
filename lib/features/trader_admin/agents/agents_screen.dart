@@ -6,7 +6,6 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/providers/session_provider.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_theme.dart';
-import '../../../shared/layouts/responsive_layout.dart';
 
 class AgentsScreen extends ConsumerStatefulWidget {
   const AgentsScreen({super.key});
@@ -114,13 +113,16 @@ class _S extends ConsumerState<AgentsScreen> {
     final companyCode = ref.watch(appUserProvider).valueOrNull?.companyCode ?? '—';
     final unlinked = _agents.where((a) => a['auth_user_id'] == null).length;
 
-    final _scaffold = Scaffold(
+    return Scaffold(
       backgroundColor: kBgPage,
       appBar: AppBar(title: const Text('Delivery Agents'), actions: [IconButton(icon: const Icon(Icons.refresh), onPressed: _load)]),
       floatingActionButton: FloatingActionButton.extended(
           onPressed: () => context.push(R.agentCreate),
           icon: const Icon(Icons.person_add_outlined),
           label: const Text('Add Agent')),
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
+      // Reserve space so FAB clears the parent TraderShell glass bottom nav
+      bottomNavigationBar: const SizedBox(height: 80),
       body: Column(children: [
 
         // Company code bar
@@ -155,7 +157,7 @@ class _S extends ConsumerState<AgentsScreen> {
         Expanded(child: _loading ? const LoadingList() : _agents.isEmpty
             ? EmptyState(icon: Icons.delivery_dining_outlined, message: 'No agents yet', sub: 'Add your delivery agents and share the Company Code with them', onAction: () => context.push(R.agentCreate), actionLabel: 'Add Agent')
             : RefreshIndicator(onRefresh: _load, child: ListView.separated(
-            padding: const EdgeInsets.all(16), itemCount: _agents.length,
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 100), itemCount: _agents.length,
             separatorBuilder: (_, __) => const SizedBox(height: 10),
             itemBuilder: (_, i) {
               final a      = _agents[i];
@@ -214,6 +216,5 @@ class _S extends ConsumerState<AgentsScreen> {
             }))),
       ]),
     );
-    return ResponsiveLayout(mobile: (_) => _scaffold, desktop: (_) => _scaffold);
   }
 }

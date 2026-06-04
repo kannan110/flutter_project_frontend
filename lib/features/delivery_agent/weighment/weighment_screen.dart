@@ -40,17 +40,17 @@ class WeighmentRow {
   });
 
   Map<String, dynamic> toJson() => {
-        'PK': pk,
-        'LOADWT': loadWt,
-        'LOAD_CAGES': loadCages,
-        'EMPTYWT': emptyWt,
-        'EMPTY_CAGES': emptyCages,
-        'NETWT': netWt,
-        'AVGWT': avgWt,
-        'DELETEDFLAG': 'A',
-        'TRSEQNO': seqNo,
-        'WMTTIME': wmtTime,
-      };
+    'PK': pk,
+    'LOADWT': loadWt,
+    'LOAD_CAGES': loadCages,
+    'EMPTYWT': emptyWt,
+    'EMPTY_CAGES': emptyCages,
+    'NETWT': netWt,
+    'AVGWT': avgWt,
+    'DELETEDFLAG': 'A',
+    'TRSEQNO': seqNo,
+    'WMTTIME': wmtTime,
+  };
 }
 
 class WeighmentResult {
@@ -209,7 +209,7 @@ class _WS extends ConsumerState<WeighmentScreen> {
 
       // Listen to SPP data stream
       _dataSub = _connection!.input!.listen(
-        (data) {
+            (data) {
           _btBuffer += String.fromCharCodes(data);
           while (_btBuffer.contains('\n')) {
             final idx = _btBuffer.indexOf('\n');
@@ -250,13 +250,13 @@ class _WS extends ConsumerState<WeighmentScreen> {
         String msg = e.toString();
         if (msg.contains('permission') || msg.contains('BLUETOOTH_CONNECT')) {
           msg =
-              'Permission denied.\n\nGo to Settings → Apps → Rooster Trader → Permissions → allow Bluetooth.';
+          'Permission denied.\n\nGo to Settings → Apps → Rooster Trader → Permissions → allow Bluetooth.';
         } else if (msg.contains('bond') || msg.contains('pair')) {
           msg =
-              'Scale not paired.\n\nGo to Android Settings → Bluetooth, find the scale and pair it first.';
+          'Scale not paired.\n\nGo to Android Settings → Bluetooth, find the scale and pair it first.';
         } else {
           msg =
-              'Connection failed: $msg\n\nMake sure scale is ON and not connected to another device.';
+          'Connection failed: $msg\n\nMake sure scale is ON and not connected to another device.';
         }
         showError(context, msg);
       }
@@ -411,7 +411,7 @@ class _WS extends ConsumerState<WeighmentScreen> {
       loadWt: wt,
       loadCages: cages,
       wmtTime:
-          '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}',
+      '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}',
     );
     setState(() {
       _rows.add(row);
@@ -426,7 +426,7 @@ class _WS extends ConsumerState<WeighmentScreen> {
     FocusScope.of(context).unfocus(); // 🔥 ADD HERE
     if (!_loadLocked) return;
     final row =
-        _rows.firstWhere((r) => !r.emptyFilled, orElse: () => _rows.last);
+    _rows.firstWhere((r) => !r.emptyFilled, orElse: () => _rows.last);
     if (row.emptyFilled) {
       showError(context, 'All empty weights filled');
       return;
@@ -458,22 +458,22 @@ class _WS extends ConsumerState<WeighmentScreen> {
 
   Future<bool> _showCaptureModal(double wt, int cages,
       {required bool isLoad,
-      int rowNum = 0,
-      double loadWt = 0,
-      int loadCages = 0}) async {
+        int rowNum = 0,
+        double loadWt = 0,
+        int loadCages = 0}) async {
     if (!mounted) return false; // 🔥 ADD
 
     final result = await showDialog<bool>(
         context: context,
         useRootNavigator: true,
         builder: (ctx) => AlertDialog(
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(20)),
-              title: Text(
-                  isLoad ? 'Confirm Load Weight' : 'Confirm Empty Weight',
-                  style: const TextStyle(fontWeight: FontWeight.w800)),
-              content: SingleChildScrollView(
-                  child: Column(mainAxisSize: MainAxisSize.min, children: [
+          shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20)),
+          title: Text(
+              isLoad ? 'Confirm Load Weight' : 'Confirm Empty Weight',
+              style: const TextStyle(fontWeight: FontWeight.w800)),
+          content: SingleChildScrollView(
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
                 if (!isLoad) ...[
                   Text(
                       'Row #$rowNum — Load: ${loadWt.toStringAsFixed(3)} kg ($loadCages cages)',
@@ -497,15 +497,15 @@ class _WS extends ConsumerState<WeighmentScreen> {
                           color: Colors.green)),
                 ],
               ])),
-              actions: [
-                TextButton(
-                    onPressed: () => Navigator.pop(ctx, false),
-                    child: const Text('Cancel')),
-                ElevatedButton(
-                    onPressed: () => Navigator.pop(ctx, true),
-                    child: const Text('Confirm ✓')),
-              ],
-            ));
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Cancel')),
+            ElevatedButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child: const Text('Confirm ✓')),
+          ],
+        ));
     if (!mounted) return false; // 🔥 ADD
 
     return result ?? false;
@@ -524,16 +524,18 @@ class _WS extends ConsumerState<WeighmentScreen> {
         context: context,
         useRootNavigator: true,
         builder: (ctx) => AlertDialog(
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(20)),
-              title: const Text('Total Birds Count',
-                  style: TextStyle(fontWeight: FontWeight.w800)),
-              content: SingleChildScrollView(
-                  child: Column(mainAxisSize: MainAxisSize.min, children: [
+          shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20)),
+          title: const Text('Total Birds Count',
+              style: TextStyle(fontWeight: FontWeight.w800)),
+          content: SingleChildScrollView(
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
                 const Text('Enter total birds loaded:',
                     style: TextStyle(fontSize: 13, color: kTextSub)),
                 const SizedBox(height: 12),
                 TextField(
+                    textInputAction: TextInputAction.next,
+                    onSubmitted: (_) => FocusScope.of(context).nextFocus(),
                     controller: ctrl,
                     keyboardType: TextInputType.number,
                     autofocus: true,
@@ -543,18 +545,18 @@ class _WS extends ConsumerState<WeighmentScreen> {
                 Text('Load weight: ${_totalLoadWt.toStringAsFixed(3)} kg',
                     style: const TextStyle(fontSize: 12, color: kTextHint)),
               ])),
-              actions: [
-                TextButton(
-                    onPressed: () => Navigator.pop(ctx),
-                    child: const Text('Cancel')),
-                ElevatedButton(
-                    onPressed: () {
-                      final v = int.tryParse(ctrl.text.trim());
-                      if (v != null && v > 0) Navigator.pop(ctx, v);
-                    },
-                    child: const Text('Lock & Proceed')),
-              ],
-            ));
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Cancel')),
+            ElevatedButton(
+                onPressed: () {
+                  final v = int.tryParse(ctrl.text.trim());
+                  if (v != null && v > 0) Navigator.pop(ctx, v);
+                },
+                child: const Text('Lock & Proceed')),
+          ],
+        ));
     ctrl.dispose();
     if (birds == null) return;
     setState(() {
@@ -603,57 +605,57 @@ class _WS extends ConsumerState<WeighmentScreen> {
     if (_rows.isEmpty) return;
     final latest = _rows.last;
     final ok = await showDialog<bool>(
-            context: context,
-            useRootNavigator: true,
-            builder: (ctx) => AlertDialog(
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(20)),
-                  title: const Text('Delete Latest Entry?',
-                      style: TextStyle(fontWeight: FontWeight.w800)),
-                  content: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Container(
-                            padding: const EdgeInsets.all(10),
-                            decoration: BoxDecoration(
-                                color: Colors.red.shade50,
-                                borderRadius: BorderRadius.circular(10)),
-                            child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                      'Row #${latest.seqNo} — ${latest.wmtTime}',
-                                      style: const TextStyle(
-                                          fontWeight: FontWeight.w700,
-                                          fontSize: 13)),
-                                  Text(
-                                      'Load: ${latest.loadWt.toStringAsFixed(3)} kg · ${latest.loadCages} cages',
-                                      style: const TextStyle(
-                                          fontSize: 12, color: kTextSub)),
-                                  if (latest.emptyFilled)
-                                    Text(
-                                        'Empty: ${latest.emptyWt.toStringAsFixed(3)} kg · Net: ${latest.netWt.toStringAsFixed(3)} kg',
-                                        style: const TextStyle(
-                                            fontSize: 12, color: kTextSub)),
-                                ])),
-                        const SizedBox(height: 10),
-                        const Text(
-                            'This entry will be removed. You can re-enter the correct values.',
-                            style: TextStyle(fontSize: 12, color: kTextSub)),
-                      ]),
-                  actions: [
-                    TextButton(
-                        onPressed: () => Navigator.pop(ctx, false),
-                        child: const Text('Cancel')),
-                    ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.red),
-                        onPressed: () => Navigator.pop(ctx, true),
-                        child: const Text('Delete Entry',
-                            style: TextStyle(color: Colors.white))),
-                  ],
-                )) ??
+        context: context,
+        useRootNavigator: true,
+        builder: (ctx) => AlertDialog(
+          shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20)),
+          title: const Text('Delete Latest Entry?',
+              style: TextStyle(fontWeight: FontWeight.w800)),
+          content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                        color: Colors.red.shade50,
+                        borderRadius: BorderRadius.circular(10)),
+                    child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                              'Row #${latest.seqNo} — ${latest.wmtTime}',
+                              style: const TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 13)),
+                          Text(
+                              'Load: ${latest.loadWt.toStringAsFixed(3)} kg · ${latest.loadCages} cages',
+                              style: const TextStyle(
+                                  fontSize: 12, color: kTextSub)),
+                          if (latest.emptyFilled)
+                            Text(
+                                'Empty: ${latest.emptyWt.toStringAsFixed(3)} kg · Net: ${latest.netWt.toStringAsFixed(3)} kg',
+                                style: const TextStyle(
+                                    fontSize: 12, color: kTextSub)),
+                        ])),
+                const SizedBox(height: 10),
+                const Text(
+                    'This entry will be removed. You can re-enter the correct values.',
+                    style: TextStyle(fontSize: 12, color: kTextSub)),
+              ]),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Cancel')),
+            ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.red),
+                onPressed: () => Navigator.pop(ctx, true),
+                child: const Text('Delete Entry',
+                    style: TextStyle(color: Colors.white))),
+          ],
+        )) ??
         false;
     if (!ok || !mounted) return;
 
@@ -703,7 +705,7 @@ class _WS extends ConsumerState<WeighmentScreen> {
     final latest = _rows.last;
 
     final wtCtrl =
-        TextEditingController(text: latest.loadWt.toStringAsFixed(3));
+    TextEditingController(text: latest.loadWt.toStringAsFixed(3));
     final cagesCtrl = TextEditingController(text: '${latest.loadCages}');
     final emptyWtCtrl = latest.emptyFilled
         ? TextEditingController(text: latest.emptyWt.toStringAsFixed(3))
@@ -713,77 +715,85 @@ class _WS extends ConsumerState<WeighmentScreen> {
         : null;
 
     final ok = await showDialog<bool>(
-            context: context,
-            useRootNavigator: true,
-            builder: (ctx) => AlertDialog(
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(20)),
-                  title: Text('Edit Row #${latest.seqNo}',
-                      style: const TextStyle(fontWeight: FontWeight.w800)),
-                  content: Column(mainAxisSize: MainAxisSize.min, children: [
-                    const Text('LOAD',
-                        style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                            color: kTextHint)),
-                    const SizedBox(height: 6),
-                    Row(children: [
-                      Expanded(
-                          child: TextField(
-                              controller: wtCtrl,
-                              keyboardType:
-                                  const TextInputType.numberWithOptions(
-                                      decimal: true),
-                              decoration: const InputDecoration(
-                                  labelText: 'Load Weight (kg)',
-                                  isDense: true))),
-                      const SizedBox(width: 8),
-                      SizedBox(
-                          width: 80,
-                          child: TextField(
-                              controller: cagesCtrl,
-                              keyboardType: TextInputType.number,
-                              decoration: const InputDecoration(
-                                  labelText: 'Cages', isDense: true))),
-                    ]),
-                    if (latest.emptyFilled) ...[
-                      const SizedBox(height: 12),
-                      const Text('EMPTY',
-                          style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w700,
-                              color: kTextHint)),
-                      const SizedBox(height: 6),
-                      Row(children: [
-                        Expanded(
-                            child: TextField(
-                                controller: emptyWtCtrl!,
-                                keyboardType:
-                                    const TextInputType.numberWithOptions(
-                                        decimal: true),
-                                decoration: const InputDecoration(
-                                    labelText: 'Empty Weight (kg)',
-                                    isDense: true))),
-                        const SizedBox(width: 8),
-                        SizedBox(
-                            width: 80,
-                            child: TextField(
-                                controller: emptyCagesCtrl!,
-                                keyboardType: TextInputType.number,
-                                decoration: const InputDecoration(
-                                    labelText: 'Cages', isDense: true))),
-                      ]),
-                    ],
-                  ]),
-                  actions: [
-                    TextButton(
-                        onPressed: () => Navigator.pop(ctx, false),
-                        child: const Text('Cancel')),
-                    ElevatedButton(
-                        onPressed: () => Navigator.pop(ctx, true),
-                        child: const Text('Save Changes')),
-                  ],
-                )) ??
+        context: context,
+        useRootNavigator: true,
+        builder: (ctx) => AlertDialog(
+          shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20)),
+          title: Text('Edit Row #${latest.seqNo}',
+              style: const TextStyle(fontWeight: FontWeight.w800)),
+          content: Column(mainAxisSize: MainAxisSize.min, children: [
+            const Text('LOAD',
+                style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: kTextHint)),
+            const SizedBox(height: 6),
+            Row(children: [
+              Expanded(
+                  child: TextField(
+                      textInputAction: TextInputAction.next,
+                      onSubmitted: (_) => FocusScope.of(context).nextFocus(),
+                      controller: wtCtrl,
+                      keyboardType:
+                      const TextInputType.numberWithOptions(
+                          decimal: true),
+                      decoration: const InputDecoration(
+                          labelText: 'Load Weight (kg)',
+                          isDense: true))),
+              const SizedBox(width: 8),
+              SizedBox(
+                  width: 80,
+                  child: TextField(
+                      textInputAction: TextInputAction.next,
+                      onSubmitted: (_) => FocusScope.of(context).nextFocus(),
+                      controller: cagesCtrl,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(
+                          labelText: 'Cages', isDense: true))),
+            ]),
+            if (latest.emptyFilled) ...[
+              const SizedBox(height: 12),
+              const Text('EMPTY',
+                  style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: kTextHint)),
+              const SizedBox(height: 6),
+              Row(children: [
+                Expanded(
+                    child: TextField(
+                        textInputAction: TextInputAction.next,
+                        onSubmitted: (_) => FocusScope.of(context).nextFocus(),
+                        controller: emptyWtCtrl!,
+                        keyboardType:
+                        const TextInputType.numberWithOptions(
+                            decimal: true),
+                        decoration: const InputDecoration(
+                            labelText: 'Empty Weight (kg)',
+                            isDense: true))),
+                const SizedBox(width: 8),
+                SizedBox(
+                    width: 80,
+                    child: TextField(
+                        textInputAction: TextInputAction.next,
+                        onSubmitted: (_) => FocusScope.of(context).nextFocus(),
+                        controller: emptyCagesCtrl!,
+                        keyboardType: TextInputType.number,
+                        decoration: const InputDecoration(
+                            labelText: 'Cages', isDense: true))),
+              ]),
+            ],
+          ]),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Cancel')),
+            ElevatedButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child: const Text('Save Changes')),
+          ],
+        )) ??
         false;
 
     if (!ok || !mounted) return;
@@ -840,7 +850,7 @@ class _WS extends ConsumerState<WeighmentScreen> {
       showError(
           context,
           'Cage mismatch!\nLoad: $_totalLoadCages · Empty: $_totalEmptyCages\n'
-          'All empty cages must be weighed before submitting.');
+              'All empty cages must be weighed before submitting.');
       return;
     }
     if (_filledEmpty < _rows.length) {
@@ -854,43 +864,43 @@ class _WS extends ConsumerState<WeighmentScreen> {
     if (!mounted) return;
 
     final ok = await showDialog<bool>(
-            context: context,
-            useRootNavigator: true,
-            builder: (ctx) => AlertDialog(
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(20)),
-                  title: const Text('Confirm Weighment',
-                      style: TextStyle(fontWeight: FontWeight.w800)),
-                  content: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _summaryRow('Total Birds', '$_totalBirds'),
-                        _summaryRow('Load Cages', '$_totalLoadCages'),
-                        _summaryRow('Total Load WT',
-                            '${_totalLoadWt.toStringAsFixed(3)} kg'),
-                        _summaryRow('Total Empty WT',
-                            '${_totalEmptyWt.toStringAsFixed(3)} kg'),
-                        _summaryRow('Total Net WT',
-                            '${_totalNetWt.toStringAsFixed(3)} kg'),
-                        _summaryRow('Avg Bird WT',
-                            '${_avgBirdWtG.toStringAsFixed(1)} g/bird'),
-                        const Divider(),
-                        _summaryRow(
-                            'Source',
-                            _connected
-                                ? '🔵 SLE Scale (Bluetooth)'
-                                : '✏️ Manual Entry'),
-                      ]),
-                  actions: [
-                    TextButton(
-                        onPressed: () => Navigator.pop(ctx, false),
-                        child: const Text('Cancel')),
-                    ElevatedButton(
-                        onPressed: () => Navigator.pop(ctx, true),
-                        child: const Text('Use This Weight')),
-                  ],
-                )) ??
+        context: context,
+        useRootNavigator: true,
+        builder: (ctx) => AlertDialog(
+          shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20)),
+          title: const Text('Confirm Weighment',
+              style: TextStyle(fontWeight: FontWeight.w800)),
+          content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _summaryRow('Total Birds', '$_totalBirds'),
+                _summaryRow('Load Cages', '$_totalLoadCages'),
+                _summaryRow('Total Load WT',
+                    '${_totalLoadWt.toStringAsFixed(3)} kg'),
+                _summaryRow('Total Empty WT',
+                    '${_totalEmptyWt.toStringAsFixed(3)} kg'),
+                _summaryRow('Total Net WT',
+                    '${_totalNetWt.toStringAsFixed(3)} kg'),
+                _summaryRow('Avg Bird WT',
+                    '${_avgBirdWtG.toStringAsFixed(1)} g/bird'),
+                const Divider(),
+                _summaryRow(
+                    'Source',
+                    _connected
+                        ? '🔵 SLE Scale (Bluetooth)'
+                        : '✏️ Manual Entry'),
+              ]),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Cancel')),
+            ElevatedButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child: const Text('Use This Weight')),
+          ],
+        )) ??
         false;
     if (!mounted) return;
 
@@ -925,7 +935,7 @@ class _WS extends ConsumerState<WeighmentScreen> {
       child: Row(children: [
         Expanded(
             child:
-                Text(l, style: const TextStyle(fontSize: 12, color: kTextSub))),
+            Text(l, style: const TextStyle(fontSize: 12, color: kTextSub))),
         Text(v,
             style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
       ]));
@@ -952,15 +962,15 @@ class _WS extends ConsumerState<WeighmentScreen> {
                             child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                              Text('Connect SLE Scale',
-                                  style: TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w800)),
-                              Text(
-                                  'Select your paired Bluetooth scale (Classic BT / SPP)',
-                                  style: TextStyle(
-                                      fontSize: 11, color: kTextHint)),
-                            ])),
+                                  Text('Connect SLE Scale',
+                                      style: TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w800)),
+                                  Text(
+                                      'Select your paired Bluetooth scale (Classic BT / SPP)',
+                                      style: TextStyle(
+                                          fontSize: 11, color: kTextHint)),
+                                ])),
                         IconButton(
                             icon: const Icon(Icons.refresh, color: kPrimary),
                             tooltip: 'Refresh paired devices',
@@ -1036,7 +1046,7 @@ class _WS extends ConsumerState<WeighmentScreen> {
                                       height: 40,
                                       decoration: BoxDecoration(
                                           color:
-                                              kPrimary.withValues(alpha: 0.1),
+                                          kPrimary.withValues(alpha: 0.1),
                                           shape: BoxShape.circle),
                                       child: const Icon(Icons.scale,
                                           color: kPrimary, size: 20)),
@@ -1044,45 +1054,45 @@ class _WS extends ConsumerState<WeighmentScreen> {
                                   Expanded(
                                       child: Column(
                                           crossAxisAlignment:
-                                              CrossAxisAlignment.start,
+                                          CrossAxisAlignment.start,
                                           children: [
-                                        Text(d.name ?? 'Unknown Device',
-                                            style: const TextStyle(
-                                                fontWeight: FontWeight.w700,
-                                                fontSize: 14)),
-                                        Text(d.address,
-                                            style: const TextStyle(
-                                                fontSize: 11,
-                                                color: kTextHint)),
-                                      ])),
+                                            Text(d.name ?? 'Unknown Device',
+                                                style: const TextStyle(
+                                                    fontWeight: FontWeight.w700,
+                                                    fontSize: 14)),
+                                            Text(d.address,
+                                                style: const TextStyle(
+                                                    fontSize: 11,
+                                                    color: kTextHint)),
+                                          ])),
                                   const SizedBox(width: 8),
                                   _connecting &&
-                                          _selectedDevice?.address == d.address
+                                      _selectedDevice?.address == d.address
                                       ? const SizedBox(
-                                          width: 24,
-                                          height: 24,
-                                          child: CircularProgressIndicator(
-                                              strokeWidth: 2.5))
+                                      width: 24,
+                                      height: 24,
+                                      child: CircularProgressIndicator(
+                                          strokeWidth: 2.5))
                                       : ElevatedButton(
-                                          onPressed: () async {
-                                            ss(() => _selectedDevice = d);
-                                            Navigator.of(ctx,
-                                                    rootNavigator: true)
-                                                .pop();
-                                            await _connectDevice(d);
-                                          },
-                                          style: ElevatedButton.styleFrom(
-                                              backgroundColor: kPrimary,
-                                              minimumSize: const Size(80, 36),
-                                              padding:
-                                                  const EdgeInsets.symmetric(
-                                                      horizontal: 14,
-                                                      vertical: 8)),
-                                          child: const Text('Connect',
-                                              style: TextStyle(
-                                                  color: Colors.white,
-                                                  fontWeight: FontWeight.w700,
-                                                  fontSize: 13))),
+                                      onPressed: () async {
+                                        ss(() => _selectedDevice = d);
+                                        Navigator.of(ctx,
+                                            rootNavigator: true)
+                                            .pop();
+                                        await _connectDevice(d);
+                                      },
+                                      style: ElevatedButton.styleFrom(
+                                          backgroundColor: kPrimary,
+                                          minimumSize: const Size(80, 36),
+                                          padding:
+                                          const EdgeInsets.symmetric(
+                                              horizontal: 14,
+                                              vertical: 8)),
+                                      child: const Text('Connect',
+                                          style: TextStyle(
+                                              color: Colors.white,
+                                              fontWeight: FontWeight.w700,
+                                              fontSize: 13))),
                                 ])))),
                       ],
                       const SizedBox(height: 8),
@@ -1099,84 +1109,84 @@ class _WS extends ConsumerState<WeighmentScreen> {
     final isSimple = ref.watch(uiModeProvider).isSimple;
     if (isSimple) return _buildSimpleView();
     return Scaffold(
-        backgroundColor: const Color(0xFFF0F4F0),
-        appBar: AppBar(
-          title:
-              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            const Text('Weighment',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
-            Text(widget.shopName,
-                style: const TextStyle(
-                    fontSize: 11,
-                    color: kTextHint,
-                    fontWeight: FontWeight.w400)),
-          ]),
-          actions: [
-            // BT connection status button
-            Padding(
-              padding: const EdgeInsets.only(right: 8),
-              child: GestureDetector(
-                  onTap: _connected ? _disconnect : _showScalePicker,
-                  child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 6),
-                      decoration: BoxDecoration(
-                          color: _connected
-                              ? Colors.green.shade50
-                              : Colors.grey.shade100,
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(
-                              color: _connected
-                                  ? Colors.green.shade300
-                                  : Colors.grey.shade300)),
-                      child: Row(mainAxisSize: MainAxisSize.min, children: [
-                        Container(
-                            width: 7,
-                            height: 7,
-                            decoration: BoxDecoration(
-                                color: _connected
-                                    ? Colors.green
-                                    : (_connecting
-                                        ? Colors.orange
-                                        : Colors.grey),
-                                shape: BoxShape.circle)),
-                        const SizedBox(width: 6),
-                        Text(
-                            _connecting
-                                ? 'Connecting…'
-                                : _connected
-                                    ? 'Scale ON'
-                                    : 'No Scale',
-                            style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w700,
-                                color: _connected
-                                    ? Colors.green.shade700
-                                    : kTextHint)),
-                      ]))),
-            ),
-          ],
-        ),
-        body: Column(children: [
-          // Live weight display
-          _buildWeightDisplay(),
-          // Phase header
-          _buildPhaseHeader(),
-          // Table
-          Expanded(child: _buildTable()),
+      backgroundColor: const Color(0xFFF0F4F0),
+      appBar: AppBar(
+        title:
+        Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          const Text('Weighment',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+          Text(widget.shopName,
+              style: const TextStyle(
+                  fontSize: 11,
+                  color: kTextHint,
+                  fontWeight: FontWeight.w400)),
         ]),
-        bottomNavigationBar: _buildBottomBar(),
-      );
+        actions: [
+          // BT connection status button
+          Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: GestureDetector(
+                onTap: _connected ? _disconnect : _showScalePicker,
+                child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                        color: _connected
+                            ? Colors.green.shade50
+                            : Colors.grey.shade100,
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                            color: _connected
+                                ? Colors.green.shade300
+                                : Colors.grey.shade300)),
+                    child: Row(mainAxisSize: MainAxisSize.min, children: [
+                      Container(
+                          width: 7,
+                          height: 7,
+                          decoration: BoxDecoration(
+                              color: _connected
+                                  ? Colors.green
+                                  : (_connecting
+                                  ? Colors.orange
+                                  : Colors.grey),
+                              shape: BoxShape.circle)),
+                      const SizedBox(width: 6),
+                      Text(
+                          _connecting
+                              ? 'Connecting…'
+                              : _connected
+                              ? 'Scale ON'
+                              : 'No Scale',
+                          style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: _connected
+                                  ? Colors.green.shade700
+                                  : kTextHint)),
+                    ]))),
+          ),
+        ],
+      ),
+      body: Column(children: [
+        // Live weight display
+        _buildWeightDisplay(),
+        // Phase header
+        _buildPhaseHeader(),
+        // Table
+        Expanded(child: _buildTable()),
+      ]),
+      bottomNavigationBar: _buildBottomBar(),
+    );
   }
 
   Widget _buildWeightDisplay() => Container(
-        padding: const EdgeInsets.all(16),
-        color: Colors.white,
-        child: Row(children: [
-          Expanded(
-              child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
+    padding: const EdgeInsets.all(16),
+    color: Colors.white,
+    child: Row(children: [
+      Expanded(
+          child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
                 Text(_connected ? '🔵 SLE SCALE (LIVE)' : '✏️ MANUAL ENTRY',
                     style: TextStyle(
                         fontSize: 10,
@@ -1187,20 +1197,24 @@ class _WS extends ConsumerState<WeighmentScreen> {
                 Row(children: [
                   Expanded(
                       child: TextField(
-                    controller: _manualWtCtrl,
-                    keyboardType:
+                        textInputAction: TextInputAction.next,
+                        onSubmitted: (_) => FocusScope.of(context).nextFocus(),
+                        controller: _manualWtCtrl,
+                        keyboardType:
                         const TextInputType.numberWithOptions(decimal: true),
-                    decoration: const InputDecoration(
-                        labelText: 'Weight (kg)',
-                        suffixText: 'kg',
-                        isDense: true,
-                        contentPadding:
+                        decoration: const InputDecoration(
+                            labelText: 'Weight (kg)',
+                            suffixText: 'kg',
+                            isDense: true,
+                            contentPadding:
                             EdgeInsets.symmetric(horizontal: 10, vertical: 10)),
-                  )),
+                      )),
                   const SizedBox(width: 8),
                   SizedBox(
                       width: 80,
                       child: TextField(
+                        textInputAction: TextInputAction.next,
+                        onSubmitted: (_) => FocusScope.of(context).nextFocus(),
                         controller: _manualCagesCtrl,
                         keyboardType: TextInputType.number,
                         decoration: const InputDecoration(
@@ -1219,28 +1233,28 @@ class _WS extends ConsumerState<WeighmentScreen> {
                               color: Colors.blue,
                               fontWeight: FontWeight.w600))),
               ])),
-          const SizedBox(width: 12),
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-                color: kPrimary.withValues(alpha: 0.07),
-                borderRadius: BorderRadius.circular(10)),
-            child:
-                Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-              Text('Net: ${_totalNetWt.toStringAsFixed(2)} kg',
-                  style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w800,
-                      color: kPrimary)),
-              Text('Birds: $_totalBirds',
-                  style: const TextStyle(fontSize: 11, color: kTextSub)),
-              if (_avgBirdWtG > 0)
-                Text('Avg: ${_avgBirdWtG.toStringAsFixed(1)}g',
-                    style: const TextStyle(fontSize: 11, color: Colors.teal)),
-            ]),
-          ),
+      const SizedBox(width: 12),
+      Container(
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+            color: kPrimary.withValues(alpha: 0.07),
+            borderRadius: BorderRadius.circular(10)),
+        child:
+        Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+          Text('Net: ${_totalNetWt.toStringAsFixed(2)} kg',
+              style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w800,
+                  color: kPrimary)),
+          Text('Birds: $_totalBirds',
+              style: const TextStyle(fontSize: 11, color: kTextSub)),
+          if (_avgBirdWtG > 0)
+            Text('Avg: ${_avgBirdWtG.toStringAsFixed(1)}g',
+                style: const TextStyle(fontSize: 11, color: Colors.teal)),
         ]),
-      );
+      ),
+    ]),
+  );
 
   Widget _buildPhaseHeader() => Container(
       color: Colors.white,
@@ -1281,15 +1295,15 @@ class _WS extends ConsumerState<WeighmentScreen> {
     if (_rows.isEmpty)
       return Center(
           child: Column(mainAxisSize: MainAxisSize.min, children: [
-        const Icon(Icons.scale_outlined, size: 48, color: kTextHint),
-        const SizedBox(height: 8),
-        Text(
-            _connected
-                ? 'Place birds on scale, weight updates live\nTap + to capture'
-                : 'Enter weight manually\nTap + to add row',
-            style: const TextStyle(color: kTextSub, fontSize: 13),
-            textAlign: TextAlign.center),
-      ]));
+            const Icon(Icons.scale_outlined, size: 48, color: kTextHint),
+            const SizedBox(height: 8),
+            Text(
+                _connected
+                    ? 'Place birds on scale, weight updates live\nTap + to capture'
+                    : 'Enter weight manually\nTap + to add row',
+                style: const TextStyle(color: kTextSub, fontSize: 13),
+                textAlign: TextAlign.center),
+          ]));
 
     return ListView(padding: const EdgeInsets.all(12), children: [
       // Session locked banner
@@ -1361,28 +1375,28 @@ class _WS extends ConsumerState<WeighmentScreen> {
                 return false;
               }
               return await showDialog<bool>(
-                      context: context,
-                      useRootNavigator: true,
-                      builder: (ctx) => AlertDialog(
-                              shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(16)),
-                              title: Text('Delete Row #${r.seqNo}?',
-                                  style: const TextStyle(
-                                      fontWeight: FontWeight.w800)),
-                              content: Text(
-                                  'Load: ${r.loadWt.toStringAsFixed(3)} kg · ${r.loadCages} cages'
-                                  '${r.emptyFilled ? '\nEmpty: ${r.emptyWt.toStringAsFixed(3)} kg · Net: ${r.netWt.toStringAsFixed(3)} kg' : ''}'),
-                              actions: [
-                                TextButton(
-                                    onPressed: () => Navigator.pop(ctx, false),
-                                    child: const Text('Cancel')),
-                                ElevatedButton(
-                                    style: ElevatedButton.styleFrom(
-                                        backgroundColor: Colors.red),
-                                    onPressed: () => Navigator.pop(ctx, true),
-                                    child: const Text('Delete',
-                                        style: TextStyle(color: Colors.white))),
-                              ])) ??
+                  context: context,
+                  useRootNavigator: true,
+                  builder: (ctx) => AlertDialog(
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16)),
+                      title: Text('Delete Row #${r.seqNo}?',
+                          style: const TextStyle(
+                              fontWeight: FontWeight.w800)),
+                      content: Text(
+                          'Load: ${r.loadWt.toStringAsFixed(3)} kg · ${r.loadCages} cages'
+                              '${r.emptyFilled ? '\nEmpty: ${r.emptyWt.toStringAsFixed(3)} kg · Net: ${r.netWt.toStringAsFixed(3)} kg' : ''}'),
+                      actions: [
+                        TextButton(
+                            onPressed: () => Navigator.pop(ctx, false),
+                            child: const Text('Cancel')),
+                        ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.red),
+                            onPressed: () => Navigator.pop(ctx, true),
+                            child: const Text('Delete',
+                                style: TextStyle(color: Colors.white))),
+                      ])) ??
                   false;
             },
             onDismissed: (_) {
@@ -1439,24 +1453,24 @@ class _WS extends ConsumerState<WeighmentScreen> {
                       width: 40,
                       child: isLastRow && !_sessionLocked
                           ? GestureDetector(
-                              onTap: _editLatestRow,
-                              child: const Icon(
-                                Icons.edit_outlined,
-                                size: 16,
-                                color: kPrimary,
-                              ),
-                            )
+                        onTap: _editLatestRow,
+                        child: const Icon(
+                          Icons.edit_outlined,
+                          size: 16,
+                          color: kPrimary,
+                        ),
+                      )
                           : Icon(
-                              r.emptyFilled
-                                  ? Icons.check_circle
-                                  : (isNext
-                                      ? Icons.arrow_forward
-                                      : Icons.circle_outlined),
-                              size: 16,
-                              color: r.emptyFilled
-                                  ? Colors.green
-                                  : (isNext ? Colors.blue : kTextHint),
-                            ),
+                        r.emptyFilled
+                            ? Icons.check_circle
+                            : (isNext
+                            ? Icons.arrow_forward
+                            : Icons.circle_outlined),
+                        size: 16,
+                        color: r.emptyFilled
+                            ? Colors.green
+                            : (isNext ? Colors.blue : kTextHint),
+                      ),
                     ),
                   ],
                 )));
@@ -1497,138 +1511,138 @@ class _WS extends ConsumerState<WeighmentScreen> {
   }
 
   Widget _buildBottomBar() => Container(
-        color: Colors.white,
-        padding: EdgeInsets.fromLTRB(
-            16, 10, 16, MediaQuery.of(context).padding.bottom + 10),
-        child: Row(children: [
-          if (!_loadLocked) ...[
-            Expanded(
-                child: ElevatedButton.icon(
-                    onPressed: _rows.isEmpty ? null : _lockLoad,
-                    icon: const Icon(Icons.lock_outline, size: 16),
-                    label: const Text('Lock Load'),
-                    style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.orange,
-                        minimumSize: const Size(0, 44)))),
-            const SizedBox(width: 8),
-            // Edit latest row
-            SizedBox(
-                width: 48,
-                height: 44,
-                child: OutlinedButton(
-                    onPressed:
-                        _rows.isEmpty || _sessionLocked ? null : _editLatestRow,
-                    style: OutlinedButton.styleFrom(
-                        padding: EdgeInsets.zero,
-                        side: const BorderSide(color: kPrimary)),
-                    child: _editingPk != null
-                        ? const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2))
-                        : const Icon(Icons.edit_outlined,
-                            size: 20, color: kPrimary))),
-            const SizedBox(width: 8),
-            // Delete latest row
-            SizedBox(
-                width: 48,
-                height: 44,
-                child: OutlinedButton(
-                    onPressed: _rows.isEmpty || _sessionLocked
-                        ? null
-                        : _deleteLatestRow,
-                    style: OutlinedButton.styleFrom(
-                        padding: EdgeInsets.zero,
-                        side: BorderSide(color: Colors.red.shade300)),
-                    child: _deletingPk != null
-                        ? const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(
-                                strokeWidth: 2, color: Colors.red))
-                        : const Icon(Icons.delete_outline,
-                            size: 20, color: Colors.red))),
-            const SizedBox(width: 8),
-            SizedBox(
-                width: 52,
-                height: 44,
-                child: ElevatedButton(
-                    onPressed: _captureLoadWt,
-                    style: ElevatedButton.styleFrom(padding: EdgeInsets.zero),
-                    child: const Icon(Icons.add, size: 28))),
-          ],
-          if (_loadLocked && _mode == 'EMPTY') ...[
-            Expanded(
-                child: ElevatedButton.icon(
-                    onPressed: _rows.any((r) => !r.emptyFilled)
-                        ? _captureEmptyWt
-                        : null,
-                    icon: const Icon(Icons.scale_outlined, size: 16),
-                    label: Text('Empty WT — Row ${_filledEmpty + 1}'),
-                    style: ElevatedButton.styleFrom(
-                        minimumSize: const Size(0, 44)))),
-            const SizedBox(width: 8),
-            // Edit latest row in empty phase
-            SizedBox(
-                width: 48,
-                height: 44,
-                child: OutlinedButton(
-                    onPressed:
-                        _rows.isEmpty || _sessionLocked ? null : _editLatestRow,
-                    style: OutlinedButton.styleFrom(
-                        padding: EdgeInsets.zero,
-                        side: const BorderSide(color: kPrimary)),
-                    child: _editingPk != null
-                        ? const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2))
-                        : const Icon(Icons.edit_outlined,
-                            size: 20, color: kPrimary))),
-            const SizedBox(width: 8),
-            // Delete latest row in empty phase
-            SizedBox(
-                width: 48,
-                height: 44,
-                child: OutlinedButton(
-                    onPressed: _rows.isEmpty || _sessionLocked
-                        ? null
-                        : _deleteLatestRow,
-                    style: OutlinedButton.styleFrom(
-                        padding: EdgeInsets.zero,
-                        side: BorderSide(color: Colors.red.shade300)),
-                    child: _deletingPk != null
-                        ? const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(
-                                strokeWidth: 2, color: Colors.red))
-                        : const Icon(Icons.delete_outline,
-                            size: 20, color: Colors.red))),
-            const SizedBox(width: 8),
-            OutlinedButton(
-                onPressed: () => setState(() {
-                      _loadLocked = false;
-                      _mode = 'LOAD';
-                    }),
+    color: Colors.white,
+    padding: EdgeInsets.fromLTRB(
+        16, 10, 16, MediaQuery.of(context).padding.bottom + 10),
+    child: Row(children: [
+      if (!_loadLocked) ...[
+        Expanded(
+            child: ElevatedButton.icon(
+                onPressed: _rows.isEmpty ? null : _lockLoad,
+                icon: const Icon(Icons.lock_outline, size: 16),
+                label: const Text('Lock Load'),
+                style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.orange,
+                    minimumSize: const Size(0, 44)))),
+        const SizedBox(width: 8),
+        // Edit latest row
+        SizedBox(
+            width: 48,
+            height: 44,
+            child: OutlinedButton(
+                onPressed:
+                _rows.isEmpty || _sessionLocked ? null : _editLatestRow,
                 style: OutlinedButton.styleFrom(
-                    minimumSize: const Size(48, 44), padding: EdgeInsets.zero),
-                child: const Icon(Icons.lock_open, size: 18)),
-          ],
-          if (_mode == 'DONE' ||
-              (_loadLocked && _filledEmpty == _rows.length && _rows.isNotEmpty))
-            Expanded(
-                child: ElevatedButton.icon(
-                    onPressed: _saving ? null : _submit,
-                    icon: const Icon(Icons.check_circle_outline, size: 18),
-                    label: const Text('Use This Weight',
-                        style: TextStyle(
-                            fontSize: 15, fontWeight: FontWeight.w700)),
-                    style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.green,
-                        minimumSize: const Size(0, 48)))),
-        ]),
-      );
+                    padding: EdgeInsets.zero,
+                    side: const BorderSide(color: kPrimary)),
+                child: _editingPk != null
+                    ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2))
+                    : const Icon(Icons.edit_outlined,
+                    size: 20, color: kPrimary))),
+        const SizedBox(width: 8),
+        // Delete latest row
+        SizedBox(
+            width: 48,
+            height: 44,
+            child: OutlinedButton(
+                onPressed: _rows.isEmpty || _sessionLocked
+                    ? null
+                    : _deleteLatestRow,
+                style: OutlinedButton.styleFrom(
+                    padding: EdgeInsets.zero,
+                    side: BorderSide(color: Colors.red.shade300)),
+                child: _deletingPk != null
+                    ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(
+                        strokeWidth: 2, color: Colors.red))
+                    : const Icon(Icons.delete_outline,
+                    size: 20, color: Colors.red))),
+        const SizedBox(width: 8),
+        SizedBox(
+            width: 52,
+            height: 44,
+            child: ElevatedButton(
+                onPressed: _captureLoadWt,
+                style: ElevatedButton.styleFrom(padding: EdgeInsets.zero),
+                child: const Icon(Icons.add, size: 28))),
+      ],
+      if (_loadLocked && _mode == 'EMPTY') ...[
+        Expanded(
+            child: ElevatedButton.icon(
+                onPressed: _rows.any((r) => !r.emptyFilled)
+                    ? _captureEmptyWt
+                    : null,
+                icon: const Icon(Icons.scale_outlined, size: 16),
+                label: Text('Empty WT — Row ${_filledEmpty + 1}'),
+                style: ElevatedButton.styleFrom(
+                    minimumSize: const Size(0, 44)))),
+        const SizedBox(width: 8),
+        // Edit latest row in empty phase
+        SizedBox(
+            width: 48,
+            height: 44,
+            child: OutlinedButton(
+                onPressed:
+                _rows.isEmpty || _sessionLocked ? null : _editLatestRow,
+                style: OutlinedButton.styleFrom(
+                    padding: EdgeInsets.zero,
+                    side: const BorderSide(color: kPrimary)),
+                child: _editingPk != null
+                    ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2))
+                    : const Icon(Icons.edit_outlined,
+                    size: 20, color: kPrimary))),
+        const SizedBox(width: 8),
+        // Delete latest row in empty phase
+        SizedBox(
+            width: 48,
+            height: 44,
+            child: OutlinedButton(
+                onPressed: _rows.isEmpty || _sessionLocked
+                    ? null
+                    : _deleteLatestRow,
+                style: OutlinedButton.styleFrom(
+                    padding: EdgeInsets.zero,
+                    side: BorderSide(color: Colors.red.shade300)),
+                child: _deletingPk != null
+                    ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(
+                        strokeWidth: 2, color: Colors.red))
+                    : const Icon(Icons.delete_outline,
+                    size: 20, color: Colors.red))),
+        const SizedBox(width: 8),
+        OutlinedButton(
+            onPressed: () => setState(() {
+              _loadLocked = false;
+              _mode = 'LOAD';
+            }),
+            style: OutlinedButton.styleFrom(
+                minimumSize: const Size(48, 44), padding: EdgeInsets.zero),
+            child: const Icon(Icons.lock_open, size: 18)),
+      ],
+      if (_mode == 'DONE' ||
+          (_loadLocked && _filledEmpty == _rows.length && _rows.isNotEmpty))
+        Expanded(
+            child: ElevatedButton.icon(
+                onPressed: _saving ? null : _submit,
+                icon: const Icon(Icons.check_circle_outline, size: 18),
+                label: const Text('Use This Weight',
+                    style: TextStyle(
+                        fontSize: 15, fontWeight: FontWeight.w700)),
+                style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.green,
+                    minimumSize: const Size(0, 48)))),
+    ]),
+  );
 
   // ═══════════════════════════════════════════════════════
   //  SIMPLE MODE VIEW — Large touch targets, high contrast
@@ -1893,6 +1907,8 @@ class _WS extends ConsumerState<WeighmentScreen> {
           Row(children: [
             Expanded(
               child: TextField(
+                textInputAction: TextInputAction.next,
+                onSubmitted: (_) => FocusScope.of(context).nextFocus(),
                 controller: _manualWtCtrl,
                 keyboardType: const TextInputType.numberWithOptions(decimal: true),
                 style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
@@ -1914,6 +1930,8 @@ class _WS extends ConsumerState<WeighmentScreen> {
             SizedBox(
               width: 100,
               child: TextField(
+                textInputAction: TextInputAction.done,
+                onSubmitted: (_) => FocusScope.of(context).unfocus(),
                 controller: _manualCagesCtrl,
                 keyboardType: TextInputType.number,
                 style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
@@ -1941,8 +1959,8 @@ class _WS extends ConsumerState<WeighmentScreen> {
               !_loadLocked
                   ? 'CAPTURE LOAD WEIGHT'
                   : (_mode == 'EMPTY'
-                      ? 'CAPTURE EMPTY WEIGHT — Row ${_filledEmpty + 1}'
-                      : 'ALL DONE ✓'),
+                  ? 'CAPTURE EMPTY WEIGHT — Row ${_filledEmpty + 1}'
+                  : 'ALL DONE ✓'),
               style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800),
             ),
             style: ElevatedButton.styleFrom(
@@ -2027,51 +2045,51 @@ class _WS extends ConsumerState<WeighmentScreen> {
                 fontSize: 12, fontWeight: FontWeight.w700, color: kTextHint, letterSpacing: 1)),
         const SizedBox(height: 8),
         ..._rows.map((r) => Container(
-              margin: const EdgeInsets.only(bottom: 6),
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          margin: const EdgeInsets.only(bottom: 6),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          decoration: BoxDecoration(
+            color: r.emptyFilled ? const Color(0xFFF1F8E9) : Colors.grey.shade50,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: r.emptyFilled ? Colors.green.shade200 : Colors.grey.shade200,
+            ),
+          ),
+          child: Row(children: [
+            Container(
+              width: 32,
+              height: 32,
               decoration: BoxDecoration(
-                color: r.emptyFilled ? const Color(0xFFF1F8E9) : Colors.grey.shade50,
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(
-                  color: r.emptyFilled ? Colors.green.shade200 : Colors.grey.shade200,
-                ),
+                color: r.emptyFilled ? Colors.green.shade100 : Colors.grey.shade200,
+                borderRadius: BorderRadius.circular(8),
               ),
-              child: Row(children: [
-                Container(
-                  width: 32,
-                  height: 32,
-                  decoration: BoxDecoration(
-                    color: r.emptyFilled ? Colors.green.shade100 : Colors.grey.shade200,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Center(
-                    child: Text('${r.seqNo}',
-                        style: TextStyle(
-                            fontSize: 14, fontWeight: FontWeight.w800,
-                            color: r.emptyFilled ? Colors.green.shade800 : kTextSub)),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Load: ${r.loadWt.toStringAsFixed(2)} kg · ${r.loadCages} cages',
-                          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-                      if (r.emptyFilled)
-                        Text(
-                            'Empty: ${r.emptyWt.toStringAsFixed(2)} kg · Net: ${r.netWt.toStringAsFixed(2)} kg',
-                            style: TextStyle(fontSize: 12, color: Colors.green.shade700)),
-                    ],
-                  ),
-                ),
-                Icon(
-                  r.emptyFilled ? Icons.check_circle : Icons.circle_outlined,
-                  color: r.emptyFilled ? Colors.green : kTextHint,
-                  size: 24,
-                ),
-              ]),
-            )),
+              child: Center(
+                child: Text('${r.seqNo}',
+                    style: TextStyle(
+                        fontSize: 14, fontWeight: FontWeight.w800,
+                        color: r.emptyFilled ? Colors.green.shade800 : kTextSub)),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Load: ${r.loadWt.toStringAsFixed(2)} kg · ${r.loadCages} cages',
+                      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                  if (r.emptyFilled)
+                    Text(
+                        'Empty: ${r.emptyWt.toStringAsFixed(2)} kg · Net: ${r.netWt.toStringAsFixed(2)} kg',
+                        style: TextStyle(fontSize: 12, color: Colors.green.shade700)),
+                ],
+              ),
+            ),
+            Icon(
+              r.emptyFilled ? Icons.check_circle : Icons.circle_outlined,
+              color: r.emptyFilled ? Colors.green : kTextHint,
+              size: 24,
+            ),
+          ]),
+        )),
       ]),
     );
   }
@@ -2228,11 +2246,11 @@ class _KV extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Column(children: [
-        Text(value,
-            style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w800,
-                color: color ?? kTextMain)),
-        Text(label, style: const TextStyle(fontSize: 9, color: kTextHint)),
-      ]);
+    Text(value,
+        style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w800,
+            color: color ?? kTextMain)),
+    Text(label, style: const TextStyle(fontSize: 9, color: kTextHint)),
+  ]);
 }

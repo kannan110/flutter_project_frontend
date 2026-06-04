@@ -6,7 +6,6 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/providers/session_provider.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_theme.dart';
-import '../../../shared/layouts/responsive_layout.dart';
 
 class PricingRulesScreen extends ConsumerStatefulWidget {
   const PricingRulesScreen({super.key});
@@ -82,12 +81,16 @@ class _S extends ConsumerState<PricingRulesScreen> {
     for (final c in [rateCtrl, discPctCtrl, minQtyCtrl]) c.dispose();
   }
 
-  Widget _buildScaffold(BuildContext context) => Scaffold(
+  @override
+  Widget build(BuildContext context) => Scaffold(
     backgroundColor: kBgPage,
     appBar: AppBar(backgroundColor: kSurface, title: const Text('Pricing Rules'), actions: [IconButton(icon: const Icon(Icons.refresh_rounded), onPressed: _load)]),
     floatingActionButton: FloatingActionButton.extended(onPressed: _addRule, icon: const Icon(Icons.add), label: const Text('Add Rule')),
+    floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
+    // Reserve space so FAB clears the parent TraderShell glass bottom nav
+    bottomNavigationBar: const SizedBox(height: 80),
     body: _loading ? const LoadingList() : _rules.isEmpty ? const EmptyState(icon: Icons.rule_outlined, message: 'No pricing rules', sub: 'Set custom rates or discounts per retailer or product')
-        : ListView.separated(padding: const EdgeInsets.all(16), itemCount: _rules.length,
+        : ListView.separated(padding: const EdgeInsets.fromLTRB(16, 16, 16, 100), itemCount: _rules.length,
         separatorBuilder: (_, __) => const SizedBox(height: 8),
         itemBuilder: (_, i) {
           final rule = _rules[i];
@@ -114,10 +117,4 @@ class _S extends ConsumerState<PricingRulesScreen> {
           ]));
         }),
   );
-  @override
-  Widget build(BuildContext context) => ResponsiveLayout(
-    mobile:  (_) => _buildScaffold(context),
-    desktop: (_) => _buildScaffold(context),
-  );
-
 }

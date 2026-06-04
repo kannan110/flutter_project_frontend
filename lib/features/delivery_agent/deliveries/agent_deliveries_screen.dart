@@ -6,6 +6,7 @@ import '../../../core/providers/session_provider.dart';
 import '../../../core/providers/ui_mode_provider.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../shared/layouts/responsive_layout.dart';
 
 class AgentDeliveriesScreen extends ConsumerStatefulWidget {
   const AgentDeliveriesScreen({super.key});
@@ -74,8 +75,7 @@ class _S extends ConsumerState<AgentDeliveriesScreen> {
   // BUILD
   // ═══════════════════════════════════════════════════════════════════
 
-  @override
-  Widget build(BuildContext context) {
+  Widget _buildScaffold(BuildContext context) {
     final isSimple = ref.watch(uiModeProvider).isSimple;
     if (isSimple && !_loading) return _buildSimpleView();
     if (isSimple && _loading) return _buildSimpleLoading();
@@ -526,4 +526,10 @@ class _S extends ConsumerState<AgentDeliveriesScreen> {
       ]),
     );
   }
+
+  @override
+  Widget build(BuildContext context) => ResponsiveLayout(
+    mobile:  (_) => _buildScaffold(context),
+    desktop: (_) => _buildScaffold(context),
+  );
 }

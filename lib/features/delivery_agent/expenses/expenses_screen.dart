@@ -57,10 +57,14 @@ class _S extends ConsumerState<ExpensesScreen> {
                   ],
                   selected: {type}, onSelectionChanged: (s) => ss(() => type = s.first)),
               const SizedBox(height: 10),
-              TextField(controller: amtCtrl, keyboardType: const TextInputType.numberWithOptions(decimal: true), autofocus: true,
+              TextField(
+                  textInputAction: TextInputAction.next,
+                  onSubmitted: (_) => FocusScope.of(context).nextFocus(),controller: amtCtrl, keyboardType: const TextInputType.numberWithOptions(decimal: true), autofocus: true,
                   decoration: const InputDecoration(labelText: 'Amount (₹) *', prefixText: '₹')),
               const SizedBox(height: 8),
-              TextField(controller: notesCtrl, decoration: const InputDecoration(labelText: 'Notes (optional)')),
+              TextField(
+                  textInputAction: TextInputAction.done,
+                  onSubmitted: (_) => FocusScope.of(context).unfocus(),controller: notesCtrl, decoration: const InputDecoration(labelText: 'Notes (optional)')),
               const SizedBox(height: 14),
               ElevatedButton(onPressed: () async {
                 final amt = double.tryParse(amtCtrl.text.trim());
@@ -88,6 +92,9 @@ class _S extends ConsumerState<ExpensesScreen> {
         backgroundColor: kNavy, foregroundColor: Colors.white,
         title: const Text('Expenses', style: TextStyle(fontWeight: FontWeight.w900)),
         actions: [IconButton(icon: const Icon(Icons.refresh_rounded), onPressed: _load)]),
+    // Reserve space so FAB clears the AgentShell glass bottom nav
+    bottomNavigationBar: const SizedBox(height: 80),
+    floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
     floatingActionButton: FloatingActionButton.extended(
         onPressed: _add,
         backgroundColor: const Color(0xFFD97706),
@@ -106,7 +113,7 @@ class _S extends ConsumerState<ExpensesScreen> {
       ])),
       const Divider(height: 1),
       Expanded(child: _expenses.isEmpty ? const EmptyState(icon: Icons.receipt_outlined, message: 'No expenses')
-          : ListView.separated(padding: const EdgeInsets.all(14), itemCount: _expenses.length,
+          : ListView.separated(padding: const EdgeInsets.fromLTRB(14, 14, 14, 100), itemCount: _expenses.length,
           separatorBuilder: (_, __) => const SizedBox(height: 8),
           itemBuilder: (_, i) {
             final e = _expenses[i];

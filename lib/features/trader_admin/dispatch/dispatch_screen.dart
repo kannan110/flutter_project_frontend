@@ -6,10 +6,6 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/providers/session_provider.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_theme.dart';
-import '../../../shared/layouts/responsive_layout.dart';
-import '../../../shared/widgets/cards/metric_card.dart';
-import '../../../shared/widgets/common/async_state_view.dart';
-import '../../../shared/widgets/tables/app_table.dart';
 
 class DispatchScreen extends ConsumerStatefulWidget {
   const DispatchScreen({super.key});
@@ -154,309 +150,94 @@ class _S extends ConsumerState<DispatchScreen> with SingleTickerProviderStateMix
   }
 
   @override
-  Widget build(BuildContext context) {
-    final isDesktop = context.isDesktop;
-    final live      = _live;
-
-    if (isDesktop) {
-      return Scaffold(
-        backgroundColor: kBgPage,
-        body: Column(children: [
-          // ── Desktop page header ─────────────────────────────────────────
-          Container(
-            decoration: const BoxDecoration(
-              color: kSurface,
-              border: Border(bottom: BorderSide(color: kBorderLight)),
-            ),
-            padding: const EdgeInsets.fromLTRB(24, 14, 24, 0),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Row(children: [
-                const Text('Dispatch', style: TextStyle(fontSize: 22,
-                    fontWeight: FontWeight.w800, color: kNavy)),
-                const Spacer(),
-                IconButton(icon: const Icon(Icons.refresh_outlined),
-                    onPressed: _load, tooltip: 'Refresh'),
-                const SizedBox(width: 8),
-                GestureDetector(
-                  onTap: _createBatch,
-                  child: Container(
-                    height: 40,
-                    padding: const EdgeInsets.symmetric(horizontal: 18),
-                    decoration: BoxDecoration(color: kNavy,
-                        borderRadius: BorderRadius.circular(kRadiusCard),
-                        boxShadow: [BoxShadow(color: kNavy.withValues(alpha: 0.3),
-                            blurRadius: 8, offset: const Offset(0, 2))]),
-                    child: const Row(mainAxisSize: MainAxisSize.min, children: [
-                      Icon(Icons.add_rounded, color: kGoldLight, size: 18),
-                      SizedBox(width: 8),
-                      Text('New Batch', style: TextStyle(fontSize: 14,
-                          fontWeight: FontWeight.w800, color: Colors.white)),
-                    ]),
-                  ),
-                ),
-              ]),
-              const SizedBox(height: 12),
-              // ── Summary strip ──────────────────────────────────────────
-              MetricStrip(metrics: [
-                MetricCard(label: 'Live Deliveries', value: '${live.length}',
-                    color: live.isNotEmpty ? kPrimary : kTextHint,
-                    icon: Icons.local_shipping_outlined),
-                MetricCard(label: "Today's Batches", value: '${_today.length}',
-                    icon: Icons.today_outlined),
-                MetricCard(label: 'Completed (${_completedDaysBack}d)', value: '${_completed.length}',
-                    color: Colors.green, icon: Icons.check_circle_outline),
-                MetricCard(label: 'Cancelled', value: '${_cancelled.length}',
-                    color: _cancelled.isNotEmpty ? Colors.red : kTextHint,
-                    icon: Icons.cancel_outlined),
-              ]),
-              const SizedBox(height: 12),
-              // ── Tab bar ────────────────────────────────────────────────
-              TabBar(
-                controller: _tab,
-                tabs: _tabs.asMap().entries.map((e) {
-                  final list  = _listFor(e.key);
-                  final badge = list.length;
-                  return Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [
-                    Text(e.value, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
-                    if (badge > 0) ...[
-                      const SizedBox(width: 6),
-                      Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                          decoration: BoxDecoration(
-                              color: e.key == 1 ? kPrimary : Colors.grey.shade400,
-                              borderRadius: BorderRadius.circular(8)),
-                          child: Text('$badge', style: const TextStyle(
-                              fontSize: 9, color: Colors.white, fontWeight: FontWeight.w800))),
-                    ],
-                  ]));
-                }).toList(),
-                isScrollable: false,
-                labelColor: kPrimary,
-                unselectedLabelColor: kTextHint,
-                indicatorColor: kPrimary,
-                dividerColor: kBorderLight,
-              ),
-            ]),
-          ),
-          // ── Content ────────────────────────────────────────────────────
-          Expanded(
-            child: _loading
-                ? const LoadingList()
-                : TabBarView(
-              controller: _tab,
-              children: List.generate(_tabs.length, (i) {
-                final list = _listFor(i);
-                if (list.isEmpty) return EmptyState(
-                    icon: switch(i) {
-                      0 => Icons.today_outlined,
-                      1 => Icons.local_shipping_outlined,
-                      2 => Icons.check_circle_outline,
-                      _ => Icons.cancel_outlined,
-                    },
-                    message: switch(i) {
-                      0 => 'No batches today',
-                      1 => 'No live deliveries',
-                      2 => 'No completed batches in last $_completedDaysBack days',
-                      _ => 'No cancelled batches',
-                    });
-                return _buildDesktopTable(list, i);
-              }),
-            ),
-          ),
-        ]),
-      );
-    }
-
-    // ── Mobile / Tablet: original layout unchanged ─────────────────────────
-    return Scaffold(
-      appBar: AppBar(
-          backgroundColor: kSurface,
-          title: const Text('Dispatch'),
-          actions: [IconButton(icon: const Icon(Icons.refresh), onPressed: _load)],
-          bottom: TabBar(
-            controller: _tab,
-            tabs: _tabs.asMap().entries.map((e) {
-              final list  = _listFor(e.key);
-              final badge = list.length;
-              return Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [
-                Text(e.value, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
-                if (badge > 0) ...[
-                  const SizedBox(width: 4),
-                  Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-                      decoration: BoxDecoration(
-                          color: e.key == 1 ? kPrimary : Colors.grey.shade400,
-                          borderRadius: BorderRadius.circular(8)),
-                      child: Text('$badge', style: const TextStyle(
-                          fontSize: 9, color: Colors.white, fontWeight: FontWeight.w800))),
-                ],
-              ]));
-            }).toList(),
-            isScrollable: false,
-            labelColor: kPrimary,
-            unselectedLabelColor: kTextHint,
-            indicatorColor: kPrimary,
-          )),
-      floatingActionButton: FloatingActionButton.extended(
-          onPressed: _createBatch,
-          icon: const Icon(Icons.add),
-          label: const Text('New Batch')),
-      body: _loading ? const LoadingList() : TabBarView(
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(
+        backgroundColor: kSurface,
+        title: const Text('Dispatch'),
+        actions: [IconButton(icon: const Icon(Icons.refresh), onPressed: _load)],
+        bottom: TabBar(
           controller: _tab,
-          children: List.generate(_tabs.length, (i) {
-            final list = _listFor(i);
-            if (list.isEmpty) return EmptyState(
-                icon: switch(i) {
-                  0 => Icons.today_outlined,
-                  1 => Icons.local_shipping_outlined,
-                  2 => Icons.check_circle_outline,
-                  _ => Icons.cancel_outlined,
-                },
-                message: switch(i) {
-                  0 => 'No batches today',
-                  1 => 'No live deliveries',
-                  2 => 'No completed batches in last $_completedDaysBack days',
-                  _ => 'No cancelled batches',
-                });
-            final showLoadMore = i >= 2;
-            return RefreshIndicator(
-                onRefresh: _load,
-                child: ListView.separated(
-                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
-                    itemCount: list.length + (showLoadMore ? 1 : 0),
-                    separatorBuilder: (_, __) => const SizedBox(height: 10),
-                    itemBuilder: (_, idx) {
-                      if (showLoadMore && idx == list.length) {
-                        return Padding(
-                            padding: const EdgeInsets.only(top: 4),
-                            child: OutlinedButton.icon(
-                                onPressed: () {
-                                  setState(() => _completedDaysBack += 14);
-                                  _load();
-                                },
-                                icon: const Icon(Icons.expand_more, size: 18),
-                                label: Text('Load Earlier — showing last $_completedDaysBack days',
-                                    style: const TextStyle(fontSize: 12)),
-                                style: OutlinedButton.styleFrom(
-                                    minimumSize: const Size(double.infinity, 44),
-                                    foregroundColor: kPrimary)));
-                      }
-                      return _BatchCard(
-                        batch: list[idx],
-                        birds: _birds(list[idx]),
-                        weight: _weight(list[idx]),
-                        orders: _orders(list[idx]),
-                        onTap: () => context.push(R.batchDetailPath(list[idx]['id'])),
-                      );
-                    }));
-          })),
-    );
-  }
-
-  // ── Desktop batch AppTable ─────────────────────────────────────────────────
-  Widget _buildDesktopTable(List<Map<String,dynamic>> list, int tabIdx) {
-    final showLoadMore = tabIdx >= 2;
-    return AppTable<Map<String,dynamic>>(
-      columns: [
-        AppTableColumn(
-          label: 'Agent', flex: 2,
-          cellBuilder: (b) {
-            final a = b['delivery_agents'] as Map<String,dynamic>?;
-            return Row(children: [
-              Container(width: 28, height: 28,
-                  decoration: BoxDecoration(color: kNavy.withValues(alpha: 0.08),
-                      shape: BoxShape.circle),
-                  child: Center(child: Text(
-                      (a?['name'] as String? ?? '?')[0].toUpperCase(),
-                      style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: kNavy)))),
-              const SizedBox(width: 8),
-              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(a?['name'] as String? ?? '—',
-                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: kTextMain),
-                    overflow: TextOverflow.ellipsis),
-                Text(a?['vehicle_no'] as String? ?? '—',
-                    style: const TextStyle(fontSize: 11, color: kTextHint)),
-              ])),
-            ]);
-          },
-        ),
-        AppTableColumn(
-          label: 'Status', width: 150, alignment: Alignment.center,
-          cellBuilder: (b) {
-            final status = b['status'] as String? ?? 'assigned';
-            final color = switch(status) {
-              'assigned'         => Colors.blue,
-              'picked_up'        => Colors.indigo,
-              'out_for_delivery' => kPrimary,
-              'completed'        => Colors.green,
-              'cancelled'        => Colors.red,
-              _                  => Colors.grey,
-            };
-            return StatusBadge(status.replaceAll('_', ' '), color, small: true);
-          },
-        ),
-        AppTableColumn(
-          label: 'Birds', width: 80, alignment: Alignment.centerRight,
-          cellBuilder: (b) => Text('${_birds(b)}',
-              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: kNavy)),
-        ),
-        AppTableColumn(
-          label: 'Weight', width: 110, alignment: Alignment.centerRight,
-          cellBuilder: (b) => Text('${_weight(b).toStringAsFixed(1)} kg',
-              style: const TextStyle(fontSize: 13, color: kTextSub)),
-        ),
-        AppTableColumn(
-          label: 'Orders', width: 90, alignment: Alignment.centerRight,
-          cellBuilder: (b) {
-            final deliveries = b['deliveries'] as List? ?? [];
-            final done  = deliveries.where((d) => d['status'] == 'delivered').length;
-            final total = deliveries.where((d) => d['status'] != 'cancelled').length;
-            return Text(total > 0 ? '$done/$total' : '${_orders(b)}',
-                style: TextStyle(fontSize: 13,
-                    color: done == total && total > 0 ? Colors.green : kTextSub));
-          },
-        ),
-        AppTableColumn(
-          label: 'DCs', width: 60, alignment: Alignment.centerRight,
-          cellBuilder: (b) {
-            final cnt = (b['delivery_challans'] as List? ?? []).length;
-            return Text('$cnt', style: const TextStyle(fontSize: 13, color: kTextSub));
-          },
-        ),
-        AppTableColumn(
-          label: 'Date', width: 130, alignment: Alignment.centerRight,
-          cellBuilder: (b) {
-            final d = DateTime.tryParse(b['created_at'] as String? ?? '');
-            return Text(d != null ? DateFormat('d MMM · h:mm a').format(d.toLocal()) : '—',
-                style: const TextStyle(fontSize: 11, color: kTextHint));
-          },
-        ),
-        AppTableColumn(
-          label: '', width: 40, alignment: Alignment.center,
-          cellBuilder: (_) => const Icon(Icons.chevron_right, size: 16, color: kTextHint),
-        ),
-      ],
-      rows:    list,
-      onRowTap: (b) => context.push(R.batchDetailPath(b['id'] as String)),
-      desktopPadding: const EdgeInsets.symmetric(horizontal: 16),
-      emptyWidget: const AsyncStateView(
-        loading: false, empty: true,
-        emptyIcon: Icons.local_shipping_outlined,
-        emptyMessage: 'No batches found',
-        child: SizedBox.shrink(),
-      ),
-      footerWidget: showLoadMore
-          ? OutlinedButton.icon(
-          onPressed: () { setState(() => _completedDaysBack += 14); _load(); },
-          icon: const Icon(Icons.expand_more, size: 18),
-          label: Text('Load Earlier — showing last $_completedDaysBack days'),
-          style: OutlinedButton.styleFrom(
-              minimumSize: const Size(double.infinity, 44), foregroundColor: kPrimary))
-          : Text('${list.length} batches',
-          style: const TextStyle(fontSize: 12, color: kTextHint),
-          textAlign: TextAlign.center),
-    );
-  }
+          tabs: _tabs.asMap().entries.map((e) {
+            final list  = _listFor(e.key);
+            final badge = list.length;
+            return Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [
+              Text(e.value, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+              if (badge > 0) ...[
+                const SizedBox(width: 4),
+                Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                    decoration: BoxDecoration(
+                        color: e.key == 1 ? kPrimary : Colors.grey.shade400,
+                        borderRadius: BorderRadius.circular(8)),
+                    child: Text('$badge', style: const TextStyle(
+                        fontSize: 9, color: Colors.white, fontWeight: FontWeight.w800))),
+              ],
+            ]));
+          }).toList(),
+          isScrollable: false,
+          labelColor: kPrimary,
+          unselectedLabelColor: kTextHint,
+          indicatorColor: kPrimary,
+        )),
+    floatingActionButton: FloatingActionButton.extended(
+        onPressed: _createBatch,
+        icon: const Icon(Icons.add),
+        label: const Text('New Batch')),
+    floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
+    // Reserve space so FAB clears the parent TraderShell glass bottom nav
+    bottomNavigationBar: const SizedBox(height: 80),
+    body: _loading ? const LoadingList() : TabBarView(
+        controller: _tab,
+        children: List.generate(_tabs.length, (i) {
+          final list = _listFor(i);
+          if (list.isEmpty) return EmptyState(
+              icon: switch(i) {
+                0 => Icons.today_outlined,
+                1 => Icons.local_shipping_outlined,
+                2 => Icons.check_circle_outline,
+                _ => Icons.cancel_outlined,
+              },
+              message: switch(i) {
+                0 => 'No batches today',
+                1 => 'No live deliveries',
+                2 => 'No completed batches in last $_completedDaysBack days',
+                _ => 'No cancelled batches',
+              });
+          // M5 FIX: Completed (2) and Cancelled (3) tabs show "Load More" footer
+          final showLoadMore = i >= 2;
+          return RefreshIndicator(
+              onRefresh: _load,
+              child: ListView.separated(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 120),
+                  itemCount: list.length + (showLoadMore ? 1 : 0),
+                  separatorBuilder: (_, __) => const SizedBox(height: 10),
+                  itemBuilder: (_, idx) {
+                    // Last item: Load More button for completed/cancelled tabs
+                    if (showLoadMore && idx == list.length) {
+                      return Padding(
+                          padding: const EdgeInsets.only(top: 4),
+                          child: OutlinedButton.icon(
+                              onPressed: () {
+                                setState(() => _completedDaysBack += 14);
+                                _load();
+                              },
+                              icon: const Icon(Icons.expand_more, size: 18),
+                              label: Text('Load Earlier — showing last $_completedDaysBack days',
+                                  style: const TextStyle(fontSize: 12)),
+                              style: OutlinedButton.styleFrom(
+                                  minimumSize: const Size(double.infinity, 44),
+                                  foregroundColor: kPrimary)));
+                    }
+                    return _BatchCard(
+                      batch: list[idx],
+                      birds: _birds(list[idx]),
+                      weight: _weight(list[idx]),
+                      orders: _orders(list[idx]),
+                      onTap: () => context.push(R.batchDetailPath(list[idx]['id'])),
+                    );
+                  }));
+        })),
+  );
 }
 
 // ── Batch card ──────────────────────────────────────────────────────────────

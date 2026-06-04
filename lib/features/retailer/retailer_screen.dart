@@ -6,7 +6,6 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/providers/session_provider.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_theme.dart';
-import '../../../shared/layouts/responsive_layout.dart';
 
 class RetailerScreen extends ConsumerStatefulWidget {
   const RetailerScreen({super.key});
@@ -23,7 +22,6 @@ class _RS extends ConsumerState<RetailerScreen>
   Map<String,dynamic>?      _ledgerData;
   List<Map<String,dynamic>> _complaints = [];
   List<Map<String,dynamic>> _history    = [];
-  List<Map<String,dynamic>> _statement  = [];  // Phase 8
 
   bool _loading = true;
   String? _retailerId;
@@ -33,7 +31,7 @@ class _RS extends ConsumerState<RetailerScreen>
   @override
   void initState() {
     super.initState();
-    _tab = TabController(length: 7, vsync: this);
+    _tab = TabController(length: 6, vsync: this);
     _tab.addListener(() { if (!_tab.indexIsChanging) _load(); });
     _initRetailer();
   }
@@ -60,7 +58,7 @@ class _RS extends ConsumerState<RetailerScreen>
     try {
       switch (_tab.index) {
         case 0:
-        case 6:  // Profile tab — needs dashboard data
+        case 5:
           final d = await _c.rpc('get_retailer_dashboard',
               params: {'p_retailer_id': rid}).timeout(const Duration(seconds: 12));
           if (mounted) setState(() => _dashboard = d as Map<String,dynamic>?);
@@ -91,12 +89,6 @@ class _RS extends ConsumerState<RetailerScreen>
           }).timeout(const Duration(seconds: 10));
           if (mounted) setState(() => _history = List<Map<String,dynamic>>.from(
               (r as Map<String,dynamic>?)?['orders'] as List? ?? []));
-        case 5:  // Statement tab
-          final stmt = await _c.rpc('get_retailer_statement', params: {
-            'p_retailer_id': rid, 'p_from_date': fromStr, 'p_to_date': toStr,
-          }).timeout(const Duration(seconds: 10));
-          if (mounted) setState(() =>
-          _statement = List<Map<String,dynamic>>.from(stmt as List? ?? []));
       }
     } catch (e) {
       if (mounted) showError(context, e.toString().replaceAll('Exception: ',''));
@@ -104,7 +96,8 @@ class _RS extends ConsumerState<RetailerScreen>
     if (mounted) setState(() => _loading = false);
   }
 
-  Widget _buildScaffold(BuildContext context) {
+  @override
+  Widget build(BuildContext context) {
     final shopName = (_dashboard?['retailer'] as Map<String,dynamic>?)?['shop_name']
     as String? ?? 'My Shop';
     return Scaffold(
@@ -135,13 +128,16 @@ class _RS extends ConsumerState<RetailerScreen>
               tabs: const [
                 Tab(text: 'Home'),  Tab(text: 'Orders'),
                 Tab(text: 'Ledger'), Tab(text: 'Complaints'),
-                Tab(text: 'History'), Tab(text: 'Statement'), Tab(text: 'Profile'),
+                Tab(text: 'History'), Tab(text: 'Profile'),
               ])),
       body: _loading ? const LoadingList()
           : TabBarView(controller: _tab, children: [
         _tabHome(), _tabOrders(), _tabLedger(),
-        _tabComplaints(), _tabHistory(), _tabStatement(), _tabProfile(),
+        _tabComplaints(), _tabHistory(), _tabProfile(),
       ]),
+      // Reserve space so FAB clears the TraderShell glass bottom nav
+      bottomNavigationBar: const SizedBox(height: 80),
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
       floatingActionButton: (_tab.index == 0 || _tab.index == 1)
           ? FloatingActionButton.extended(
           onPressed: _showPlaceOrder,
@@ -705,100 +701,6 @@ class _RS extends ConsumerState<RetailerScreen>
           _profileAction(Icons.logout, 'Sign Out', Colors.red, _signOut),
           const SizedBox(height: 30),
         ]));
-  }
-
-  // ─── STATEMENT ────────────────────────────────────────────────────────────
-  Widget _tabStatement() {
-    // Running balance summary
-    final lastBalance = _statement.isNotEmpty
-        ? (_statement.last['running_balance'] as num?)?.toDouble() ?? 0
-        : 0.0;
-    final totalInvoiced = _statement
-        .fold(0.0, (s, e) => s + ((e['debit_amount'] as num?)?.toDouble() ?? 0));
-    final totalPaid = _statement
-        .fold(0.0, (s, e) => s + ((e['credit_amount'] as num?)?.toDouble() ?? 0));
-
-    return Column(children: [
-      _dateRangeBar(),
-
-      // Summary header
-      Container(
-        decoration: const BoxDecoration(
-            gradient: LinearGradient(colors: [kNavy, kNavyMid],
-                begin: Alignment.topLeft, end: Alignment.bottomRight)),
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-        child: Row(children: [
-          _lStat('Invoiced', Fmt.amount(totalInvoiced), Colors.red.shade200),
-          _lStat('Paid',     Fmt.amount(totalPaid),     Colors.green.shade300),
-          _lStat('Balance',  Fmt.amount(lastBalance),
-              lastBalance > 0 ? Colors.orange.shade300 : Colors.green.shade300),
-        ]),
-      ),
-
-      if (_statement.isEmpty)
-        const Expanded(child: EmptyState(
-            icon: Icons.receipt_long_outlined,
-            message: 'No transactions in this period'))
-      else
-        Expanded(child: ListView.separated(
-          padding: const EdgeInsets.all(12),
-          itemCount: _statement.length,
-          separatorBuilder: (_, __) => const SizedBox(height: 4),
-          itemBuilder: (_, i) {
-            final e       = _statement[i];
-            final isInv   = e['entry_type'] == 'invoice';
-            final debit   = (e['debit_amount']    as num?)?.toDouble() ?? 0;
-            final credit  = (e['credit_amount']   as num?)?.toDouble() ?? 0;
-            final balance = (e['running_balance'] as num?)?.toDouble() ?? 0;
-            final dt      = DateTime.tryParse(e['entry_date'] as String? ?? '');
-            final ref     = e['reference'] as String? ?? '—';
-            final desc    = e['description'] as String? ?? '';
-            final entryColor = isInv ? Colors.red.shade700 : Colors.green.shade700;
-
-            return Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              decoration: BoxDecoration(
-                color: kSurface,
-                borderRadius: BorderRadius.circular(kRadiusCard),
-                border: Border.all(color: kBorderLight),
-                boxShadow: kCardShadow,
-              ),
-              child: Row(children: [
-                // Type icon
-                Container(
-                  width: 34, height: 34,
-                  decoration: BoxDecoration(
-                      color: entryColor.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(8)),
-                  child: Icon(
-                      isInv ? Icons.receipt_long_outlined : Icons.payments_outlined,
-                      size: 16, color: entryColor),
-                ),
-                const SizedBox(width: 10),
-                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(
-                      ref.toUpperCase().replaceAll('_', ' '),
-                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800,
-                          color: entryColor)),
-                  Text(desc, style: const TextStyle(fontSize: 10, color: kTextHint),
-                      maxLines: 1, overflow: TextOverflow.ellipsis),
-                ])),
-                Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-                  Text(
-                      isInv ? '+${Fmt.amount(debit)}' : '-${Fmt.amount(credit)}',
-                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800,
-                          color: entryColor)),
-                  Text('Bal: ${Fmt.amount(balance)}',
-                      style: const TextStyle(fontSize: 9, color: kTextHint)),
-                  if (dt != null)
-                    Text(DateFormat('d MMM').format(dt),
-                        style: const TextStyle(fontSize: 9, color: kTextHint)),
-                ]),
-              ]),
-            );
-          },
-        )),
-    ]);
   }
 
   // ─── DIALOGS ─────────────────────────────────────────────────────────────
@@ -1446,10 +1348,4 @@ class _RS extends ConsumerState<RetailerScreen>
     'complaint_update'     => Icons.report_problem_outlined,
     _                      => Icons.notifications_outlined,
   };
-
-  @override
-  Widget build(BuildContext context) => ResponsiveLayout(
-    mobile:  (_) => _buildScaffold(context),
-    desktop: (_) => _buildScaffold(context),
-  );
 }
