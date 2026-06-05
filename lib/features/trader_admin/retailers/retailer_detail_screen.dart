@@ -52,8 +52,14 @@ class _S extends ConsumerState<RetailerDetailScreen> {
   double _outstanding = 0;
   List<Map<String, dynamic>> _recentOrders = [];
 
-  // Opening balance state
+  // Phase 1: opening balance state
   Map<String, dynamic>? _obInfo;         // from get_retailer_opening_balance
+
+  // Phase 2: credit history state
+  List<Map<String, dynamic>> _creditHistory = [];
+  bool _loadingHistory = false;
+  bool _historyLoaded  = false;   // lazy-load on first expand
+  bool _showHistory    = false;
   bool _editingOb     = false;
   bool _savingOb      = false;
   late TextEditingController _obAmountCtrl;
@@ -203,6 +209,26 @@ class _S extends ConsumerState<RetailerDetailScreen> {
       if (mounted) showError(context, e.toString().replaceAll('Exception: ', ''));
     } finally {
       if (mounted) setState(() => _savingOb = false);
+    }
+  }
+
+  // Phase 2: lazy-load credit history when section is expanded
+  Future<void> _loadCreditHistory() async {
+    if (mounted) setState(() => _loadingHistory = true);
+    try {
+      final res = await _c.rpc('get_retailer_credit_history', params: {
+        'p_retailer_id': widget.id,
+        'p_limit':       50,
+      });
+      if (mounted) {
+        setState(() {
+          _creditHistory = List<Map<String, dynamic>>.from(res as List? ?? []);
+          _historyLoaded = true;
+          _loadingHistory = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) setState(() => _loadingHistory = false);
     }
   }
 
@@ -789,6 +815,144 @@ class _S extends ConsumerState<RetailerDetailScreen> {
               style: OutlinedButton.styleFrom(
                   foregroundColor: isActive ? Colors.red : kPrimary,
                   side: BorderSide(color: isActive ? Colors.red : kPrimary))),
+
+          // ── Phase 2: Credit History section ─────────────────────────────
+          const SizedBox(height: 16),
+          GestureDetector(
+            onTap: () {
+              setState(() => _showHistory = !_showHistory);
+              if (_showHistory && !_historyLoaded) _loadCreditHistory();
+            },
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              decoration: BoxDecoration(
+                color: _showHistory ? const Color(0xFFF0F4FF) : Colors.grey.shade50,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                    color: _showHistory ? Colors.blue.shade200 : Colors.grey.shade300),
+              ),
+              child: Row(children: [
+                Icon(Icons.history_rounded, size: 18,
+                    color: _showHistory ? Colors.blue.shade700 : kTextSub),
+                const SizedBox(width: 10),
+                Expanded(child: Text('Credit & Account History',
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700,
+                        color: _showHistory ? Colors.blue.shade700 : kTextSub))),
+                Icon(_showHistory
+                    ? Icons.keyboard_arrow_up
+                    : Icons.keyboard_arrow_down,
+                    size: 18, color: kTextSub),
+              ]),
+            ),
+          ),
+
+          if (_showHistory) ...[
+            const SizedBox(height: 8),
+            Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: Colors.blue.shade100),
+              ),
+              child: _loadingHistory
+                  ? const Padding(
+                  padding: EdgeInsets.all(24),
+                  child: Center(child: CircularProgressIndicator(strokeWidth: 2)))
+                  : _creditHistory.isEmpty
+                  ? const Padding(
+                  padding: EdgeInsets.all(20),
+                  child: Center(child: Text('No credit changes recorded yet.',
+                      style: TextStyle(fontSize: 13, color: kTextHint))))
+                  : Column(children: _creditHistory.asMap().entries.map((e) {
+                final i   = e.key;
+                final row = e.value;
+                final ct  = row['change_type'] as String? ?? '';
+                final at  = DateTime.tryParse(
+                    row['changed_at'] as String? ?? '');
+                final who = row['changed_by_name'] as String? ?? 'System';
+
+                // Build human-readable description
+                String desc;
+                Color  color;
+                IconData icon;
+
+                switch (ct) {
+                  case 'credit_limit_change':
+                    final old = (row['old_credit_limit'] as num?)?.toDouble() ?? 0;
+                    final nw  = (row['new_credit_limit'] as num?)?.toDouble() ?? 0;
+                    desc  = 'Credit limit: ${Fmt.amount(old)} → ${Fmt.amount(nw)}';
+                    color = nw > old ? Colors.green : Colors.red;
+                    icon  = nw > old ? Icons.arrow_upward_rounded : Icons.arrow_downward_rounded;
+                  case 'block':
+                    desc  = 'Account blocked';
+                    if (row['note'] != null) desc += ' — ${row['note']}';
+                    color = Colors.red;
+                    icon  = Icons.block_rounded;
+                  case 'unblock':
+                    desc  = 'Account unblocked';
+                    color = Colors.green;
+                    icon  = Icons.check_circle_outline_rounded;
+                  case 'allow_credit_off':
+                    desc  = 'Credit disabled';
+                    color = Colors.orange;
+                    icon  = Icons.credit_card_off_outlined;
+                  case 'allow_credit_on':
+                    desc  = 'Credit enabled';
+                    color = Colors.blue;
+                    icon  = Icons.credit_card_outlined;
+                  case 'outstanding_adjustment':
+                    final old = (row['old_outstanding'] as num?)?.toDouble() ?? 0;
+                    final nw  = (row['new_outstanding'] as num?)?.toDouble() ?? 0;
+                    desc  = 'Outstanding: ${Fmt.amount(old)} → ${Fmt.amount(nw)}';
+                    color = Colors.orange.shade700;
+                    icon  = Icons.account_balance_wallet_outlined;
+                  case 'risk_level_change':
+                    desc  = 'Risk: ${row['old_risk_level'] ?? '?'} → ${row['new_risk_level'] ?? '?'}';
+                    color = Colors.purple;
+                    icon  = Icons.warning_amber_rounded;
+                  default:
+                    desc  = ct.replaceAll('_', ' ');
+                    color = kTextSub;
+                    icon  = Icons.info_outline;
+                }
+
+                return Container(
+                  padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+                  decoration: BoxDecoration(
+                    border: i < _creditHistory.length - 1
+                        ? const Border(bottom: BorderSide(color: kBorder))
+                        : null,
+                  ),
+                  child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    // Timeline dot
+                    Container(
+                      width: 30, height: 30,
+                      decoration: BoxDecoration(
+                          color: color.withValues(alpha: 0.1),
+                          shape: BoxShape.circle),
+                      child: Icon(icon, size: 14, color: color),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(desc, style: const TextStyle(
+                              fontSize: 13, fontWeight: FontWeight.w600)),
+                          const SizedBox(height: 2),
+                          Text(who,
+                              style: const TextStyle(
+                                  fontSize: 11, color: kTextHint)),
+                        ])),
+                    if (at != null)
+                      Text(DateFormat('d MMM y\nh:mm a').format(at.toLocal()),
+                          textAlign: TextAlign.right,
+                          style: const TextStyle(
+                              fontSize: 10, color: kTextHint)),
+                  ]),
+                );
+              }).toList()),
+            ),
+          ],
         ],
         const SizedBox(height: 20),
       ]),
