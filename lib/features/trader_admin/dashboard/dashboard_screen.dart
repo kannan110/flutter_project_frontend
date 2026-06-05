@@ -33,7 +33,7 @@ const _kOrangeLt = Color(0xFFFFFBEB);
 const _kRed = Color(0xFFDC2626);
 const _kRedLt = Color(0xFFFEF2F2);
 const _kIndigo = Color(0xFF4F46E5);
-const _kViolet = Color(0xFF7C3AED);
+const _kColorsViolet = Color(0xFF7C3AED);
 const _kTeal = Color(0xFF0D9488);
 
 const _kShadow = [
@@ -56,7 +56,6 @@ class _S extends ConsumerState<DashboardScreen> {
   DashboardData? _data;
   List<StockPosition> _stock = [];
   List<Map<String, dynamic>> _recentOrders = [];
-  // Session B: parallel RPC results
   List<Map<String, dynamic>> _dashboardAging   = [];  // from get_dashboard_aging
   List<Map<String, dynamic>> _topRetailers     = [];  // from get_top_retailers_today
   bool _loading = true;
@@ -67,7 +66,6 @@ class _S extends ConsumerState<DashboardScreen> {
     _load();
   }
 
-  // ── ALL BUSINESS LOGIC PRESERVED EXACTLY + SESSION B PARALLEL CALLS ─────
   Future<void> _load() async {
     final tid = ref
         .read(appUserProvider)
@@ -79,25 +77,19 @@ class _S extends ConsumerState<DashboardScreen> {
       _error = null;
     });
     try {
-      // ── Core parallel calls (Session B: 4 concurrent) ───────────────────
       final results = await Future.wait([
-        // 0: dashboard summary (existing)
         Supabase.instance.client
             .rpc('dashboard_summary', params: {'p_trader_id': tid}),
-        // 1: available stock (existing)
         Supabase.instance.client
             .rpc('get_available_stock', params: {'p_trader_id': tid}),
-        // 2: collection aging buckets (new — Session A RPC)
         Supabase.instance.client
             .rpc('get_dashboard_aging', params: {'p_trader_id': tid})
             .timeout(const Duration(seconds: 8)),
-        // 3: top retailers today (new — Session A RPC)
         Supabase.instance.client
             .rpc('get_top_retailers_today', params: {'p_trader_id': tid})
             .timeout(const Duration(seconds: 8)),
       ]);
 
-      // ── Recent orders (kept separate — not critical path) ────────────────
       List<Map<String, dynamic>> recentOrders = [];
       try {
         final r = await Supabase.instance.client
@@ -144,8 +136,6 @@ class _S extends ConsumerState<DashboardScreen> {
     }
   }
 
-  Future<void> _updateStatus(String s) async {} // preserved
-
   @override
   Widget build(BuildContext context) {
     final user = ref
@@ -160,9 +150,6 @@ class _S extends ConsumerState<DashboardScreen> {
     );
   }
 
-  // ══════════════════════════════════════════════════════════════════════════
-  // ENTERPRISE DESKTOP DASHBOARD — Operations Command Center
-  // ══════════════════════════════════════════════════════════════════════════
   Widget _buildDesktopLayout(dynamic user, String lang,
       String Function(String) t) {
     if (_loading) return const Center(child: SizedBox(
@@ -176,34 +163,24 @@ class _S extends ConsumerState<DashboardScreen> {
     return ColoredBox(
       color: _kPageBg,
       child: Column(children: [
-        // ── Command Header ──────────────────────────────────────────────────
         _CommandHeader(user: user, data: d, onRefresh: _load, now: now),
-        // ── Body ────────────────────────────────────────────────────────────
         Expanded(child: SingleChildScrollView(
           padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
           child: Column(
               crossAxisAlignment: CrossAxisAlignment.start, children: [
-
-            // ── Row 1: 5 metric panels ──────────────────────────────────────
             _MetricStrip(data: d, stock: _stock),
             const SizedBox(height: 20),
-
-            // ── Row 2: Operations Board ────────────────────────────────────
             _OpsBoard(data: d, onNavigate: (r) => context.go(r)),
             const SizedBox(height: 20),
-
-            // ── Row 3: Main 3-col grid ──────────────────────────────────────
             Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              // Left: Revenue Trend + Live Stock
               Expanded(flex: 7, child: Column(children: [
                 _RevenueTrendPanel(data: d),
                 const SizedBox(height: 16),
                 _LiveStockPanel(stock: _stock, data: d),
               ])),
               const SizedBox(width: 16),
-              // Right: Agent Leaderboard + Collection Intelligence + Top Retailers + Alerts
               Expanded(flex: 4, child: Column(children: [
-                _AgentLeaderboard(agents: d.agentStatus,
+                _NavigatorAgentShift(agents: d.agentStatus,
                     onTap: () => context.go(R.agents)),
                 const SizedBox(height: 16),
                 _CollectionIntelligencePanel(
@@ -225,8 +202,6 @@ class _S extends ConsumerState<DashboardScreen> {
               ])),
             ]),
             const SizedBox(height: 20),
-
-            // ── Row 4: Recent Orders full-width table ───────────────────────
             _RecentOrdersTable(
               orders: _recentOrders,
               onViewAll: () => context.go(R.orders),
@@ -238,16 +213,6 @@ class _S extends ConsumerState<DashboardScreen> {
     );
   }
 
-  // ══════════════════════════════════════════════════════════════════════════
-  // MOBILE — preserved exactly from before, no changes
-  // ══════════════════════════════════════════════════════════════════════════
-  // ── SESSION E: Mobile — 5-section layout ─────────────────────────────────
-  // Replaces the old 10-conditional-section stack.
-  // Section 1: Header (greeting, rate chip, alerts bell, settings)
-  // Section 2: Today's Pulse (3 numbers: Revenue · Birds · Outstanding)
-  // Section 3: Priority Actions (3 context-sensitive CTA buttons)
-  // Section 4: Live Dispatch (agent cards compact: name · kg · status)
-  // Section 5: Quick Access (top 6 actions, 3×2 grid)
   Widget _buildMobileScaffold(dynamic user, String lang,
       String Function(String) t) {
     if (_loading) return const Scaffold(backgroundColor: kBgPage,
@@ -258,18 +223,15 @@ class _S extends ConsumerState<DashboardScreen> {
 
     final d       = _data!;
     final agents  = d.agentStatus;
-    final alerts  = d.unreadAlerts;
     final survDays = d.stockSurvivalDays;
     final totalBirds = _stock.isEmpty ? d.remainingBirds
         : _stock.fold(0, (s, p) => s + p.availableBirds);
 
-    // Urgency colour for stock
     final stockColor = survDays == null ? kNavy
         : survDays < 1 ? kError
         : survDays < 3 ? kWarning
         : kSuccess;
 
-    // Build 3 context-sensitive priority action buttons
     final List<({IconData icon, String label, Color color, VoidCallback onTap})> priorityActions = [
       if (d.pendingApprovals > 0)
         (icon: Icons.verified_outlined, label: 'Approve (${d.pendingApprovals})',
@@ -286,12 +248,10 @@ class _S extends ConsumerState<DashboardScreen> {
       if (d.allClear)
         (icon: Icons.lock_clock_outlined, label: 'Close Day',
         color: kSuccess, onTap: () => context.go(R.dayClosure)),
-      // Always show New Order as fallback
       (icon: Icons.add_circle_outlined, label: t('new_order'),
       color: Colors.orange.shade700, onTap: () => context.go(R.orderCreate)),
     ].take(3).toList();
 
-    // Top 6 quick actions
     final topActions = _allActions(t).take(6).toList();
 
     return Scaffold(
@@ -299,19 +259,13 @@ class _S extends ConsumerState<DashboardScreen> {
       body: RefreshIndicator(
         onRefresh: _load, color: kNavy, strokeWidth: 2.5,
         child: CustomScrollView(slivers: [
-
-          // ── Section 1: Header ─────────────────────────────────────────────
           SliverToBoxAdapter(child: _mobileHeader(user, lang, t)),
-
-          // Alerts strip (preserved from original)
           if (_buildAlerts(t).isNotEmpty)
             SliverPadding(padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
                 sliver: SliverList.list(children: _buildAlerts(t)
                     .map((w) => Padding(
                     padding: const EdgeInsets.only(bottom: 8), child: w))
                     .toList())),
-
-          // ── Section 2: Today's Pulse ──────────────────────────────────────
           SliverToBoxAdapter(child: Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
             child: Container(
@@ -325,13 +279,11 @@ class _S extends ConsumerState<DashboardScreen> {
               padding: const EdgeInsets.fromLTRB(24, 20, 24, 22),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Header row
                     Row(children: [
                       const Text("TODAY'S PULSE", style: TextStyle(fontSize: 10,
                           fontWeight: FontWeight.w900, color: Color(0xFFB4C6F4),
                           letterSpacing: 0.8)),
                       const Spacer(),
-                      // Rate chip
                       if (d.todayRate != null) Container(
                         padding: const EdgeInsets.symmetric(
                             horizontal: 8, vertical: 3),
@@ -366,7 +318,6 @@ class _S extends ConsumerState<DashboardScreen> {
                               color: Color(0xFFB4C6F4), size: 16)),
                     ]),
                     const SizedBox(height: 20),
-                    // 3 numbers
                     Row(children: [
                       _pulseItem(
                         icon: Icons.currency_rupee_rounded,
@@ -397,8 +348,6 @@ class _S extends ConsumerState<DashboardScreen> {
                   ]),
             ),
           )),
-
-          // ── Section 3: Priority Actions ───────────────────────────────────
           SliverToBoxAdapter(child: Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start,
@@ -441,8 +390,6 @@ class _S extends ConsumerState<DashboardScreen> {
                   }).toList()),
                 ]),
           )),
-
-          // ── Section 4: Live Dispatch ──────────────────────────────────────
           if (agents.isNotEmpty) SliverToBoxAdapter(child: Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
             child: Container(
@@ -479,7 +426,6 @@ class _S extends ConsumerState<DashboardScreen> {
                         color: kBorderLight.withValues(alpha: 0.5))))
                         : null,
                     child: Row(children: [
-                      // Status dot
                       Container(width: 8, height: 8,
                           decoration: BoxDecoration(
                               shape: BoxShape.circle,
@@ -497,7 +443,6 @@ class _S extends ConsumerState<DashboardScreen> {
                                     fontWeight: FontWeight.w600,
                                     color: a.hasOpenShift ? kSuccess : kTextHint)),
                           ])),
-                      // KG loaded
                       if (a.todayDcKg > 0) Column(
                           crossAxisAlignment: CrossAxisAlignment.end,
                           children: [
@@ -516,8 +461,6 @@ class _S extends ConsumerState<DashboardScreen> {
               ]),
             ),
           )),
-
-          // ── Section 5: Quick Access — top 6 actions, 3×2 grid ────────────
           SliverToBoxAdapter(child: Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start,
@@ -543,24 +486,13 @@ class _S extends ConsumerState<DashboardScreen> {
                   ),
                 ]),
           )),
-
-          // ── Section 6: Live Stock (restored) ─────────────────────────────
           SliverToBoxAdapter(child: _stockSection(t)),
-
-          // ── Section 7: Today's Financial (restored — cash/UPI split) ──────
           SliverToBoxAdapter(child: _financialSection(t)),
-
-          // ── Section 8: Reconciliation (restored — only when active) ───────
           if ((d.todayDelivered) > 0)
             SliverToBoxAdapter(child: _reconSection(t)),
-
-          // ── Section 9: Returns (restored — only when relevant) ────────────
           if (d.todayReturnsBirds > 0 || d.pendingReturns > 0)
             SliverToBoxAdapter(child: _returnsSection(t)),
-
-          // ── Section 10: All-clear / Close Day (restored) ──────────────────
           SliverToBoxAdapter(child: _allClearSection(t)),
-
           const SliverToBoxAdapter(child: SizedBox(height: 110)),
         ]),
       ),
@@ -597,7 +529,6 @@ class _S extends ConsumerState<DashboardScreen> {
         ])));
   }
 
-  // ── SESSION E: Tablet — 2-column layout ───────────────────────────────────
   Widget _buildTabletScaffold(dynamic user, String lang,
       String Function(String) t) {
     if (_loading) return const Scaffold(backgroundColor: kBgPage,
@@ -613,10 +544,7 @@ class _S extends ConsumerState<DashboardScreen> {
       body: RefreshIndicator(
         onRefresh: _load, color: kNavy, strokeWidth: 2.5,
         child: CustomScrollView(slivers: [
-          // ── Tablet header (mobile header reused) ──────────────────────────
           SliverToBoxAdapter(child: _mobileHeader(user, lang, t)),
-
-          // ── 3-card tablet MetricStrip: Birds · Revenue · Outstanding ──────
           SliverToBoxAdapter(child: Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
             child: IntrinsicHeight(child: Row(children: [
@@ -657,26 +585,20 @@ class _S extends ConsumerState<DashboardScreen> {
               ),
             ])),
           )),
-
-          // ── OpsBoard (same as desktop, full-width) ────────────────────────
           SliverToBoxAdapter(child: Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
             child: _OpsBoard(data: d, onNavigate: (r) => context.go(r)),
           )),
-
-          // ── 2-column main content ─────────────────────────────────────────
           SliverToBoxAdapter(child: Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
             child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              // Left: Stock + Agent
               Expanded(flex: 5, child: Column(children: [
                 _LiveStockPanel(stock: _stock, data: d),
                 const SizedBox(height: 12),
-                _AgentLeaderboard(agents: d.agentStatus,
+                _NavigatorAgentShift(agents: d.agentStatus,
                     onTap: () => context.go(R.agents)),
               ])),
               const SizedBox(width: 12),
-              // Right: Collection intelligence + alerts
               Expanded(flex: 5, child: Column(children: [
                 _CollectionIntelligencePanel(
                     data: d,
@@ -697,8 +619,6 @@ class _S extends ConsumerState<DashboardScreen> {
               ])),
             ]),
           )),
-
-          // ── Quick actions: 3-col grid (touch-sized cells) ─────────────────
           SliverToBoxAdapter(child: Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start,
@@ -718,27 +638,29 @@ class _S extends ConsumerState<DashboardScreen> {
                         crossAxisCount: 4,
                         mainAxisSpacing: 12,
                         crossAxisSpacing: 12,
-                        // 48px minimum touch target
                         childAspectRatio: 2.8),
                     itemCount: _allActions(t).length,
                     itemBuilder: (_, i) => _qaBtn(_allActions(t)[i]),
                   ),
                 ]),
           )),
-
-          // ── Recent orders table (with horizontal scroll on tablet) ─────────
           SliverToBoxAdapter(child: Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 110),
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(minWidth: 640),
-                child: _RecentOrdersTable(
-                  orders: _recentOrders,
-                  onViewAll: () => context.go(R.orders),
-                  onOrder: (id) => context.push(R.orderDetailPath(id)),
-                ),
-              ),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final targetTableWidth = math.max(930.0, constraints.maxWidth);
+                return SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: SizedBox(
+                    width: targetTableWidth,
+                    child: _RecentOrdersTable(
+                      orders: _recentOrders,
+                      onViewAll: () => context.go(R.orders),
+                      onOrder: (id) => context.push(R.orderDetailPath(id)),
+                    ),
+                  ),
+                );
+              },
             ),
           )),
         ]),
@@ -746,7 +668,6 @@ class _S extends ConsumerState<DashboardScreen> {
     );
   }
 
-  // Tablet metric card — larger touch targets, 48px min height
   Widget _tabletMetric({
     required String label,
     required String value,
@@ -787,7 +708,6 @@ class _S extends ConsumerState<DashboardScreen> {
         ]),
       )));
 
-  // ── Mobile helpers — ALL PRESERVED EXACTLY ───────────────────────────────
   Widget _mobileHeader(dynamic user, String lang, String Function(String) t) {
     final alerts = _data?.unreadAlerts ?? 0;
     return Padding(
@@ -870,87 +790,6 @@ class _S extends ConsumerState<DashboardScreen> {
       ]),
     );
   }
-
-  Widget _summaryCard(String Function(String) t) {
-    final d = _data;
-    return Padding(padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
-        child: Container(decoration: BoxDecoration(
-            gradient: const LinearGradient(colors: [kNavy, kNavyMid],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight),
-            borderRadius: BorderRadius.circular(kRadiusHero),
-            boxShadow: [
-              BoxShadow(color: kNavy.withValues(alpha: 0.35),
-                  blurRadius: 24,
-                  offset: const Offset(0, 8))
-            ]),
-            padding: const EdgeInsets.fromLTRB(24, 22, 24, 24),
-            child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Row(children: [
-                const Icon(
-                    Icons.dashboard_rounded, color: kGoldLight, size: 16),
-                const SizedBox(width: 8),
-                const Text("TODAY'S SUMMARY", style: TextStyle(fontSize: 10,
-                    fontWeight: FontWeight.w900,
-                    color: Color(0xFFB4C6F4),
-                    letterSpacing: 0.8)),
-                const Spacer(),
-                GestureDetector(onTap: _load,
-                    child: const Icon(
-                        Icons.refresh_rounded, color: Color(0xFFB4C6F4),
-                        size: 16))
-              ]),
-              const SizedBox(height: 20),
-              Row(mainAxisAlignment: MainAxisAlignment.spaceAround, children: [
-                _summaryStatItem(icon: Icons.receipt_long_rounded,
-                    value: '${d?.pendingOrders ?? 0}',
-                    label: t('orders'),
-                    onTap: () => context.go(R.orders),
-                    urgent: (d?.pendingOrders ?? 0) > 0),
-                _summaryStatItem(icon: Icons.local_shipping_rounded,
-                    value: '${d?.activeDeliveries ?? 0}',
-                    label: t('dispatch'),
-                    onTap: () => context.go(R.dispatch)),
-                _summaryStatItem(icon: Icons.verified_user_rounded,
-                    value: '${d?.pendingApprovals ?? 0}',
-                    label: t('approve'),
-                    onTap: () => context.go(R.approvals),
-                    urgent: (d?.pendingApprovals ?? 0) > 0),
-                _summaryStatItem(icon: Icons.support_agent_rounded,
-                    value: '${d?.activeAgents ?? 0}',
-                    label: t('agents'),
-                    onTap: () => context.go(R.agents)),
-              ]),
-            ])));
-  }
-
-  Widget _summaryStatItem(
-      {required IconData icon, required String value, required String label, required VoidCallback onTap, bool urgent = false}) =>
-      GestureDetector(onTap: onTap,
-          child: Column(children: [
-            Container(width: 46,
-                height: 46,
-                decoration: BoxDecoration(
-                    color: urgent ? kError.withValues(alpha: 0.35) : Colors
-                        .white.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                        color: urgent ? kError.withValues(alpha: 0.5) : Colors
-                            .white.withValues(alpha: 0.12))),
-                child: Icon(
-                    icon, color: urgent ? const Color(0xFFFFB4AC) : kGoldLight,
-                    size: 22)),
-            const SizedBox(height: 8),
-            Text(value, style: TextStyle(fontSize: 26,
-                fontWeight: FontWeight.w900,
-                color: urgent ? const Color(0xFFFFB4AC) : Colors.white,
-                letterSpacing: -0.5)),
-            Text(label, style: const TextStyle(fontSize: 9,
-                fontWeight: FontWeight.w900,
-                color: Color(0xFFB4C6F4),
-                letterSpacing: -0.2))
-          ]));
 
   Widget _stockSection(String Function(String) t) {
     final agents = _data?.agentStatus ?? [];
@@ -1167,141 +1006,6 @@ class _S extends ConsumerState<DashboardScreen> {
                         borderRadius: BorderRadius.circular(99)))
               ]));
 
-  Widget _qaSection(String Function(String) t) {
-    final actions = _allActions(t);
-    return Padding(padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          const Padding(padding: EdgeInsets.only(bottom: 14),
-              child: Row(children: [
-                Icon(Icons.bolt_rounded, color: kGold, size: 18),
-                SizedBox(width: 8),
-                Text('QUICK ACTIONS', style: TextStyle(fontSize: 12,
-                    fontWeight: FontWeight.w900,
-                    color: kNavy,
-                    letterSpacing: 0.6))
-              ])),
-          GridView.builder(shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 2,
-                  mainAxisSpacing: 12,
-                  crossAxisSpacing: 12,
-                  childAspectRatio: 2.6),
-              itemCount: actions.length,
-              itemBuilder: (_, i) => _qaBtn(actions[i])),
-        ]));
-  }
-
-  Widget _agentSection() {
-    final agents = _data?.agentStatus ?? [];
-    if (agents.isEmpty) return const SizedBox.shrink();
-    return Padding(padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-        child: Container(decoration: BoxDecoration(color: kSurface,
-            borderRadius: BorderRadius.circular(kRadiusCard),
-            border: Border.all(color: kBorderLight.withValues(alpha: 0.5)),
-            boxShadow: kCardShadow),
-            child: Column(children: [
-              Padding(padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
-                  child: Row(children: [
-                    const Icon(Icons.groups_rounded, color: kGold, size: 18),
-                    const SizedBox(width: 8),
-                    const Text('AGENT PERFORMANCE', style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w900,
-                        color: kNavy,
-                        letterSpacing: 0.6)),
-                    const Spacer(),
-                    GestureDetector(onTap: () => context.go(R.shifts),
-                        child: const Text('VIEW ALL', style: TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w900,
-                            color: kGold,
-                            letterSpacing: 0.5)))
-                  ])),
-              Padding(padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
-                  child: Row(children: const[
-                    Expanded(flex: 4,
-                        child: Text('AGENT NAME', style: TextStyle(fontSize: 9,
-                            fontWeight: FontWeight.w900,
-                            color: kTextHint,
-                            letterSpacing: 0.8))),
-                    SizedBox(width: 60,
-                        child: Text('DC', textAlign: TextAlign.center,
-                            style: TextStyle(fontSize: 9,
-                                fontWeight: FontWeight.w900,
-                                color: kTextHint,
-                                letterSpacing: 0.8))),
-                    SizedBox(width: 60,
-                        child: Text('STOCK', textAlign: TextAlign.right,
-                            style: TextStyle(fontSize: 9,
-                                fontWeight: FontWeight.w900,
-                                color: kTextHint,
-                                letterSpacing: 0.8)))
-                  ])),
-              const Divider(
-                  height: 1, color: kBorderLight, indent: 20, endIndent: 20),
-              ...agents
-                  .asMap()
-                  .entries
-                  .map((e) {
-                final i = e.key;
-                final a = e.value;
-                return Container(
-                    padding: const EdgeInsets.fromLTRB(20, 14, 20, 14),
-                    decoration: BoxDecoration(
-                        border: i < agents.length - 1 ? Border(
-                            bottom: BorderSide(color: kBorderLight.withValues(
-                                alpha: 0.5))) : null),
-                    child: Row(children: [
-                      Expanded(flex: 4,
-                          child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(a.agentName, style: const TextStyle(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w900,
-                                    color: kNavy),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis),
-                                Row(children: [
-                                  Container(width: 6,
-                                      height: 6,
-                                      decoration: BoxDecoration(
-                                          shape: BoxShape.circle,
-                                          color: a.hasOpenShift ? const Color(
-                                              0xFF22C55E) : kTextHint)),
-                                  const SizedBox(width: 4),
-                                  Text(a.hasOpenShift ? 'SHIFT OPEN' : 'CLOSED',
-                                      style: TextStyle(fontSize: 9,
-                                          fontWeight: FontWeight.w900,
-                                          color: a.hasOpenShift ? const Color(
-                                              0xFF16A34A) : kTextHint,
-                                          letterSpacing: 0.4))
-                                ])
-                              ])),
-                      SizedBox(width: 60, child: Center(child: Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 8, vertical: 3),
-                          decoration: BoxDecoration(
-                              color: a.todayDcBirds > 0 ? kGoldBg : kBgGrey,
-                              borderRadius: BorderRadius.circular(6)),
-                          child: Text(a.todayDcBirds > 0 ? 'MAIN' : 'NONE',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(fontSize: 8,
-                                  fontWeight: FontWeight.w900,
-                                  color: a.todayDcBirds > 0
-                                      ? kWarning
-                                      : kTextHint))))),
-                      SizedBox(width: 60, child: Text('${a.liveStockBirds}',
-                          textAlign: TextAlign.right, style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w900,
-                              color: a.liveStockBirds > 0 ? kNavy : kTextHint)))
-                    ]));
-              }),
-            ])));
-  }
-
   Widget _reconSection(String Function(String) t) {
     final d = _data;
     if (d == null) return const SizedBox.shrink();
@@ -1467,7 +1171,6 @@ class _S extends ConsumerState<DashboardScreen> {
         ]));
   }
 
-  // Shared helpers
   List<Widget> _buildAlerts(String Function(String) t) {
     final d = _data;
     final out = <Widget>[];
@@ -1595,7 +1298,6 @@ class _S extends ConsumerState<DashboardScreen> {
 // ENTERPRISE DESKTOP COMPONENTS
 // ─────────────────────────────────────────────────────────────────────────────
 
-// ── Command Header ────────────────────────────────────────────────────────────
 class _CommandHeader extends StatelessWidget {
   const _CommandHeader({required this.user, required this.data,
     required this.onRefresh, required this.now});
@@ -1614,13 +1316,11 @@ class _CommandHeader extends StatelessWidget {
     final dayStr = DateFormat('EEE, d MMM y').format(now);
     final timeStr = DateFormat('hh:mm a').format(now);
 
-    // ── Rate chip ───────────────────────────────────────────────────────
     final rate      = data.todayRate;
     final delta     = data.rateDelta;
     final rateUp    = (delta ?? 0) > 0;
     final rateDown  = (delta ?? 0) < 0;
 
-    // ── Trading signal ──────────────────────────────────────────────────
     final signal = data.tradingSignal;
     final (sigLabel, sigColor, sigIcon) = switch (signal) {
       'buy_urgent' => ('BUY NOW',   _kRed,                    Icons.arrow_upward_rounded),
@@ -1637,7 +1337,6 @@ class _CommandHeader extends StatelessWidget {
       ),
       padding: const EdgeInsets.fromLTRB(24, 0, 24, 0),
       child: Row(children: [
-        // Greeting
         Expanded(child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisAlignment: MainAxisAlignment.center,
@@ -1652,7 +1351,6 @@ class _CommandHeader extends StatelessWidget {
                       fontWeight: FontWeight.w500)),
             ])),
 
-        // ── Rate chip (new) ───────────────────────────────────────────
         if (rate != null) ...[
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
@@ -1691,7 +1389,6 @@ class _CommandHeader extends StatelessWidget {
           const SizedBox(width: 8),
         ],
 
-        // ── Trading signal chip (new) ─────────────────────────────────
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
           decoration: BoxDecoration(
@@ -1709,7 +1406,6 @@ class _CommandHeader extends StatelessWidget {
         ),
         const SizedBox(width: 12),
 
-        // Day status
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
           decoration: BoxDecoration(
@@ -1731,7 +1427,6 @@ class _CommandHeader extends StatelessWidget {
           ]),
         ),
         const SizedBox(width: 12),
-        // Refresh
         _HdrBtn(
             icon: Icons.refresh_rounded, onTap: onRefresh, tooltip: 'Refresh'),
         const SizedBox(width: 4),
@@ -1776,7 +1471,6 @@ class _HdrBtnState extends State<_HdrBtn> {
                       child: Icon(widget.icon, size: 18, color: _kText2)))));
 }
 
-// ── Metric Strip — 5 premium gradient panels ──────────────────────────────────
 class _MetricStrip extends StatelessWidget {
   const _MetricStrip({required this.data, required this.stock});
 
@@ -1889,7 +1583,6 @@ class _MetricPanel extends StatelessWidget {
               child: Icon(def.icon, color: Colors.white, size: 18),
             ),
             const Spacer(),
-            // Trend arrow placeholder — real data from Session D
             const SizedBox(width: 48, height: 24),
           ]),
           const SizedBox(height: 12),
@@ -1909,7 +1602,6 @@ class _MetricPanel extends StatelessWidget {
       );
 }
 
-// ── Operations Board ──────────────────────────────────────────────────────────
 class _OpsBoard extends StatelessWidget {
   const _OpsBoard({required this.data, required this.onNavigate});
 
@@ -1927,7 +1619,6 @@ class _OpsBoard extends StatelessWidget {
           Icons.local_shipping_outlined, R.dispatch),
       _OpsCol('Delivered Today', data.todayDelivered, _kGreen,
           Icons.check_circle_outline, R.approvals),
-      // Session C: delayed deliveries column (red when > 0)
       _OpsCol('Delayed >3h',
           data.delayedDeliveries,
           data.delayedDeliveries > 0 ? _kRed : _kText3,
@@ -1943,7 +1634,6 @@ class _OpsBoard extends StatelessWidget {
         boxShadow: _kShadow,
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        // Header
         Padding(
           padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
           child: Row(children: [
@@ -1957,7 +1647,6 @@ class _OpsBoard extends StatelessWidget {
         ),
         const Divider(height: 1, color: _kBorder),
 
-        // 4 columns
         IntrinsicHeight(
           child: Row(
             children: cols
@@ -2036,7 +1725,6 @@ class _OpsBoardCol extends StatelessWidget {
       );
 }
 
-// ── Revenue Trend Panel (area chart simulation) ───────────────────────────────
 class _RevenueTrendPanel extends StatelessWidget {
   const _RevenueTrendPanel({required this.data});
 
@@ -2088,7 +1776,6 @@ class _RevenueTrendPanel extends StatelessWidget {
               Text(d, style: const TextStyle(fontSize: 9, color: _kText3)),
           ]),
           const SizedBox(height: 16),
-          // Today revenue summary
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
@@ -2186,14 +1873,12 @@ class _AreaChartPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    // Revenue line (simulated — 7 points)
     final rev = [0.3, 0.55, 0.45, 0.72, 0.68, 0.85, 0.78];
     final sol = [0.2, 0.40, 0.35, 0.58, 0.52, 0.65, 0.60];
 
     _drawAreaLine(canvas, size, rev, primaryColor);
     _drawLine(canvas, size, sol, secondaryColor);
 
-    // Y-axis labels
     final labels = ['₹5L', '₹4L', '₹3L', '₹2L', '₹1L', '₹0'];
     final tp = TextPainter(textDirection: TextDirection.ltr);
     for (int i = 0; i < labels.length; i++) {
@@ -2235,7 +1920,6 @@ class _AreaChartPainter extends CustomPainter {
     canvas.drawPath(area, ap);
     canvas.drawPath(path, lp);
 
-    // Dots
     final dp = Paint()
       ..color = color
       ..style = PaintingStyle.fill;
@@ -2267,7 +1951,6 @@ class _AreaChartPainter extends CustomPainter {
   @override bool shouldRepaint(_) => false;
 }
 
-// ── Live Stock Panel ──────────────────────────────────────────────────────────
 class _LiveStockPanel extends StatelessWidget {
   const _LiveStockPanel({required this.stock, required this.data});
 
@@ -2284,7 +1967,6 @@ class _LiveStockPanel extends StatelessWidget {
     final mortality  = data.todayMortalityBirdsLedger;
     final survival   = data.stockSurvivalDays;
 
-    // Urgency-based ring colour from Session A survival data
     final ringColor = survival == null
         ? _kGreen
         : survival < 1
@@ -2323,7 +2005,6 @@ class _LiveStockPanel extends StatelessWidget {
         ]),
         const SizedBox(height: 16),
         Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
-          // Donut — ring colour driven by survival urgency
           SizedBox(width: 140, height: 140,
             child: Stack(alignment: Alignment.center, children: [
               Transform.rotate(angle: -math.pi / 2,
@@ -2357,7 +2038,6 @@ class _LiveStockPanel extends StatelessWidget {
             ]),
           ),
           const SizedBox(width: 24),
-          // Legend
           Expanded(child: Column(children: items.map((item) =>
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 6),
@@ -2377,7 +2057,6 @@ class _LiveStockPanel extends StatelessWidget {
               )).toList())),
         ]),
         const SizedBox(height: 12),
-        // Aging stock alert — quality risk banner
         if (data.agingStockBatches > 0)
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -2404,9 +2083,8 @@ class _LiveStockPanel extends StatelessWidget {
   }
 }
 
-// ── Agent Leaderboard ─────────────────────────────────────────────────────────
-class _AgentLeaderboard extends StatelessWidget {
-  const _AgentLeaderboard({required this.agents, required this.onTap});
+class _NavigatorAgentShift extends StatelessWidget {
+  const _NavigatorAgentShift({required this.agents, required this.onTap});
 
   final List<AgentStockStatus> agents;
   final VoidCallback onTap;
@@ -2454,7 +2132,6 @@ class _AgentRow extends StatelessWidget {
         decoration: const BoxDecoration(
             border: Border(bottom: BorderSide(color: _kBorder))),
         child: Row(children: [
-          // Avatar
           Container(
             width: 36, height: 36,
             decoration: BoxDecoration(
@@ -2479,7 +2156,6 @@ class _AgentRow extends StatelessWidget {
                 Text('${agent.todayDeliveredBirds} birds',
                     style: const TextStyle(fontSize: 11, color: _kText3)),
               ])),
-          // Session D: kg delivered column
           if (agent.todayDcKg > 0)
             Padding(
               padding: const EdgeInsets.only(right: 10),
@@ -2510,7 +2186,6 @@ class _AgentRow extends StatelessWidget {
       );
 }
 
-// ── Collection Intelligence Panel (replaces _FinancialHealth) ────────────────
 class _CollectionIntelligencePanel extends StatelessWidget {
   const _CollectionIntelligencePanel({
     required this.data,
@@ -2525,7 +2200,6 @@ class _CollectionIntelligencePanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Map aging rows by bucket for O(1) lookup
     final bucketMap = <String, Map<String, dynamic>>{};
     for (final row in aging) {
       bucketMap[row['bucket'] as String? ?? ''] = row;
@@ -2546,7 +2220,6 @@ class _CollectionIntelligencePanel extends StatelessWidget {
         boxShadow: _kShadow,
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        // ── Header ──────────────────────────────────────────────────────
         Padding(
           padding: const EdgeInsets.fromLTRB(18, 16, 18, 12),
           child: Row(children: [
@@ -2564,7 +2237,6 @@ class _CollectionIntelligencePanel extends StatelessWidget {
         Padding(padding: const EdgeInsets.all(16), child: Column(
             crossAxisAlignment: CrossAxisAlignment.start, children: [
 
-          // ── Credit utilisation bar ───────────────────────────────────
           Row(children: [
             Expanded(child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -2610,7 +2282,6 @@ class _CollectionIntelligencePanel extends StatelessWidget {
           const Divider(height: 1, color: _kBorder),
           const SizedBox(height: 12),
 
-          // ── 4-bucket aging strip ─────────────────────────────────────
           ...bucketDefs.map((def) {
             final bucket = bucketMap[def.$1];
             final count  = (bucket?['retailer_count'] as num?)?.toInt()    ?? 0;
@@ -2643,14 +2314,12 @@ class _CollectionIntelligencePanel extends StatelessWidget {
           const Divider(height: 1, color: _kBorder),
           const SizedBox(height: 10),
 
-          // ── Call Today queue — top 3 from critical bucket ────────────
               () {
             final critical = bucketMap['critical'];
             final topName  = critical?['top_shop_name']   as String?;
             final topAmt   = (critical?['top_outstanding'] as num?)?.toDouble() ?? 0;
             final topDays  = (critical?['top_days']        as num?)?.toInt()    ?? 0;
             if (topName == null) {
-              // No critical — show today's collection summary instead
               return Column(children: [
                 _IRow(icon: Icons.currency_rupee_rounded, color: _kGreen,
                     label: "Today's Collection",
@@ -2700,7 +2369,6 @@ class _CollectionIntelligencePanel extends StatelessWidget {
             ]);
           }(),
 
-          // ── Day close CTA ────────────────────────────────────────────
           if (data.allClear) ...[
             const SizedBox(height: 12),
             GestureDetector(
@@ -2722,7 +2390,6 @@ class _CollectionIntelligencePanel extends StatelessWidget {
   }
 }
 
-// Simple icon-row used inside _CollectionIntelligencePanel
 class _IRow extends StatelessWidget {
   const _IRow({required this.icon, required this.color,
     required this.label, required this.value});
@@ -2743,8 +2410,6 @@ class _IRow extends StatelessWidget {
   ]);
 }
 
-
-// ── Top Retailers Today ───────────────────────────────────────────────────────
 class _TopRetailersToday extends StatelessWidget {
   const _TopRetailersToday({required this.retailers, required this.onViewAll});
 
@@ -2794,7 +2459,6 @@ class _TopRetailersToday extends StatelessWidget {
                 : null,
             child: Column(children: [
               Row(children: [
-                // Rank badge
                 Container(width: 22, height: 22,
                     decoration: BoxDecoration(
                         color: i == 0 ? _kNavBg : const Color(0xFFF1F5F9),
@@ -2837,8 +2501,6 @@ class _TopRetailersToday extends StatelessWidget {
   }
 }
 
-
-// ── Alerts Panel ──────────────────────────────────────────────────────────────
 class _AlertsPanel extends StatelessWidget {
   const _AlertsPanel({required this.data, required this.stock,
     required this.onTap});
@@ -2863,7 +2525,7 @@ class _AlertsPanel extends StatelessWidget {
       alerts.add((_kBlue, Icons.local_shipping_outlined,
       'Dispatch Delay', '${data.activeDeliveries} orders pending dispatch'));
     if (data.todayMortalityBirdsLedger > 0)
-      alerts.add((_kViolet, Icons.warning_amber_outlined,
+      alerts.add((_kColorsViolet, Icons.warning_amber_outlined,
       'Mortality Today', '${data.todayMortalityBirdsLedger} birds'));
 
     if (alerts.isEmpty) return const SizedBox.shrink();
@@ -2923,7 +2585,6 @@ class _AlertsPanel extends StatelessWidget {
   }
 }
 
-// ── Recent Orders Table ───────────────────────────────────────────────────────
 class _RecentOrdersTable extends StatefulWidget {
   const _RecentOrdersTable({required this.orders,
     required this.onViewAll, required this.onOrder});
@@ -2973,7 +2634,6 @@ class _RecentOrdersTableState extends State<_RecentOrdersTable> {
         boxShadow: _kShadow,
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        // Table toolbar
         Padding(
           padding: const EdgeInsets.fromLTRB(18, 16, 18, 12),
           child: Row(children: [
@@ -2981,7 +2641,6 @@ class _RecentOrdersTableState extends State<_RecentOrdersTable> {
                 style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800,
                     color: _kText1, letterSpacing: 0.8)),
             const SizedBox(width: 12),
-            // Search box
             Container(
               width: 220, height: 32,
               decoration: BoxDecoration(
@@ -3003,14 +2662,12 @@ class _RecentOrdersTableState extends State<_RecentOrdersTable> {
               ),
             ),
             const SizedBox(width: 8),
-            // Status filter
             _DropFilter(
               value: _statusFilter,
               options: _statuses,
               onChanged: (v) => setState(() => _statusFilter = v),
             ),
             const Spacer(),
-            // Showing count
             Text('Showing ${rows.length} of ${widget.orders.length} orders',
                 style: const TextStyle(fontSize: 11, color: _kText3)),
             const SizedBox(width: 12),
@@ -3025,7 +2682,6 @@ class _RecentOrdersTableState extends State<_RecentOrdersTable> {
                             color: Colors.white)))),
           ]),
         ),
-        // Column headers
         Container(
           decoration: const BoxDecoration(
             gradient: LinearGradient(colors: [_kNavBg, Color(0xFF1E293B)]),
@@ -3042,7 +2698,6 @@ class _RecentOrdersTableState extends State<_RecentOrdersTable> {
             _TH('Action', 60, center: true),
           ]),
         ),
-        // Data rows
         if (rows.isEmpty)
           const Padding(padding: EdgeInsets.all(32),
               child: Center(child: Text('No orders found',
@@ -3081,7 +2736,6 @@ class _RecentOrdersTableState extends State<_RecentOrdersTable> {
               onTap: () => widget.onOrder(o['id'] as String? ?? ''),
             );
           }),
-        // Footer
         Container(
           padding: const EdgeInsets.fromLTRB(18, 12, 18, 12),
           decoration: const BoxDecoration(
@@ -3091,7 +2745,6 @@ class _RecentOrdersTableState extends State<_RecentOrdersTable> {
                 'Showing 1 to ${rows.length} of ${widget.orders.length} orders',
                 style: const TextStyle(fontSize: 11, color: _kText3)),
             const Spacer(),
-            // Pagination pills
             ...['‹', '1', '2', '3', '…', '26', '›'].map((l) =>
                 Padding(
                   padding: const EdgeInsets.only(left: 4),
@@ -3235,7 +2888,6 @@ class _DropFilter extends StatelessWidget {
       );
 }
 
-// ── Donut painter (shared with mobile) ───────────────────────────────────────
 class _DonutPainter extends CustomPainter {
   const _DonutPainter({required this.fraction, required this.ringColor,
     required this.trackColor, required this.strokeWidth});
@@ -3262,7 +2914,6 @@ class _DonutPainter extends CustomPainter {
       o.fraction != fraction || o.ringColor != ringColor;
 }
 
-// ── QA helper ─────────────────────────────────────────────────────────────────
 class _QA {
   const _QA(this.icon, this.label, this.color, this.bg, this.onTap,
       {this.wide = false});
@@ -3274,7 +2925,6 @@ class _QA {
   final bool wide;
 }
 
-// ── Language helper ───────────────────────────────────────────────────────────
 class _L {
   static String g(String lang, String k) => _t[lang]?[k] ?? _t['en']![k] ?? k;
   static const _t = {

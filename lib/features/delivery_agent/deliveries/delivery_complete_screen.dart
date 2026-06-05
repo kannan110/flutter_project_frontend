@@ -615,6 +615,28 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
             ])));
   }
 
+  // Refresh stock from DB immediately before submit
+  // Ensures stale cached values never block a valid delivery
+  Future<void> _refreshStock() async {
+    final user = ref.read(appUserProvider).valueOrNull;
+    final productId = (_delivery?['orders']
+        as Map<String, dynamic>?)?['product_id'] as String?;
+    if (user?.traderId == null || productId == null) return;
+    try {
+      final res =
+          await Supabase.instance.client.rpc('get_available_stock', params: {
+        'p_trader_id': user!.traderId,
+        'p_product_id': productId,
+        'p_agent_id': user.agentId,
+      });
+      final list = (res as List? ?? []);
+      if (list.isNotEmpty && mounted) {
+        setState(() =>
+            _stock = StockPosition.fromMap(list.first as Map<String, dynamic>));
+      }
+    } catch (_) {}
+  }
+
   Future<void> _submit() async {
     if (!_form.currentState!.validate()) return;
     final weight = double.tryParse(_weightCtrl.text.trim()) ?? 0;
@@ -636,6 +658,11 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
           context, 'Mortality proof photo is mandatory when mortality > 0.');
       return;
     }
+
+    // Always refresh stock from DB before checking — prevents stale cache blocking valid deliveries
+    await _refreshStock();
+    if (!mounted) return;
+
     if (_stockCritical) {
       showError(context,
           'No stock available in your current batch.\n\nAsk admin to add more DC stock before proceeding.');
