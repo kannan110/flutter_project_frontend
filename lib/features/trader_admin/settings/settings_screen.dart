@@ -130,6 +130,7 @@ class SettingsScreen extends ConsumerWidget {
             _item(context, Icons.manage_accounts_outlined,   'User Management',      R.userMgmt),
             _item(context, Icons.price_change_outlined,      'Rates',                R.rates),
             _item(context, Icons.rule_outlined,              'Pricing Rules',        R.pricing),
+            _item(context, Icons.receipt_long_outlined,       'Expense Rules',        R.expenseRules),
           ]),
 
           const SizedBox(height: 12),

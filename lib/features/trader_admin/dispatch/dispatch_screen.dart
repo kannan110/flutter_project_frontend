@@ -20,6 +20,8 @@ class _S extends ConsumerState<DispatchScreen> with SingleTickerProviderStateMix
   // M5 FIX: Completed/cancelled batches use a rolling date window to avoid
   // loading hundreds of old records. "Load More" extends the window by 7 days.
   int _completedDaysBack = 7; // show last N days of completed/cancelled
+  // Phase 4C: pending ops badge count (deliveries stuck > 4 hours)
+  int _pendingCount = 0;
 
   static const _tabs = ['Today', 'Live', 'Completed', 'Cancelled'];
 
@@ -52,8 +54,21 @@ class _S extends ConsumerState<DispatchScreen> with SingleTickerProviderStateMix
           'created_at.gte.$cutoffStr')  // active always + recent completed
           .order('created_at', ascending: false)
           .limit(300);
+      // Phase 4C: count deliveries stuck > 4h for pending badge
+      int pending = 0;
+      try {
+        final cutoff = DateTime.now().subtract(const Duration(hours: 4)).toIso8601String();
+        final stuck = await _c.from('deliveries')
+            .select('id')
+            .eq('trader_id', tid)
+            .eq('status', 'out_for_delivery')
+            .lt('assigned_at', cutoff);
+        pending = (stuck as List).length;
+      } catch (_) {}
+
       if (mounted) setState(() {
         _all = List<Map<String,dynamic>>.from(data);
+        _pendingCount = pending;
         _loading = false;
       });
     } catch (e) {
@@ -149,12 +164,103 @@ class _S extends ConsumerState<DispatchScreen> with SingleTickerProviderStateMix
     } catch (e) { if (mounted) showError(context, e.toString()); }
   }
 
+  // Phase 4C: inline pending ops banner — scrolls inside the list, never blocks FAB
+  Widget _pendingBanner() {
+    if (_pendingCount == 0) return const SizedBox.shrink();
+    return GestureDetector(
+      onTap: () => context.push(R.pendingOps),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+            color: Colors.red.shade600,
+            borderRadius: BorderRadius.circular(12)),
+        child: Row(children: [
+          const Icon(Icons.warning_amber_outlined, color: Colors.white, size: 18),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+                '$_pendingCount ${_pendingCount == 1 ? 'delivery' : 'deliveries'} '
+                    'stuck over 4 hours — tap to resolve',
+                style: const TextStyle(
+                    fontSize: 13, color: Colors.white,
+                    fontWeight: FontWeight.w700)),
+          ),
+          const Icon(Icons.chevron_right, color: Colors.white, size: 18),
+        ]),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(
         backgroundColor: kSurface,
         title: const Text('Dispatch'),
-        actions: [IconButton(icon: const Icon(Icons.refresh), onPressed: _load)],
+        actions: [
+          // Phase 4C: Pending Operations badge button — fixed 48px width, no overflow
+          if (_pendingCount > 0)
+            SizedBox(
+              width: 48, height: 48,
+              child: Stack(
+                clipBehavior: Clip.none,
+                alignment: Alignment.center,
+                children: [
+                  IconButton(
+                    padding: EdgeInsets.zero,
+                    icon: const Icon(Icons.warning_amber_outlined),
+                    tooltip: 'Pending Operations',
+                    onPressed: () => context.push(R.pendingOps),
+                  ),
+                  Positioned(
+                    top: 6, right: 4,
+                    child: Container(
+                      width: 16, height: 16,
+                      decoration: const BoxDecoration(
+                          color: Colors.red, shape: BoxShape.circle),
+                      alignment: Alignment.center,
+                      child: Text('$_pendingCount',
+                          style: const TextStyle(
+                              fontSize: 9, color: Colors.white,
+                              fontWeight: FontWeight.w900)),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          // ── NEW BATCH — primary CTA ──────────────────────────────────────
+          // Placed in AppBar (not FAB) because TraderShell uses extendBody:true,
+          // which causes inner-Scaffold FABs to render behind the glass nav bar.
+          GestureDetector(
+            onTap: _createBatch,
+            child: Container(
+              margin: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+              decoration: BoxDecoration(
+                color: kNavy,
+                borderRadius: BorderRadius.circular(kRadiusChip),
+                boxShadow: [
+                  BoxShadow(
+                    color: kNavy.withValues(alpha: 0.35),
+                    blurRadius: 8,
+                    offset: const Offset(0, 3),
+                  ),
+                ],
+              ),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                const Icon(Icons.add_rounded, color: kGoldLight, size: 18),
+                const SizedBox(width: 6),
+                const Text('New Batch',
+                    style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w800,
+                        color: kGoldLight,
+                        letterSpacing: 0.2)),
+              ]),
+            ),
+          ),
+          IconButton(icon: const Icon(Icons.refresh), onPressed: _load),
+        ],
         bottom: TabBar(
           controller: _tab,
           tabs: _tabs.asMap().entries.map((e) {
@@ -174,46 +280,55 @@ class _S extends ConsumerState<DispatchScreen> with SingleTickerProviderStateMix
               ],
             ]));
           }).toList(),
-          isScrollable: false,
+          isScrollable: true,
           labelColor: kPrimary,
           unselectedLabelColor: kTextHint,
           indicatorColor: kPrimary,
         )),
-    floatingActionButton: FloatingActionButton.extended(
-        onPressed: _createBatch,
-        icon: const Icon(Icons.add),
-        label: const Text('New Batch')),
-    floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
-    // Reserve space so FAB clears the parent TraderShell glass bottom nav
-    bottomNavigationBar: const SizedBox(height: 80),
     body: _loading ? const LoadingList() : TabBarView(
         controller: _tab,
         children: List.generate(_tabs.length, (i) {
           final list = _listFor(i);
-          if (list.isEmpty) return EmptyState(
-              icon: switch(i) {
-                0 => Icons.today_outlined,
-                1 => Icons.local_shipping_outlined,
-                2 => Icons.check_circle_outline,
-                _ => Icons.cancel_outlined,
-              },
-              message: switch(i) {
-                0 => 'No batches today',
-                1 => 'No live deliveries',
-                2 => 'No completed batches in last $_completedDaysBack days',
-                _ => 'No cancelled batches',
-              });
+          if (list.isEmpty) {
+            final emptyWidget = EmptyState(
+                icon: switch(i) {
+                  0 => Icons.today_outlined,
+                  1 => Icons.local_shipping_outlined,
+                  2 => Icons.check_circle_outline,
+                  _ => Icons.cancel_outlined,
+                },
+                message: switch(i) {
+                  0 => 'No batches today',
+                  1 => 'No live deliveries',
+                  2 => 'No completed batches in last $_completedDaysBack days',
+                  _ => 'No cancelled batches',
+                });
+            // Phase 4C: when Live tab is empty but pending ops exist, show banner above empty state
+            if (i == 1 && _pendingCount > 0) {
+              return ListView(padding: const EdgeInsets.fromLTRB(16, 16, 16, 100), children: [
+                _pendingBanner(),
+                emptyWidget,
+              ]);
+            }
+            return emptyWidget;
+          }
           // M5 FIX: Completed (2) and Cancelled (3) tabs show "Load More" footer
           final showLoadMore = i >= 2;
+          // Phase 4C: show banner only on Live tab (tab 1) where stuck deliveries are visible
+          final showBanner = i == 1 && _pendingCount > 0;
+          final bannerOffset = showBanner ? 1 : 0;
           return RefreshIndicator(
               onRefresh: _load,
               child: ListView.separated(
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 120),
-                  itemCount: list.length + (showLoadMore ? 1 : 0),
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+                  itemCount: list.length + (showLoadMore ? 1 : 0) + bannerOffset,
                   separatorBuilder: (_, __) => const SizedBox(height: 10),
                   itemBuilder: (_, idx) {
+                    // Item 0 on Live tab: pending ops banner
+                    if (showBanner && idx == 0) return _pendingBanner();
+                    final listIdx = idx - bannerOffset;
                     // Last item: Load More button for completed/cancelled tabs
-                    if (showLoadMore && idx == list.length) {
+                    if (showLoadMore && listIdx == list.length) {
                       return Padding(
                           padding: const EdgeInsets.only(top: 4),
                           child: OutlinedButton.icon(
@@ -229,11 +344,11 @@ class _S extends ConsumerState<DispatchScreen> with SingleTickerProviderStateMix
                                   foregroundColor: kPrimary)));
                     }
                     return _BatchCard(
-                      batch: list[idx],
-                      birds: _birds(list[idx]),
-                      weight: _weight(list[idx]),
-                      orders: _orders(list[idx]),
-                      onTap: () => context.push(R.batchDetailPath(list[idx]['id'])),
+                      batch: list[listIdx],
+                      birds: _birds(list[listIdx]),
+                      weight: _weight(list[listIdx]),
+                      orders: _orders(list[listIdx]),
+                      onTap: () => context.push(R.batchDetailPath(list[listIdx]['id'])),
                     );
                   }));
         })),

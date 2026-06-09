@@ -39,6 +39,7 @@ class _S extends ConsumerState<AlertsScreen> {
     'stock_low' => Colors.orange,
     'shift_not_closed' || 'cash_mismatch' => Colors.blue,
     'mismatch' => Colors.purple,
+    'expense_overclaim' => Colors.orange,
     _ => Colors.grey,
   };
   IconData _icon(String t) => switch(t) {
@@ -47,6 +48,7 @@ class _S extends ConsumerState<AlertsScreen> {
     'stock_low' => Icons.inventory_2_outlined,
     'shift_not_closed' => Icons.schedule_outlined,
     'cash_mismatch' => Icons.account_balance_outlined,
+    'expense_overclaim' => Icons.receipt_long_outlined,
     _ => Icons.notifications_outlined,
   };
 
