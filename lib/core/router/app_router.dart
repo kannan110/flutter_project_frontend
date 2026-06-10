@@ -10,6 +10,7 @@ import 'package:rooster_trader/features/trader_admin/settings/purchase_screen.da
 import 'package:rooster_trader/features/trader_admin/stock/stock_detail_screen.dart'
     show StockDetailScreen;
 import '../../features/trader_admin/settings/expenses_rule_screen.dart';
+import '../../features/trader_admin/stock/daily_stock_screen.dart';
 import '../models/app_user.dart';
 import '../providers/session_provider.dart';
 import '../../features/splash_screen.dart';
@@ -125,7 +126,8 @@ abstract class R {
   static const cashRecon = '/t/reconciliation';
   static const dayClosure = '/t/day-closure';
   static const alerts = '/t/alerts';
-  static const dailyReport = '/t/reports/daily';
+  static const dailyReport  = '/t/reports/daily';
+  static const dailyStock   = '/t/reports/stock';
   static const reportsHub = '/t/reports';
   static const purchase = '/t/purchase';
   static const retailerHome = '/r/home';
@@ -457,6 +459,9 @@ final appRouterProvider = Provider<GoRouter>((ref) => GoRouter(
         GoRoute(
             path: R.reportsHub,
             builder: (_, __) => const ReportsHubScreen()),
+        GoRoute(
+            path: R.dailyStock,
+            builder: (_, __) => const DailyStockScreen()),
         GoRoute(
             path: R.purchase, builder: (_, __) => const PurchaseScreen()),
         GoRoute(

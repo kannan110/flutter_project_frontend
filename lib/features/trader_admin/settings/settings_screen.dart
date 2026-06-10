@@ -118,6 +118,7 @@ class SettingsScreen extends ConsumerWidget {
             _item(context, Icons.summarize_outlined,         'Reports & Analytics',  R.reportsHub),
             _item(context, Icons.shopping_cart_outlined,     'Purchase Management',  R.purchase),
             _item(context, Icons.receipt_long_outlined,      'Daily Report',         R.dailyReport),
+            _item(context, Icons.calendar_month_outlined,    'Daily Stock Snapshots',R.dailyStock),
             _item(context, Icons.account_balance_outlined,   'Cash Reconciliation',  R.cashRecon),
             _item(context, Icons.lock_clock_outlined,        'Day Closure',          R.dayClosure),
           ]),
