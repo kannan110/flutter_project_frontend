@@ -762,6 +762,11 @@ class _S extends ConsumerState<RetailerDetailScreen> {
               onPressed: () => context.push(R.retailerLedgerPath(widget.id)),
               icon: const Icon(Icons.account_balance_wallet_outlined, size: 18),
               label: const Text('View Ledger & Outstanding')),
+          const SizedBox(height: 8),
+          OutlinedButton.icon(
+              onPressed: () => context.push(R.retailerStatementPath(widget.id)),
+              icon: const Icon(Icons.receipt_long_outlined, size: 18),
+              label: const Text('Account Statement')),
           const SizedBox(height: 10),
           OutlinedButton.icon(
               onPressed: () => context.go(R.orderCreate),

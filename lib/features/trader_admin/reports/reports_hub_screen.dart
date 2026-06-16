@@ -55,6 +55,12 @@ const _kR = [
   _Rep('collection',           'Collection',          Icons.payments_outlined,          Color(0xFF1B5E20)),
   _Rep('retailer_purchase',    'Retailer Purchase',   Icons.store_outlined,             Color(0xFF4A148C)),
   _Rep('profitability',        'Profitability',       Icons.trending_up_outlined,       Color(0xFF004D40)),
+  // ── Phase 5: Pricing Analytics ──────────────────────────────────────────
+  _Rep('product_sales',        'Product Sales',       Icons.egg_alt_outlined,           Color(0xFF1A237E)),
+  _Rep('zone_sales',           'Zone Sales',          Icons.map_outlined,               Color(0xFF006064)),
+  _Rep('discount_leakage',     'Discount Leakage',    Icons.remove_circle_outline,      Color(0xFFBF360C)),
+  _Rep('rate_source_breakdown','Rate Source',         Icons.auto_fix_high_outlined,     Color(0xFF4527A0)),
+  _Rep('profitability_enhanced','Profit (Full)',      Icons.analytics_outlined,         Color(0xFF1B5E20)),
 ];
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -98,15 +104,25 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
     final tid = ref.read(appUserProvider).valueOrNull?.traderId;
     if (tid == null) return;
     setState(() { _loading=true; _error=null; _data=null; });
+    final isPricingAnalytics = const {
+      'product_sales', 'zone_sales', 'discount_leakage',
+      'rate_source_breakdown', 'profitability_enhanced',
+    }.contains(_sel.key);
+
     try {
       final p = <String,dynamic>{
-        'p_trader_id': tid, 'p_report': _sel.key,
+        'p_trader_id': tid,
         'p_from_date': DateFormat('yyyy-MM-dd').format(_from),
         'p_to_date':   DateFormat('yyyy-MM-dd').format(_to),
       };
-      if (_agentId != null)    p['p_agent_id']    = _agentId;
-      if (_retailerId != null) p['p_retailer_id'] = _retailerId;
-      final res = await _c.rpc('get_report_data', params: p)
+      if (!isPricingAnalytics) {
+        p['p_report'] = _sel.key;
+        if (_agentId != null)    p['p_agent_id']    = _agentId;
+        if (_retailerId != null) p['p_retailer_id'] = _retailerId;
+      }
+      final rpcName = isPricingAnalytics ? 'get_pricing_analytics' : 'get_report_data';
+      if (isPricingAnalytics) p['p_report'] = _sel.key;
+      final res = await _c.rpc(rpcName, params: p)
           .timeout(const Duration(seconds: 20));
       if (mounted) setState(() => _data = res as Map<String,dynamic>?);
     } catch (e) {
@@ -238,6 +254,12 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
     'collection'           => _rCollection(),
     'retailer_purchase'    => _rRetailerPurchase(),
     'profitability'        => _rProfitability(),
+  // Phase 5: Pricing Analytics
+    'product_sales'        => _rProductSales(),
+    'zone_sales'           => _rZoneSales(),
+    'discount_leakage'     => _rDiscountLeakage(),
+    'rate_source_breakdown'=> _rRateSource(),
+    'profitability_enhanced'=> _rProfitabilityEnhanced(),
     _                      => const EmptyState(icon: Icons.bar_chart_outlined, message: 'No data'),
   };
 
@@ -753,6 +775,471 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
   }
 
   // ─── Micro-helpers ────────────────────────────────────────────────────────
+  // ═══════════════════════════════════════════════════════════════════════════
+  // PHASE 5 — PRICING ANALYTICS REPORTS
+  // Data from get_pricing_analytics RPC
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  // ── REPORT P1: Product Sales ─────────────────────────────────────────────
+  Widget _rProductSales() {
+    final summary  = List<Map<String,dynamic>>.from(_data?['summary'] as List? ?? []);
+    final daily    = List<Map<String,dynamic>>.from(_data?['daily_trend'] as List? ?? []);
+    final totalRev = summary.fold(0.0, (s, r) => s + _d(r, 'total_revenue'));
+    final totalKg  = summary.fold(0.0, (s, r) => s + _d(r, 'total_kg'));
+
+    return _scroll([
+      _banner('Sales breakdown by product for the selected period.',
+          const Color(0xFF1A237E)),
+      const SizedBox(height: 4),
+      _kpiGrid([
+        _kpi('Total Revenue', Fmt.amount(totalRev), const Color(0xFF1A237E), Icons.currency_rupee),
+        _kpi('Total Sold',    '${totalKg.toStringAsFixed(0)} kg', const Color(0xFF006064), Icons.scale_outlined),
+      ]),
+      const SizedBox(height: 12),
+
+      if (summary.isEmpty)
+        _banner('No invoiced sales in this period. Approve deliveries to see data.', Colors.orange)
+      else ...[
+        _sec('BY PRODUCT'),
+        ...summary.map((p) {
+          final rev    = _d(p, 'total_revenue');
+          final kg     = _d(p, 'total_kg');
+          final rate   = _d(p, 'avg_rate');
+          final invCnt = _i(p, 'invoice_count');
+          final pct    = totalRev > 0 ? rev / totalRev * 100 : 0.0;
+          return Container(
+            margin: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: kSurface,
+              borderRadius: BorderRadius.circular(kRadiusCard),
+              border: Border.all(color: kBorderLight),
+              boxShadow: kCardShadow,
+            ),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                      color: const Color(0xFF1A237E).withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(kRadiusChip)),
+                  child: Text(_str(p, 'product_name'),
+                      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: Color(0xFF1A237E))),
+                ),
+                const Spacer(),
+                Text('${pct.toStringAsFixed(1)}% of total',
+                    style: const TextStyle(fontSize: 11, color: kTextSub)),
+              ]),
+              const SizedBox(height: 8),
+              // Progress bar
+              ClipRRect(
+                borderRadius: BorderRadius.circular(4),
+                child: LinearProgressIndicator(
+                  value: pct / 100,
+                  minHeight: 6,
+                  backgroundColor: const Color(0xFF1A237E).withValues(alpha: 0.1),
+                  valueColor: const AlwaysStoppedAnimation(Color(0xFF1A237E)),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Row(children: [
+                _st('Revenue', Fmt.amount(rev)),
+                _st('Weight', '${kg.toStringAsFixed(0)} kg'),
+                _st('Avg Rate', '${Fmt.amount(rate)}/kg'),
+                _st('Invoices', '$invCnt'),
+              ]),
+            ]),
+          );
+        }),
+      ],
+
+      if (daily.isNotEmpty) ...[
+        _sec('DAILY TREND (Revenue)'),
+        _dailyBar(daily, 'revenue', const Color(0xFF1A237E)),
+      ],
+    ]);
+  }
+
+  // ── REPORT P2: Zone Sales ─────────────────────────────────────────────────
+  Widget _rZoneSales() {
+    final byZone    = List<Map<String,dynamic>>.from(_data?['by_zone'] as List? ?? []);
+    final byZoneProd= List<Map<String,dynamic>>.from(_data?['by_zone_product'] as List? ?? []);
+    final totalRev  = byZone.fold(0.0, (s, r) => s + _d(r, 'total_revenue'));
+
+    return _scroll([
+      _banner('Revenue breakdown by delivery zone.', const Color(0xFF006064)),
+      const SizedBox(height: 4),
+      _kpiGrid([
+        _kpi('Total Revenue', Fmt.amount(totalRev), const Color(0xFF006064), Icons.currency_rupee),
+        _kpi('Zones Active',  '${byZone.length}', const Color(0xFF00695C), Icons.map_outlined),
+      ]),
+      const SizedBox(height: 12),
+
+      if (byZone.isEmpty)
+        _banner('No zone data yet. Assign retailers to zones and approve deliveries.', Colors.orange)
+      else ...[
+        _sec('REVENUE BY ZONE'),
+        ...byZone.map((z) {
+          final rev  = _d(z, 'total_revenue');
+          final kg   = _d(z, 'total_kg');
+          final rate = _d(z, 'avg_rate');
+          final pct  = totalRev > 0 ? rev / totalRev * 100 : 0.0;
+          return Container(
+            margin: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: kSurface, borderRadius: BorderRadius.circular(kRadiusCard),
+              border: Border.all(color: kBorderLight), boxShadow: kCardShadow,
+            ),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(children: [
+                Container(
+                  width: 36, height: 36,
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(colors: [kNavy, kNavyMid]),
+                    borderRadius: BorderRadius.circular(kRadiusChip),
+                  ),
+                  child: Center(child: Text(
+                    (_str(z, 'zone_code').length >= 3 ? _str(z, 'zone_code').substring(0, 3) : _str(z, 'zone_code')),
+                    style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: kGoldLight),
+                  )),
+                ),
+                const SizedBox(width: 10),
+                Expanded(child: Text(_str(z, 'zone_name'),
+                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: kNavy))),
+                Text('${pct.toStringAsFixed(1)}%',
+                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: Color(0xFF006064))),
+              ]),
+              const SizedBox(height: 8),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(4),
+                child: LinearProgressIndicator(
+                  value: pct / 100, minHeight: 6,
+                  backgroundColor: const Color(0xFF006064).withValues(alpha: 0.1),
+                  valueColor: const AlwaysStoppedAnimation(Color(0xFF006064)),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Row(children: [
+                _st('Revenue', Fmt.amount(rev)),
+                _st('Weight', '${kg.toStringAsFixed(0)} kg'),
+                _st('Avg Rate', '${Fmt.amount(rate)}/kg'),
+              ]),
+            ]),
+          );
+        }),
+        if (byZoneProd.isNotEmpty) ...[
+          _sec('ZONE × PRODUCT BREAKDOWN'),
+          ...byZoneProd.map((zp) => _sR(
+            '${_str(zp, "zone_name")} · ${_str(zp, "product_name")}',
+            '${Fmt.amount(_d(zp, "total_revenue"))} (${_d(zp, "total_kg").toStringAsFixed(0)} kg)',
+            const Color(0xFF006064),
+          )),
+        ],
+      ],
+    ]);
+  }
+
+  // ── REPORT P3: Discount Leakage ───────────────────────────────────────────
+  Widget _rDiscountLeakage() {
+    final s          = (_data?['summary'] as Map<String,dynamic>?) ?? {};
+    final byRetailer = List<Map<String,dynamic>>.from(_data?['by_retailer'] as List? ?? []);
+    final byProduct  = List<Map<String,dynamic>>.from(_data?['by_product']  as List? ?? []);
+    final total      = _d(s, 'total_discount_given');
+    final totalKg    = _d(s, 'total_kg_discounted');
+    final avgPerKg   = _d(s, 'avg_discount_per_kg');
+    final custCount  = _i(s, 'discount_customer_count');
+
+    return _scroll([
+      _banner(
+          'Shows how much revenue was discounted via Flat Discount or Percentage Discount pricing. '
+              'Only available for orders approved with the Phase 3+ engine.',
+          const Color(0xFFBF360C)),
+      const SizedBox(height: 4),
+      _kpiGrid([
+        _kpi('Total Discounted', Fmt.amount(total), const Color(0xFFBF360C), Icons.remove_circle_outline),
+        _kpi('Avg / kg', '${Fmt.amount(avgPerKg)}/kg', Colors.deepOrange, Icons.straighten_outlined),
+      ]),
+      _kpiGrid([
+        _kpi2('Kg Discounted', '${totalKg.toStringAsFixed(0)} kg', Colors.orange, Icons.scale_outlined),
+        _kpi2('Customers',     '$custCount', Colors.brown, Icons.person_outline),
+      ]),
+      const SizedBox(height: 12),
+
+      if (total == 0)
+        _banner('No discount pricing detected in this period. Either no flat/pct discounts are active, '
+            'or no deliveries were approved in this range.', Colors.green)
+      else ...[
+        if (byRetailer.isNotEmpty) ...[
+          _sec('BY CUSTOMER'),
+          ...byRetailer.map((r) => Container(
+            margin: const EdgeInsets.fromLTRB(12, 0, 12, 6),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              color: kSurface, borderRadius: BorderRadius.circular(kRadiusCard),
+              border: Border.all(color: kBorderLight),
+            ),
+            child: Row(children: [
+              Container(width: 4, height: 28,
+                  color: const Color(0xFFBF360C).withValues(alpha: 0.6),
+                  margin: const EdgeInsets.only(right: 10)),
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(_str(r, 'shop_name'),
+                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: kNavy)),
+                Text('${_d(r, "total_kg").toStringAsFixed(0)} kg · ${Fmt.amount(_d(r, "avg_per_kg"))}/kg avg',
+                    style: const TextStyle(fontSize: 11, color: kTextSub)),
+              ])),
+              Text('−${Fmt.amount(_d(r, "discount_given"))}',
+                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: Color(0xFFBF360C))),
+            ]),
+          )),
+        ],
+        if (byProduct.isNotEmpty) ...[
+          _sec('BY PRODUCT'),
+          ...byProduct.map((p) => _sR(
+            _str(p, 'product_name'),
+            '−${Fmt.amount(_d(p, "discount_given"))} (${_d(p, "total_kg").toStringAsFixed(0)} kg)',
+            const Color(0xFFBF360C),
+          )),
+        ],
+      ],
+    ]);
+  }
+
+  // ── REPORT P4: Rate Source Breakdown ─────────────────────────────────────
+  Widget _rRateSource() {
+    final bySource  = List<Map<String,dynamic>>.from(_data?['by_source'] as List? ?? []);
+    final totalRev  = (_data?['total_revenue'] as num?)?.toDouble() ?? 0;
+
+    const sourceColors = <String, Color>{
+      'Customer Adjustment': Color(0xFF059669),
+      'Contract':            Color(0xFF7C3AED),
+      'Fixed Customer':      Color(0xFF2563EB),
+      'Zone Rate':           kNavy,
+      'Default Rate':        Color(0xFF374151),
+    };
+
+    return _scroll([
+      _banner(
+          'Shows what percentage of your revenue came from each pricing tier: '
+              'Customer Adjustment, Zone Rate, or Default Rate.',
+          const Color(0xFF4527A0)),
+      const SizedBox(height: 4),
+      _kpiGrid([
+        _kpi('Total Revenue', Fmt.amount(totalRev), const Color(0xFF4527A0), Icons.currency_rupee),
+        _kpi('Rate Sources',  '${bySource.length}', Colors.deepPurple, Icons.auto_fix_high_outlined),
+      ]),
+      const SizedBox(height: 12),
+
+      if (bySource.isEmpty)
+        _banner('No invoiced data in this period.', Colors.orange)
+      else ...[
+        _sec('REVENUE BY RATE SOURCE'),
+        ...bySource.map((src) {
+          final label  = _str(src, 'source_label');
+          final rev    = _d(src, 'total_revenue');
+          final kg     = _d(src, 'total_kg');
+          final pct    = _d(src, 'pct_of_total');
+          final color  = sourceColors[label] ?? const Color(0xFF374151);
+
+          return Container(
+            margin: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.04),
+              borderRadius: BorderRadius.circular(kRadiusCard),
+              border: Border.all(color: color.withValues(alpha: 0.2)),
+            ),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                      color: color.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(kRadiusChip)),
+                  child: Text(label, style: TextStyle(
+                      fontSize: 12, fontWeight: FontWeight.w800, color: color)),
+                ),
+                const Spacer(),
+                Text('${pct.toStringAsFixed(1)}%',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: color)),
+              ]),
+              const SizedBox(height: 8),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(4),
+                child: LinearProgressIndicator(
+                  value: (pct / 100).clamp(0.0, 1.0), minHeight: 8,
+                  backgroundColor: color.withValues(alpha: 0.1),
+                  valueColor: AlwaysStoppedAnimation(color),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Row(children: [
+                _st('Revenue', Fmt.amount(rev)),
+                _st('Weight', '${kg.toStringAsFixed(0)} kg'),
+                _st('Avg Rate', totalRev > 0 && kg > 0
+                    ? '${Fmt.amount(rev / kg)}/kg' : '—'),
+              ]),
+            ]),
+          );
+        }),
+      ],
+    ]);
+  }
+
+  // ── REPORT P5: Enhanced Profitability ─────────────────────────────────────
+  Widget _rProfitabilityEnhanced() {
+    final s        = (_data?['summary'] as Map<String,dynamic>?) ?? {};
+    final byProd   = List<Map<String,dynamic>>.from(_data?['by_product']  as List? ?? []);
+    final daily    = List<Map<String,dynamic>>.from(_data?['daily_trend'] as List? ?? []);
+
+    final revenue     = _d(s, 'revenue');
+    final cost        = _d(s, 'purchase_cost');
+    final expenses    = _d(s, 'expenses');
+    final grossMargin = _d(s, 'gross_margin');
+    final marginPct   = _d(s, 'gross_margin_pct');
+    final netProfit   = _d(s, 'net_profit');
+    final avgSell     = _d(s, 'avg_sell_rate');
+    final avgBuy      = _d(s, 'avg_buy_rate');
+    final discGiven   = _d(s, 'discount_given');
+    final premEarned  = _d(s, 'premium_earned');
+    final netPricingImpact = _d(s, 'net_pricing_impact');
+
+    return _scroll([
+      _banner('Full profitability including purchase cost, expenses, discount leakage & premium earned.',
+          const Color(0xFF1B5E20)),
+      const SizedBox(height: 4),
+
+      // Revenue vs Cost KPIs
+      _kpiGrid([
+        _kpi('Revenue',      Fmt.amount(revenue),     const Color(0xFF1B5E20), Icons.trending_up_outlined),
+        _kpi('Purchase Cost',Fmt.amount(cost),         const Color(0xFFBF360C), Icons.shopping_cart_outlined),
+      ]),
+      _kpiGrid([
+        _kpi('Gross Margin', Fmt.amount(grossMargin),
+            grossMargin >= 0 ? const Color(0xFF1B5E20) : kError, Icons.calculate_outlined),
+        _kpi('Margin %',     '${marginPct.toStringAsFixed(1)}%',
+            marginPct >= 10 ? kSuccess : marginPct >= 5 ? Colors.orange : kError,
+            Icons.percent_outlined),
+      ]),
+      _kpiGrid([
+        _kpi2('Expenses',   Fmt.amount(expenses),   Colors.orange,    Icons.receipt_long_outlined),
+        _kpi2('Net Profit', Fmt.amount(netProfit),
+            netProfit >= 0 ? kSuccess : kError, Icons.account_balance_wallet_outlined),
+        _kpi2('Avg Sell', '${Fmt.amount(avgSell)}/kg', kNavy,           Icons.sell_outlined),
+        _kpi2('Avg Buy',  '${Fmt.amount(avgBuy)}/kg',  Colors.brown,    Icons.shopping_bag_outlined),
+      ]),
+
+      // Pricing impact section
+      if (discGiven > 0 || premEarned > 0) ...[
+        _sec('PRICING ADJUSTMENTS IMPACT'),
+        Container(
+          margin: const EdgeInsets.fromLTRB(12, 0, 12, 0),
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: kSurface,
+            borderRadius: BorderRadius.circular(kRadiusCard),
+            border: Border.all(color: kBorderLight),
+          ),
+          child: Column(children: [
+            if (discGiven > 0) _plR('Discount Given',    discGiven,       kError,   '−'),
+            if (premEarned > 0)_plR('Premium Earned',    premEarned,      kSuccess, '+'),
+            Container(height: 1, color: kBorderLight, margin: const EdgeInsets.symmetric(vertical: 6)),
+            _plR('Net Pricing Impact', netPricingImpact.abs(),
+                netPricingImpact >= 0 ? kSuccess : kError,
+                netPricingImpact >= 0 ? '+' : '−'),
+          ]),
+        ),
+      ],
+
+      // Profitability note if no purchase data
+      if (cost == 0)
+        Padding(
+          padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+          child: _banner('Purchase cost is ₹0 — add purchase entries to see full margin analysis.',
+              Colors.orange),
+        ),
+
+      // By product
+      if (byProd.isNotEmpty) ...[
+        _sec('BY PRODUCT'),
+        ...byProd.map((p) => Container(
+          margin: const EdgeInsets.fromLTRB(12, 0, 12, 6),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          decoration: BoxDecoration(
+              color: kSurface, borderRadius: BorderRadius.circular(kRadiusCard),
+              border: Border.all(color: kBorderLight)),
+          child: Row(children: [
+            Container(width: 4, height: 28, color: const Color(0xFF1B5E20).withValues(alpha: 0.6),
+                margin: const EdgeInsets.only(right: 10)),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(_str(p, 'product_name'),
+                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: kNavy)),
+              Text('${_d(p, "total_kg").toStringAsFixed(0)} kg · ${Fmt.amount(_d(p, "avg_rate"))}/kg',
+                  style: const TextStyle(fontSize: 11, color: kTextSub)),
+            ])),
+            Text(Fmt.amount(_d(p, 'total_revenue')),
+                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: Color(0xFF1B5E20))),
+          ]),
+        )),
+      ],
+
+      // Daily trend
+      if (daily.isNotEmpty) ...[
+        _sec('DAILY REVENUE TREND'),
+        _dailyBar(daily, 'revenue', const Color(0xFF1B5E20)),
+      ],
+    ]);
+  }
+
+  // ── Shared: compact daily bar chart (pure Flutter, no charting lib) ───────
+  Widget _dailyBar(List<Map<String,dynamic>> daily, String key, Color color) {
+    final vals = daily.map((d) => _d(d, key)).toList();
+    final maxV = vals.isEmpty ? 1.0 : vals.reduce((a, b) => a > b ? a : b);
+    if (maxV == 0) return const SizedBox.shrink();
+
+    return Container(
+      height: 90,
+      margin: const EdgeInsets.fromLTRB(12, 4, 12, 12),
+      padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
+      decoration: BoxDecoration(
+          color: kSurface,
+          borderRadius: BorderRadius.circular(kRadiusCard),
+          border: Border.all(color: kBorderLight)),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: daily.asMap().entries.map((e) {
+          final v   = _d(e.value, key);
+          final pct = maxV > 0 ? v / maxV : 0.0;
+          final dateStr = _fd(e.value['dt'] ?? e.value['d']);
+          final isLast  = e.key == daily.length - 1;
+          return Expanded(child: Column(children: [
+            Expanded(child: Align(
+              alignment: Alignment.bottomCenter,
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 400),
+                width: double.infinity,
+                height: (pct * 55).clamp(2.0, 55.0),
+                margin: const EdgeInsets.symmetric(horizontal: 1),
+                decoration: BoxDecoration(
+                    color: isLast ? color : color.withValues(alpha: 0.55),
+                    borderRadius: const BorderRadius.vertical(top: Radius.circular(2))),
+              ),
+            )),
+            const SizedBox(height: 2),
+            if (daily.length <= 10 || e.key % 3 == 0)
+              Text(dateStr,
+                  style: const TextStyle(fontSize: 7, color: kTextHint),
+                  textAlign: TextAlign.center)
+            else
+              const SizedBox(height: 8),
+          ]));
+        }).toList(),
+      ),
+    );
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
   Map<String,dynamic> _s() => (_data?['summary'] as Map<String,dynamic>?)??{};
   List<Map<String,dynamic>> _rows(String k) => List<Map<String,dynamic>>.from(_data?[k] as List? ?? []);
   double _d(Map m, String k) => (m[k] as num?)?.toDouble()??0;

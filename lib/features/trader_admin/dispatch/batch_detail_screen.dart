@@ -25,6 +25,12 @@ class _S extends ConsumerState<BatchDetailScreen> {
   bool _loading = true,
       _submitting = false;
   List<Map<String, dynamic>> _farms = []; // supplier master — for DC picker
+  // Parent-level products only (e.g. Broiler, Country, Quail) — for the
+  // mandatory DC product picker. Variant breakdown (Broiler Small/Medium/Big)
+  // is recorded separately via loaded-stock confirmation, not here. Enforced
+  // both here (parent_product_id IS NULL filter) and server-side in
+  // pickup_batch/add_batch_dc (rejects variant ids even if somehow sent).
+  List<Map<String, dynamic>> _parentProducts = [];
 
   @override void initState() {
     super.initState();
@@ -64,6 +70,17 @@ class _S extends ConsumerState<BatchDetailScreen> {
             .order('farmer_name');
         farms = List<Map<String, dynamic>>.from(f as List? ?? []);
       } catch (_) {}
+      // Load parent-level products only (e.g. Broiler, Country, Quail) for
+      // the mandatory DC product picker. Variants excluded intentionally.
+      List<Map<String, dynamic>> parentProducts = [];
+      try {
+        final pp = await _c.from('master_products')
+            .select('id,name,category')
+            .isFilter('parent_product_id', null)
+            .eq('is_active', true)
+            .order('sort_order');
+        parentProducts = List<Map<String, dynamic>>.from(pp as List? ?? []);
+      } catch (_) {}
       if (mounted) setState(() {
         _batch = b;
         _deliveries = List<Map<String, dynamic>>.from(d);
@@ -71,6 +88,7 @@ class _S extends ConsumerState<BatchDetailScreen> {
         _confirmedOrders = List<Map<String, dynamic>>.from(co);
         _agents = List<Map<String, dynamic>>.from(ag);
         _farms = farms;
+        _parentProducts = parentProducts;
         _loading = false;
       });
     } catch (e) {
@@ -84,14 +102,19 @@ class _S extends ConsumerState<BatchDetailScreen> {
         .valueOrNull
         ?.traderId;
     try {
-      // FIX: use add_order_to_batch RPC — updates order status to 'assigned'
-      await _c.rpc('add_order_to_batch', params: {
+      final res = await _c.rpc('add_order_to_batch', params: {
         'p_batch_id': widget.id,
         'p_order_id': orderId,
         'p_trader_id': tid,
       });
       _load();
-      if (mounted) showSuccess(context, 'Order added to batch ✓');
+      if (mounted) {
+        final isMidShift =
+            (res as Map?)?.cast<String, dynamic>()?['added_mid_shift'] == true;
+        showSuccess(context, isMidShift
+            ? '✓ Order added — agent will see it immediately'
+            : '✓ Order added to batch');
+      }
     } catch (e) {
       if (mounted) showError(context,
           e.toString().replaceAll('Exception: ', '').replaceAll(
@@ -298,6 +321,8 @@ class _S extends ConsumerState<BatchDetailScreen> {
     DateTime dcDate = DateTime.now();
     String sourceType = 'farm';
     String? selectedFarmId;
+    String? selectedProductId;
+    String? selectedProductName;
     String? selectedFarmName;
 
     await showModalBottomSheet(
@@ -375,6 +400,59 @@ class _S extends ConsumerState<BatchDetailScreen> {
                                             height: 1.4)),
                                   ])),
                         ],
+                        const SizedBox(height: 14),
+                        const Text('Product *',
+                            style: TextStyle(fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                                color: kTextHint)),
+                        const SizedBox(height: 4),
+                        const Text(
+                            'One product per DC. Variant breakdown '
+                                '(Small/Medium/Big) is confirmed separately '
+                                'after loading.',
+                            style: TextStyle(fontSize: 11, color: kTextHint)),
+                        const SizedBox(height: 8),
+                        if (_parentProducts.isEmpty)
+                          Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 8),
+                              child: Text('No active products found.',
+                                  style: TextStyle(color: kTextHint)))
+                        else
+                          Wrap(spacing: 8, runSpacing: 8,
+                              children: _parentProducts.map((p) {
+                                final id = p['id'] as String;
+                                final name = p['name'] as String? ?? '—';
+                                final selected = selectedProductId == id;
+                                return InkWell(
+                                    onTap: () => ss(() {
+                                      selectedProductId = id;
+                                      selectedProductName = name;
+                                    }),
+                                    borderRadius: BorderRadius.circular(20),
+                                    child: Container(
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 14, vertical: 8),
+                                        decoration: BoxDecoration(
+                                            color: selected
+                                                ? kPrimary.withValues(alpha: 0.1)
+                                                : Colors.grey.shade100,
+                                            borderRadius:
+                                            BorderRadius.circular(20),
+                                            border: Border.all(
+                                                color: selected
+                                                    ? kPrimary
+                                                    : Colors.grey.shade300,
+                                                width: selected ? 1.5 : 1)),
+                                        child: Text(name,
+                                            style: TextStyle(
+                                                fontSize: 13,
+                                                fontWeight: selected
+                                                    ? FontWeight.w700
+                                                    : FontWeight.w500,
+                                                color: selected
+                                                    ? kPrimary
+                                                    : kTextHint))));
+                              }).toList()),
                         const SizedBox(height: 10),
                         Row(children: [
                           Expanded(child: TextField(
@@ -710,6 +788,11 @@ class _S extends ConsumerState<BatchDetailScreen> {
                                 showError(ctx, 'Enter gross weight');
                                 return;
                               }
+                              if (selectedProductId == null) {
+                                showError(ctx,
+                                    'Select a product for this DC (e.g. Broiler, Country)');
+                                return;
+                              }
                               Navigator.of(ctx, rootNavigator: true).pop();
                               try {
                                 final bStatus = _batch?['status'] as String? ??
@@ -771,6 +854,7 @@ class _S extends ConsumerState<BatchDetailScreen> {
                                     'p_dc_photo_url': null,
                                     'p_source_type': sourceType,
                                     // FIX: was missing
+                                    'p_product_id': selectedProductId,  // NEW: explicit, mandatory — no more guessing
                                   });
                                   // Advance picked_up → out_for_delivery so agent can complete
                                   await _c.rpc('start_batch_delivery',
@@ -802,6 +886,7 @@ class _S extends ConsumerState<BatchDetailScreen> {
                                         ? null
                                         : double.tryParse(rateCtrl.text),
                                     'p_source_type': sourceType,
+                                    'p_product_id': selectedProductId,  // NEW: explicit, mandatory — no more guessing
                                   });
                                 }
                                 _load();
@@ -999,10 +1084,31 @@ class _S extends ConsumerState<BatchDetailScreen> {
                     ])));
           }),
 
-        // Add confirmed orders (only when batch is assigned)
-        if (status == 'assigned') ...[
+        // Add confirmed orders — available during active shift (assigned, picked_up, out_for_delivery)
+        if (['assigned', 'picked_up', 'out_for_delivery'].contains(status)) ...[
           const SizedBox(height: 8),
           const SectionHeader('ADD FROM CONFIRMED ORDERS'),
+          // Mid-shift banner — shown when agent is already delivering
+          if (status == 'out_for_delivery')
+            Container(
+              margin: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.orange.shade50,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.orange.shade200),
+              ),
+              child: Row(children: [
+                const Icon(Icons.local_shipping_outlined,
+                    color: Colors.orange, size: 16),
+                const SizedBox(width: 8),
+                const Expanded(child: Text(
+                  'Agent is mid-shift. New orders will appear on their '
+                      'screen immediately as out-for-delivery.',
+                  style: TextStyle(fontSize: 11, color: Colors.orange),
+                )),
+              ]),
+            ),
           ...() {
             final alreadyInBatch = _deliveries.map((d) =>
             (d['orders'] as Map?)?.cast<String, dynamic>()?['id']).toSet();

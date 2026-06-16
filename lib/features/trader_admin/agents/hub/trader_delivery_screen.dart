@@ -446,9 +446,11 @@ class _TraderDeliveryScreenState
     if (!_form.currentState!.validate()) return;
     final weight = double.tryParse(_weightCtrl.text.trim()) ?? 0;
     if (weight <= 0) { showError(context, 'Enter delivered weight'); return; }
-    if (_deliveryStatus != 'out_for_delivery') {
+    // Allow trader to complete any active delivery regardless of current status.
+    // The RPC handles auto-advancing assigned/picked_up → delivered atomically.
+    if (!['assigned','picked_up','out_for_delivery'].contains(_deliveryStatus)) {
       showError(context,
-          'Status is "$_deliveryStatus" — must be "out_for_delivery".');
+          'Delivery status "$_deliveryStatus" cannot be completed.');
       return;
     }
     if (_mortalityBirds > 0 && _mortalityProofUrl == null) {
@@ -596,7 +598,8 @@ class _TraderDeliveryScreenState
     final shopName = r?['shop_name'] as String? ?? 'Delivery';
     final partialCount    = (o?['partial_count'] as num?)?.toInt() ?? 0;
     final isAlreadyPartial = o?['is_partial_delivery'] == true;
-    final isReady  = _deliveryStatus == 'out_for_delivery';
+    // Ready when any active status — trader can complete from any state
+    final isReady  = ['assigned','picked_up','out_for_delivery'].contains(_deliveryStatus);
 
     if (!isReady) {
       return Scaffold(
@@ -614,8 +617,7 @@ class _TraderDeliveryScreenState
             const Text('Not Ready for Delivery',
                 style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
             const SizedBox(height: 8),
-            Text('Status: "$_deliveryStatus"\n'
-                'Must be "out_for_delivery".',
+            Text('Delivery status: "$_deliveryStatus" — will be completed by trader.',
                 textAlign: TextAlign.center,
                 style: const TextStyle(fontSize: 13, color: kTextSub)),
             const SizedBox(height: 24),

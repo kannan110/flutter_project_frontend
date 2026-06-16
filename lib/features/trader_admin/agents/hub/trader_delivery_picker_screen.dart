@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import '../../../../../core/router/app_router.dart';
-import '../../../../../core/theme/app_theme.dart';
+import '../../../../core/router/app_router.dart';
+import '../../../../core/theme/app_theme.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TRADER DELIVERY PICKER
@@ -25,9 +25,11 @@ class TraderDeliveryPickerScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Filter to only out_for_delivery
+    // Show all active deliveries — assigned, picked_up, out_for_delivery
+    // Trader can complete any of these from the hub
     final ready = pendingList
-        .where((d) => (d['status'] as String?) == 'out_for_delivery')
+        .where((d) => ['assigned','picked_up','out_for_delivery']
+        .contains(d['status'] as String?))
         .toList();
 
     return Scaffold(

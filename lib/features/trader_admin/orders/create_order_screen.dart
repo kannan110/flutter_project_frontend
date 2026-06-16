@@ -22,13 +22,19 @@ class _OrderLine {
   final rate = TextEditingController();
   bool wtManual = false;
   double? suggestRate;
+  // Phase 2: rate snapshot
+  String?  rateSource;
+  String?  rateSourceLabel;
+  String?  rateZoneId;
+  String?  rateZoneName;
+  // Phase 2b: adjustment snapshot
+  double?  baseRate;
+  String?  pricingType;
+  double?  adjustmentValue;
 
-  double get kg => double.tryParse(totalWt.text.trim()) ?? 0;
-
-  double get r => double.tryParse(rate.text.trim()) ?? 0;
-
-  int get b => int.tryParse(birds.text.trim()) ?? 0;
-
+  double get kg  => double.tryParse(totalWt.text.trim()) ?? 0;
+  double get r   => double.tryParse(rate.text.trim()) ?? 0;
+  int    get b   => int.tryParse(birds.text.trim()) ?? 0;
   double get amt => kg * r;
 
   void autoCalcWeight() {
@@ -79,15 +85,13 @@ class _S extends ConsumerState<CreateOrderScreen> {
           .eq('trader_id', tid)
           .eq('is_active', true)
           .order('shop_name');
+      // Phase 3: only show trader-enabled products (not all master_products)
       final p = await _c
-          .from('master_products')
-          .select('id,name')
-          .eq('is_active', true)
-          .order('name');
+          .rpc('get_trader_enabled_products', params: {'p_trader_id': tid});
       if (mounted)
         setState(() {
           _retailers = List<Map<String, dynamic>>.from(r);
-          _products = List<Map<String, dynamic>>.from(p);
+          _products  = List<Map<String, dynamic>>.from(p as List? ?? []);
           _dataLoading = false;
         });
     } catch (e) {
@@ -102,18 +106,38 @@ class _S extends ConsumerState<CreateOrderScreen> {
     final kg = line.kg > 0 ? line.kg : line.b * 1.8;
     if (kg <= 0) return;
     try {
-      final res = await _c.rpc('get_effective_rate_v2', params: {
-        'p_trader_id': tid,
+      // Phase 2b: Use v4 cascade (Customer adj → Zone → Default)
+      final res = await _c.rpc('get_effective_rate_v4', params: {
+        'p_trader_id':   tid,
         'p_retailer_id': _selRetailer!['id'],
-        'p_product_id': line.product!['id'],
+        'p_product_id':  line.product!['id'],
         'p_quantity_kg': kg,
       });
-      final rate = (res as num?)?.toDouble() ?? 0;
-      if (mounted && rate > 0)
+      // v4 returns a TABLE row; take first result
+      final rows = res as List?;
+      if (rows == null || rows.isEmpty) return;
+      final row          = rows.first as Map<String, dynamic>;
+      final rate         = (row['rate'] as num?)?.toDouble() ?? 0;
+      final baseRate     = (row['base_rate'] as num?)?.toDouble();
+      final source       = row['rate_source'] as String? ?? 'default_rate';
+      final label        = row['rate_label'] as String? ?? '';
+      final pricingType  = row['pricing_type'] as String? ?? 'none';
+      final adjValue     = (row['adjustment_value'] as num?)?.toDouble() ?? 0;
+      final zoneId       = row['zone_id'] as String?;
+      final zoneName     = row['zone_name'] as String?;
+      if (mounted && rate > 0) {
         setState(() {
-          line.suggestRate = rate;
+          line.suggestRate     = rate;
+          line.baseRate        = baseRate;
+          line.rateSource      = source;
+          line.rateSourceLabel = label;
+          line.pricingType     = pricingType;
+          line.adjustmentValue = adjValue;
+          line.rateZoneId      = zoneId;
+          line.rateZoneName    = zoneName;
           if (line.rate.text.isEmpty) line.rate.text = rate.toStringAsFixed(2);
         });
+      }
     } catch (_) {}
   }
 
@@ -158,31 +182,40 @@ class _S extends ConsumerState<CreateOrderScreen> {
       final order = await _c
           .from('orders')
           .insert({
-            'trader_id': tid,
-            'retailer_id': _selRetailer!['id'],
-            'product_id': firstLine.product!['id'],
-            'status': 'pending', // auto-confirmed by DB trigger
-            'order_date': DateTime.now().toIso8601String().split('T')[0],
-            if (_totalBirds > 0) 'estimated_birds': _totalBirds,
-            if (_totalKg > 0) 'total_quantity': _totalKg,
-            if (_totalAmt > 0) 'total_amount': _totalAmt,
-            if (firstLine.r > 0) 'final_price': firstLine.r,
-            if (_notesCtrl.text.trim().isNotEmpty)
-              'notes': _notesCtrl.text.trim(),
-          })
+        'trader_id': tid,
+        'retailer_id': _selRetailer!['id'],
+        'product_id': firstLine.product!['id'],
+        'status': 'pending', // auto-confirmed by DB trigger
+        'order_date': DateTime.now().toIso8601String().split('T')[0],
+        if (_totalBirds > 0) 'estimated_birds': _totalBirds,
+        if (_totalKg > 0) 'total_quantity': _totalKg,
+        if (_totalAmt > 0) 'total_amount': _totalAmt,
+        if (firstLine.r > 0) 'final_price': firstLine.r,
+        if (_notesCtrl.text.trim().isNotEmpty)
+          'notes': _notesCtrl.text.trim(),
+      })
           .select()
           .single();
 
-      // Insert one order_item per product line
+      // Insert one order_item per product line — with Phase 2b full rate snapshot
       for (final line in _lines) {
         await _c.from('order_items').insert({
-          'order_id': order['id'],
-          'trader_id': tid,
-          'product_id': line.product!['id'],
-          if (line.b > 0) 'bird_count': line.b,
-          if (line.kg > 0) 'total_weight': line.kg,
-          if (line.r > 0) 'rate_per_kg': line.r,
-          if (line.amt > 0) 'line_total': line.amt,
+          'order_id':        order['id'],
+          'trader_id':       tid,
+          'product_id':      line.product!['id'],
+          if (line.b > 0)   'bird_count':   line.b,
+          if (line.kg > 0)  'total_weight': line.kg,
+          if (line.r > 0)   'rate_per_kg':  line.r,
+          if (line.amt > 0) 'line_total':   line.amt,
+          // Rate snapshot — what v4 resolved and how
+          if (line.r > 0)                'applied_rate':      line.r,
+          if (line.baseRate != null)     'base_rate':         line.baseRate,
+          if (line.rateSource != null)   'rate_source':       line.rateSource,
+          if (line.pricingType != null)  'adjustment_type':   line.pricingType,
+          if (line.adjustmentValue != null && line.adjustmentValue! > 0)
+            'adjustment_value':  line.adjustmentValue,
+          if (line.rateZoneId != null)   'rate_zone_id':      line.rateZoneId,
+          if (line.rateZoneName != null) 'rate_zone_name':    line.rateZoneName,
         });
       }
 
@@ -218,119 +251,127 @@ class _S extends ConsumerState<CreateOrderScreen> {
       ),
       body: _dataLoading
           ? const LoadingList()
+          : _products.isEmpty
+          ? EmptyState(
+        icon: Icons.egg_alt_outlined,
+        message: 'No Products Enabled',
+        sub: 'Enable the products you trade in Pricing → Products tab before creating orders.',
+        actionLabel: 'Go to Pricing',
+        onAction: () => context.push(R.pricingHub),
+      )
           : Form(
-              key: _form,
-              child: ListView(
-                  padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + bottomInset),
-                  children: [
-                    // ── Customer ───────────────────────────────────────────
-                    const SectionHeader('CUSTOMER'),
-                    DropdownButtonFormField<Map<String, dynamic>>(
-                        value: _selRetailer,
-                        hint: const Text('Select Customer'),
-                        decoration: const InputDecoration(
-                            prefixIcon: Icon(Icons.store_outlined,
-                                size: 20, color: kPrimary)),
-                        isExpanded: true,
-                        items: _retailers
-                            .map((r) => DropdownMenuItem(
-                                value: r,
-                                child: Text(r['shop_name'] as String,
-                                    overflow: TextOverflow.ellipsis)))
-                            .toList(),
-                        onChanged: (v) {
-                          setState(() {
-                            _selRetailer = v;
-                          });
-                          for (int i = 0; i < _lines.length; i++) _fetchRate(i);
-                        },
-                        validator: (v) =>
-                            v == null ? 'Select a customer' : null),
-                    const SizedBox(height: 16),
+          key: _form,
+          child: ListView(
+              padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + bottomInset),
+              children: [
+                // ── Customer ───────────────────────────────────────────
+                const SectionHeader('CUSTOMER'),
+                DropdownButtonFormField<Map<String, dynamic>>(
+                    value: _selRetailer,
+                    hint: const Text('Select Customer'),
+                    decoration: const InputDecoration(
+                        prefixIcon: Icon(Icons.store_outlined,
+                            size: 20, color: kPrimary)),
+                    isExpanded: true,
+                    items: _retailers
+                        .map((r) => DropdownMenuItem(
+                        value: r,
+                        child: Text(r['shop_name'] as String,
+                            overflow: TextOverflow.ellipsis)))
+                        .toList(),
+                    onChanged: (v) {
+                      setState(() {
+                        _selRetailer = v;
+                      });
+                      for (int i = 0; i < _lines.length; i++) _fetchRate(i);
+                    },
+                    validator: (v) =>
+                    v == null ? 'Select a customer' : null),
+                const SizedBox(height: 16),
 
-                    // ── Order Lines (multi-product) ────────────────────────
-                    const SectionHeader('PRODUCTS'),
-                    ..._lines
-                        .asMap()
-                        .entries
-                        .map((e) => _buildProductLine(e.key)),
+                // ── Order Lines (multi-product) ────────────────────────
+                const SectionHeader('PRODUCTS'),
+                ..._lines
+                    .asMap()
+                    .entries
+                    .map((e) => _buildProductLine(e.key)),
 
-                    // Add product line button
-                    OutlinedButton.icon(
-                        onPressed: _addLine,
-                        icon: const Icon(Icons.add, size: 18),
-                        label: const Text('Add Another Product'),
-                        style: OutlinedButton.styleFrom(
-                            minimumSize: const Size(double.infinity, 44))),
-                    const SizedBox(height: 16),
+                // Add product line button
+                OutlinedButton.icon(
+                    onPressed: _addLine,
+                    icon: const Icon(Icons.add, size: 18),
+                    label: const Text('Add Another Product'),
+                    style: OutlinedButton.styleFrom(
+                        minimumSize: const Size(double.infinity, 44))),
+                const SizedBox(height: 16),
 
-                    // ── Order total summary ───────────────────────────────
-                    if (_lines.length > 1 || _totalKg > 0)
-                      Container(
-                          padding: const EdgeInsets.all(18),
-                          decoration: BoxDecoration(
-                              gradient: const LinearGradient(
-                                  colors: [kNavy, kNavyMid],
-                                  begin: Alignment.topLeft,
-                                  end: Alignment.bottomRight),
-                              borderRadius: BorderRadius.circular(kRadiusCard),
-                              boxShadow: kCardShadow),
-                          child: Row(children: [
-                            _summStat('Birds', '$_totalBirds', Colors.blue),
-                            _summStat(
-                                'Weight',
-                                '${_totalKg.toStringAsFixed(1)} kg',
-                                Colors.teal),
-                            _summStat('Total', Fmt.amount(_totalAmt), kPrimary),
-                          ])),
+                // ── Order total summary ───────────────────────────────
+                if (_lines.length > 1 || _totalKg > 0)
+                  Container(
+                      padding: const EdgeInsets.all(18),
+                      decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                              colors: [kNavy, kNavyMid],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight),
+                          borderRadius: BorderRadius.circular(kRadiusCard),
+                          boxShadow: kCardShadow),
+                      child: Row(children: [
+                        _summStat('Birds', '$_totalBirds', Colors.blue),
+                        _summStat(
+                            'Weight',
+                            '${_totalKg.toStringAsFixed(1)} kg',
+                            Colors.teal),
+                        _summStat('Total', Fmt.amount(_totalAmt), kPrimary),
+                      ])),
 
-                    const SizedBox(height: 14),
-                    TextFormField(
-                        controller: _notesCtrl,
-                        maxLines: 2,
-                        decoration: const InputDecoration(
-                            labelText: 'Notes (optional)',
-                            alignLabelWithHint: true,
-                            prefixIcon: Icon(Icons.notes_outlined,
-                                size: 20, color: kPrimary))),
-                    const SizedBox(height: 24),
+                const SizedBox(height: 14),
+                TextFormField(
+                    controller: _notesCtrl,
+                    maxLines: 2,
+                    decoration: const InputDecoration(
+                        labelText: 'Notes (optional)',
+                        alignLabelWithHint: true,
+                        prefixIcon: Icon(Icons.notes_outlined,
+                            size: 20, color: kPrimary))),
+                const SizedBox(height: 24),
 
-                    // Auto-confirm info banner
-                    Container(
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                            color: Colors.green.shade50,
-                            borderRadius: BorderRadius.circular(kRadiusInner),
-                            border: Border.all(
-                                color: Colors.green.withValues(alpha: 0.3))),
-                        child: const Row(children: [
-                          Icon(Icons.check_circle_outline,
-                              color: Colors.green, size: 16),
-                          SizedBox(width: 8),
-                          Expanded(
-                              child: Text(
-                                  'Order will be auto-confirmed immediately upon creation.',
-                                  style: TextStyle(
-                                      fontSize: 12, color: Colors.green))),
-                        ])),
-                    const SizedBox(height: 14),
+                // Auto-confirm info banner
+                Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                        color: Colors.green.shade50,
+                        borderRadius: BorderRadius.circular(kRadiusInner),
+                        border: Border.all(
+                            color: Colors.green.withValues(alpha: 0.3))),
+                    child: const Row(children: [
+                      Icon(Icons.check_circle_outline,
+                          color: Colors.green, size: 16),
+                      SizedBox(width: 8),
+                      Expanded(
+                          child: Text(
+                              'Order will be auto-confirmed immediately upon creation.',
+                              style: TextStyle(
+                                  fontSize: 12, color: Colors.green))),
+                    ])),
+                const SizedBox(height: 14),
 
-                    ElevatedButton(
-                        onPressed: _saving ? null : _save,
-                        style: ElevatedButton.styleFrom(
-                            minimumSize: const Size(double.infinity, 52)),
-                        child: _saving
-                            ? const SizedBox(
-                                width: 22,
-                                height: 22,
-                                child: CircularProgressIndicator(
-                                    strokeWidth: 2.5, color: Colors.white))
-                            : const Text('Create & Confirm Order',
-                                style: TextStyle(
-                                    fontSize: 15,
-                                    fontWeight: FontWeight.w700))),
-                    const SizedBox(height: 20),
-                  ])),
+                ElevatedButton(
+                    onPressed: _saving ? null : _save,
+                    style: ElevatedButton.styleFrom(
+                        minimumSize: const Size(double.infinity, 52)),
+                    child: _saving
+                        ? const SizedBox(
+                        width: 22,
+                        height: 22,
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2.5, color: Colors.white))
+                        : const Text('Create & Confirm Order',
+                        style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700))),
+                const SizedBox(height: 20),
+              ])),
     );
   }
 
@@ -372,13 +413,13 @@ class _S extends ConsumerState<CreateOrderScreen> {
               hint: const Text('Select Product'),
               decoration: const InputDecoration(
                   prefixIcon:
-                      Icon(Icons.set_meal_outlined, size: 18, color: kPrimary),
+                  Icon(Icons.set_meal_outlined, size: 18, color: kPrimary),
                   contentPadding:
-                      EdgeInsets.symmetric(horizontal: 12, vertical: 12)),
+                  EdgeInsets.symmetric(horizontal: 12, vertical: 12)),
               isExpanded: true,
               items: _products
                   .map((p) => DropdownMenuItem(
-                      value: p, child: Text(p['name'] as String)))
+                  value: p, child: Text(p['name'] as String)))
                   .toList(),
               onChanged: (v) {
                 setState(() => line.product = v);
@@ -397,7 +438,7 @@ class _S extends ConsumerState<CreateOrderScreen> {
                         labelText: 'Birds',
                         suffixText: 'birds',
                         contentPadding:
-                            EdgeInsets.symmetric(horizontal: 12, vertical: 12)),
+                        EdgeInsets.symmetric(horizontal: 12, vertical: 12)),
                     onChanged: (_) {
                       line.autoCalcWeight();
                       setState(() {});
@@ -407,12 +448,12 @@ class _S extends ConsumerState<CreateOrderScreen> {
                 child: TextFormField(
                     controller: line.avgWt,
                     keyboardType:
-                        const TextInputType.numberWithOptions(decimal: true),
+                    const TextInputType.numberWithOptions(decimal: true),
                     decoration: const InputDecoration(
                         labelText: 'Avg wt/bird',
                         suffixText: 'kg',
                         contentPadding:
-                            EdgeInsets.symmetric(horizontal: 12, vertical: 12)),
+                        EdgeInsets.symmetric(horizontal: 12, vertical: 12)),
                     onChanged: (_) {
                       line.autoCalcWeight();
                       setState(() {});
@@ -426,12 +467,12 @@ class _S extends ConsumerState<CreateOrderScreen> {
                 child: TextFormField(
                     controller: line.totalWt,
                     keyboardType:
-                        const TextInputType.numberWithOptions(decimal: true),
+                    const TextInputType.numberWithOptions(decimal: true),
                     decoration: const InputDecoration(
                         labelText: 'Weight (kg) *',
                         suffixText: 'kg',
                         contentPadding:
-                            EdgeInsets.symmetric(horizontal: 12, vertical: 12)),
+                        EdgeInsets.symmetric(horizontal: 12, vertical: 12)),
                     onChanged: (v) {
                       line.wtManual = v.isNotEmpty;
                       setState(() {});
@@ -444,7 +485,7 @@ class _S extends ConsumerState<CreateOrderScreen> {
                 child: TextFormField(
                     controller: line.rate,
                     keyboardType:
-                        const TextInputType.numberWithOptions(decimal: true),
+                    const TextInputType.numberWithOptions(decimal: true),
                     decoration: InputDecoration(
                         labelText: 'Rate (₹/kg)',
                         prefixText: '₹',
@@ -452,10 +493,10 @@ class _S extends ConsumerState<CreateOrderScreen> {
                             horizontal: 12, vertical: 12),
                         suffixIcon: line.suggestRate != null
                             ? Tooltip(
-                                message:
-                                    'Suggested: ₹${line.suggestRate!.toStringAsFixed(2)}',
-                                child: const Icon(Icons.info_outline,
-                                    size: 16, color: Colors.blue))
+                            message:
+                            'Suggested: ₹${line.suggestRate!.toStringAsFixed(2)}',
+                            child: const Icon(Icons.info_outline,
+                                size: 16, color: Colors.blue))
                             : null),
                     onChanged: (_) => setState(() {}))),
           ]),
@@ -475,7 +516,7 @@ class _S extends ConsumerState<CreateOrderScreen> {
   }
 
   Widget _summStat(String l, String v, Color c) => Expanded(
-          child: Column(children: [
+      child: Column(children: [
         Text(v,
             style: const TextStyle(
                 fontSize: 16, fontWeight: FontWeight.w900, color: kGoldLight)),

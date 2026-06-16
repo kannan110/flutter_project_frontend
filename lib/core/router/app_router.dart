@@ -3,14 +3,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:rooster_trader/features/trader_admin/approvals/pending_operations_screen.dart'
     show PendingOperationsScreen;
+import 'package:rooster_trader/features/trader_admin/rates/price_hub_screen.dart' show PricingHubScreen;
 import 'package:rooster_trader/features/trader_admin/retailers/retailer_link_screen.dart'
     show RetailerLinkScreen;
+import 'package:rooster_trader/features/trader_admin/settings/expenses_rule_screen.dart' show ExpenseRulesScreen;
 import 'package:rooster_trader/features/trader_admin/settings/purchase_screen.dart'
     show PurchaseScreen;
+import 'package:rooster_trader/features/trader_admin/stock/daily_stock_screen.dart' show DailyStockScreen;
 import 'package:rooster_trader/features/trader_admin/stock/stock_detail_screen.dart'
     show StockDetailScreen;
-import '../../features/trader_admin/settings/expenses_rule_screen.dart';
-import '../../features/trader_admin/stock/daily_stock_screen.dart';
 import '../models/app_user.dart';
 import '../providers/session_provider.dart';
 import '../../features/splash_screen.dart';
@@ -29,6 +30,7 @@ import '../../features/trader_admin/invoices/invoices_screen.dart';
 import '../../features/trader_admin/invoices/invoice_detail_screen.dart';
 import '../../features/trader_admin/ledger/ledger_screen.dart';
 import '../../features/trader_admin/ledger/retailer_ledger_screen.dart';
+import '../../features/trader_admin/retailers/retailer_statement_screen.dart';
 import '../../features/trader_admin/retailers/retailers_screen.dart';
 import '../../features/trader_admin/retailers/create_retailer_screen.dart';
 import '../../features/trader_admin/retailers/retailer_detail_screen.dart';
@@ -39,8 +41,9 @@ import '../../features/trader_admin/agents/hub/agent_assistance_hub_screen.dart'
 import '../../features/trader_admin/agents/hub/trader_delivery_picker_screen.dart';
 import '../../features/trader_admin/agents/hub/trader_delivery_screen.dart';
 import '../../features/trader_admin/agents/hub/trader_reassign_screen.dart';
-import '../../features/trader_admin/agents/hub/trader_shift_close_screen.dart';
 import '../../features/trader_admin/agents/hub/trader_transfer_screen.dart';
+import '../../features/trader_admin/agents/hub/trader_shift_close_screen.dart';
+import '../../features/trader_admin/shifts/shift_verification_screen.dart';
 import '../../features/trader_admin/rates/rates_screen.dart';
 import '../../features/trader_admin/shifts/shifts_screen.dart';
 import '../../features/trader_admin/shifts/shift_detail_screen.dart';
@@ -107,28 +110,38 @@ abstract class R {
   static const invoiceDetail = '/t/invoices/:id';
   static const ledger = '/t/ledger';
   static const retailerLedger = '/t/ledger/:rid';
+  static const retailerStatement = '/t/statement/:rid';
   static const retailers = '/t/retailers';
   static const retailerCreate = '/t/retailers/create';
   static const retailerDetail = '/t/retailers/:id';
   static const agents = '/t/agents';
   static const agentCreate = '/t/agents/create';
   static const agentDetail = '/t/agents/:id';
+  // Phase 5: Agent Assistance Hub
+  static const agentAssistHub            = '/t/agents/:id/assist';
+  static const agentAssistDeliveryPicker = '/t/agents/:id/assist/deliveries';
+  static const agentAssistDelivery       = '/t/agents/:id/assist/delivery/:did';
+  static const agentAssistReassign       = '/t/agents/:id/assist/reassign';
+  static const agentAssistTransfer       = '/t/agents/:id/assist/transfer/:bid';
+  static const agentAssistShiftClose     = '/t/agents/:id/assist/shift-close/:sid';
   static const rates = '/t/rates';
   static const shifts = '/t/shifts';
-  static const shiftDetail = '/t/shifts/:id';
+  static const shiftDetail        = '/t/shifts/:id';
+  static const shiftVerification  = '/t/shifts/:id/verify';
   static const crates = '/t/crates';
   static const analytics = '/t/analytics';
   static const settings = '/t/settings';
   static const returns = '/t/returns';
   static const stock = '/t/stock';
-  static const pricing = '/t/pricing';
+  static const pricing      = '/t/pricing';       // legacy — kept for backward compat
+  static const pricingHub   = '/t/pricing-hub';   // Phase 1: Product · Zone · Pricing
   static const expenseRules = '/t/expense-rules';
   static const cashRecon = '/t/reconciliation';
   static const dayClosure = '/t/day-closure';
   static const alerts = '/t/alerts';
   static const dailyReport  = '/t/reports/daily';
-  static const dailyStock   = '/t/reports/stock';
-  static const reportsHub = '/t/reports';
+  static const dailyStock   = '/t/reports/stock';  // ← ADD THIS
+  static const reportsHub   = '/t/reports';
   static const purchase = '/t/purchase';
   static const retailerHome = '/r/home';
   static const retailerLink = '/r/link'; // invite code claim screen
@@ -157,32 +170,20 @@ abstract class R {
   static String invoiceDetailPath(String id) => '/t/invoices/$id';
 
   static String retailerLedgerPath(String id) => '/t/ledger/$id';
+  static String retailerStatementPath(String id) => '/t/statement/$id';
 
   static String retailerDetailPath(String id) => '/t/retailers/$id';
 
-  static const agentAssistHub            = '/t/agents/:id/assist';
-  static const agentAssistDeliveryPicker = '/t/agents/:id/assist/deliveries';
-  static const agentAssistDelivery       = '/t/agents/:id/assist/delivery/:did';
-  static const agentAssistReassign       = '/t/agents/:id/assist/reassign';
-  static const agentAssistTransfer       = '/t/agents/:id/assist/transfer/:bid';
-  static const agentAssistShiftClose     = '/t/agents/:id/assist/shift-close/:sid';
-
   static String agentDetailPath(String id) => '/t/agents/$id';
-
   static String agentAssistHubPath(String id) => '/t/agents/$id/assist';
-
   static String agentAssistDeliveryPickerPath(String agentId) =>
       '/t/agents/$agentId/assist/deliveries';
-
   static String agentAssistDeliveryPath(String agentId, String deliveryId) =>
       '/t/agents/$agentId/assist/delivery/$deliveryId';
-
   static String agentAssistReassignPath(String agentId) =>
       '/t/agents/$agentId/assist/reassign';
-
   static String agentAssistTransferPath(String agentId, String batchId) =>
       '/t/agents/$agentId/assist/transfer/$batchId';
-
   static String agentAssistShiftClosePath(String agentId, String shiftId) =>
       '/t/agents/$agentId/assist/shift-close/$shiftId';
 
@@ -336,6 +337,10 @@ final appRouterProvider = Provider<GoRouter>((ref) => GoRouter(
             builder: (_, s) =>
                 RetailerLedgerScreen(retailerId: s.pathParameters['rid']!)),
         GoRoute(
+            path: R.retailerStatement,
+            builder: (_, s) =>
+                RetailerStatementScreen(retailerId: s.pathParameters['rid']!)),
+        GoRoute(
             path: R.retailers, builder: (_, __) => const RetailersScreen()),
         GoRoute(
             path: R.retailerCreate,
@@ -352,17 +357,17 @@ final appRouterProvider = Provider<GoRouter>((ref) => GoRouter(
             path: R.agentDetail,
             builder: (_, s) =>
                 AgentDetailScreen(id: s.pathParameters['id']!)),
+        // Phase 5: Agent Assistance Hub
         GoRoute(
             path: R.agentAssistHub,
             builder: (_, s) {
-              final id = s.pathParameters['id']!;
+              final id    = s.pathParameters['id']!;
               final extra = s.extra as Map<String, dynamic>?;
               return AgentAssistanceHubScreen(
-                agentId: id,
+                agentId:   id,
                 agentName: extra?['agentName'] as String? ?? 'Agent',
               );
             }),
-        // Phase 5B: delivery picker
         GoRoute(
             path: R.agentAssistDeliveryPicker,
             builder: (_, s) {
@@ -370,12 +375,11 @@ final appRouterProvider = Provider<GoRouter>((ref) => GoRouter(
               final extra = s.extra as Map<String, dynamic>?;
               return TraderDeliveryPickerScreen(
                 agentId:     id,
-                agentName:   extra?['agentName']   as String? ?? 'Agent',
+                agentName:   extra?['agentName'] as String? ?? 'Agent',
                 pendingList: List<Map<String, dynamic>>.from(
                     extra?['pendingList'] as List? ?? []),
               );
             }),
-        // Phase 5B: record delivery
         GoRoute(
             path: R.agentAssistDelivery,
             builder: (_, s) {
@@ -388,7 +392,6 @@ final appRouterProvider = Provider<GoRouter>((ref) => GoRouter(
                 agentName:  extra?['agentName'] as String? ?? 'Agent',
               );
             }),
-        // Phase 5B: reassign
         GoRoute(
             path: R.agentAssistReassign,
             builder: (_, s) {
@@ -396,12 +399,11 @@ final appRouterProvider = Provider<GoRouter>((ref) => GoRouter(
               final extra = s.extra as Map<String, dynamic>?;
               return TraderReassignScreen(
                 agentId:     id,
-                agentName:   extra?['agentName']   as String? ?? 'Agent',
+                agentName:   extra?['agentName'] as String? ?? 'Agent',
                 pendingList: List<Map<String, dynamic>>.from(
                     extra?['pendingList'] as List? ?? []),
               );
             }),
-        // Phase 5C: transfer birds
         GoRoute(
             path: R.agentAssistTransfer,
             builder: (_, s) {
@@ -414,7 +416,6 @@ final appRouterProvider = Provider<GoRouter>((ref) => GoRouter(
                 batchId:       batchId,
               );
             }),
-        // Phase 5D: full shift close
         GoRoute(
             path: R.agentAssistShiftClose,
             builder: (_, s) {
@@ -433,6 +434,10 @@ final appRouterProvider = Provider<GoRouter>((ref) => GoRouter(
             path: R.shiftDetail,
             builder: (_, s) =>
                 ShiftDetailScreen(id: s.pathParameters['id']!)),
+        GoRoute(
+            path: R.shiftVerification,
+            builder: (_, s) =>
+                ShiftVerificationScreen(shiftId: s.pathParameters['id']!)),
         GoRoute(path: R.crates, builder: (_, __) => const CratesScreen()),
         GoRoute(
             path: R.analytics, builder: (_, __) => const AnalyticsScreen()),
@@ -446,6 +451,9 @@ final appRouterProvider = Provider<GoRouter>((ref) => GoRouter(
         GoRoute(
             path: R.pricing,
             builder: (_, __) => const PricingRulesScreen()),
+        GoRoute(
+            path: R.pricingHub,
+            builder: (_, __) => const PricingHubScreen()),
         GoRoute(
             path: R.cashRecon,
             builder: (_, __) => const CashReconciliationScreen()),
@@ -467,13 +475,6 @@ final appRouterProvider = Provider<GoRouter>((ref) => GoRouter(
         GoRoute(
             path: R.expenseRules,
             builder: (_, __) => const ExpenseRulesScreen()),
-        // Retailer routes (outside trader ShellRoute)
-        GoRoute(
-            path: R.retailerLink,
-            builder: (_, __) => const RetailerLinkScreen()),
-        GoRoute(
-            path: R.retailerHome,
-            builder: (_, __) => const RetailerScreen()),
         GoRoute(
             path: R.stockDetail,
             builder: (_, __) => const StockDetailScreen()),
