@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:rooster_trader/features/trader_admin/approvals/pending_operations_screen.dart'
     show PendingOperationsScreen;
 import 'package:rooster_trader/features/trader_admin/rates/price_hub_screen.dart' show PricingHubScreen;
+import 'package:rooster_trader/features/trader_admin/rates/zone_rate_history_screen.dart' show ZoneRateHistoryScreen;
 import 'package:rooster_trader/features/trader_admin/retailers/retailer_link_screen.dart'
     show RetailerLinkScreen;
 import 'package:rooster_trader/features/trader_admin/settings/expenses_rule_screen.dart' show ExpenseRulesScreen;
@@ -130,7 +131,7 @@ abstract class R {
   static const agentAssistReassign       = '/t/agents/:id/assist/reassign';
   static const agentAssistTransfer       = '/t/agents/:id/assist/transfer/:bid';
   static const agentAssistShiftClose     = '/t/agents/:id/assist/shift-close/:sid';
-  static const rates = '/t/rates';
+  static const rates = '/t/rates';        // deprecated — Daily Rate UI removed; no menu entry points left. Use pricingHub.
   static const shifts = '/t/shifts';
   static const shiftDetail        = '/t/shifts/:id';
   static const shiftVerification  = '/t/shifts/:id/verify';
@@ -141,6 +142,7 @@ abstract class R {
   static const stock = '/t/stock';
   static const pricing      = '/t/pricing';       // legacy — kept for backward compat
   static const pricingHub   = '/t/pricing-hub';   // Phase 1: Product · Zone · Pricing
+  static const zoneRateHistory = '/t/pricing-hub/zone-rate-history'; // browsable, filterable Zone Rate history
   static const expenseRules = '/t/expense-rules';
   static const cashRecon = '/t/reconciliation';
   static const dayClosure = '/t/day-closure';
@@ -460,6 +462,9 @@ final appRouterProvider = Provider<GoRouter>((ref) => GoRouter(
         GoRoute(
             path: R.pricingHub,
             builder: (_, __) => const PricingHubScreen()),
+        GoRoute(
+            path: R.zoneRateHistory,
+            builder: (_, __) => const ZoneRateHistoryScreen()),
         GoRoute(
             path: R.cashRecon,
             builder: (_, __) => const CashReconciliationScreen()),

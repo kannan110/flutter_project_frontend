@@ -10,6 +10,7 @@ import '../../../core/theme/app_theme.dart';
 // ── Language helper ───────────────────────────────────────────────────────────
 class _L {
   static bool tamil = false;
+
   static String t(String en, String ta) => tamil ? ta : en;
 }
 
@@ -39,6 +40,8 @@ class SimpleDashboard extends StatefulWidget {
     required this.onGoToAllDeliveries,
     this.onGoToPendingOrder,
     this.onGoToMyOrders,
+    this.onGoToInstantOrder,
+    this.onGoToExpenses,
     this.onDeliveryCompleteItem,
     this.onTransferItem,
     this.onReassignItem,
@@ -57,26 +60,31 @@ class SimpleDashboard extends StatefulWidget {
   final VoidCallback onGoToAllDeliveries;
   final VoidCallback? onGoToPendingOrder;
   final VoidCallback? onGoToMyOrders;
+  final VoidCallback? onGoToInstantOrder;
+  final VoidCallback? onGoToExpenses;
   final ValueChanged<String>? onDeliveryCompleteItem;
   final ValueChanged<String>? onTransferItem;
   final ValueChanged<Map<String, dynamic>>? onReassignItem;
 
-  @override State<SimpleDashboard> createState() => _SimpleDashboardState();
+  @override
+  State<SimpleDashboard> createState() => _SimpleDashboardState();
 }
 
 class _SimpleDashboardState extends State<SimpleDashboard> {
   bool _tamil = false;
 
   // ── Computed ──────────────────────────────────────────────────────────────
-  int    get _done  => (widget.today?['delivered_count'] as num?)?.toInt()    ?? 0;
-  double get _cash  => (widget.today?['cash_collected']  as num?)?.toDouble() ?? 0.0;
-  int    get _mort  => (widget.today?['mortality_birds'] as num?)?.toInt()    ?? 0;
+  int get _done => (widget.today?['delivered_count'] as num?)?.toInt() ?? 0;
 
-  List<Map<String, dynamic>> get _actionable =>
-      widget.pendingList
-          .whereType<Map<String, dynamic>>()
-          .where((d) => d['status'] == 'out_for_delivery')
-          .toList();
+  double get _cash =>
+      (widget.today?['cash_collected'] as num?)?.toDouble() ?? 0.0;
+
+  int get _mort => (widget.today?['mortality_birds'] as num?)?.toInt() ?? 0;
+
+  List<Map<String, dynamic>> get _actionable => widget.pendingList
+      .whereType<Map<String, dynamic>>()
+      .where((d) => d['status'] == 'out_for_delivery')
+      .toList();
 
   String t(String en, String ta) => _tamil ? ta : en;
 
@@ -97,7 +105,8 @@ class _SimpleDashboardState extends State<SimpleDashboard> {
             child: GestureDetector(
               onTap: () => setState(() => _tamil = !_tamil),
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
                 decoration: BoxDecoration(
                   color: kNavy,
                   borderRadius: BorderRadius.circular(99),
@@ -106,7 +115,8 @@ class _SimpleDashboardState extends State<SimpleDashboard> {
                 child: Text(
                   _tamil ? 'EN' : 'தமிழ்',
                   style: const TextStyle(
-                      fontSize: 12, fontWeight: FontWeight.w900,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w900,
                       color: kGoldLight),
                 ),
               ),
@@ -117,28 +127,28 @@ class _SimpleDashboardState extends State<SimpleDashboard> {
           // ── 1. Shift status card ─────────────────────────────────────────
           _ShiftCard(
             hasShift: widget.hasShift,
-            done:     _done,
-            cash:     _cash,
-            pending:  widget.orderCount,
-            mort:     _mort,
-            onOpen:   widget.onGoToShiftOpen,
-            onClose:  widget.onGoToShiftClose,
+            done: _done,
+            cash: _cash,
+            pending: widget.orderCount,
+            mort: _mort,
+            onOpen: widget.onGoToShiftOpen,
+            onClose: widget.onGoToShiftClose,
             onPendingOrder: widget.onGoToPendingOrder,
-            tamil:    _tamil,
+            tamil: _tamil,
           ),
           const SizedBox(height: 14),
 
           // ── 2. Active batch card ─────────────────────────────────────────
           if (widget.activeBatches.isNotEmpty)
             _BatchCard(
-              batch:     widget.activeBatches.first,
-              reqBirds:  widget.reqBirds,
+              batch: widget.activeBatches.first,
+              reqBirds: widget.reqBirds,
               reqWeight: widget.reqWeight,
               availBirds: widget.availBirds,
-              availKg:   widget.availKg,
-              onPickup:  widget.onGoToBatchPickup,
+              availKg: widget.availKg,
+              onPickup: widget.onGoToBatchPickup,
               onViewDCs: widget.onGoToDcView,
-              tamil:     _tamil,
+              tamil: _tamil,
             )
           else if (widget.hasShift)
             _NoBatchCard(onPickup: widget.onGoToBatchPickup, tamil: _tamil),
@@ -148,34 +158,37 @@ class _SimpleDashboardState extends State<SimpleDashboard> {
           // ── 3. Next delivery card ────────────────────────────────────────
           if (_actionable.isNotEmpty)
             _NextDeliveryCard(
-              delivery:   _actionable.first,
-              allCount:   _actionable.length,
+              delivery: _actionable.first,
+              allCount: _actionable.length,
               onComplete: widget.onDeliveryCompleteItem,
               onTransfer: widget.onTransferItem,
               onReassign: widget.onReassignItem,
-              onViewAll:  widget.onGoToAllDeliveries,
-              tamil:      _tamil,
+              onViewAll: widget.onGoToAllDeliveries,
+              tamil: _tamil,
             )
           else if (widget.pendingList.isNotEmpty)
             _PendingListCard(
-              list:      widget.pendingList,
+              list: widget.pendingList,
               onViewAll: widget.onGoToAllDeliveries,
-              tamil:     _tamil,
+              tamil: _tamil,
             ),
 
           const SizedBox(height: 14),
 
           // ── 4. Manage business grid ──────────────────────────────────────
           _ManageGrid(
-            hasShift:   widget.hasShift,
+            hasShift: widget.hasShift,
             hasBatches: widget.activeBatches.isNotEmpty,
-            onInstantOrder: widget.onGoToDeliveryComplete,
-            onDeliveries:   widget.onGoToDeliveries,
-            onTransfer:     widget.onGoToTransfers,
-            onDcView:       widget.onGoToDcView,
-            onPickup:       widget.onGoToBatchPickup,
-            onMyOrders:     widget.onGoToMyOrders,
-            tamil:          _tamil,
+            onInstantOrder:
+                widget.onGoToInstantOrder ?? widget.onGoToDeliveryComplete,
+            onDeliveries: widget.onGoToDeliveries,
+            onTransfer: widget.onGoToTransfers,
+            onDcView: widget.onGoToDcView,
+            onPickup: widget.onGoToBatchPickup,
+            onMyOrders: widget.onGoToMyOrders,
+            onExpenses: widget.onGoToExpenses,
+            onMortality: widget.onGoToDeliveryComplete,
+            tamil: _tamil,
           ),
           const SizedBox(height: 14),
 
@@ -203,6 +216,7 @@ class _ShiftCard extends StatelessWidget {
     this.onPendingOrder,
     required this.tamil,
   });
+
   final bool hasShift;
   final int done, pending, mort;
   final double cash;
@@ -221,15 +235,20 @@ class _ShiftCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: bg,
         borderRadius: BorderRadius.circular(kRadiusHero),
-        boxShadow: [BoxShadow(
-            color: bg.withValues(alpha: 0.4),
-            blurRadius: 16, offset: const Offset(0, 6))],
+        boxShadow: [
+          BoxShadow(
+              color: bg.withValues(alpha: 0.4),
+              blurRadius: 16,
+              offset: const Offset(0, 6))
+        ],
       ),
       padding: const EdgeInsets.all(20),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         // Header
         Row(children: [
-          Container(width: 10, height: 10,
+          Container(
+              width: 10,
+              height: 10,
               decoration: BoxDecoration(color: dot, shape: BoxShape.circle)),
           const SizedBox(width: 8),
           Text(
@@ -237,7 +256,9 @@ class _ShiftCard extends StatelessWidget {
                 ? t('● SHIFT OPENED', '● ஷிஃப்ட் திறந்தது')
                 : t('NO ACTIVE SHIFT', 'ஷிஃப்ட் இல்லை'),
             style: const TextStyle(
-                color: Colors.white, fontSize: 16, fontWeight: FontWeight.w900,
+                color: Colors.white,
+                fontSize: 16,
+                fontWeight: FontWeight.w900,
                 letterSpacing: 0.3),
           ),
         ]),
@@ -245,15 +266,16 @@ class _ShiftCard extends StatelessWidget {
         Text(
           hasShift
               ? t('You are on duty now.', 'நீங்கள் இப்போது பணியில் உள்ளீர்கள்.')
-              : t('Tap below to start your shift.', 'ஷிஃப்ட் தொடங்க கீழே அழுத்தவும்.'),
+              : t('Tap below to start your shift.',
+                  'ஷிஃப்ட் தொடங்க கீழே அழுத்தவும்.'),
           style: const TextStyle(color: Colors.white70, fontSize: 13),
         ),
         const SizedBox(height: 18),
         // KPI strip — 4 items: Done / Cash / Pending / Mortality
         Row(children: [
-          _kpi(t('Done', 'முடி'),    '\$done',            const Color(0xFFBBF7D0)),
-          _kpi(t('Cash', 'பணம்'),    Fmt.amount(cash),    const Color(0xFFFCD34D)),
-          _kpi(t('Pending', 'மீதம்'),'\$pending',
+          _kpi(t('Done', 'முடி'), '\$done', const Color(0xFFBBF7D0)),
+          _kpi(t('Cash', 'பணம்'), Fmt.amount(cash), const Color(0xFFFCD34D)),
+          _kpi(t('Pending', 'மீதம்'), '\$pending',
               pending > 0 ? const Color(0xFFFCD34D) : const Color(0xFFBBF7D0)),
           _kpi(t('Mortality', 'இறப்பு'), '\$mort',
               mort > 0 ? const Color(0xFFFCA5A5) : Colors.white70),
@@ -271,8 +293,11 @@ class _ShiftCard extends StatelessWidget {
             ),
             child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
               Icon(
-                hasShift ? Icons.lock_outline_rounded : Icons.play_circle_outline_rounded,
-                color: bg, size: 22,
+                hasShift
+                    ? Icons.lock_outline_rounded
+                    : Icons.play_circle_outline_rounded,
+                color: bg,
+                size: 22,
               ),
               const SizedBox(width: 10),
               Text(
@@ -280,8 +305,10 @@ class _ShiftCard extends StatelessWidget {
                     ? t('CLOSE SHIFT', 'ஷிஃப்ட் முடி')
                     : t('OPEN SHIFT', 'ஷிஃப்ட் தொடங்கு'),
                 style: TextStyle(
-                    fontSize: 16, fontWeight: FontWeight.w900,
-                    color: bg, letterSpacing: 0.5),
+                    fontSize: 16,
+                    fontWeight: FontWeight.w900,
+                    color: bg,
+                    letterSpacing: 0.5),
               ),
             ]),
           ),
@@ -302,7 +329,8 @@ class _ShiftCard extends StatelessWidget {
                 borderRadius: BorderRadius.circular(kRadiusCard),
                 border: Border.all(color: Colors.white38),
               ),
-              child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+              child:
+                  Row(mainAxisAlignment: MainAxisAlignment.center, children: [
                 const Icon(Icons.pending_actions_outlined,
                     color: Colors.white, size: 18),
                 const SizedBox(width: 8),
@@ -310,7 +338,8 @@ class _ShiftCard extends StatelessWidget {
                   t('Create Order (Pending Approval)',
                       'ஆர்டர் உருவாக்கு (ஒப்புதலுக்கு)'),
                   style: const TextStyle(
-                      fontSize: 13, fontWeight: FontWeight.w700,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
                       color: Colors.white),
                 ),
               ]),
@@ -321,25 +350,31 @@ class _ShiftCard extends StatelessWidget {
     );
   }
 
-  Widget _kpi(String label, String value, Color c) => Expanded(child: Column(children: [
-    Container(
-      width: double.infinity,
-      margin: const EdgeInsets.symmetric(horizontal: 3),
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(kRadiusInner),
-      ),
-      child: Text(value,
-          style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: c),
-          textAlign: TextAlign.center,
-          maxLines: 1, overflow: TextOverflow.ellipsis),
-    ),
-    const SizedBox(height: 4),
-    Text(label,
-        style: const TextStyle(fontSize: 9, color: Colors.white60,
-            fontWeight: FontWeight.w700, letterSpacing: 0.5)),
-  ]));
+  Widget _kpi(String label, String value, Color c) => Expanded(
+          child: Column(children: [
+        Container(
+          width: double.infinity,
+          margin: const EdgeInsets.symmetric(horizontal: 3),
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(kRadiusInner),
+          ),
+          child: Text(value,
+              style: TextStyle(
+                  fontSize: 18, fontWeight: FontWeight.w900, color: c),
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis),
+        ),
+        const SizedBox(height: 4),
+        Text(label,
+            style: const TextStyle(
+                fontSize: 9,
+                color: Colors.white60,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0.5)),
+      ]));
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -356,6 +391,7 @@ class _BatchCard extends StatelessWidget {
     required this.onViewDCs,
     required this.tamil,
   });
+
   final Map<String, dynamic> batch;
   final int reqBirds, availBirds;
   final double reqWeight, availKg;
@@ -366,20 +402,24 @@ class _BatchCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final vehicle  = batch['vehicle_no'] as String? ?? '—';
-    final status   = batch['status']     as String? ?? 'assigned';
-    final pct      = reqBirds > 0 ? (availBirds / reqBirds).clamp(0.0, 1.0) : 0.0;
-    final pctTxt   = '${(pct * 100).toStringAsFixed(0)}% ${t("CAPACITY", "கொள்ளளவு")}';
+    final vehicle = batch['vehicle_no'] as String? ?? '—';
+    final status = batch['status'] as String? ?? 'assigned';
+    final pct = reqBirds > 0 ? (availBirds / reqBirds).clamp(0.0, 1.0) : 0.0;
+    final pctTxt =
+        '${(pct * 100).toStringAsFixed(0)}% ${t("CAPACITY", "கொள்ளளவு")}';
     final remBirds = (reqBirds - availBirds).clamp(0, 999999);
-    final remKg    = (reqWeight - availKg).clamp(0.0, 999999.0);
+    final remKg = (reqWeight - availKg).clamp(0.0, 999999.0);
 
     return Container(
       decoration: BoxDecoration(
         color: const Color(0xFF1B2B4B),
         borderRadius: BorderRadius.circular(kRadiusHero),
-        boxShadow: [BoxShadow(
-            color: const Color(0xFF1B2B4B).withValues(alpha: 0.4),
-            blurRadius: 16, offset: const Offset(0, 6))],
+        boxShadow: [
+          BoxShadow(
+              color: const Color(0xFF1B2B4B).withValues(alpha: 0.4),
+              blurRadius: 16,
+              offset: const Offset(0, 6))
+        ],
       ),
       padding: const EdgeInsets.all(18),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -395,10 +435,13 @@ class _BatchCard extends StatelessWidget {
                 color: Color(0xFF93C5FD), size: 20),
           ),
           const SizedBox(width: 10),
-          Expanded(child: Text(vehicle,
-              style: const TextStyle(
-                  fontSize: 20, fontWeight: FontWeight.w900,
-                  color: Colors.white, letterSpacing: 0.5))),
+          Expanded(
+              child: Text(vehicle,
+                  style: const TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w900,
+                      color: Colors.white,
+                      letterSpacing: 0.5))),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
             decoration: BoxDecoration(
@@ -408,27 +451,33 @@ class _BatchCard extends StatelessWidget {
             ),
             child: Text(t('MAIN BATCH', 'முதல் பேட்ச்'),
                 style: const TextStyle(
-                    fontSize: 10, fontWeight: FontWeight.w900,
-                    color: kGoldLight, letterSpacing: 0.5)),
+                    fontSize: 10,
+                    fontWeight: FontWeight.w900,
+                    color: kGoldLight,
+                    letterSpacing: 0.5)),
           ),
         ]),
         const SizedBox(height: 12),
         // Capacity bar
         Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
           Text(pctTxt,
-              style: const TextStyle(fontSize: 10, color: Colors.white60,
+              style: const TextStyle(
+                  fontSize: 10,
+                  color: Colors.white60,
                   fontWeight: FontWeight.w700)),
-          Text('${remBirds > 0 ? "$remBirds birds" : t("FULL", "நிரம்பியது")} ${t("REMAINING", "மீதம்")}',
+          Text(
+              '${remBirds > 0 ? "$remBirds birds" : t("FULL", "நிரம்பியது")} ${t("REMAINING", "மீதம்")}',
               style: TextStyle(
-                  fontSize: 10, fontWeight: FontWeight.w700,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w700,
                   color: remBirds > 0 ? kGoldLight : const Color(0xFF86EFAC))),
         ]),
         const SizedBox(height: 6),
         ClipRRect(
           borderRadius: BorderRadius.circular(6),
           child: LinearProgressIndicator(
-            value:           pct,
-            minHeight:       8,
+            value: pct,
+            minHeight: 8,
             backgroundColor: Colors.white.withValues(alpha: 0.15),
             valueColor: AlwaysStoppedAnimation(
                 pct >= 1.0 ? const Color(0xFF86EFAC) : kGoldLight),
@@ -437,32 +486,38 @@ class _BatchCard extends StatelessWidget {
         const SizedBox(height: 14),
         // Birds / In stock
         Row(children: [
-          Expanded(child: _statBox(
-              t('REQUIRED', 'தேவை'), '$reqBirds birds',
-              '${reqWeight.toStringAsFixed(1)} kg',
-              const Color(0xFF93C5FD))),
+          Expanded(
+              child: _statBox(
+                  t('REQUIRED', 'தேவை'),
+                  '$reqBirds birds',
+                  '${reqWeight.toStringAsFixed(1)} kg',
+                  const Color(0xFF93C5FD))),
           const SizedBox(width: 10),
-          Expanded(child: _statBox(
-              t('IN STOCK', 'கையிருப்பு'), '$availBirds birds',
-              '${availKg.toStringAsFixed(1)} kg',
-              availBirds >= reqBirds
-                  ? const Color(0xFF86EFAC)
-                  : const Color(0xFFFCD34D))),
+          Expanded(
+              child: _statBox(
+                  t('IN STOCK', 'கையிருப்பு'),
+                  '$availBirds birds',
+                  '${availKg.toStringAsFixed(1)} kg',
+                  availBirds >= reqBirds
+                      ? const Color(0xFF86EFAC)
+                      : const Color(0xFFFCD34D))),
         ]),
         const SizedBox(height: 14),
         // Action buttons
         Row(children: [
-          Expanded(child: _actionBtn(
-            icon:  Icons.agriculture_rounded,
+          Expanded(
+              child: _actionBtn(
+            icon: Icons.agriculture_rounded,
             label: t('PICKUP', 'பிக்அப்'),
-            bg:    const Color(0xFF1A7A3C),
+            bg: const Color(0xFF1A7A3C),
             onTap: onPickup,
           )),
           const SizedBox(width: 10),
-          Expanded(child: _actionBtn(
-            icon:  Icons.receipt_long_rounded,
+          Expanded(
+              child: _actionBtn(
+            icon: Icons.receipt_long_rounded,
             label: t('VIEW DCS', 'DC பார்'),
-            bg:    const Color(0xFF1B6CA8),
+            bg: const Color(0xFF1B6CA8),
             onTap: onViewDCs,
           )),
         ]),
@@ -471,65 +526,81 @@ class _BatchCard extends StatelessWidget {
   }
 
   Widget _statBox(String label, String v1, String v2, Color c) => Container(
-    padding: const EdgeInsets.all(12),
-    decoration: BoxDecoration(
-      color: Colors.white.withValues(alpha: 0.08),
-      borderRadius: BorderRadius.circular(kRadiusInner),
-    ),
-    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Text(label, style: const TextStyle(fontSize: 9, color: Colors.white60,
-          fontWeight: FontWeight.w800, letterSpacing: 0.5)),
-      const SizedBox(height: 4),
-      Text(v1, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: c)),
-      Text(v2, style: TextStyle(fontSize: 11, color: c.withValues(alpha: 0.8))),
-    ]),
-  );
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(kRadiusInner),
+        ),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(label,
+              style: const TextStyle(
+                  fontSize: 9,
+                  color: Colors.white60,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0.5)),
+          const SizedBox(height: 4),
+          Text(v1,
+              style: TextStyle(
+                  fontSize: 16, fontWeight: FontWeight.w900, color: c)),
+          Text(v2,
+              style: TextStyle(fontSize: 11, color: c.withValues(alpha: 0.8))),
+        ]),
+      );
 
   Widget _actionBtn({
     required IconData icon,
     required String label,
     required Color bg,
     required VoidCallback onTap,
-  }) => GestureDetector(
-    onTap: onTap,
-    child: Container(
-      padding: const EdgeInsets.symmetric(vertical: 12),
-      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(kRadiusCard)),
-      child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-        Icon(icon, color: Colors.white, size: 18),
-        const SizedBox(width: 8),
-        Text(label, style: const TextStyle(
-            fontSize: 14, fontWeight: FontWeight.w900, color: Colors.white)),
-      ]),
-    ),
-  );
+  }) =>
+      GestureDetector(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          decoration: BoxDecoration(
+              color: bg, borderRadius: BorderRadius.circular(kRadiusCard)),
+          child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+            Icon(icon, color: Colors.white, size: 18),
+            const SizedBox(width: 8),
+            Text(label,
+                style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w900,
+                    color: Colors.white)),
+          ]),
+        ),
+      );
 }
 
 // No batch card
 class _NoBatchCard extends StatelessWidget {
   const _NoBatchCard({required this.onPickup, required this.tamil});
+
   final VoidCallback onPickup;
   final bool tamil;
+
   String t(String en, String ta) => tamil ? ta : en;
+
   @override
   Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.all(20),
-    decoration: BoxDecoration(
-      color: kSurface,
-      borderRadius: BorderRadius.circular(kRadiusCard),
-      border: Border.all(color: kBorderLight),
-      boxShadow: kCardShadow,
-    ),
-    child: Column(children: [
-      const Icon(Icons.inbox_outlined, size: 40, color: kTextHint),
-      const SizedBox(height: 8),
-      Text(t('No batch assigned yet', 'பேட்ச் இல்லை'),
-          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: kTextSub)),
-      const SizedBox(height: 4),
-      Text(t('Ask admin to assign a batch', 'அட்மினிடம் கேளுங்கள்'),
-          style: const TextStyle(fontSize: 12, color: kTextHint)),
-    ]),
-  );
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: kSurface,
+          borderRadius: BorderRadius.circular(kRadiusCard),
+          border: Border.all(color: kBorderLight),
+          boxShadow: kCardShadow,
+        ),
+        child: Column(children: [
+          const Icon(Icons.inbox_outlined, size: 40, color: kTextHint),
+          const SizedBox(height: 8),
+          Text(t('No batch assigned yet', 'பேட்ச் இல்லை'),
+              style: const TextStyle(
+                  fontSize: 15, fontWeight: FontWeight.w800, color: kTextSub)),
+          const SizedBox(height: 4),
+          Text(t('Ask admin to assign a batch', 'அட்மினிடம் கேளுங்கள்'),
+              style: const TextStyle(fontSize: 12, color: kTextHint)),
+        ]),
+      );
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -545,6 +616,7 @@ class _NextDeliveryCard extends StatelessWidget {
     required this.onViewAll,
     required this.tamil,
   });
+
   final Map<String, dynamic> delivery;
   final int allCount;
   final ValueChanged<String>? onComplete;
@@ -557,18 +629,19 @@ class _NextDeliveryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final shop   = delivery['shop_name']      as String? ?? '—';
-    final addr   = delivery['address']        as String? ?? '';
-    final birds  = (delivery['estimated_birds'] as num?)?.toInt()    ?? 0;
-    final weight = (delivery['total_quantity']  as num?)?.toDouble() ?? 0;
-    final id     = delivery['id']             as String? ?? '';
-    final batchId= delivery['batch_id']       as String?;
+    final shop = delivery['shop_name'] as String? ?? '—';
+    final addr = delivery['address'] as String? ?? '';
+    final birds = (delivery['estimated_birds'] as num?)?.toInt() ?? 0;
+    final weight = (delivery['total_quantity'] as num?)?.toDouble() ?? 0;
+    final id = delivery['id'] as String? ?? '';
+    final batchId = delivery['batch_id'] as String?;
 
     return Container(
       decoration: BoxDecoration(
         color: kSurface,
         borderRadius: BorderRadius.circular(kRadiusHero),
-        border: Border.all(color: const Color(0xFF1B6CA8).withValues(alpha: 0.35), width: 1.5),
+        border: Border.all(
+            color: const Color(0xFF1B6CA8).withValues(alpha: 0.35), width: 1.5),
         boxShadow: kCardShadow,
       ),
       child: Column(children: [
@@ -577,7 +650,8 @@ class _NextDeliveryCard extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(18, 12, 18, 10),
           decoration: BoxDecoration(
             color: const Color(0xFFEFF6FF),
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(kRadiusHero)),
+            borderRadius:
+                const BorderRadius.vertical(top: Radius.circular(kRadiusHero)),
           ),
           child: Row(children: [
             const Icon(Icons.local_shipping_rounded,
@@ -585,21 +659,27 @@ class _NextDeliveryCard extends StatelessWidget {
             const SizedBox(width: 6),
             Text(t('ACTIVE DELIVERY', 'டெலிவரி'),
                 style: const TextStyle(
-                    fontSize: 11, fontWeight: FontWeight.w900,
-                    color: Color(0xFF1B6CA8), letterSpacing: 0.6)),
+                    fontSize: 11,
+                    fontWeight: FontWeight.w900,
+                    color: Color(0xFF1B6CA8),
+                    letterSpacing: 0.6)),
             const Spacer(),
             if (allCount > 1)
               GestureDetector(
                 onTap: onViewAll,
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                   decoration: BoxDecoration(
                     color: const Color(0xFF1B6CA8),
                     borderRadius: BorderRadius.circular(kRadiusChip),
                   ),
-                  child: Text('${t("NEXT PRIORITY", "அடுத்தது")} ${allCount > 1 ? "1 OF $allCount" : ""}',
+                  child: Text(
+                      '${t("NEXT PRIORITY", "அடுத்தது")} ${allCount > 1 ? "1 OF $allCount" : ""}',
                       style: const TextStyle(
-                          fontSize: 9, fontWeight: FontWeight.w900, color: Colors.white)),
+                          fontSize: 9,
+                          fontWeight: FontWeight.w900,
+                          color: Colors.white)),
                 ),
               ),
           ]),
@@ -607,10 +687,12 @@ class _NextDeliveryCard extends StatelessWidget {
         // Shop info
         Padding(
           padding: const EdgeInsets.fromLTRB(18, 16, 18, 0),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          child:
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Row(children: [
               Container(
-                width: 36, height: 36,
+                width: 36,
+                height: 36,
                 decoration: BoxDecoration(
                   color: const Color(0xFFEFF6FF),
                   borderRadius: BorderRadius.circular(kRadiusChip),
@@ -619,30 +701,39 @@ class _NextDeliveryCard extends StatelessWidget {
                     color: Color(0xFF1B6CA8), size: 20),
               ),
               const SizedBox(width: 12),
-              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(shop,
-                    style: const TextStyle(
-                        fontSize: 20, fontWeight: FontWeight.w900, color: kNavy),
-                    maxLines: 1, overflow: TextOverflow.ellipsis),
-                if (addr.isNotEmpty)
-                  Row(children: [
-                    const Icon(Icons.location_on_outlined,
-                        size: 12, color: kTextHint),
-                    const SizedBox(width: 3),
-                    Expanded(child: Text(addr,
-                        style: const TextStyle(fontSize: 12, color: kTextHint),
-                        maxLines: 1, overflow: TextOverflow.ellipsis)),
-                  ]),
-              ])),
+              Expanded(
+                  child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                    Text(shop,
+                        style: const TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.w900,
+                            color: kNavy),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis),
+                    if (addr.isNotEmpty)
+                      Row(children: [
+                        const Icon(Icons.location_on_outlined,
+                            size: 12, color: kTextHint),
+                        const SizedBox(width: 3),
+                        Expanded(
+                            child: Text(addr,
+                                style: const TextStyle(
+                                    fontSize: 12, color: kTextHint),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis)),
+                      ]),
+                  ])),
             ]),
             const SizedBox(height: 16),
             // Deliver birds / weight
             Row(children: [
-              _delivStat(t('DELIVER BIRDS', 'கோழி'), '$birds ${t("QTY", "எண்")}',
-                  const Color(0xFF1B6CA8)),
+              _delivStat(t('DELIVER BIRDS', 'கோழி'),
+                  '$birds ${t("QTY", "எண்")}', const Color(0xFF1B6CA8)),
               const SizedBox(width: 12),
-              _delivStat(t('TARGET WEIGHT', 'எடை'), '${weight.toStringAsFixed(1)} KG',
-                  kGold),
+              _delivStat(t('TARGET WEIGHT', 'எடை'),
+                  '${weight.toStringAsFixed(1)} KG', kGold),
             ]),
             const SizedBox(height: 18),
             // COMPLETE button
@@ -654,18 +745,24 @@ class _NextDeliveryCard extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: const Color(0xFF1A7A3C),
                   borderRadius: BorderRadius.circular(kRadiusCard),
-                  boxShadow: [BoxShadow(
-                      color: const Color(0xFF1A7A3C).withValues(alpha: 0.4),
-                      blurRadius: 12, offset: const Offset(0, 4))],
+                  boxShadow: [
+                    BoxShadow(
+                        color: const Color(0xFF1A7A3C).withValues(alpha: 0.4),
+                        blurRadius: 12,
+                        offset: const Offset(0, 4))
+                  ],
                 ),
-                child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                child:
+                    Row(mainAxisAlignment: MainAxisAlignment.center, children: [
                   const Icon(Icons.check_circle_outline_rounded,
                       color: Colors.white, size: 22),
                   const SizedBox(width: 10),
                   Text(t('COMPLETE', 'முடித்தது'),
                       style: const TextStyle(
-                          fontSize: 18, fontWeight: FontWeight.w900,
-                          color: Colors.white, letterSpacing: 0.5)),
+                          fontSize: 18,
+                          fontWeight: FontWeight.w900,
+                          color: Colors.white,
+                          letterSpacing: 0.5)),
                 ]),
               ),
             ),
@@ -673,15 +770,17 @@ class _NextDeliveryCard extends StatelessWidget {
             // Transfer + Reassign
             Row(children: [
               if (batchId != null)
-                Expanded(child: _ghostBtn(
+                Expanded(
+                    child: _ghostBtn(
                   icon: Icons.swap_horiz_rounded,
                   label: t('TRANSFER', 'மாற்று'),
                   color: Colors.purple,
                   onTap: () => onTransfer?.call(batchId),
                 )),
               if (batchId != null) const SizedBox(width: 10),
-              Expanded(child: _ghostBtn(
-                icon:  Icons.person_pin_circle_outlined,
+              Expanded(
+                  child: _ghostBtn(
+                icon: Icons.person_pin_circle_outlined,
                 label: t('REASSIGN', 'மாற்றவும்'),
                 color: Colors.brown,
                 onTap: () => onReassign?.call(delivery),
@@ -694,45 +793,52 @@ class _NextDeliveryCard extends StatelessWidget {
     );
   }
 
-  Widget _delivStat(String label, String value, Color c) => Expanded(child: Container(
-    padding: const EdgeInsets.all(12),
-    decoration: BoxDecoration(
-      color: c.withValues(alpha: 0.07),
-      borderRadius: BorderRadius.circular(kRadiusInner),
-      border: Border.all(color: c.withValues(alpha: 0.2)),
-    ),
-    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Text(label, style: TextStyle(
-          fontSize: 9, fontWeight: FontWeight.w800,
-          color: c, letterSpacing: 0.5)),
-      const SizedBox(height: 4),
-      Text(value, style: TextStyle(
-          fontSize: 18, fontWeight: FontWeight.w900, color: c)),
-    ]),
-  ));
+  Widget _delivStat(String label, String value, Color c) => Expanded(
+          child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: c.withValues(alpha: 0.07),
+          borderRadius: BorderRadius.circular(kRadiusInner),
+          border: Border.all(color: c.withValues(alpha: 0.2)),
+        ),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(label,
+              style: TextStyle(
+                  fontSize: 9,
+                  fontWeight: FontWeight.w800,
+                  color: c,
+                  letterSpacing: 0.5)),
+          const SizedBox(height: 4),
+          Text(value,
+              style: TextStyle(
+                  fontSize: 18, fontWeight: FontWeight.w900, color: c)),
+        ]),
+      ));
 
   Widget _ghostBtn({
     required IconData icon,
     required String label,
     required Color color,
     required VoidCallback onTap,
-  }) => GestureDetector(
-    onTap: onTap,
-    child: Container(
-      padding: const EdgeInsets.symmetric(vertical: 10),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.07),
-        borderRadius: BorderRadius.circular(kRadiusCard),
-        border: Border.all(color: color.withValues(alpha: 0.3)),
-      ),
-      child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-        Icon(icon, size: 16, color: color),
-        const SizedBox(width: 6),
-        Text(label, style: TextStyle(
-            fontSize: 12, fontWeight: FontWeight.w800, color: color)),
-      ]),
-    ),
-  );
+  }) =>
+      GestureDetector(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.07),
+            borderRadius: BorderRadius.circular(kRadiusCard),
+            border: Border.all(color: color.withValues(alpha: 0.3)),
+          ),
+          child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+            Icon(icon, size: 16, color: color),
+            const SizedBox(width: 6),
+            Text(label,
+                style: TextStyle(
+                    fontSize: 12, fontWeight: FontWeight.w800, color: color)),
+          ]),
+        ),
+      );
 }
 
 // Pending but not OFD yet
@@ -742,48 +848,66 @@ class _PendingListCard extends StatelessWidget {
     required this.onViewAll,
     required this.tamil,
   });
+
   final List list;
   final VoidCallback onViewAll;
   final bool tamil;
+
   String t(String en, String ta) => tamil ? ta : en;
+
   @override
   Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.all(18),
-    decoration: BoxDecoration(
-      color: kSurface, borderRadius: BorderRadius.circular(kRadiusCard),
-      border: Border.all(color: kBorderLight), boxShadow: kCardShadow,
-    ),
-    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Text(t('PENDING DELIVERIES', 'மீதமுள்ள டெலிவரி'),
-          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w900,
-              color: kNavy, letterSpacing: 0.5)),
-      const SizedBox(height: 12),
-      ...list.take(3).map((raw) {
-        final d = (raw as Map).cast<String, dynamic>();
-        return Padding(
-          padding: const EdgeInsets.only(bottom: 8),
-          child: Row(children: [
-            Container(width: 8, height: 8,
-                decoration: BoxDecoration(color: Colors.orange, shape: BoxShape.circle)),
-            const SizedBox(width: 10),
-            Expanded(child: Text(d['shop_name'] as String? ?? '—',
-                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: kNavy))),
-            Text('${(d['estimated_birds'] as num?)?.toInt() ?? 0} ${t("birds", "கோழி")}',
-                style: const TextStyle(fontSize: 12, color: kTextSub)),
-          ]),
-        );
-      }),
-      if (list.length > 3) ...[
-        const SizedBox(height: 8),
-        GestureDetector(
-          onTap: onViewAll,
-          child: Text('+${list.length - 3} ${t("more", "மேலும்")} →',
-              style: const TextStyle(fontSize: 12, color: Color(0xFF1B6CA8),
-                  fontWeight: FontWeight.w700)),
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          color: kSurface,
+          borderRadius: BorderRadius.circular(kRadiusCard),
+          border: Border.all(color: kBorderLight),
+          boxShadow: kCardShadow,
         ),
-      ],
-    ]),
-  );
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(t('PENDING DELIVERIES', 'மீதமுள்ள டெலிவரி'),
+              style: const TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w900,
+                  color: kNavy,
+                  letterSpacing: 0.5)),
+          const SizedBox(height: 12),
+          ...list.take(3).map((raw) {
+            final d = (raw as Map).cast<String, dynamic>();
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Row(children: [
+                Container(
+                    width: 8,
+                    height: 8,
+                    decoration: BoxDecoration(
+                        color: Colors.orange, shape: BoxShape.circle)),
+                const SizedBox(width: 10),
+                Expanded(
+                    child: Text(d['shop_name'] as String? ?? '—',
+                        style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                            color: kNavy))),
+                Text(
+                    '${(d['estimated_birds'] as num?)?.toInt() ?? 0} ${t("birds", "கோழி")}',
+                    style: const TextStyle(fontSize: 12, color: kTextSub)),
+              ]),
+            );
+          }),
+          if (list.length > 3) ...[
+            const SizedBox(height: 8),
+            GestureDetector(
+              onTap: onViewAll,
+              child: Text('+${list.length - 3} ${t("more", "மேலும்")} →',
+                  style: const TextStyle(
+                      fontSize: 12,
+                      color: Color(0xFF1B6CA8),
+                      fontWeight: FontWeight.w700)),
+            ),
+          ],
+        ]),
+      );
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -799,46 +923,86 @@ class _ManageGrid extends StatelessWidget {
     required this.onDcView,
     required this.onPickup,
     this.onMyOrders,
+    this.onExpenses,
+    this.onMortality,
     required this.tamil,
   });
+
   final bool hasShift, hasBatches;
-  final VoidCallback onInstantOrder, onDeliveries, onTransfer, onDcView, onPickup;
+  final VoidCallback onInstantOrder,
+      onDeliveries,
+      onTransfer,
+      onDcView,
+      onPickup;
   final VoidCallback? onMyOrders;
+  final VoidCallback? onExpenses;
+  final VoidCallback? onMortality;
   final bool tamil;
+
   String t(String en, String ta) => tamil ? ta : en;
 
   @override
   Widget build(BuildContext context) {
     final items = [
-      _GridItem(Icons.electric_bolt_rounded, t('INSTANT\nORDER', 'உடனடி\nஆர்டர்'),
-          const Color(0xFFEA580C), const Color(0xFFFFF7ED),
-          const Color(0xFFFED7AA), onInstantOrder),
-      _GridItem(Icons.local_shipping_rounded, t('Deliveries', 'டெலிவரி'),
-          const Color(0xFF1B6CA8), const Color(0xFFEFF6FF),
-          const Color(0xFFBFDBFE), onDeliveries),
-      _GridItem(Icons.swap_horiz_rounded, t('Transfer', 'மாற்று'),
-          Colors.purple, const Color(0xFFFAF5FF),
-          const Color(0xFFE9D5FF), onTransfer),
-      _GridItem(Icons.receipt_long_rounded, t('View DCs', 'DC பார்'),
-          const Color(0xFF0D9488), const Color(0xFFECFDF5),
-          const Color(0xFF99F6E4), onDcView),
-      _GridItem(Icons.currency_rupee_rounded, t('Expenses', 'செலவு'),
-          const Color(0xFFD97706), const Color(0xFFFFFBEB),
-          const Color(0xFFFDE68A), onInstantOrder),
-      _GridItem(Icons.warning_amber_rounded, t('Mortality', 'இறப்பு'),
-          kError, const Color(0xFFFEF2F2),
-          const Color(0xFFFECACA), onDeliveries),
+      _GridItem(
+          Icons.electric_bolt_rounded,
+          t('INSTANT\nORDER', 'உடனடி\nஆர்டர்'),
+          const Color(0xFFEA580C),
+          const Color(0xFFFFF7ED),
+          const Color(0xFFFED7AA),
+          onInstantOrder),
+      _GridItem(
+          Icons.local_shipping_rounded,
+          t('Deliveries', 'டெலிவரி'),
+          const Color(0xFF1B6CA8),
+          const Color(0xFFEFF6FF),
+          const Color(0xFFBFDBFE),
+          onDeliveries),
+      _GridItem(
+          Icons.swap_horiz_rounded,
+          t('Transfer', 'மாற்று'),
+          Colors.purple,
+          const Color(0xFFFAF5FF),
+          const Color(0xFFE9D5FF),
+          onTransfer),
+      _GridItem(
+          Icons.receipt_long_rounded,
+          t('View DCs', 'DC பார்'),
+          const Color(0xFF0D9488),
+          const Color(0xFFECFDF5),
+          const Color(0xFF99F6E4),
+          onDcView),
+      _GridItem(
+          Icons.currency_rupee_rounded,
+          t('Expenses', 'செலவு'),
+          const Color(0xFFD97706),
+          const Color(0xFFFFFBEB),
+          const Color(0xFFFDE68A),
+          onExpenses ?? onInstantOrder),
+      _GridItem(
+          Icons.warning_amber_rounded,
+          t('Mortality', 'இறப்பு'),
+          kError,
+          const Color(0xFFFEF2F2),
+          const Color(0xFFFECACA),
+          onMortality ?? onDeliveries),
       if (onMyOrders != null)
-        _GridItem(Icons.assignment_outlined, t('My\nOrders', 'என் ஆர்டர்கள்'),
-            Colors.indigo, const Color(0xFFEEF2FF),
-            const Color(0xFFC7D2FE), onMyOrders!),
+        _GridItem(
+            Icons.assignment_outlined,
+            t('My\nOrders', 'என் ஆர்டர்கள்'),
+            Colors.indigo,
+            const Color(0xFFEEF2FF),
+            const Color(0xFFC7D2FE),
+            onMyOrders!),
     ];
 
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Text(t('MANAGE BUSINESS', 'வணிகம் நிர்வகி'),
           style: const TextStyle(
-              fontSize: 11, fontWeight: FontWeight.w900,
-              color: kTextSub, letterSpacing: 0.7)),
+              fontSize: 11,
+              fontWeight: FontWeight.w900,
+              color: kTextSub,
+              letterSpacing: 0.7)),
       const SizedBox(height: 10),
       GridView.count(
         shrinkWrap: true,
@@ -854,7 +1018,9 @@ class _ManageGrid extends StatelessWidget {
 }
 
 class _GridItem {
-  const _GridItem(this.icon, this.label, this.color, this.bg, this.border, this.onTap);
+  const _GridItem(
+      this.icon, this.label, this.color, this.bg, this.border, this.onTap);
+
   final IconData icon;
   final String label;
   final Color color, bg, border;
@@ -863,39 +1029,47 @@ class _GridItem {
 
 class _GridTile extends StatelessWidget {
   const _GridTile({required this.item});
+
   final _GridItem item;
+
   @override
   Widget build(BuildContext context) => GestureDetector(
-    onTap: item.onTap,
-    child: Container(
-      decoration: BoxDecoration(
-        color:        item.bg,
-        borderRadius: BorderRadius.circular(kRadiusCard),
-        border:       Border.all(color: item.border),
-        boxShadow:    kCardShadow,
-      ),
-      child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-        Container(
-          width: 44, height: 44,
+        onTap: item.onTap,
+        child: Container(
           decoration: BoxDecoration(
-            color:        Colors.white,
-            borderRadius: BorderRadius.circular(kRadiusChip),
-            boxShadow:    [BoxShadow(
-                color: item.color.withValues(alpha: 0.2),
-                blurRadius: 6, offset: const Offset(0, 2))],
+            color: item.bg,
+            borderRadius: BorderRadius.circular(kRadiusCard),
+            border: Border.all(color: item.border),
+            boxShadow: kCardShadow,
           ),
-          child: Icon(item.icon, size: 22, color: item.color),
+          child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(kRadiusChip),
+                boxShadow: [
+                  BoxShadow(
+                      color: item.color.withValues(alpha: 0.2),
+                      blurRadius: 6,
+                      offset: const Offset(0, 2))
+                ],
+              ),
+              child: Icon(item.icon, size: 22, color: item.color),
+            ),
+            const SizedBox(height: 8),
+            Text(item.label,
+                style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w800,
+                    color: item.color),
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis),
+          ]),
         ),
-        const SizedBox(height: 8),
-        Text(item.label,
-            style: TextStyle(
-                fontSize: 10, fontWeight: FontWeight.w800,
-                color: item.color),
-            textAlign: TextAlign.center, maxLines: 2,
-            overflow: TextOverflow.ellipsis),
-      ]),
-    ),
-  );
+      );
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -903,23 +1077,27 @@ class _GridTile extends StatelessWidget {
 // ═════════════════════════════════════════════════════════════════════════════
 class _PerfSnap extends StatelessWidget {
   const _PerfSnap({required this.today, required this.tamil});
+
   final Map<String, dynamic> today;
   final bool tamil;
+
   String t(String en, String ta) => tamil ? ta : en;
 
   @override
   Widget build(BuildContext context) {
-    final birds  = (today['delivered_birds']  as num?)?.toInt()    ?? 0;
+    final birds = (today['delivered_birds'] as num?)?.toInt() ?? 0;
     final weight = (today['delivered_weight'] as num?)?.toDouble() ?? 0;
-    final cash   = (today['cash_collected']   as num?)?.toDouble() ?? 0;
-    final loss   = (today['total_loss_kg']    as num?)?.toDouble() ?? 0;
-    final lossPct= (weight + loss) > 0 ? (loss / (weight + loss) * 100) : 0.0;
+    final cash = (today['cash_collected'] as num?)?.toDouble() ?? 0;
+    final loss = (today['total_loss_kg'] as num?)?.toDouble() ?? 0;
+    final lossPct = (weight + loss) > 0 ? (loss / (weight + loss) * 100) : 0.0;
 
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Text(t("TODAY'S PERFORMANCE SNAPSHOT", 'இன்றைய செயல்திறன்'),
           style: const TextStyle(
-              fontSize: 10, fontWeight: FontWeight.w900,
-              color: kTextSub, letterSpacing: 0.6)),
+              fontSize: 10,
+              fontWeight: FontWeight.w900,
+              color: kTextSub,
+              letterSpacing: 0.6)),
       const SizedBox(height: 10),
       Container(
         decoration: BoxDecoration(
@@ -943,18 +1121,18 @@ class _PerfSnap extends StatelessWidget {
                 t('COLLECTED', 'வசூல்'), const Color(0xFF1A7A3C)),
             _div(),
             _snap(Icons.compress_rounded, '${lossPct.toStringAsFixed(1)}%',
-                t('SHRINKAGE', 'சரிவு'),
-                lossPct >= 2 ? kError : kTextSub),
+                t('SHRINKAGE', 'சரிவு'), lossPct >= 2 ? kError : kTextSub),
           ]),
         ]),
       ),
     ]);
   }
 
-  Widget _snap(IconData icon, String value, String label, Color c) =>
-      Expanded(child: Row(children: [
+  Widget _snap(IconData icon, String value, String label, Color c) => Expanded(
+          child: Row(children: [
         Container(
-          width: 36, height: 36,
+          width: 36,
+          height: 36,
           decoration: BoxDecoration(
             color: c.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(kRadiusChip),
@@ -963,15 +1141,21 @@ class _PerfSnap extends StatelessWidget {
         ),
         const SizedBox(width: 10),
         Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(value, style: TextStyle(
-              fontSize: 15, fontWeight: FontWeight.w900, color: c)),
-          Text(label, style: const TextStyle(
-              fontSize: 9, color: kTextHint, fontWeight: FontWeight.w700,
-              letterSpacing: 0.4)),
+          Text(value,
+              style: TextStyle(
+                  fontSize: 15, fontWeight: FontWeight.w900, color: c)),
+          Text(label,
+              style: const TextStyle(
+                  fontSize: 9,
+                  color: kTextHint,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.4)),
         ]),
       ]));
 
   Widget _div() => Container(
-      width: 1, height: 40, color: kBorderLight,
+      width: 1,
+      height: 40,
+      color: kBorderLight,
       margin: const EdgeInsets.symmetric(horizontal: 8));
 }

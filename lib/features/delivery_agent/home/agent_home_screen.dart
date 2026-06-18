@@ -289,6 +289,8 @@ class _S extends ConsumerState<AgentHomeScreen> {
       onGoToShiftClose: () => context.go(R.shiftClose),
       onGoToPendingOrder: () => context.go(R.pendingOrder),
       onGoToMyOrders: () => context.push(R.agentMyOrders),
+      onGoToInstantOrder: () => context.push(R.instantOrder),
+      onGoToExpenses: () => context.go(R.agentExpenses),
       onGoToBatchPickup: () {
         if (_activeBatches.isNotEmpty) {
           context.push(R.batchPickupPath(_activeBatches.first['id'] as String));

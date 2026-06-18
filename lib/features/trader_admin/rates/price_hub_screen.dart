@@ -1,15 +1,20 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/providers/session_provider.dart';
+import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_theme.dart';
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// PRICING MANAGEMENT HUB — Phase 2
-// Tabs: Daily Rates · Zone Rates · Customer Rates · Products · Zones · Assign
-// Rate Cascade v3: Customer Rate → Zone Rate → Default Rate
+// PRICING MANAGEMENT HUB — Phase 2 (Daily Rate UI removed)
+// Tabs: Zone Rates · Customer Rates · Products · Zones · Assign
+// Rate Cascade: Customer Rate → Zone Rate (Zone Rate is now the sole
+// trader-facing base mechanism; the old Default/Daily Rate fallback still
+// exists server-side in get_effective_rate_v4 as a silent safety net only —
+// it is never shown or editable from this screen anymore).
 // ═══════════════════════════════════════════════════════════════════════════════
 
 class PricingHubScreen extends ConsumerStatefulWidget {
@@ -26,7 +31,7 @@ class _PricingHubScreenState extends ConsumerState<PricingHubScreen>
   @override
   void initState() {
     super.initState();
-    _tab = TabController(length: 6, vsync: this);
+    _tab = TabController(length: 5, vsync: this);
   }
 
   @override
@@ -37,597 +42,71 @@ class _PricingHubScreenState extends ConsumerState<PricingHubScreen>
 
   @override
   Widget build(BuildContext context) => Scaffold(
-        backgroundColor: kBgPage,
-        appBar: AppBar(
-          backgroundColor: kSurface,
-          title: const Text('Pricing Management'),
-          bottom: TabBar(
-            controller: _tab,
-            labelColor: kNavy,
-            unselectedLabelColor: kTextHint,
-            indicatorColor: kGold,
-            indicatorWeight: 3,
-            isScrollable: true,
-            tabAlignment: TabAlignment.start,
-            labelStyle:
-                const TextStyle(fontSize: 13, fontWeight: FontWeight.w800),
-            unselectedLabelStyle:
-                const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-            tabs: const [
-              Tab(text: 'Daily Rates'),
-              Tab(text: 'Zone Rates'),
-              Tab(text: 'Customer Rates'),
-              Tab(text: 'Products'),
-              Tab(text: 'Zones'),
-              Tab(text: 'Assign'),
-            ],
-          ),
-        ),
-        body: TabBarView(
-          controller: _tab,
-          children: [
-            _DailyRatesTab(onGoToZones: () => _tab.animateTo(4)),
-            _ZoneRatesTab(onGoToZones: () => _tab.animateTo(4)),
-            const _CustomerRatesTab(),
-            const _ProductsTab(),
-            const _ZonesTab(),
-            const _ZoneAssignTab(),
-          ],
-        ),
-      );
+    backgroundColor: kBgPage,
+    appBar: AppBar(
+      backgroundColor: kSurface,
+      title: const Text('Pricing Management'),
+      actions: [
+        IconButton(
+            icon: const Icon(Icons.history_rounded),
+            tooltip: 'Zone Rate History',
+            onPressed: () => context.push(R.zoneRateHistory)),
+      ],
+      bottom: TabBar(
+        controller: _tab,
+        labelColor: kNavy,
+        unselectedLabelColor: kTextHint,
+        indicatorColor: kGold,
+        indicatorWeight: 3,
+        isScrollable: true,
+        tabAlignment: TabAlignment.start,
+        labelStyle:
+        const TextStyle(fontSize: 13, fontWeight: FontWeight.w800),
+        unselectedLabelStyle:
+        const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+        tabs: const [
+          Tab(text: 'Zone Rates'),
+          Tab(text: 'Customer Rates'),
+          Tab(text: 'Products'),
+          Tab(text: 'Zones'),
+          Tab(text: 'Assign'),
+        ],
+      ),
+    ),
+    body: TabBarView(
+      controller: _tab,
+      children: [
+        _ZoneRatesTab(onGoToZones: () => _tab.animateTo(3)),
+        const _CustomerRatesTab(),
+        const _ProductsTab(),
+        const _ZonesTab(),
+        const _ZoneAssignTab(),
+      ],
+    ),
+  );
 }
+
 
 // ─────────────────────────────────────────────────────────────────────────────
 // HELPERS
 // ─────────────────────────────────────────────────────────────────────────────
 
-void _showRateHistory(BuildContext ctx,
-    {required String title,
-    required List<Map<String, dynamic>> history,
-    String rateUnit = 'per_kg'}) {
-  showModalBottomSheet(
-    context: ctx,
-    useRootNavigator: true,
-    isScrollControlled: true,
-    shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-    builder: (bctx) => DraggableScrollableSheet(
-        expand: false,
-        initialChildSize: 0.55,
-        maxChildSize: 0.9,
-        builder: (_, scroll) => Column(children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
-                child: Column(children: [
-                  Center(
-                      child: Container(
-                          width: 40,
-                          height: 4,
-                          decoration: BoxDecoration(
-                              color: Colors.grey.shade300,
-                              borderRadius: BorderRadius.circular(2)))),
-                  const SizedBox(height: 12),
-                  Row(children: [
-                    const Icon(Icons.history_rounded, color: kNavy, size: 20),
-                    const SizedBox(width: 8),
-                    Expanded(
-                        child: Text(title,
-                            style: const TextStyle(
-                                fontSize: 15,
-                                fontWeight: FontWeight.w800,
-                                color: kNavy))),
-                    Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 3),
-                        decoration: BoxDecoration(
-                            color: kNavy.withValues(alpha: 0.08),
-                            borderRadius: BorderRadius.circular(kRadiusChip)),
-                        child: Text('${history.length} entries',
-                            style: const TextStyle(
-                                fontSize: 10,
-                                fontWeight: FontWeight.w700,
-                                color: kNavy))),
-                  ]),
-                  const SizedBox(height: 8),
-                  Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                          color: kGoldBg.withValues(alpha: 0.3),
-                          borderRadius: BorderRadius.circular(kRadiusInner),
-                          border:
-                              Border.all(color: kGold.withValues(alpha: 0.3))),
-                      child: const Row(children: [
-                        Icon(Icons.lock_outlined, size: 14, color: kWarning),
-                        SizedBox(width: 6),
-                        Expanded(
-                            child: Text(
-                                'Historical rates are immutable and cannot be edited.',
-                                style: TextStyle(
-                                    fontSize: 11,
-                                    color: kWarning,
-                                    fontWeight: FontWeight.w500))),
-                      ])),
-                  const SizedBox(height: 10),
-                  const Divider(height: 1),
-                ]),
-              ),
-              Expanded(
-                  child: history.isEmpty
-                      ? const Center(
-                          child: Text('No history yet',
-                              style: TextStyle(color: kTextHint)))
-                      : ListView.separated(
-                          controller: scroll,
-                          padding: const EdgeInsets.all(20),
-                          itemCount: history.length,
-                          separatorBuilder: (_, __) =>
-                              const SizedBox(height: 6),
-                          itemBuilder: (_, i) {
-                            final h = history[i];
-                            final d = DateTime.tryParse(
-                                h['effective_date'] as String? ?? '');
-                            final r =
-                                (h['rate_per_kg'] as num?)?.toDouble() ?? 0.0;
-                            final isLatest = i == 0;
-                            final isActive = h['is_active'] as bool? ?? true;
-                            double? prevR;
-                            if (i < history.length - 1) {
-                              prevR = (history[i + 1]['rate_per_kg'] as num?)
-                                  ?.toDouble();
-                            }
-                            final trend =
-                                prevR != null ? r.compareTo(prevR) : 0;
-                            return Container(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 14, vertical: 12),
-                                decoration: BoxDecoration(
-                                    color: isLatest
-                                        ? kNavy.withValues(alpha: 0.05)
-                                        : kSurface,
-                                    borderRadius:
-                                        BorderRadius.circular(kRadiusInner),
-                                    border: Border.all(
-                                        color: isLatest
-                                            ? kNavy.withValues(alpha: 0.2)
-                                            : kBorderLight)),
-                                child: Row(children: [
-                                  Container(
-                                      width: 32,
-                                      height: 32,
-                                      decoration: BoxDecoration(
-                                          color: isLatest
-                                              ? kNavy.withValues(alpha: 0.12)
-                                              : kBgGrey,
-                                          shape: BoxShape.circle),
-                                      child: Center(
-                                          child: Text('${history.length - i}',
-                                              style: TextStyle(
-                                                  fontSize: 11,
-                                                  fontWeight: FontWeight.w800,
-                                                  color: isLatest
-                                                      ? kNavy
-                                                      : kTextHint)))),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                      child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                        Text(
-                                            d != null
-                                                ? DateFormat('d MMMM y')
-                                                    .format(d)
-                                                : '—',
-                                            style: TextStyle(
-                                                fontSize: 13,
-                                                fontWeight: FontWeight.w600,
-                                                color: isLatest
-                                                    ? kNavy
-                                                    : kTextMain)),
-                                        if (isLatest)
-                                          const Text('Current',
-                                              style: TextStyle(
-                                                  fontSize: 10, color: kNavy)),
-                                        if (!isActive)
-                                          const Text('Superseded',
-                                              style: TextStyle(
-                                                  fontSize: 10,
-                                                  color: kTextHint)),
-                                      ])),
-                                  if (trend != 0) ...[
-                                    Icon(
-                                        trend > 0
-                                            ? Icons.trending_up_rounded
-                                            : Icons.trending_down_rounded,
-                                        color: trend > 0 ? kSuccess : kError,
-                                        size: 16),
-                                    const SizedBox(width: 4),
-                                  ],
-                                  Text(
-                                      rateUnit == 'per_bird'
-                                          ? '₹${r.toStringAsFixed(2)}/bird'
-                                          : '${Fmt.amount(r)}/kg',
-                                      style: TextStyle(
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.w900,
-                                          color: isLatest ? kNavy : kTextMain)),
-                                ]));
-                          })),
-            ])),
-  );
-}
-
 Widget _sectionHeader(String text) => Padding(
-      padding: const EdgeInsets.only(bottom: 8, top: 4),
-      child: Row(children: [
-        Text(text,
-            style: const TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w900,
-                color: kNavy,
-                letterSpacing: 0.3)),
-        const SizedBox(width: 8),
-        Expanded(child: Container(height: 1, color: kBorderLight)),
-      ]),
-    );
+  padding: const EdgeInsets.only(bottom: 8, top: 4),
+  child: Row(children: [
+    Text(text,
+        style: const TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w900,
+            color: kNavy,
+            letterSpacing: 0.3)),
+    const SizedBox(width: 8),
+    Expanded(child: Container(height: 1, color: kBorderLight)),
+  ]),
+);
 
 // ─────────────────────────────────────────────────────────────────────────────
-// TAB 1: DAILY RATES
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _DailyRatesTab extends ConsumerStatefulWidget {
-  const _DailyRatesTab({required this.onGoToZones});
-
-  final VoidCallback onGoToZones;
-
-  @override
-  ConsumerState<_DailyRatesTab> createState() => _DailyRatesTabState();
-}
-
-class _DailyRatesTabState extends ConsumerState<_DailyRatesTab> {
-  final _c = Supabase.instance.client;
-  Map<String, dynamic> _dash = {};
-  bool _loading = true;
-
-  @override
-  void initState() {
-    super.initState();
-    _load();
-  }
-
-  Future<void> _load() async {
-    final tid = ref.read(appUserProvider).valueOrNull?.traderId;
-    if (tid == null || !mounted) return;
-    if (mounted) setState(() => _loading = true);
-    try {
-      final res = await _c.rpc('get_pricing_dashboard',
-          params: {'p_trader_id': tid}).timeout(const Duration(seconds: 10));
-      if (!mounted) return;
-      setState(() {
-        _dash = Map<String, dynamic>.from(res as Map? ?? {});
-        _loading = false;
-      });
-    } catch (e) {
-      if (mounted) setState(() => _loading = false);
-    }
-  }
-
-  Future<void> _setRate(Map<String, dynamic> product) async {
-    final tid = ref.read(appUserProvider).valueOrNull?.traderId;
-    if (tid == null) return;
-    final pid = product['product_id'] as String;
-    final currentRate = (product['rate_per_kg'] as num?)?.toDouble();
-    final isPerBird = product['rate_unit'] == 'per_bird';
-    final rateCtrl =
-        TextEditingController(text: currentRate?.toStringAsFixed(2) ?? '');
-    DateTime selectedDate = DateTime.now();
-
-    final result = await showModalBottomSheet<double>(
-      context: context,
-      useRootNavigator: true,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (ctx) => StatefulBuilder(
-          builder: (ctx, ss) => Padding(
-                padding: EdgeInsets.fromLTRB(
-                    20, 20, 20, MediaQuery.of(ctx).viewInsets.bottom + 20),
-                child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Center(
-                          child: Container(
-                              width: 40,
-                              height: 4,
-                              decoration: BoxDecoration(
-                                  color: Colors.grey.shade300,
-                                  borderRadius: BorderRadius.circular(2)))),
-                      const SizedBox(height: 16),
-                      Text('Set Default Rate — ${product['product_name']}',
-                          style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w800,
-                              color: kNavy)),
-                      const SizedBox(height: 4),
-                      Text(isPerBird ? 'Per bird pricing' : 'Per kg pricing',
-                          style:
-                              const TextStyle(fontSize: 12, color: kTextSub)),
-                      const SizedBox(height: 16),
-                      GestureDetector(
-                        onTap: () async {
-                          final p = await showDatePicker(
-                              context: ctx,
-                              initialDate: selectedDate,
-                              firstDate: DateTime.now()
-                                  .subtract(const Duration(days: 1)),
-                              lastDate:
-                                  DateTime.now().add(const Duration(days: 30)));
-                          if (p != null) ss(() => selectedDate = p);
-                        },
-                        child: Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 16, vertical: 14),
-                            decoration: BoxDecoration(
-                                color: kNavy.withValues(alpha: 0.05),
-                                borderRadius:
-                                    BorderRadius.circular(kRadiusInner),
-                                border: Border.all(
-                                    color: kNavy.withValues(alpha: 0.2))),
-                            child: Row(children: [
-                              const Icon(Icons.calendar_today_outlined,
-                                  size: 18, color: kNavy),
-                              const SizedBox(width: 10),
-                              Text(
-                                  'Effective: ${DateFormat('d MMM y').format(selectedDate)}',
-                                  style: const TextStyle(
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w700,
-                                      color: kNavy)),
-                              const Spacer(),
-                              const Text('Tap to change',
-                                  style: TextStyle(
-                                      fontSize: 11, color: kTextHint)),
-                            ])),
-                      ),
-                      const SizedBox(height: 12),
-                      TextFormField(
-                        controller: rateCtrl,
-                        autofocus: true,
-                        keyboardType: const TextInputType.numberWithOptions(
-                            decimal: true),
-                        style: const TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.w900,
-                            color: kNavy),
-                        decoration: InputDecoration(
-                            labelText: isPerBird
-                                ? 'Rate per bird (₹)'
-                                : 'Rate per kg (₹)',
-                            prefixText: '₹ ',
-                            suffixText: isPerBird ? '/bird' : '/kg'),
-                      ),
-                      const SizedBox(height: 20),
-                      ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                            minimumSize: const Size(double.infinity, 52)),
-                        onPressed: () {
-                          final v = double.tryParse(rateCtrl.text.trim());
-                          if (v != null && v > 0)
-                            Navigator.of(ctx, rootNavigator: true).pop(v);
-                        },
-                        child: Text(
-                            currentRate == null ? 'Set Rate' : 'Update Rate'),
-                      ),
-                    ]),
-              )),
-    );
-    rateCtrl.dispose();
-    if (result == null || !mounted) return;
-    try {
-      await _c.rpc('set_default_rate', params: {
-        'p_trader_id': tid,
-        'p_product_id': pid,
-        'p_rate_per_kg': result,
-        'p_effective_date': DateFormat('yyyy-MM-dd').format(selectedDate),
-      });
-      if (mounted) {
-        showSuccess(context,
-            'Rate set to ${Fmt.amount(result)}/${isPerBird ? 'bird' : 'kg'} ✓');
-        _load();
-      }
-    } catch (e) {
-      if (mounted) showError(context, e.toString());
-    }
-  }
-
-  Future<void> _loadHistory(Map<String, dynamic> product) async {
-    final tid = ref.read(appUserProvider).valueOrNull?.traderId;
-    if (tid == null) return;
-    try {
-      final res = await _c
-          .from('rate_history')
-          .select('id, rate_per_kg, effective_date, notes, created_at')
-          .eq('trader_id', tid)
-          .eq('product_id', product['product_id'] as String)
-          .order('effective_date', ascending: false)
-          .limit(60);
-      if (!mounted) return;
-      _showRateHistory(context,
-          title: 'Rate History — ${product['product_name']}',
-          history: List<Map<String, dynamic>>.from(res as List? ?? []),
-          rateUnit: product['rate_unit'] as String? ?? 'per_kg');
-    } catch (e) {
-      if (mounted) showError(context, e.toString());
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    if (_loading) return const LoadingList();
-    final products =
-        List<Map<String, dynamic>>.from(_dash['default_rates'] as List? ?? []);
-    final grouped = <String, List<Map<String, dynamic>>>{};
-    for (final p in products) {
-      grouped.putIfAbsent(p['category'] as String? ?? 'other', () => []).add(p);
-    }
-    final labels = {
-      'broiler': '🐔 Broiler',
-      'country': '🐓 Country Chicken',
-      'quail': '🥚 Quail'
-    };
-
-    return RefreshIndicator(
-      onRefresh: _load,
-      color: kNavy,
-      child: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          // Cascade banner
-          Container(
-            padding: const EdgeInsets.all(14),
-            margin: const EdgeInsets.only(bottom: 16),
-            decoration: BoxDecoration(
-                gradient: LinearGradient(colors: [
-                  kNavy.withValues(alpha: 0.06),
-                  kNavyMid.withValues(alpha: 0.03)
-                ]),
-                borderRadius: BorderRadius.circular(kRadiusCard),
-                border: Border.all(color: kNavy.withValues(alpha: 0.12))),
-            child:
-                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              const Row(children: [
-                Icon(Icons.auto_fix_high_rounded, size: 16, color: kNavy),
-                SizedBox(width: 8),
-                Text('RATE CASCADE',
-                    style: TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w900,
-                        color: kNavy,
-                        letterSpacing: 0.6)),
-              ]),
-              const SizedBox(height: 10),
-              _cascadeRow(1, 'Customer Rate', 'Retailer-specific (Tab 3)',
-                  const Color(0xFF7C3AED)),
-              const SizedBox(height: 6),
-              _cascadeRow(2, 'Zone Rate', 'Zone-based (Tab 2)', kNavy),
-              const SizedBox(height: 6),
-              _cascadeRow(3, 'Default Rate', 'Set below — fallback', kSuccess),
-            ]),
-          ),
-
-          for (final cat in ['broiler', 'country', 'quail'])
-            if ((grouped[cat] ?? []).isNotEmpty) ...[
-              _sectionHeader(labels[cat] ?? cat),
-              Container(
-                decoration: BoxDecoration(
-                    color: kSurface,
-                    borderRadius: BorderRadius.circular(kRadiusCard),
-                    border: Border.all(color: kBorderLight),
-                    boxShadow: kCardShadow),
-                child: Column(
-                    children: (grouped[cat] ?? []).asMap().entries.map((e) {
-                  final i = e.key;
-                  final p = e.value;
-                  final rate = (p['rate_per_kg'] as num?)?.toDouble();
-                  final histCount = (p['history_count'] as num?)?.toInt() ?? 0;
-                  final effDate = p['effective_date'] as String?;
-                  final isPerBird = p['rate_unit'] == 'per_bird';
-                  final isLast = i == (grouped[cat]!.length - 1);
-
-                  return Container(
-                    decoration: isLast
-                        ? null
-                        : const BoxDecoration(
-                            border: Border(
-                                bottom: BorderSide(color: kBorderLight))),
-                    child: ListTile(
-                      contentPadding: const EdgeInsets.fromLTRB(16, 10, 8, 10),
-                      title: Text(p['product_name'] as String? ?? '—',
-                          style: const TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w800,
-                              color: kNavy)),
-                      subtitle: effDate != null
-                          ? Text(
-                              'As of ${DateFormat('d MMM y').format(DateTime.parse(effDate))} · $histCount entries',
-                              style: const TextStyle(
-                                  fontSize: 11, color: kTextHint))
-                          : const Text('No rate set',
-                              style: TextStyle(
-                                  fontSize: 11, color: Colors.orange)),
-                      trailing: Row(mainAxisSize: MainAxisSize.min, children: [
-                        if (rate != null)
-                          Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              crossAxisAlignment: CrossAxisAlignment.end,
-                              children: [
-                                Text(
-                                    isPerBird
-                                        ? '₹${rate.toStringAsFixed(2)}/bird'
-                                        : '${Fmt.amount(rate)}/kg',
-                                    style: const TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w900,
-                                        color: kNavy)),
-                                if (histCount > 1)
-                                  GestureDetector(
-                                      onTap: () => _loadHistory(p),
-                                      child: const Text('View history',
-                                          style: TextStyle(
-                                              fontSize: 10,
-                                              color: kGold,
-                                              fontWeight: FontWeight.w700))),
-                              ])
-                        else
-                          TextButton(
-                              onPressed: () => _setRate(p),
-                              child: const Text('Set Rate',
-                                  style: TextStyle(
-                                      color: Colors.orange,
-                                      fontWeight: FontWeight.w800))),
-                        IconButton(
-                            icon: const Icon(Icons.edit_outlined,
-                                size: 18, color: kTextSub),
-                            onPressed: () => _setRate(p),
-                            tooltip: 'Update rate'),
-                      ]),
-                    ),
-                  );
-                }).toList()),
-              ),
-              const SizedBox(height: 16),
-            ],
-        ],
-      ),
-    );
-  }
-
-  Widget _cascadeRow(int step, String title, String sub, Color color) =>
-      Row(children: [
-        Container(
-            width: 22,
-            height: 22,
-            decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.12), shape: BoxShape.circle),
-            child: Center(
-                child: Text('$step',
-                    style: TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w900,
-                        color: color)))),
-        const SizedBox(width: 10),
-        Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(title,
-              style: TextStyle(
-                  fontSize: 12, fontWeight: FontWeight.w800, color: color)),
-          Text(sub, style: const TextStyle(fontSize: 10, color: kTextHint)),
-        ]),
-      ]);
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// TAB 2: ZONE RATES
+// TAB 1: ZONE RATES
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _ZoneRatesTab extends ConsumerStatefulWidget {
@@ -680,7 +159,7 @@ class _ZoneRatesTabState extends ConsumerState<_ZoneRatesTab> {
     final tid = ref.read(appUserProvider).valueOrNull?.traderId;
     if (tid == null) return;
     final rateCtrl =
-        TextEditingController(text: currentRate?.toStringAsFixed(2) ?? '');
+    TextEditingController(text: currentRate?.toStringAsFixed(2) ?? '');
     DateTime selectedDate = DateTime.now();
 
     final result = await showModalBottomSheet<double>(
@@ -691,93 +170,93 @@ class _ZoneRatesTabState extends ConsumerState<_ZoneRatesTab> {
           borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (ctx) => StatefulBuilder(
           builder: (ctx, ss) => Padding(
-                padding: EdgeInsets.fromLTRB(
-                    20, 20, 20, MediaQuery.of(ctx).viewInsets.bottom + 20),
-                child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Center(
-                          child: Container(
-                              width: 40,
-                              height: 4,
-                              decoration: BoxDecoration(
-                                  color: Colors.grey.shade300,
-                                  borderRadius: BorderRadius.circular(2)))),
-                      const SizedBox(height: 16),
-                      Text(
-                          'Zone Rate — ${zone['zone_name']} · ${product['product_name']}',
-                          style: const TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w800,
-                              color: kNavy)),
-                      const SizedBox(height: 16),
-                      GestureDetector(
-                        onTap: () async {
-                          final p = await showDatePicker(
-                              context: ctx,
-                              initialDate: selectedDate,
-                              firstDate: DateTime.now()
-                                  .subtract(const Duration(days: 1)),
-                              lastDate:
-                                  DateTime.now().add(const Duration(days: 30)));
-                          if (p != null) ss(() => selectedDate = p);
-                        },
-                        child: Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 16, vertical: 14),
-                            decoration: BoxDecoration(
-                                color: kNavy.withValues(alpha: 0.05),
-                                borderRadius:
-                                    BorderRadius.circular(kRadiusInner),
-                                border: Border.all(
-                                    color: kNavy.withValues(alpha: 0.2))),
-                            child: Row(children: [
-                              const Icon(Icons.calendar_today_outlined,
-                                  size: 18, color: kNavy),
-                              const SizedBox(width: 10),
-                              Text(
-                                  'Effective: ${DateFormat('d MMM y').format(selectedDate)}',
-                                  style: const TextStyle(
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w700,
-                                      color: kNavy)),
-                              const Spacer(),
-                              const Text('Tap to change',
-                                  style: TextStyle(
-                                      fontSize: 11, color: kTextHint)),
-                            ])),
-                      ),
-                      const SizedBox(height: 12),
-                      TextFormField(
-                        controller: rateCtrl,
-                        autofocus: true,
-                        keyboardType: const TextInputType.numberWithOptions(
-                            decimal: true),
-                        style: const TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.w900,
-                            color: kNavy),
-                        decoration: InputDecoration(
-                            labelText: 'Rate for ${zone['zone_name']} (₹/kg)',
-                            prefixText: '₹ ',
-                            suffixText: '/kg'),
-                      ),
-                      const SizedBox(height: 20),
-                      ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                            minimumSize: const Size(double.infinity, 52)),
-                        onPressed: () {
-                          final v = double.tryParse(rateCtrl.text.trim());
-                          if (v != null && v > 0)
-                            Navigator.of(ctx, rootNavigator: true).pop(v);
-                        },
-                        child: Text(currentRate == null
-                            ? 'Set Zone Rate'
-                            : 'Update Zone Rate'),
-                      ),
-                    ]),
-              )),
+            padding: EdgeInsets.fromLTRB(
+                20, 20, 20, MediaQuery.of(ctx).viewInsets.bottom + 20),
+            child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Center(
+                      child: Container(
+                          width: 40,
+                          height: 4,
+                          decoration: BoxDecoration(
+                              color: Colors.grey.shade300,
+                              borderRadius: BorderRadius.circular(2)))),
+                  const SizedBox(height: 16),
+                  Text(
+                      'Zone Rate — ${zone['zone_name']} · ${product['product_name']}',
+                      style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w800,
+                          color: kNavy)),
+                  const SizedBox(height: 16),
+                  GestureDetector(
+                    onTap: () async {
+                      final p = await showDatePicker(
+                          context: ctx,
+                          initialDate: selectedDate,
+                          firstDate: DateTime.now()
+                              .subtract(const Duration(days: 1)),
+                          lastDate:
+                          DateTime.now().add(const Duration(days: 30)));
+                      if (p != null) ss(() => selectedDate = p);
+                    },
+                    child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 14),
+                        decoration: BoxDecoration(
+                            color: kNavy.withValues(alpha: 0.05),
+                            borderRadius:
+                            BorderRadius.circular(kRadiusInner),
+                            border: Border.all(
+                                color: kNavy.withValues(alpha: 0.2))),
+                        child: Row(children: [
+                          const Icon(Icons.calendar_today_outlined,
+                              size: 18, color: kNavy),
+                          const SizedBox(width: 10),
+                          Text(
+                              'Effective: ${DateFormat('d MMM y').format(selectedDate)}',
+                              style: const TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w700,
+                                  color: kNavy)),
+                          const Spacer(),
+                          const Text('Tap to change',
+                              style: TextStyle(
+                                  fontSize: 11, color: kTextHint)),
+                        ])),
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: rateCtrl,
+                    autofocus: true,
+                    keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true),
+                    style: const TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w900,
+                        color: kNavy),
+                    decoration: InputDecoration(
+                        labelText: 'Rate for ${zone['zone_name']} (₹/kg)',
+                        prefixText: '₹ ',
+                        suffixText: '/kg'),
+                  ),
+                  const SizedBox(height: 20),
+                  ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                        minimumSize: const Size(double.infinity, 52)),
+                    onPressed: () {
+                      final v = double.tryParse(rateCtrl.text.trim());
+                      if (v != null && v > 0)
+                        Navigator.of(ctx, rootNavigator: true).pop(v);
+                    },
+                    child: Text(currentRate == null
+                        ? 'Set Zone Rate'
+                        : 'Update Zone Rate'),
+                  ),
+                ]),
+          )),
     );
     rateCtrl.dispose();
     if (result == null || !mounted) return;
@@ -807,23 +286,27 @@ class _ZoneRatesTabState extends ConsumerState<_ZoneRatesTab> {
         icon: Icons.map_outlined,
         message: 'No Zones Created',
         sub:
-            'Create zones in the Zones tab, then come back to set rates per zone.',
+        'Create zones in the Zones tab, then come back to set rates per zone.',
         actionLabel: 'Go to Zones',
         onAction: widget.onGoToZones,
       );
     }
 
+    // get_pricing_dashboard's 'default_rates' key is just the product
+    // catalogue (every active product), with optional daily-rate fields
+    // attached that we no longer read here — Zone Rate is the only
+    // trader-facing rate. Kept as-is to avoid touching the RPC contract.
     final products =
-        List<Map<String, dynamic>>.from(_dash['default_rates'] as List? ?? []);
+    List<Map<String, dynamic>>.from(_dash['default_rates'] as List? ?? []);
     final zoneRatesRaw =
-        List<Map<String, dynamic>>.from(_dash['zone_rates'] as List? ?? []);
+    List<Map<String, dynamic>>.from(_dash['zone_rates'] as List? ?? []);
     final rateMap = <String, Map<String, dynamic>>{};
     for (final zr in zoneRatesRaw) {
       rateMap['${zr['zone_id']}__${zr['product_id']}'] = zr;
     }
 
     final selZone = _zones.firstWhere(
-      (z) => z['id'] == _selZoneId,
+          (z) => z['id'] == _selZoneId,
       orElse: () => _zones.first,
     );
 
@@ -843,7 +326,7 @@ class _ZoneRatesTabState extends ConsumerState<_ZoneRatesTab> {
                   onTap: () => setState(() => _selZoneId = z['id'] as String?),
                   child: Container(
                     padding:
-                        const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                     decoration: BoxDecoration(
                         gradient: isSel
                             ? const LinearGradient(colors: [kNavy, kNavyMid])
@@ -851,7 +334,7 @@ class _ZoneRatesTabState extends ConsumerState<_ZoneRatesTab> {
                         color: isSel ? null : kBgGrey,
                         borderRadius: BorderRadius.circular(kRadiusChip),
                         border:
-                            Border.all(color: isSel ? kNavyMid : kBorderLight)),
+                        Border.all(color: isSel ? kNavyMid : kBorderLight)),
                     child: Row(mainAxisSize: MainAxisSize.min, children: [
                       Text((z['zone_code'] as String? ?? '?').substring(0, 3),
                           style: TextStyle(
@@ -885,7 +368,7 @@ class _ZoneRatesTabState extends ConsumerState<_ZoneRatesTab> {
               // Zone banner
               Container(
                 padding:
-                    const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                 margin: const EdgeInsets.only(bottom: 12),
                 decoration: BoxDecoration(
                     gradient: const LinearGradient(
@@ -917,79 +400,62 @@ class _ZoneRatesTabState extends ConsumerState<_ZoneRatesTab> {
                     boxShadow: kCardShadow),
                 child: Column(
                     children: products.asMap().entries.map((e) {
-                  final i = e.key;
-                  final p = e.value;
-                  final key = '${selZone['id']}__${p['product_id']}';
-                  final zr = rateMap[key];
-                  final zoneRate = (zr?['rate_per_kg'] as num?)?.toDouble();
-                  final defRate = (p['rate_per_kg'] as num?)?.toDouble();
-                  final isLast = i == products.length - 1;
+                      final i = e.key;
+                      final p = e.value;
+                      final key = '${selZone['id']}__${p['product_id']}';
+                      final zr = rateMap[key];
+                      final zoneRate = (zr?['rate_per_kg'] as num?)?.toDouble();
+                      final zoneEffDate = zr?['effective_date'] as String?;
+                      final isLast = i == products.length - 1;
 
-                  return Container(
-                    decoration: isLast
-                        ? null
-                        : const BoxDecoration(
+                      return Container(
+                        decoration: isLast
+                            ? null
+                            : const BoxDecoration(
                             border: Border(
                                 bottom: BorderSide(color: kBorderLight))),
-                    child: ListTile(
-                      contentPadding: const EdgeInsets.fromLTRB(16, 10, 8, 10),
-                      title: Text(p['product_name'] as String? ?? '—',
-                          style: const TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w800,
-                              color: kNavy)),
-                      subtitle: defRate != null
-                          ? Text('Default: ${Fmt.amount(defRate)}/kg',
+                        child: ListTile(
+                          contentPadding: const EdgeInsets.fromLTRB(16, 10, 8, 10),
+                          title: Text(p['product_name'] as String? ?? '—',
+                              style: const TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w800,
+                                  color: kNavy)),
+                          subtitle: zoneEffDate != null
+                              ? Text(
+                              'As of ${DateFormat('d MMM y').format(DateTime.parse(zoneEffDate))}',
                               style: const TextStyle(
                                   fontSize: 11, color: kTextHint))
-                          : const Text('No default rate',
-                              style: TextStyle(fontSize: 11, color: kTextHint)),
-                      trailing: Row(mainAxisSize: MainAxisSize.min, children: [
-                        if (zoneRate != null)
-                          Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              crossAxisAlignment: CrossAxisAlignment.end,
-                              children: [
-                                Text('${Fmt.amount(zoneRate)}/kg',
-                                    style: const TextStyle(
-                                        fontSize: 15,
-                                        fontWeight: FontWeight.w900,
-                                        color: kNavy)),
-                                if (defRate != null)
-                                  Text(
-                                      zoneRate > defRate
-                                          ? '+${Fmt.amount(zoneRate - defRate)}'
-                                          : '-${Fmt.amount(defRate - zoneRate)}',
+                              : null,
+                          trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+                            if (zoneRate != null)
+                              Text('${Fmt.amount(zoneRate)}/kg',
+                                  style: const TextStyle(
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w900,
+                                      color: kNavy))
+                            else
+                              TextButton(
+                                  onPressed: () =>
+                                      _setZoneRate(selZone, p, zoneRate),
+                                  child: const Text('No rate set — Set Rate',
                                       style: TextStyle(
-                                          fontSize: 10,
-                                          color: zoneRate > defRate
-                                              ? kSuccess
-                                              : kError,
-                                          fontWeight: FontWeight.w700)),
-                              ])
-                        else
-                          Text(defRate != null ? 'Uses default' : 'No rate',
-                              style: TextStyle(
-                                  fontSize: 12,
-                                  color: defRate != null
-                                      ? kTextHint
-                                      : Colors.orange,
-                                  fontStyle: defRate != null
-                                      ? FontStyle.italic
-                                      : FontStyle.normal)),
-                        IconButton(
-                          icon: Icon(
-                              zoneRate != null
-                                  ? Icons.edit_outlined
-                                  : Icons.add_circle_outline,
-                              size: 18,
-                              color: zoneRate != null ? kTextSub : kNavy),
-                          onPressed: () => _setZoneRate(selZone, p, zoneRate),
+                                          fontSize: 12,
+                                          color: Colors.orange,
+                                          fontWeight: FontWeight.w800))),
+                            IconButton(
+                              icon: Icon(
+                                  zoneRate != null
+                                      ? Icons.edit_outlined
+                                      : Icons.add_circle_outline,
+                                  size: 18,
+                                  color: zoneRate != null ? kTextSub : kNavy),
+                              onPressed: () => _setZoneRate(selZone, p, zoneRate),
+                            ),
+                          ]),
                         ),
-                      ]),
-                    ),
-                  );
-                }).toList()),
+                      );
+                    }).toList()),
               ),
             ],
           ),
@@ -1000,7 +466,7 @@ class _ZoneRatesTabState extends ConsumerState<_ZoneRatesTab> {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// TAB 3: CUSTOMER SPECIAL RATES
+// TAB 2: CUSTOMER SPECIAL RATES
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _CustomerRatesTab extends ConsumerStatefulWidget {
@@ -1111,172 +577,172 @@ class _CustomerRatesTabState extends ConsumerState<_CustomerRatesTab> {
           borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (ctx) => StatefulBuilder(
           builder: (ctx, ss) => DraggableScrollableSheet(
-                expand: false,
-                initialChildSize: 0.85,
-                maxChildSize: 0.95,
-                builder: (_, scroll) => Container(
-                  decoration: const BoxDecoration(
-                      color: Colors.white,
-                      borderRadius:
-                          BorderRadius.vertical(top: Radius.circular(20))),
-                  padding: EdgeInsets.fromLTRB(
-                      20, 20, 20, MediaQuery.of(ctx).viewInsets.bottom + 24),
-                  child: ListView(controller: scroll, children: [
-                    Center(
-                        child: Container(
-                            width: 40,
-                            height: 4,
-                            decoration: BoxDecoration(
-                                color: Colors.grey.shade300,
-                                borderRadius: BorderRadius.circular(2)))),
-                    const SizedBox(height: 16),
-                    const Text('Customer Pricing',
-                        style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w800,
-                            color: kNavy)),
-                    const SizedBox(height: 4),
-                    const Text(
-                        'Priority 1 — always wins over zone and default rates',
-                        style: TextStyle(fontSize: 12, color: kTextSub)),
-                    const SizedBox(height: 20),
+            expand: false,
+            initialChildSize: 0.85,
+            maxChildSize: 0.95,
+            builder: (_, scroll) => Container(
+              decoration: const BoxDecoration(
+                  color: Colors.white,
+                  borderRadius:
+                  BorderRadius.vertical(top: Radius.circular(20))),
+              padding: EdgeInsets.fromLTRB(
+                  20, 20, 20, MediaQuery.of(ctx).viewInsets.bottom + 24),
+              child: ListView(controller: scroll, children: [
+                Center(
+                    child: Container(
+                        width: 40,
+                        height: 4,
+                        decoration: BoxDecoration(
+                            color: Colors.grey.shade300,
+                            borderRadius: BorderRadius.circular(2)))),
+                const SizedBox(height: 16),
+                const Text('Customer Pricing',
+                    style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                        color: kNavy)),
+                const SizedBox(height: 4),
+                const Text(
+                    'Priority 1 — always wins over the zone rate',
+                    style: TextStyle(fontSize: 12, color: kTextSub)),
+                const SizedBox(height: 20),
 
-                    // ── Pricing type selector ──────────────────────────────────────
-                    const Text('PRICING TYPE',
-                        style: TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w900,
-                            color: kTextHint,
-                            letterSpacing: 0.8)),
-                    const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: _kPricingTypes.map((t) {
-                        final isSel = selType.type == t.type;
-                        return GestureDetector(
-                          onTap: () {
-                            ss(() {
-                              selType = t;
-                              rateCtrl.clear();
-                              adjCtrl.clear();
-                            });
-                          },
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 12, vertical: 8),
-                            decoration: BoxDecoration(
+                // ── Pricing type selector ──────────────────────────────────────
+                const Text('PRICING TYPE',
+                    style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w900,
+                        color: kTextHint,
+                        letterSpacing: 0.8)),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: _kPricingTypes.map((t) {
+                    final isSel = selType.type == t.type;
+                    return GestureDetector(
+                      onTap: () {
+                        ss(() {
+                          selType = t;
+                          rateCtrl.clear();
+                          adjCtrl.clear();
+                        });
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 8),
+                        decoration: BoxDecoration(
+                            color: isSel
+                                ? t.color.withValues(alpha: 0.12)
+                                : kBgGrey,
+                            borderRadius:
+                            BorderRadius.circular(kRadiusChip),
+                            border: Border.all(
                                 color: isSel
-                                    ? t.color.withValues(alpha: 0.12)
-                                    : kBgGrey,
-                                borderRadius:
-                                    BorderRadius.circular(kRadiusChip),
-                                border: Border.all(
-                                    color: isSel
-                                        ? t.color.withValues(alpha: 0.4)
-                                        : kBorderLight,
-                                    width: isSel ? 1.5 : 0.5)),
-                            child:
-                                Row(mainAxisSize: MainAxisSize.min, children: [
-                              Icon(t.icon,
-                                  size: 14, color: isSel ? t.color : kTextHint),
-                              const SizedBox(width: 6),
-                              Text(t.label,
-                                  style: TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: isSel
-                                          ? FontWeight.w800
-                                          : FontWeight.w600,
-                                      color: isSel ? t.color : kTextHint)),
-                            ]),
-                          ),
-                        );
-                      }).toList(),
-                    ),
-                    const SizedBox(height: 6),
-                    // Contextual helper
-                    _PricingTypeHelper(type: selType),
-                    const SizedBox(height: 16),
-
-                    // ── Customer + Product dropdowns ───────────────────────────────
-                    DropdownButtonFormField<Map<String, dynamic>>(
-                      value: selR,
-                      hint: const Text('Select Customer *'),
-                      decoration: const InputDecoration(
-                          prefixIcon: Icon(Icons.store_outlined, size: 18)),
-                      isExpanded: true,
-                      items: _retailers
-                          .map((r) => DropdownMenuItem(
-                                value: r,
-                                child: Text(r['shop_name'] as String? ?? '—',
-                                    overflow: TextOverflow.ellipsis),
-                              ))
-                          .toList(),
-                      onChanged: (v) => ss(() => selR = v),
-                    ),
-                    const SizedBox(height: 10),
-                    DropdownButtonFormField<Map<String, dynamic>>(
-                      value: selP,
-                      hint: const Text('Select Product *'),
-                      decoration: const InputDecoration(
-                          prefixIcon: Icon(Icons.egg_alt_outlined, size: 18)),
-                      isExpanded: true,
-                      items: _products
-                          .map((p) => DropdownMenuItem(
-                                value: p,
-                                child: Text(p['name'] as String? ?? '—'),
-                              ))
-                          .toList(),
-                      onChanged: (v) => ss(() => selP = v),
-                    ),
-                    const SizedBox(height: 10),
-
-                    // ── Rate / adjustment input ────────────────────────────────────
-                    if (selType.needsRate)
-                      TextFormField(
-                        controller: rateCtrl,
-                        keyboardType: const TextInputType.numberWithOptions(
-                            decimal: true),
-                        style: const TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w900,
-                            color: kNavy),
-                        decoration: InputDecoration(
-                          labelText: selType.inputLabel,
-                          prefixText: '₹ ',
-                          suffixText: '/kg',
-                          hintText: selType.hint,
-                          helperText: selType.type == 'contract'
-                              ? 'Set expiry date below for contract validity period'
-                              : 'This is the final rate charged to this customer',
-                        ),
+                                    ? t.color.withValues(alpha: 0.4)
+                                    : kBorderLight,
+                                width: isSel ? 1.5 : 0.5)),
+                        child:
+                        Row(mainAxisSize: MainAxisSize.min, children: [
+                          Icon(t.icon,
+                              size: 14, color: isSel ? t.color : kTextHint),
+                          const SizedBox(width: 6),
+                          Text(t.label,
+                              style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: isSel
+                                      ? FontWeight.w800
+                                      : FontWeight.w600,
+                                  color: isSel ? t.color : kTextHint)),
+                        ]),
                       ),
-                    if (selType.needsAdjustment)
-                      TextFormField(
-                        controller: adjCtrl,
-                        keyboardType: const TextInputType.numberWithOptions(
-                            decimal: true),
-                        style: const TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w900,
-                            color: kNavy),
-                        decoration: InputDecoration(
-                          labelText: selType.inputLabel,
-                          prefixIcon: Icon(selType.icon,
-                              size: 18, color: selType.color),
-                          suffixText:
-                              selType.type.startsWith('pct') ? '%' : '₹',
-                          hintText: selType.hint,
-                          helperText:
-                              'Applied to zone/default rate at order time',
-                        ),
-                      ),
+                    );
+                  }).toList(),
+                ),
+                const SizedBox(height: 6),
+                // Contextual helper
+                _PricingTypeHelper(type: selType),
+                const SizedBox(height: 16),
 
-                    // ── Dates ─────────────────────────────────────────────────────
-                    const SizedBox(height: 12),
-                    Row(children: [
-                      Expanded(
-                          child: GestureDetector(
+                // ── Customer + Product dropdowns ───────────────────────────────
+                DropdownButtonFormField<Map<String, dynamic>>(
+                  value: selR,
+                  hint: const Text('Select Customer *'),
+                  decoration: const InputDecoration(
+                      prefixIcon: Icon(Icons.store_outlined, size: 18)),
+                  isExpanded: true,
+                  items: _retailers
+                      .map((r) => DropdownMenuItem(
+                    value: r,
+                    child: Text(r['shop_name'] as String? ?? '—',
+                        overflow: TextOverflow.ellipsis),
+                  ))
+                      .toList(),
+                  onChanged: (v) => ss(() => selR = v),
+                ),
+                const SizedBox(height: 10),
+                DropdownButtonFormField<Map<String, dynamic>>(
+                  value: selP,
+                  hint: const Text('Select Product *'),
+                  decoration: const InputDecoration(
+                      prefixIcon: Icon(Icons.egg_alt_outlined, size: 18)),
+                  isExpanded: true,
+                  items: _products
+                      .map((p) => DropdownMenuItem(
+                    value: p,
+                    child: Text(p['name'] as String? ?? '—'),
+                  ))
+                      .toList(),
+                  onChanged: (v) => ss(() => selP = v),
+                ),
+                const SizedBox(height: 10),
+
+                // ── Rate / adjustment input ────────────────────────────────────
+                if (selType.needsRate)
+                  TextFormField(
+                    controller: rateCtrl,
+                    keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true),
+                    style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w900,
+                        color: kNavy),
+                    decoration: InputDecoration(
+                      labelText: selType.inputLabel,
+                      prefixText: '₹ ',
+                      suffixText: '/kg',
+                      hintText: selType.hint,
+                      helperText: selType.type == 'contract'
+                          ? 'Set expiry date below for contract validity period'
+                          : 'This is the final rate charged to this customer',
+                    ),
+                  ),
+                if (selType.needsAdjustment)
+                  TextFormField(
+                    controller: adjCtrl,
+                    keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true),
+                    style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w900,
+                        color: kNavy),
+                    decoration: InputDecoration(
+                      labelText: selType.inputLabel,
+                      prefixIcon: Icon(selType.icon,
+                          size: 18, color: selType.color),
+                      suffixText:
+                      selType.type.startsWith('pct') ? '%' : '₹',
+                      hintText: selType.hint,
+                      helperText:
+                      'Applied to the zone rate at order time',
+                    ),
+                  ),
+
+                // ── Dates ─────────────────────────────────────────────────────
+                const SizedBox(height: 12),
+                Row(children: [
+                  Expanded(
+                      child: GestureDetector(
                         onTap: () async {
                           final p = await showDatePicker(
                               context: ctx,
@@ -1284,14 +750,14 @@ class _CustomerRatesTabState extends ConsumerState<_CustomerRatesTab> {
                               firstDate: DateTime.now()
                                   .subtract(const Duration(days: 1)),
                               lastDate:
-                                  DateTime.now().add(const Duration(days: 30)));
+                              DateTime.now().add(const Duration(days: 30)));
                           if (p != null) ss(() => effDate = p);
                         },
                         child: _dateTile('Effective From', effDate),
                       )),
-                      const SizedBox(width: 10),
-                      Expanded(
-                          child: GestureDetector(
+                  const SizedBox(width: 10),
+                  Expanded(
+                      child: GestureDetector(
                         onTap: () async {
                           final p = await showDatePicker(
                               context: ctx,
@@ -1303,65 +769,65 @@ class _CustomerRatesTabState extends ConsumerState<_CustomerRatesTab> {
                         },
                         child: _dateTile('Expires On', expDate, optional: true),
                       )),
-                    ]),
-                    const SizedBox(height: 20),
+                ]),
+                const SizedBox(height: 20),
 
-                    ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                          minimumSize: const Size(double.infinity, 52),
-                          backgroundColor: selType.color),
-                      onPressed: () async {
-                        if (selR == null || selP == null) {
-                          showError(ctx, 'Select customer and product');
-                          return;
-                        }
-                        double? rateVal, adjVal;
-                        if (selType.needsRate) {
-                          rateVal = double.tryParse(rateCtrl.text.trim());
-                          if (rateVal == null || rateVal <= 0) {
-                            showError(ctx, 'Enter a valid rate');
-                            return;
-                          }
-                        }
-                        if (selType.needsAdjustment) {
-                          adjVal = double.tryParse(adjCtrl.text.trim());
-                          if (adjVal == null || adjVal <= 0) {
-                            showError(ctx, 'Enter a valid adjustment value');
-                            return;
-                          }
-                        }
-                        Navigator.of(ctx, rootNavigator: true).pop();
-                        try {
-                          await _c.rpc('set_customer_rate', params: {
-                            'p_trader_id': tid,
-                            'p_retailer_id': selR!['id'],
-                            'p_product_id': selP!['id'],
-                            'p_rate_per_kg': rateVal ?? 0,
-                            'p_effective_date':
-                                DateFormat('yyyy-MM-dd').format(effDate),
-                            if (expDate != null)
-                              'p_expiry_date':
-                                  DateFormat('yyyy-MM-dd').format(expDate!),
-                            'p_pricing_type': selType.type,
-                            'p_adjustment_value': adjVal ?? 0,
-                          });
-                          if (mounted) {
-                            final desc = selType.needsAdjustment
-                                ? '${selType.label}: ${adjVal}${selType.type.startsWith('pct') ? '%' : '₹'}'
-                                : '${Fmt.amount(rateVal!)}/kg';
-                            showSuccess(context,
-                                '${selR!['shop_name']} · ${selP!['name']} → $desc ✓');
-                            _load();
-                          }
-                        } catch (e) {
-                          if (mounted) showError(context, e.toString());
-                        }
-                      },
-                      child: Text('Set ${selType.label}'),
-                    ),
-                  ]),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                      minimumSize: const Size(double.infinity, 52),
+                      backgroundColor: selType.color),
+                  onPressed: () async {
+                    if (selR == null || selP == null) {
+                      showError(ctx, 'Select customer and product');
+                      return;
+                    }
+                    double? rateVal, adjVal;
+                    if (selType.needsRate) {
+                      rateVal = double.tryParse(rateCtrl.text.trim());
+                      if (rateVal == null || rateVal <= 0) {
+                        showError(ctx, 'Enter a valid rate');
+                        return;
+                      }
+                    }
+                    if (selType.needsAdjustment) {
+                      adjVal = double.tryParse(adjCtrl.text.trim());
+                      if (adjVal == null || adjVal <= 0) {
+                        showError(ctx, 'Enter a valid adjustment value');
+                        return;
+                      }
+                    }
+                    Navigator.of(ctx, rootNavigator: true).pop();
+                    try {
+                      await _c.rpc('set_customer_rate', params: {
+                        'p_trader_id': tid,
+                        'p_retailer_id': selR!['id'],
+                        'p_product_id': selP!['id'],
+                        'p_rate_per_kg': rateVal ?? 0,
+                        'p_effective_date':
+                        DateFormat('yyyy-MM-dd').format(effDate),
+                        if (expDate != null)
+                          'p_expiry_date':
+                          DateFormat('yyyy-MM-dd').format(expDate!),
+                        'p_pricing_type': selType.type,
+                        'p_adjustment_value': adjVal ?? 0,
+                      });
+                      if (mounted) {
+                        final desc = selType.needsAdjustment
+                            ? '${selType.label}: ${adjVal}${selType.type.startsWith('pct') ? '%' : '₹'}'
+                            : '${Fmt.amount(rateVal!)}/kg';
+                        showSuccess(context,
+                            '${selR!['shop_name']} · ${selP!['name']} → $desc ✓');
+                        _load();
+                      }
+                    } catch (e) {
+                      if (mounted) showError(context, e.toString());
+                    }
+                  },
+                  child: Text('Set ${selType.label}'),
                 ),
-              )),
+              ]),
+            ),
+          )),
     );
     rateCtrl.dispose();
     adjCtrl.dispose();
@@ -1398,7 +864,7 @@ class _CustomerRatesTabState extends ConsumerState<_CustomerRatesTab> {
     final confirm = await confirmDialog(context,
         title: 'Remove Special Rate?',
         message:
-            '${rate['shop_name']} · ${rate['product_name']} will revert to zone or default rate.',
+        '${rate['shop_name']} · ${rate['product_name']} will revert to the zone rate.',
         confirmText: 'Remove',
         confirmColor: kError);
     if (!confirm) return;
@@ -1457,7 +923,7 @@ class _CustomerRatesTabState extends ConsumerState<_CustomerRatesTab> {
               icon: Icons.person_pin_outlined,
               message: 'No Customer Pricing',
               sub:
-                  'Set fixed rates, cutting rates, premiums or contracts for specific customers.',
+              'Set fixed rates, cutting rates, premiums or contracts for specific customers.',
             )
           else
             Container(
@@ -1481,8 +947,8 @@ class _CustomerRatesTabState extends ConsumerState<_CustomerRatesTab> {
                     decoration: isLast
                         ? null
                         : const BoxDecoration(
-                            border: Border(
-                                bottom: BorderSide(color: kBorderLight))),
+                        border: Border(
+                            bottom: BorderSide(color: kBorderLight))),
                     child: ListTile(
                       contentPadding: const EdgeInsets.fromLTRB(16, 10, 8, 10),
                       leading: Container(
@@ -1559,93 +1025,93 @@ class _PricingTypeHelper extends StatelessWidget {
   final _PricingTypeDef type;
 
   String get _desc => switch (type.type) {
-        'fixed' =>
-          'Final rate charged regardless of zone. e.g. ₹138/kg always.',
-        'contract' =>
-          'Fixed rate with a set validity period. Set an expiry date below.',
-        'flat_discount' =>
-          'Zone/default rate minus a fixed ₹ amount. e.g. Zone ₹140 − ₹2 = ₹138.',
-        'flat_premium' =>
-          'Zone/default rate plus a fixed ₹ amount. e.g. Zone ₹140 + ₹3 = ₹143.',
-        'pct_discount' =>
-          'Zone/default rate minus a percentage. e.g. Zone ₹140 × 1.5% off = ₹137.90.',
-        'pct_premium' =>
-          'Zone/default rate plus a percentage. e.g. Zone ₹140 × 2% on = ₹142.80.',
-        _ => '',
-      };
+    'fixed' =>
+    'Final rate charged regardless of zone. e.g. ₹138/kg always.',
+    'contract' =>
+    'Fixed rate with a set validity period. Set an expiry date below.',
+    'flat_discount' =>
+    'Zone rate minus a fixed ₹ amount. e.g. Zone ₹140 − ₹2 = ₹138.',
+    'flat_premium' =>
+    'Zone rate plus a fixed ₹ amount. e.g. Zone ₹140 + ₹3 = ₹143.',
+    'pct_discount' =>
+    'Zone rate minus a percentage. e.g. Zone ₹140 × 1.5% off = ₹137.90.',
+    'pct_premium' =>
+    'Zone rate plus a percentage. e.g. Zone ₹140 × 2% on = ₹142.80.',
+    _ => '',
+  };
 
   @override
   Widget build(BuildContext context) => AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(
-            color: type.color.withValues(alpha: 0.07),
-            borderRadius: BorderRadius.circular(kRadiusInner),
-            border: Border.all(color: type.color.withValues(alpha: 0.2))),
-        child: Row(children: [
-          Icon(type.icon, size: 14, color: type.color),
-          const SizedBox(width: 8),
-          Expanded(
-              child: Text(_desc,
-                  style: TextStyle(
-                      fontSize: 11,
-                      color: type.color,
-                      fontWeight: FontWeight.w500))),
-        ]),
-      );
+    duration: const Duration(milliseconds: 200),
+    padding: const EdgeInsets.all(10),
+    decoration: BoxDecoration(
+        color: type.color.withValues(alpha: 0.07),
+        borderRadius: BorderRadius.circular(kRadiusInner),
+        border: Border.all(color: type.color.withValues(alpha: 0.2))),
+    child: Row(children: [
+      Icon(type.icon, size: 14, color: type.color),
+      const SizedBox(width: 8),
+      Expanded(
+          child: Text(_desc,
+              style: TextStyle(
+                  fontSize: 11,
+                  color: type.color,
+                  fontWeight: FontWeight.w500))),
+    ]),
+  );
 }
 
 // ── Legend: compact 3-column grid of all 6 types ─────────────────────────────
 class _PricingTypeLegend extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-            color: kNavy.withValues(alpha: 0.04),
-            borderRadius: BorderRadius.circular(kRadiusCard),
-            border: Border.all(color: kBorderLight)),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          const Text('SUPPORTED PRICING TYPES',
-              style: TextStyle(
-                  fontSize: 9,
-                  fontWeight: FontWeight.w900,
-                  color: kTextHint,
-                  letterSpacing: 0.8)),
-          const SizedBox(height: 8),
-          GridView.count(
-            crossAxisCount: 3,
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            mainAxisSpacing: 6,
-            crossAxisSpacing: 6,
-            childAspectRatio: 3.0,
-            children: _kPricingTypes
-                .map((t) => Container(
-                      decoration: BoxDecoration(
-                          color: t.color.withValues(alpha: 0.08),
-                          borderRadius: BorderRadius.circular(kRadiusChip)),
-                      child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(t.icon, size: 12, color: t.color),
-                            const SizedBox(width: 4),
-                            Flexible(
-                                child: Text(t.label,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: TextStyle(
-                                        fontSize: 9,
-                                        fontWeight: FontWeight.w700,
-                                        color: t.color))),
-                          ]),
-                    ))
-                .toList(),
-          ),
-        ]),
-      );
+    padding: const EdgeInsets.all(12),
+    decoration: BoxDecoration(
+        color: kNavy.withValues(alpha: 0.04),
+        borderRadius: BorderRadius.circular(kRadiusCard),
+        border: Border.all(color: kBorderLight)),
+    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      const Text('SUPPORTED PRICING TYPES',
+          style: TextStyle(
+              fontSize: 9,
+              fontWeight: FontWeight.w900,
+              color: kTextHint,
+              letterSpacing: 0.8)),
+      const SizedBox(height: 8),
+      GridView.count(
+        crossAxisCount: 3,
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        mainAxisSpacing: 6,
+        crossAxisSpacing: 6,
+        childAspectRatio: 3.0,
+        children: _kPricingTypes
+            .map((t) => Container(
+          decoration: BoxDecoration(
+              color: t.color.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(kRadiusChip)),
+          child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(t.icon, size: 12, color: t.color),
+                const SizedBox(width: 4),
+                Flexible(
+                    child: Text(t.label,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                            fontSize: 9,
+                            fontWeight: FontWeight.w700,
+                            color: t.color))),
+              ]),
+        ))
+            .toList(),
+      ),
+    ]),
+  );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// TAB 4: PRODUCTS
+// TAB 3: PRODUCTS
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _ProductsTab extends ConsumerStatefulWidget {
@@ -1748,47 +1214,47 @@ class _ProductsTabState extends ConsumerState<_ProductsTab> {
                   boxShadow: kCardShadow),
               child: Column(
                   children: (grouped[cat] ?? []).map((p) {
-                final enabled = p['is_enabled'] as bool? ?? false;
-                final isVariant = p['is_variant'] as bool? ?? false;
-                return ListTile(
-                  contentPadding: EdgeInsets.symmetric(
-                      horizontal: 16, vertical: isVariant ? 4 : 8),
-                  leading: Container(
-                      width: 40,
-                      height: 40,
-                      decoration: BoxDecoration(
-                          color:
+                    final enabled = p['is_enabled'] as bool? ?? false;
+                    final isVariant = p['is_variant'] as bool? ?? false;
+                    return ListTile(
+                      contentPadding: EdgeInsets.symmetric(
+                          horizontal: 16, vertical: isVariant ? 4 : 8),
+                      leading: Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                              color:
                               enabled ? kNavy.withValues(alpha: 0.08) : kBgGrey,
-                          borderRadius: BorderRadius.circular(kRadiusChip),
-                          border: Border.all(
-                              color: enabled
-                                  ? kNavy.withValues(alpha: 0.2)
-                                  : kBorderLight)),
-                      child: Icon(
-                          isVariant
-                              ? Icons.subdirectory_arrow_right_rounded
-                              : Icons.egg_alt_rounded,
-                          size: 18,
-                          color: enabled ? kNavy : kTextHint)),
-                  title: Text(
-                      p['display_name'] as String? ??
-                          p['name'] as String? ??
-                          '—',
-                      style: TextStyle(
-                          fontSize: isVariant ? 13 : 15,
-                          fontWeight:
+                              borderRadius: BorderRadius.circular(kRadiusChip),
+                              border: Border.all(
+                                  color: enabled
+                                      ? kNavy.withValues(alpha: 0.2)
+                                      : kBorderLight)),
+                          child: Icon(
+                              isVariant
+                                  ? Icons.subdirectory_arrow_right_rounded
+                                  : Icons.egg_alt_rounded,
+                              size: 18,
+                              color: enabled ? kNavy : kTextHint)),
+                      title: Text(
+                          p['display_name'] as String? ??
+                              p['name'] as String? ??
+                              '—',
+                          style: TextStyle(
+                              fontSize: isVariant ? 13 : 15,
+                              fontWeight:
                               isVariant ? FontWeight.w600 : FontWeight.w800,
-                          color: enabled ? kNavy : kTextHint)),
-                  subtitle: Text(
-                      p['rate_unit'] == 'per_bird' ? 'Per bird' : 'Per kg',
-                      style: TextStyle(
-                          fontSize: 11, color: enabled ? kTextSub : kTextHint)),
-                  trailing: Switch.adaptive(
-                      value: enabled,
-                      activeColor: kNavy,
-                      onChanged: (_) => _toggle(p)),
-                );
-              }).toList()),
+                              color: enabled ? kNavy : kTextHint)),
+                      subtitle: Text(
+                          p['rate_unit'] == 'per_bird' ? 'Per bird' : 'Per kg',
+                          style: TextStyle(
+                              fontSize: 11, color: enabled ? kTextSub : kTextHint)),
+                      trailing: Switch.adaptive(
+                          value: enabled,
+                          activeColor: kNavy,
+                          onChanged: (_) => _toggle(p)),
+                    );
+                  }).toList()),
             ),
             const SizedBox(height: 8),
           ],
@@ -1798,7 +1264,7 @@ class _ProductsTabState extends ConsumerState<_ProductsTab> {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// TAB 5: ZONES
+// TAB 4: ZONES
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _ZonesTab extends ConsumerStatefulWidget {
@@ -1850,11 +1316,11 @@ class _ZonesTabState extends ConsumerState<_ZonesTab> {
     final tid = ref.read(appUserProvider).valueOrNull?.traderId;
     if (tid == null) return;
     final nc =
-        TextEditingController(text: existing?['zone_name'] as String? ?? '');
+    TextEditingController(text: existing?['zone_name'] as String? ?? '');
     final cc =
-        TextEditingController(text: existing?['zone_code'] as String? ?? '');
+    TextEditingController(text: existing?['zone_code'] as String? ?? '');
     final dc =
-        TextEditingController(text: existing?['description'] as String? ?? '');
+    TextEditingController(text: existing?['description'] as String? ?? '');
     await showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -1863,111 +1329,111 @@ class _ZonesTabState extends ConsumerState<_ZonesTab> {
           borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (ctx) => StatefulBuilder(
           builder: (ctx, ss) => Padding(
-                padding: EdgeInsets.fromLTRB(
-                    20, 20, 20, MediaQuery.of(ctx).viewInsets.bottom + 20),
-                child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Center(
-                          child: Container(
-                              width: 40,
-                              height: 4,
-                              decoration: BoxDecoration(
-                                  color: Colors.grey.shade300,
-                                  borderRadius: BorderRadius.circular(2)))),
-                      const SizedBox(height: 16),
-                      Text(isEdit ? 'Edit Zone' : 'Add Zone',
-                          style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w800,
-                              color: kNavy)),
-                      const SizedBox(height: 16),
-                      if (!isEdit) ...[
-                        Wrap(
-                            spacing: 8,
-                            runSpacing: 8,
-                            children: _presets
-                                .where((p) => _zones
-                                    .every((z) => z['zone_code'] != p['code']))
-                                .map((p) => ActionChip(
-                                      label: Text(p['name']!,
-                                          style: const TextStyle(
-                                              fontSize: 12,
-                                              fontWeight: FontWeight.w700)),
-                                      backgroundColor:
-                                          kNavy.withValues(alpha: 0.08),
-                                      side: BorderSide(
-                                          color: kNavy.withValues(alpha: 0.2)),
-                                      onPressed: () {
-                                        nc.text = p['name']!;
-                                        cc.text = p['code']!;
-                                        ss(() {});
-                                      },
-                                    ))
-                                .toList()),
-                        const SizedBox(height: 12),
-                      ],
-                      TextFormField(
-                          controller: nc,
-                          decoration: const InputDecoration(
-                              labelText: 'Zone Name *',
-                              prefixIcon: Icon(Icons.location_city_outlined,
-                                  size: 20))),
-                      const SizedBox(height: 10),
-                      TextFormField(
-                          controller: cc,
-                          textCapitalization: TextCapitalization.characters,
-                          maxLength: 5,
-                          decoration: const InputDecoration(
-                              labelText: 'Zone Code *',
-                              counterText: '',
-                              prefixIcon: Icon(Icons.tag_rounded, size: 20))),
-                      const SizedBox(height: 10),
-                      TextFormField(
-                          controller: dc,
-                          maxLines: 2,
-                          decoration: const InputDecoration(
-                              labelText: 'Description (optional)',
-                              alignLabelWithHint: true)),
-                      const SizedBox(height: 20),
-                      ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                            minimumSize: const Size(double.infinity, 52)),
-                        onPressed: () async {
-                          final name = nc.text.trim();
-                          final code = cc.text.trim().toUpperCase();
-                          if (name.isEmpty || code.isEmpty) {
-                            showError(context, 'Name and code required');
-                            return;
-                          }
-                          Navigator.of(ctx, rootNavigator: true).pop();
-                          try {
-                            await _c.rpc('manage_zone', params: {
-                              'p_action': isEdit ? 'update' : 'create',
-                              'p_trader_id': tid,
-                              if (isEdit) 'p_zone_id': existing!['id'],
-                              'p_zone_name': name,
-                              'p_zone_code': code,
-                              if (dc.text.trim().isNotEmpty)
-                                'p_description': dc.text.trim(),
-                            });
-                            if (mounted) {
-                              showSuccess(
-                                  context,
-                                  isEdit
-                                      ? 'Zone updated ✓'
-                                      : 'Zone "$name" created ✓');
-                              _load();
-                            }
-                          } catch (e) {
-                            if (mounted) showError(context, e.toString());
-                          }
-                        },
-                        child: Text(isEdit ? 'Save Changes' : 'Create Zone'),
-                      ),
-                    ]),
-              )),
+            padding: EdgeInsets.fromLTRB(
+                20, 20, 20, MediaQuery.of(ctx).viewInsets.bottom + 20),
+            child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Center(
+                      child: Container(
+                          width: 40,
+                          height: 4,
+                          decoration: BoxDecoration(
+                              color: Colors.grey.shade300,
+                              borderRadius: BorderRadius.circular(2)))),
+                  const SizedBox(height: 16),
+                  Text(isEdit ? 'Edit Zone' : 'Add Zone',
+                      style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w800,
+                          color: kNavy)),
+                  const SizedBox(height: 16),
+                  if (!isEdit) ...[
+                    Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: _presets
+                            .where((p) => _zones
+                            .every((z) => z['zone_code'] != p['code']))
+                            .map((p) => ActionChip(
+                          label: Text(p['name']!,
+                              style: const TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700)),
+                          backgroundColor:
+                          kNavy.withValues(alpha: 0.08),
+                          side: BorderSide(
+                              color: kNavy.withValues(alpha: 0.2)),
+                          onPressed: () {
+                            nc.text = p['name']!;
+                            cc.text = p['code']!;
+                            ss(() {});
+                          },
+                        ))
+                            .toList()),
+                    const SizedBox(height: 12),
+                  ],
+                  TextFormField(
+                      controller: nc,
+                      decoration: const InputDecoration(
+                          labelText: 'Zone Name *',
+                          prefixIcon: Icon(Icons.location_city_outlined,
+                              size: 20))),
+                  const SizedBox(height: 10),
+                  TextFormField(
+                      controller: cc,
+                      textCapitalization: TextCapitalization.characters,
+                      maxLength: 5,
+                      decoration: const InputDecoration(
+                          labelText: 'Zone Code *',
+                          counterText: '',
+                          prefixIcon: Icon(Icons.tag_rounded, size: 20))),
+                  const SizedBox(height: 10),
+                  TextFormField(
+                      controller: dc,
+                      maxLines: 2,
+                      decoration: const InputDecoration(
+                          labelText: 'Description (optional)',
+                          alignLabelWithHint: true)),
+                  const SizedBox(height: 20),
+                  ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                        minimumSize: const Size(double.infinity, 52)),
+                    onPressed: () async {
+                      final name = nc.text.trim();
+                      final code = cc.text.trim().toUpperCase();
+                      if (name.isEmpty || code.isEmpty) {
+                        showError(context, 'Name and code required');
+                        return;
+                      }
+                      Navigator.of(ctx, rootNavigator: true).pop();
+                      try {
+                        await _c.rpc('manage_zone', params: {
+                          'p_action': isEdit ? 'update' : 'create',
+                          'p_trader_id': tid,
+                          if (isEdit) 'p_zone_id': existing!['id'],
+                          'p_zone_name': name,
+                          'p_zone_code': code,
+                          if (dc.text.trim().isNotEmpty)
+                            'p_description': dc.text.trim(),
+                        });
+                        if (mounted) {
+                          showSuccess(
+                              context,
+                              isEdit
+                                  ? 'Zone updated ✓'
+                                  : 'Zone "$name" created ✓');
+                          _load();
+                        }
+                      } catch (e) {
+                        if (mounted) showError(context, e.toString());
+                      }
+                    },
+                    child: Text(isEdit ? 'Save Changes' : 'Create Zone'),
+                  ),
+                ]),
+          )),
     );
   }
 
@@ -2052,7 +1518,7 @@ class _ZonesTabState extends ConsumerState<_ZonesTab> {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// TAB 6: ZONE ASSIGNMENT
+// TAB 5: ZONE ASSIGNMENT
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _ZoneAssignTab extends ConsumerStatefulWidget {
@@ -2126,8 +1592,8 @@ class _ZoneAssignTabState extends ConsumerState<_ZoneAssignTab> {
     final q = _search.toLowerCase();
     return _retailers
         .where((r) =>
-            (r['shop_name'] as String? ?? '').toLowerCase().contains(q) ||
-            (r['city'] as String? ?? '').toLowerCase().contains(q))
+    (r['shop_name'] as String? ?? '').toLowerCase().contains(q) ||
+        (r['city'] as String? ?? '').toLowerCase().contains(q))
         .toList();
   }
 
@@ -2148,9 +1614,9 @@ class _ZoneAssignTabState extends ConsumerState<_ZoneAssignTab> {
               hint: 'Search retailers…',
               onChanged: (v) => setState(() => _search = v),
               onClear: () => setState(() {
-                    _search = '';
-                    _searchCtrl.clear();
-                  }))),
+                _search = '';
+                _searchCtrl.clear();
+              }))),
       Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
         child: Align(
@@ -2164,12 +1630,12 @@ class _ZoneAssignTabState extends ConsumerState<_ZoneAssignTab> {
       ),
       Expanded(
           child: RefreshIndicator(
-        onRefresh: _load,
-        color: kNavy,
-        child: _filtered.isEmpty
-            ? const EmptyState(
+            onRefresh: _load,
+            color: kNavy,
+            child: _filtered.isEmpty
+                ? const EmptyState(
                 icon: Icons.store_outlined, message: 'No retailers found')
-            : ListView.separated(
+                : ListView.separated(
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
                 itemCount: _filtered.length,
                 separatorBuilder: (_, __) => const SizedBox(height: 8),
@@ -2196,7 +1662,7 @@ class _ZoneAssignTabState extends ConsumerState<_ZoneAssignTab> {
                           decoration: BoxDecoration(
                               gradient: zoneId != null
                                   ? const LinearGradient(
-                                      colors: [kNavy, kNavyMid])
+                                  colors: [kNavy, kNavyMid])
                                   : null,
                               color: zoneId == null ? kBgGrey : null,
                               borderRadius: BorderRadius.circular(kRadiusChip)),
@@ -2217,20 +1683,20 @@ class _ZoneAssignTabState extends ConsumerState<_ZoneAssignTab> {
                           child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                            Text(r['shop_name'] as String? ?? '—',
-                                style: const TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w800,
-                                    color: kNavy)),
-                            Text(
-                                zoneInfo?['zone_name'] != null
-                                    ? 'Zone: ${zoneInfo!['zone_name']}'
-                                    : 'No zone assigned',
-                                style: TextStyle(
-                                    fontSize: 11,
-                                    color:
+                                Text(r['shop_name'] as String? ?? '—',
+                                    style: const TextStyle(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w800,
+                                        color: kNavy)),
+                                Text(
+                                    zoneInfo?['zone_name'] != null
+                                        ? 'Zone: ${zoneInfo!['zone_name']}'
+                                        : 'No zone assigned',
+                                    style: TextStyle(
+                                        fontSize: 11,
+                                        color:
                                         zoneId != null ? kTextSub : kTextHint)),
-                          ])),
+                              ])),
                       DropdownButton<String?>(
                         value: zoneId,
                         hint: const Text('Zone',
@@ -2244,19 +1710,19 @@ class _ZoneAssignTabState extends ConsumerState<_ZoneAssignTab> {
                                   style: TextStyle(
                                       fontSize: 12, color: kTextHint))),
                           ..._zones.map((z) => DropdownMenuItem<String?>(
-                                value: z['id'] as String?,
-                                child: Text(z['zone_name'] as String? ?? '—',
-                                    style: const TextStyle(
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w700)),
-                              )),
+                            value: z['id'] as String?,
+                            child: Text(z['zone_name'] as String? ?? '—',
+                                style: const TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700)),
+                          )),
                         ],
                         onChanged: (v) => _assign(r, v),
                       ),
                     ]),
                   );
                 }),
-      )),
+          )),
     ]);
   }
 }

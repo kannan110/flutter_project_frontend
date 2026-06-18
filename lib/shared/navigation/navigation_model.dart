@@ -153,12 +153,6 @@ class TraderNavigation {
               route:      R.invoices,
             ),
             NavItem(
-              label:      'Rates',
-              icon:       Icons.price_change_outlined,
-              activeIcon: Icons.price_change_rounded,
-              route:      R.rates,
-            ),
-            NavItem(
               label:      'Reconciliation',
               icon:       Icons.balance_outlined,
               activeIcon: Icons.balance_rounded,
@@ -213,6 +207,18 @@ class TraderNavigation {
               icon:       Icons.schedule_outlined,
               activeIcon: Icons.schedule_rounded,
               route:      R.shifts,
+            ),
+            NavItem(
+              label:      'Pricing',
+              icon:       Icons.local_offer_outlined,
+              activeIcon: Icons.local_offer_rounded,
+              route:      R.pricingHub,
+            ),
+            NavItem(
+              label:      'Rate History',
+              icon:       Icons.history_outlined,
+              activeIcon: Icons.history_rounded,
+              route:      R.zoneRateHistory,
             ),
             NavItem(
               label:      'Pricing Rules',
