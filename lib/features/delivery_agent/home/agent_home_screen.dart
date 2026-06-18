@@ -61,7 +61,7 @@ class _S extends ConsumerState<AgentHomeScreen> {
       final raw = await _c
           .from('delivery_batches')
           .select(
-              'id,status,vehicle_no,deliveries(id,status,orders(estimated_birds,total_quantity,retailers(shop_name,address,phone)))')
+          'id,status,vehicle_no,deliveries(id,status,orders(estimated_birds,total_quantity,retailers(shop_name,address,phone)))')
           .eq('delivery_agent_id', user!.agentId!)
           .order('created_at', ascending: false)
           .limit(10);
@@ -139,7 +139,7 @@ class _S extends ConsumerState<AgentHomeScreen> {
         useRootNavigator: true,
         isScrollControlled: true,
         builder: (ctx) => SafeArea(
-                child: Column(mainAxisSize: MainAxisSize.min, children: [
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
               const SizedBox(height: 16),
               const Text('Select Delivery',
                   style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800)),
@@ -175,7 +175,7 @@ class _S extends ConsumerState<AgentHomeScreen> {
         useRootNavigator: true,
         isScrollControlled: true,
         builder: (ctx) => SafeArea(
-                child: Column(mainAxisSize: MainAxisSize.min, children: [
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
               const SizedBox(height: 16),
               const Text('Reassign To',
                   style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800)),
@@ -208,9 +208,9 @@ class _S extends ConsumerState<AgentHomeScreen> {
                         : null,
                     onTap: ok
                         ? () {
-                            selected = am;
-                            Navigator.pop(ctx);
-                          }
+                      selected = am;
+                      Navigator.pop(ctx);
+                    }
                         : null);
               }),
               const SizedBox(height: 12),
@@ -287,6 +287,8 @@ class _S extends ConsumerState<AgentHomeScreen> {
       onRefresh: _load,
       onGoToShiftOpen: () => context.go(R.shiftOpen),
       onGoToShiftClose: () => context.go(R.shiftClose),
+      onGoToPendingOrder: () => context.go(R.pendingOrder),
+      onGoToMyOrders: () => context.push(R.agentMyOrders),
       onGoToBatchPickup: () {
         if (_activeBatches.isNotEmpty) {
           context.push(R.batchPickupPath(_activeBatches.first['id'] as String));
@@ -365,15 +367,15 @@ class _S extends ConsumerState<AgentHomeScreen> {
               const SizedBox(width: 14),
               Expanded(
                   child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(user?.companyName ?? 'Delivery Agent',
-                      style: const TextStyle(
-                          fontSize: 16, fontWeight: FontWeight.w800)),
-                  Text('Agent',
-                      style: const TextStyle(fontSize: 12, color: kTextHint)),
-                ],
-              )),
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(user?.companyName ?? 'Delivery Agent',
+                          style: const TextStyle(
+                              fontSize: 16, fontWeight: FontWeight.w800)),
+                      Text('Agent',
+                          style: const TextStyle(fontSize: 12, color: kTextHint)),
+                    ],
+                  )),
             ]),
             const SizedBox(height: 24),
 
@@ -489,118 +491,127 @@ class _S extends ConsumerState<AgentHomeScreen> {
         backgroundColor: kBgPage,
         extendBodyBehindAppBar: ref.watch(uiModeProvider).isSimple,
         appBar: ref.watch(uiModeProvider).isSimple
-            // Simple mode: minimal transparent AppBar — only refresh + profile
+        // Simple mode: minimal transparent AppBar — refresh, my orders, profile
             ? AppBar(
-                backgroundColor: Colors.transparent,
-                elevation: 0,
-                scrolledUnderElevation: 0,
-                actions: [
-                    if (!_loading)
-                      Padding(
-                          padding: const EdgeInsets.only(right: 4),
-                          child: Center(
-                              child: Container(
-                                  width: 8,
-                                  height: 8,
-                                  decoration: BoxDecoration(
-                                      color:
-                                          _hasShift ? Colors.green : Colors.red,
-                                      shape: BoxShape.circle)))),
-                    IconButton(
-                        icon: const Icon(Icons.refresh_rounded,
-                            color: Colors.white70),
-                        onPressed: _load),
-                    IconButton(
-                        icon: const Icon(Icons.account_circle_outlined,
-                            color: Colors.white70, size: 22),
-                        onPressed: _showProfileSheet),
-                  ])
+            backgroundColor: Colors.transparent,
+            elevation: 0,
+            scrolledUnderElevation: 0,
+            actions: [
+              if (!_loading)
+                Padding(
+                    padding: const EdgeInsets.only(right: 4),
+                    child: Center(
+                        child: Container(
+                            width: 8,
+                            height: 8,
+                            decoration: BoxDecoration(
+                                color:
+                                _hasShift ? Colors.green : Colors.red,
+                                shape: BoxShape.circle)))),
+              IconButton(
+                  icon: const Icon(Icons.refresh_rounded,
+                      color: Colors.white70),
+                  onPressed: _load),
+              IconButton(
+                  icon: const Icon(Icons.receipt_long_outlined,
+                      color: Colors.white70, size: 22),
+                  tooltip: 'My Orders',
+                  onPressed: () => context.push(R.agentMyOrders)),
+              IconButton(
+                  icon: const Icon(Icons.account_circle_outlined,
+                      color: Colors.white70, size: 22),
+                  onPressed: _showProfileSheet),
+            ])
             : AppBar(
-                backgroundColor: kSurface,
-                title: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text('Delivery Dashboard',
-                          style: TextStyle(
-                              fontSize: 17, fontWeight: FontWeight.w800)),
-                      Text(user?.companyName ?? 'Agent',
-                          style: const TextStyle(
-                              fontSize: 11,
-                              color: kTextHint,
-                              fontWeight: FontWeight.w400)),
-                    ]),
-                actions: [
-                    if (!_loading)
-                      Padding(
-                          padding: const EdgeInsets.only(right: 4),
-                          child: Center(
-                              child: Container(
-                                  width: 8,
-                                  height: 8,
-                                  decoration: BoxDecoration(
-                                      color:
-                                          _hasShift ? Colors.green : Colors.red,
-                                      shape: BoxShape.circle)))),
-                    IconButton(
-                        icon: const Icon(Icons.refresh_rounded),
-                        onPressed: _load),
-                    IconButton(
-                        icon:
-                            const Icon(Icons.account_circle_outlined, size: 22),
-                        onPressed: _showProfileSheet),
-                  ]),
+            backgroundColor: kSurface,
+            title: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Delivery Dashboard',
+                      style: TextStyle(
+                          fontSize: 17, fontWeight: FontWeight.w800)),
+                  Text(user?.companyName ?? 'Agent',
+                      style: const TextStyle(
+                          fontSize: 11,
+                          color: kTextHint,
+                          fontWeight: FontWeight.w400)),
+                ]),
+            actions: [
+              if (!_loading)
+                Padding(
+                    padding: const EdgeInsets.only(right: 4),
+                    child: Center(
+                        child: Container(
+                            width: 8,
+                            height: 8,
+                            decoration: BoxDecoration(
+                                color:
+                                _hasShift ? Colors.green : Colors.red,
+                                shape: BoxShape.circle)))),
+              IconButton(
+                  icon: const Icon(Icons.refresh_rounded),
+                  onPressed: _load),
+              IconButton(
+                  icon: const Icon(Icons.receipt_long_outlined, size: 22),
+                  tooltip: 'My Orders',
+                  onPressed: () => context.push(R.agentMyOrders)),
+              IconButton(
+                  icon:
+                  const Icon(Icons.account_circle_outlined, size: 22),
+                  onPressed: _showProfileSheet),
+            ]),
         body: _loading
             ? const LoadingList()
             : ref.watch(uiModeProvider).isSimple
-                ? _buildSimpleDashboard()
-                : RefreshIndicator(
-                    onRefresh: _load,
-                    child: ListView(
-                        padding: const EdgeInsets.fromLTRB(14, 8, 14, 80),
-                        children: [
-                          _buildShiftCard(),
-                          const SizedBox(height: 12),
-                          _buildStockPanel(),
-                          const SizedBox(height: 12),
-                          _buildQuickActions(),
-                          const SizedBox(height: 14),
-                          if (_today != null) ...[
-                            _buildTodayStats(),
-                            const SizedBox(height: 12)
-                          ],
-                          if (_pendingList.isNotEmpty) ...[
-                            _buildPendingList(),
-                            const SizedBox(height: 4)
-                          ],
-                          if (_activeBatches.isNotEmpty) ...[
-                            const SectionHeader('ACTIVE BATCHES'),
-                            ..._activeBatches.map(_buildBatchCard),
-                          ] else if (_pendingList.isEmpty) ...[
-                            const SectionHeader('BATCHES'),
-                            Container(
-                                padding: const EdgeInsets.all(20),
-                                decoration: BoxDecoration(
-                                    color: kSurface,
-                                    borderRadius:
-                                        BorderRadius.circular(kRadiusCard),
-                                    border: Border.all(color: kBorderLight),
-                                    boxShadow: kCardShadow),
-                                child: const Column(children: [
-                                  Icon(Icons.inbox_outlined,
-                                      size: 40, color: kTextHint),
-                                  SizedBox(height: 8),
-                                  Text('No active batches',
-                                      style: TextStyle(
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.w800,
-                                          color: kTextSub)),
-                                  Text('Waiting for admin to assign a batch',
-                                      style: TextStyle(
-                                          fontSize: 13, color: kTextHint)),
-                                ])),
-                          ],
-                          const SizedBox(height: 20),
-                        ])));
+            ? _buildSimpleDashboard()
+            : RefreshIndicator(
+            onRefresh: _load,
+            child: ListView(
+                padding: const EdgeInsets.fromLTRB(14, 8, 14, 80),
+                children: [
+                  _buildShiftCard(),
+                  const SizedBox(height: 12),
+                  _buildStockPanel(),
+                  const SizedBox(height: 12),
+                  _buildQuickActions(),
+                  const SizedBox(height: 14),
+                  if (_today != null) ...[
+                    _buildTodayStats(),
+                    const SizedBox(height: 12)
+                  ],
+                  if (_pendingList.isNotEmpty) ...[
+                    _buildPendingList(),
+                    const SizedBox(height: 4)
+                  ],
+                  if (_activeBatches.isNotEmpty) ...[
+                    const SectionHeader('ACTIVE BATCHES'),
+                    ..._activeBatches.map(_buildBatchCard),
+                  ] else if (_pendingList.isEmpty) ...[
+                    const SectionHeader('BATCHES'),
+                    Container(
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                            color: kSurface,
+                            borderRadius:
+                            BorderRadius.circular(kRadiusCard),
+                            border: Border.all(color: kBorderLight),
+                            boxShadow: kCardShadow),
+                        child: const Column(children: [
+                          Icon(Icons.inbox_outlined,
+                              size: 40, color: kTextHint),
+                          SizedBox(height: 8),
+                          Text('No active batches',
+                              style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w800,
+                                  color: kTextSub)),
+                          Text('Waiting for admin to assign a batch',
+                              style: TextStyle(
+                                  fontSize: 13, color: kTextHint)),
+                        ])),
+                  ],
+                  const SizedBox(height: 20),
+                ])));
   }
 
   // ══════════════════════════════════════════════════════════════════════════
@@ -614,8 +625,8 @@ class _S extends ConsumerState<AgentHomeScreen> {
           boxShadow: [
             BoxShadow(
                 color: (_hasShift
-                        ? const Color(0xFF1A7A3C)
-                        : const Color(0xFF374151))
+                    ? const Color(0xFF1A7A3C)
+                    : const Color(0xFF374151))
                     .withValues(alpha: 0.4),
                 blurRadius: 16,
                 offset: const Offset(0, 6))
@@ -648,7 +659,7 @@ class _S extends ConsumerState<AgentHomeScreen> {
                     padding: const EdgeInsets.symmetric(horizontal: 14)),
                 child: const Text('Open Shift',
                     style:
-                        TextStyle(fontSize: 12, fontWeight: FontWeight.w700)))
+                    TextStyle(fontSize: 12, fontWeight: FontWeight.w700)))
           else
             OutlinedButton(
                 onPressed: () => context.go(R.shiftClose),
@@ -658,8 +669,24 @@ class _S extends ConsumerState<AgentHomeScreen> {
                     minimumSize: const Size(0, 32),
                     padding: const EdgeInsets.symmetric(horizontal: 14)),
                 child:
-                    const Text('Close Shift', style: TextStyle(fontSize: 12))),
+                const Text('Close Shift', style: TextStyle(fontSize: 12))),
         ]),
+        // Pre-shift order entry — only reachable before a shift is open.
+        // Once the shift opens, this disappears; use Instant Order instead.
+        if (!_hasShift) ...[
+          const SizedBox(height: 10),
+          SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                  onPressed: () => context.go(R.pendingOrder),
+                  icon: const Icon(Icons.pending_actions_outlined,
+                      size: 16, color: Colors.white),
+                  label: const Text('Create Order (Pending Approval)',
+                      style: TextStyle(fontSize: 12, color: Colors.white)),
+                  style: OutlinedButton.styleFrom(
+                      side: const BorderSide(color: Colors.white54),
+                      minimumSize: const Size(0, 38)))),
+        ],
         const SizedBox(height: 14),
         Row(children: [
           _shiftKpi(
@@ -691,30 +718,30 @@ class _S extends ConsumerState<AgentHomeScreen> {
     final Color borderClr = _hasShortage
         ? Colors.red.shade300
         : hasData
-            ? Colors.green.shade300
-            : kBorder;
+        ? Colors.green.shade300
+        : kBorder;
     final Color headerBg = _hasShortage
         ? Colors.red.shade50
         : !hasData
-            ? Colors.grey.shade50
-            : Colors.green.shade50;
+        ? Colors.grey.shade50
+        : Colors.green.shade50;
     final Color headerClr = _hasShortage
         ? Colors.red.shade700
         : !hasData
-            ? kTextSub
-            : Colors.green.shade700;
+        ? kTextSub
+        : Colors.green.shade700;
     final String headerTxt = _hasShortage
         ? 'Shortage: $_shortBirds birds  ${_shortKg.toStringAsFixed(1)} kg short'
         : !hasData
-            ? 'Stock & Requirements'
-            : _reqBirds == 0
-                ? 'No pending orders'
-                : 'Stock sufficient for all orders';
+        ? 'Stock & Requirements'
+        : _reqBirds == 0
+        ? 'No pending orders'
+        : 'Stock sufficient for all orders';
     final IconData headerIcon = _hasShortage
         ? Icons.warning_amber_rounded
         : !hasData
-            ? Icons.inventory_2_outlined
-            : Icons.check_circle_outline;
+        ? Icons.inventory_2_outlined
+        : Icons.check_circle_outline;
 
     return Container(
         decoration: BoxDecoration(
@@ -730,7 +757,7 @@ class _S extends ConsumerState<AgentHomeScreen> {
               decoration: BoxDecoration(
                   color: headerBg,
                   borderRadius:
-                      const BorderRadius.vertical(top: Radius.circular(14))),
+                  const BorderRadius.vertical(top: Radius.circular(14))),
               child: Row(children: [
                 Icon(headerIcon, color: headerClr, size: 18),
                 const SizedBox(width: 8),
@@ -764,8 +791,8 @@ class _S extends ConsumerState<AgentHomeScreen> {
                                     color: _coverPct >= 1.0
                                         ? Colors.green
                                         : _coverPct >= 0.7
-                                            ? Colors.orange
-                                            : Colors.red)),
+                                        ? Colors.orange
+                                        : Colors.red)),
                           ]),
                       const SizedBox(height: 6),
                       ClipRRect(
@@ -775,11 +802,11 @@ class _S extends ConsumerState<AgentHomeScreen> {
                               minHeight: 10,
                               backgroundColor: Colors.red.shade100,
                               valueColor:
-                                  AlwaysStoppedAnimation(_coverPct >= 1.0
-                                      ? Colors.green
-                                      : _coverPct >= 0.7
-                                          ? Colors.orange
-                                          : Colors.red))),
+                              AlwaysStoppedAnimation(_coverPct >= 1.0
+                                  ? Colors.green
+                                  : _coverPct >= 0.7
+                                  ? Colors.orange
+                                  : Colors.red))),
                       const SizedBox(height: 16),
                     ],
 
@@ -803,7 +830,7 @@ class _S extends ConsumerState<AgentHomeScreen> {
                           decoration: BoxDecoration(
                               color: Colors.white.withValues(alpha: 0.08),
                               borderRadius:
-                                  BorderRadius.circular(kRadiusInner)),
+                              BorderRadius.circular(kRadiusInner)),
                           child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
@@ -837,8 +864,8 @@ class _S extends ConsumerState<AgentHomeScreen> {
                             Expanded(
                                 child: Text(
                                     'Today DC: ${(_dcToday!['dc_count'] as num?)?.toInt() ?? 0} pickup(s)  '
-                                    '${(_dcToday!['total_birds'] as num?)?.toInt() ?? 0} birds  '
-                                    '${(_dcToday!['total_kg'] as num?)?.toDouble().toStringAsFixed(1) ?? '0'} kg',
+                                        '${(_dcToday!['total_birds'] as num?)?.toInt() ?? 0} birds  '
+                                        '${(_dcToday!['total_kg'] as num?)?.toDouble().toStringAsFixed(1) ?? '0'} kg',
                                     style: const TextStyle(
                                         fontSize: 12,
                                         color: kPrimary,
@@ -905,7 +932,7 @@ class _S extends ConsumerState<AgentHomeScreen> {
         // Row 1: primary
         Row(children: [
           _qaBtn(Icons.electric_bolt, 'Instant\nOrder', Colors.deepOrange,
-              () => context.push(R.instantOrder),
+                  () => context.push(R.instantOrder),
               highlight: true),
           const SizedBox(width: 8),
           _qaBtn(Icons.agriculture_outlined, 'Farm\nPickup', Colors.green, () {
@@ -918,7 +945,7 @@ class _S extends ConsumerState<AgentHomeScreen> {
           }),
           const SizedBox(width: 8),
           _qaBtn(Icons.local_shipping_outlined, 'All\nDeliveries', Colors.blue,
-              () => context.go(R.agentDeliveries)),
+                  () => context.go(R.agentDeliveries)),
           const SizedBox(width: 8),
           _qaBtn(Icons.swap_horiz, 'Transfer\nBirds', Colors.purple, () {
             if (_activeBatches.isNotEmpty) {
@@ -944,11 +971,52 @@ class _S extends ConsumerState<AgentHomeScreen> {
           }),
           const SizedBox(width: 8),
           _qaBtn(Icons.money_outlined, 'Expenses', Colors.orange,
-              () => context.go(R.agentExpenses)),
+                  () => context.go(R.agentExpenses)),
           const SizedBox(width: 8),
           _qaBtn(Icons.schedule_outlined, 'Shift', kPrimary,
-              () => context.go(_hasShift ? R.shiftClose : R.shiftOpen)),
+                  () => context.go(_hasShift ? R.shiftClose : R.shiftOpen)),
         ]),
+        const SizedBox(height: 8),
+        // Row 3: my orders (pre-shift orders this agent created, across
+        // their full lifecycle — always reachable, regardless of shift state)
+        GestureDetector(
+          onTap: () => context.push(R.agentMyOrders),
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 14),
+            decoration: BoxDecoration(
+                color: Colors.indigo.withValues(alpha: 0.07),
+                borderRadius: BorderRadius.circular(kRadiusCard),
+                border: Border.all(color: Colors.indigo.withValues(alpha: 0.18)),
+                boxShadow: kCardShadow),
+            child: Row(children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(kRadiusChip),
+                  boxShadow: [
+                    BoxShadow(
+                        color: Colors.indigo.withValues(alpha: 0.2),
+                        blurRadius: 6,
+                        offset: const Offset(0, 2))
+                  ],
+                ),
+                child: const Icon(Icons.assignment_outlined,
+                    size: 18, color: Colors.indigo),
+              ),
+              const SizedBox(width: 12),
+              const Expanded(
+                  child: Text('My Orders',
+                      style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.indigo))),
+              const Icon(Icons.chevron_right, size: 18, color: Colors.indigo),
+            ]),
+          ),
+        ),
       ]);
 
   // ══════════════════════════════════════════════════════════════════════════
@@ -1036,16 +1104,16 @@ class _S extends ConsumerState<AgentHomeScreen> {
                           child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                            Text(d['shop_name'] as String? ?? '--',
-                                style: const TextStyle(
-                                    fontSize: 13, fontWeight: FontWeight.w700)),
-                            if ((d['address'] as String?)?.isNotEmpty == true)
-                              Text(d['address'] as String,
-                                  style: const TextStyle(
-                                      fontSize: 10, color: kTextHint),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis),
-                          ])),
+                                Text(d['shop_name'] as String? ?? '--',
+                                    style: const TextStyle(
+                                        fontSize: 13, fontWeight: FontWeight.w700)),
+                                if ((d['address'] as String?)?.isNotEmpty == true)
+                                  Text(d['address'] as String,
+                                      style: const TextStyle(
+                                          fontSize: 10, color: kTextHint),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis),
+                              ])),
                       StatusBadge(st, SC.order(st), small: true),
                     ]),
                     const SizedBox(height: 8),
@@ -1162,21 +1230,21 @@ class _S extends ConsumerState<AgentHomeScreen> {
   // ══════════════════════════════════════════════════════════════════════════
   Widget _buildBatchCard(Map<String, dynamic> b) {
     final deliveries =
-        (b['deliveries'] as List? ?? []).cast<Map<String, dynamic>>();
+    (b['deliveries'] as List? ?? []).cast<Map<String, dynamic>>();
     final status = b['status'] as String? ?? 'assigned';
     final active = deliveries.where((d) => d['status'] != 'cancelled').toList();
     final done = active.where((d) => d['status'] == 'delivered').length;
     final total = active.length;
     final reqBirds = active.fold(
         0,
-        (s, d) =>
-            s +
+            (s, d) =>
+        s +
             (((d['orders'] as Map?)?['estimated_birds'] as num?)?.toInt() ??
                 0));
     final reqWt = active.fold(
         0.0,
-        (s, d) =>
-            s +
+            (s, d) =>
+        s +
             (((d['orders'] as Map?)?['total_quantity'] as num?)?.toDouble() ??
                 0));
     final pending = active
@@ -1184,14 +1252,14 @@ class _S extends ConsumerState<AgentHomeScreen> {
         .toList();
     final remBirds = pending.fold(
         0,
-        (s, d) =>
-            s +
+            (s, d) =>
+        s +
             (((d['orders'] as Map?)?['estimated_birds'] as num?)?.toInt() ??
                 0));
     final remWt = pending.fold(
         0.0,
-        (s, d) =>
-            s +
+            (s, d) =>
+        s +
             (((d['orders'] as Map?)?['total_quantity'] as num?)?.toDouble() ??
                 0));
 
@@ -1264,7 +1332,7 @@ class _S extends ConsumerState<AgentHomeScreen> {
                               height: 30,
                               color: Colors.white.withValues(alpha: 0.2),
                               margin:
-                                  const EdgeInsets.symmetric(horizontal: 10)),
+                              const EdgeInsets.symmetric(horizontal: 10)),
                           _batchKpi(
                               'Remaining',
                               '$remBirds b  ${remWt.toStringAsFixed(0)} kg',
@@ -1288,18 +1356,18 @@ class _S extends ConsumerState<AgentHomeScreen> {
                             Expanded(
                                 child: Column(
                                     crossAxisAlignment:
-                                        CrossAxisAlignment.start,
+                                    CrossAxisAlignment.start,
                                     children: [
-                                  Text(r?['shop_name'] as String? ?? '--',
-                                      style: const TextStyle(
-                                          fontSize: 14,
-                                          fontWeight: FontWeight.w800,
-                                          color: Colors.white)),
-                                  Text(
-                                      '$birds birds  ${wt.toStringAsFixed(1)} kg',
-                                      style: const TextStyle(
-                                          fontSize: 11, color: Colors.white60)),
-                                ])),
+                                      Text(r?['shop_name'] as String? ?? '--',
+                                          style: const TextStyle(
+                                              fontSize: 14,
+                                              fontWeight: FontWeight.w800,
+                                              color: Colors.white)),
+                                      Text(
+                                          '$birds birds  ${wt.toStringAsFixed(1)} kg',
+                                          style: const TextStyle(
+                                              fontSize: 11, color: Colors.white60)),
+                                    ])),
                             StatusBadge(dSt, SC.order(dSt), small: true),
                             if (dSt == 'out_for_delivery') ...[
                               const SizedBox(width: 6),
@@ -1311,9 +1379,9 @@ class _S extends ConsumerState<AgentHomeScreen> {
                                           horizontal: 10, vertical: 4),
                                       decoration: BoxDecoration(
                                           color:
-                                              kPrimary.withValues(alpha: 0.1),
+                                          kPrimary.withValues(alpha: 0.1),
                                           borderRadius:
-                                              BorderRadius.circular(6)),
+                                          BorderRadius.circular(6)),
                                       child: const Text('Complete',
                                           style: TextStyle(
                                               fontSize: 11,
@@ -1389,7 +1457,7 @@ class _S extends ConsumerState<AgentHomeScreen> {
   // WIDGET HELPERS
   // ══════════════════════════════════════════════════════════════════════════
   Widget _shiftKpi(String l, String v, Color c) => Expanded(
-          child: Column(children: [
+      child: Column(children: [
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
           decoration: BoxDecoration(
@@ -1414,14 +1482,14 @@ class _S extends ConsumerState<AgentHomeScreen> {
       ]));
 
   Widget _stockCol(String label, int birds, double kg, Color c) => Expanded(
-          child: Column(children: [
+      child: Column(children: [
         Text(label,
             style:
-                TextStyle(fontSize: 10, color: c, fontWeight: FontWeight.w700)),
+            TextStyle(fontSize: 10, color: c, fontWeight: FontWeight.w700)),
         const SizedBox(height: 6),
         Text('$birds',
             style:
-                TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: c)),
+            TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: c)),
         Text('birds',
             style: TextStyle(fontSize: 9, color: c.withValues(alpha: 0.7))),
         const SizedBox(height: 2),
@@ -1444,17 +1512,17 @@ class _S extends ConsumerState<AgentHomeScreen> {
         const SizedBox(width: 6),
         Text('$label: ',
             style:
-                TextStyle(fontSize: 11, color: c, fontWeight: FontWeight.w600)),
+            TextStyle(fontSize: 11, color: c, fontWeight: FontWeight.w600)),
         Text(value,
             style:
-                TextStyle(fontSize: 11, color: c, fontWeight: FontWeight.w800)),
+            TextStyle(fontSize: 11, color: c, fontWeight: FontWeight.w800)),
       ]);
 
   Widget _todayStat(String l, String v, Color c) => Expanded(
-          child: Column(children: [
+      child: Column(children: [
         Text(v,
             style:
-                TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: c),
+            TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: c),
             textAlign: TextAlign.center,
             maxLines: 1,
             overflow: TextOverflow.ellipsis),
@@ -1465,8 +1533,8 @@ class _S extends ConsumerState<AgentHomeScreen> {
       ]));
 
   Widget _batchKpi(String l, String v, Color c) => Expanded(
-          child:
-              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      child:
+      Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text(l,
             style: const TextStyle(
                 fontSize: 9,
@@ -1482,13 +1550,13 @@ class _S extends ConsumerState<AgentHomeScreen> {
       ]));
 
   Widget _qaBtn(IconData icon, String label, Color color, VoidCallback onTap,
-          {bool highlight = false}) =>
+      {bool highlight = false}) =>
       Expanded(
           child: GestureDetector(
               onTap: onTap,
               child: Container(
                   padding:
-                      const EdgeInsets.symmetric(vertical: 14, horizontal: 4),
+                  const EdgeInsets.symmetric(vertical: 14, horizontal: 4),
                   decoration: BoxDecoration(
                       color: highlight
                           ? color.withValues(alpha: 0.12)
@@ -1496,7 +1564,7 @@ class _S extends ConsumerState<AgentHomeScreen> {
                       borderRadius: BorderRadius.circular(kRadiusCard),
                       border: Border.all(
                           color:
-                              color.withValues(alpha: highlight ? 0.4 : 0.18),
+                          color.withValues(alpha: highlight ? 0.4 : 0.18),
                           width: highlight ? 1.5 : 0.8),
                       boxShadow: kCardShadow),
                   child: Column(children: [
@@ -1539,22 +1607,22 @@ class _S extends ConsumerState<AgentHomeScreen> {
       ]));
 
   IconData _dIcon(String s) => switch (s) {
-        'delivered' => Icons.check_circle_outline,
-        'out_for_delivery' => Icons.local_shipping_outlined,
-        'picked_up' => Icons.inventory_2_outlined,
-        _ => Icons.radio_button_unchecked,
-      };
+    'delivered' => Icons.check_circle_outline,
+    'out_for_delivery' => Icons.local_shipping_outlined,
+    'picked_up' => Icons.inventory_2_outlined,
+    _ => Icons.radio_button_unchecked,
+  };
 
   Color _dColor(String s) => switch (s) {
-        'delivered' => Colors.green,
-        'out_for_delivery' => Colors.blue,
-        'picked_up' => Colors.teal,
-        _ => Colors.grey,
-      };
+    'delivered' => Colors.green,
+    'out_for_delivery' => Colors.blue,
+    'picked_up' => Colors.teal,
+    _ => Colors.grey,
+  };
 
   @override
   Widget build(BuildContext context) => ResponsiveLayout(
-        mobile: (_) => _buildScaffold(context),
-        desktop: (_) => _buildScaffold(context),
-      );
+    mobile: (_) => _buildScaffold(context),
+    desktop: (_) => _buildScaffold(context),
+  );
 }

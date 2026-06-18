@@ -12,6 +12,7 @@ import 'package:rooster_trader/features/trader_admin/settings/purchase_screen.da
 import 'package:rooster_trader/features/trader_admin/stock/daily_stock_screen.dart' show DailyStockScreen;
 import 'package:rooster_trader/features/trader_admin/stock/stock_detail_screen.dart'
     show StockDetailScreen;
+import '../../features/delivery_agent/orders/agent_myorder_screen.dart' show AgentMyOrdersScreen;
 import '../models/app_user.dart';
 import '../providers/session_provider.dart';
 import '../../features/splash_screen.dart';
@@ -64,6 +65,7 @@ import '../../features/delivery_agent/home/agent_shell.dart';
 import '../../features/auth/trader_setup_screen.dart';
 import '../../features/delivery_agent/batch/dc_view_screen.dart';
 import '../../features/delivery_agent/orders/instant_order_screen.dart';
+import '../../features/delivery_agent/orders/pending_order_screen.dart';
 import '../../features/super_admin/dashboard/super_dashboard_screen.dart';
 import '../../features/super_admin/traders/traders_list_sa_screen.dart';
 import '../../features/super_admin/traders/trader_detail_sa_screen.dart';
@@ -97,6 +99,10 @@ abstract class R {
   static String saTraderDetail(String id) => '/sa/traders/$id';
   static const instantOrder =
       '/a/instant-order'; // accessible even when signed in
+  static const pendingOrder =
+      '/a/pending-order'; // pre-shift order entry, awaiting trader approval
+  static const agentMyOrders =
+      '/a/my-orders'; // tracks agent-created orders: pending/approved/cancelled/assigned
   static const dashboard = '/t/dashboard';
   static const orders = '/t/orders';
   static const orderCreate = '/t/orders/create';
@@ -520,6 +526,12 @@ final appRouterProvider = Provider<GoRouter>((ref) => GoRouter(
         GoRoute(
             path: R.instantOrder,
             builder: (_, __) => const InstantOrderScreen()),
+        GoRoute(
+            path: R.pendingOrder,
+            builder: (_, __) => const PendingOrderScreen()),
+        GoRoute(
+            path: R.agentMyOrders,
+            builder: (_, __) => const AgentMyOrdersScreen()),
         GoRoute(
             path: R.deliveryHistory,
             builder: (_, s) =>

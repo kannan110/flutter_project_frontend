@@ -415,8 +415,27 @@ class _S extends ConsumerState<OrderDetailScreen> {
           if (totalKg > 0) _amtRow('Weight ordered',    '${totalKg.toStringAsFixed(2)} kg'),
           if (hasInv) ...[
             _amtRow('Delivered weight', '${(invKg ?? 0).toStringAsFixed(2)} kg'),
-            if (rateKg != null)
-              _amtRow('Rate', '₹${rateKg.toStringAsFixed(2)} / kg'),
+            // FIX: was always showing invoices.price_per_kg (a blended
+            // Total ÷ Weight average) labeled simply "Rate" — for multi-product
+            // orders this hides each product's real rate behind one misleading
+            // number (e.g. Broiler ₹202 + Broiler Small ₹190 shown as "₹199").
+            // Single product (the only case where an average IS the real rate):
+            // show "Rate" as before, unchanged.
+            // Multi-product: show each product's own applied_rate instead —
+            // sourced from order_items, the same per-line data already proven
+            // correct in invoice_detail_screen.dart. No new fetch needed.
+            if (_items.length <= 1 && rateKg != null)
+              _amtRow('Rate', '₹${rateKg.toStringAsFixed(2)} / kg')
+            else if (_items.length > 1)
+              ..._items.map((item) {
+                final name = (item['master_products']
+                as Map<String, dynamic>?)?['name'] as String? ??
+                    'Product';
+                final r = (item['applied_rate'] as num?)?.toDouble() ??
+                    (item['rate_per_kg'] as num?)?.toDouble();
+                if (r == null) return const SizedBox.shrink();
+                return _amtRow('$name rate', '₹${r.toStringAsFixed(2)} / kg');
+              }),
           ],
           if (_order!['payment_type'] != null)
             _amtRow('Payment', (_order!['payment_type'] as String).toUpperCase()),
@@ -498,80 +517,118 @@ class _S extends ConsumerState<OrderDetailScreen> {
           const SizedBox(height: 10),
         ],
 
-        if (status == 'confirmed') ...[
-          OutlinedButton.icon(
-            onPressed: () => context.go(R.dispatch),
-            icon: const Icon(Icons.local_shipping_outlined, size: 18),
-            label: const Text('Assign to Batch → Dispatch'),
-            style: OutlinedButton.styleFrom(
-                minimumSize: const Size(double.infinity, 50)),
+        // Agent-entered order pending approval (pre-shift order entry).
+        // Reuses _confirmRetailerOrder() / confirm_retailer_order RPC as-is —
+        // the RPC's source guard was extended to accept 'delivery_agent'
+        // alongside 'retailer'; no separate approval code path exists.
+        if (status == 'pending' && _order!['source'] == 'delivery_agent') ...[
+          Container(
+            margin: const EdgeInsets.only(bottom: 12),
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color:        Colors.orange.shade50,
+              borderRadius: BorderRadius.circular(kRadiusCard),
+              border:       Border.all(color: Colors.orange.withValues(alpha: 0.35)),
+            ),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(children: [
+                const Icon(Icons.delivery_dining_outlined, size: 14, color: Colors.orange),
+                const SizedBox(width: 6),
+                const Text('Agent Order — Awaiting Approval',
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800,
+                        color: Colors.orange)),
+              ]),
+              const SizedBox(height: 4),
+              const Text('Entered by delivery agent before shift. Review and approve, or cancel below.',
+                  style: TextStyle(fontSize: 11, color: kTextSub)),
+            ]),
+          ),
+          ElevatedButton.icon(
+            onPressed: _confirmRetailerOrder,
+            icon: const Icon(Icons.check_circle_outline, size: 18),
+            label: const Text('Approve Order + Set Delivery Date'),
+            style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.green,
+                minimumSize: const Size(double.infinity, 52)),
           ),
           const SizedBox(height: 10),
         ],
-
-        OutlinedButton.icon(
-          onPressed: _cancelOrder,
-          icon: const Icon(Icons.cancel_outlined, size: 18, color: kError),
-          label: const Text('Cancel Order'),
-          style: OutlinedButton.styleFrom(
-              foregroundColor:  kError,
-              side:             const BorderSide(color: kError),
-              minimumSize:      const Size(double.infinity, 50)),
-        ),
+        const SizedBox(height: 10),
       ],
+
+      if (status == 'confirmed') ...[
+        OutlinedButton.icon(
+          onPressed: () => context.go(R.dispatch),
+          icon: const Icon(Icons.local_shipping_outlined, size: 18),
+          label: const Text('Assign to Batch → Dispatch'),
+          style: OutlinedButton.styleFrom(
+              minimumSize: const Size(double.infinity, 50)),
+        ),
+        const SizedBox(height: 10),
+      ],
+
+      OutlinedButton.icon(
+        onPressed: _cancelOrder,
+        icon: const Icon(Icons.cancel_outlined, size: 18, color: kError),
+        label: const Text('Cancel Order'),
+        style: OutlinedButton.styleFrom(
+            foregroundColor:  kError,
+            side:             const BorderSide(color: kError),
+            minimumSize:      const Size(double.infinity, 50)),
+      ),
     ];
 
     if (!isDesktop) {
-      return Scaffold(
-        backgroundColor: kBgPage,
-        appBar: AppBar(
-          backgroundColor: kSurface,
-          title: const Text('Order Detail'),
-          actions: [IconButton(icon: const Icon(Icons.refresh_rounded), onPressed: _load)],
-        ),
-        body: ListView(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
-          children: contentSections,
-        ),
-      );
+    return Scaffold(
+    backgroundColor: kBgPage,
+    appBar: AppBar(
+    backgroundColor: kSurface,
+    title: const Text('Order Detail'),
+    actions: [IconButton(icon: const Icon(Icons.refresh_rounded), onPressed: _load)],
+    ),
+    body: ListView(
+    padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+    children: contentSections,
+    ),
+    );
     }
 
     // ── Desktop 2-column layout ──────────────────────────────────────────
     // Split: first N sections go left, financial + actions go right
     // We put the last 2 whitecard blocks (billing + actions) in the right panel
     final leftSections  = contentSections.length > 3
-        ? contentSections.sublist(0, contentSections.length - 2)
+    ? contentSections.sublist(0, contentSections.length - 2)
         : contentSections;
     final rightSections = contentSections.length > 3
-        ? contentSections.sublist(contentSections.length - 2)
+    ? contentSections.sublist(contentSections.length - 2)
         : <Widget>[];
 
     return Scaffold(
-      backgroundColor: kBgPage,
-      appBar: AppBar(
-        backgroundColor: kSurface,
-        title: const Text('Order Detail'),
-        actions: [IconButton(icon: const Icon(Icons.refresh_rounded), onPressed: _load)],
-      ),
-      body: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        // ── Left: customer + items ─────────────────────────────────────
-        Expanded(
-          flex: 6,
-          child: ListView(
-            padding: const EdgeInsets.fromLTRB(24, 16, 16, 40),
-            children: leftSections,
-          ),
-        ),
-        Container(width: 1, color: kBorderLight),
-        // ── Right: billing + actions ───────────────────────────────────
-        SizedBox(
-          width: 340,
-          child: ListView(
-            padding: const EdgeInsets.fromLTRB(20, 16, 24, 40),
-            children: rightSections,
-          ),
-        ),
-      ]),
+    backgroundColor: kBgPage,
+    appBar: AppBar(
+    backgroundColor: kSurface,
+    title: const Text('Order Detail'),
+    actions: [IconButton(icon: const Icon(Icons.refresh_rounded), onPressed: _load)],
+    ),
+    body: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+    // ── Left: customer + items ─────────────────────────────────────
+    Expanded(
+    flex: 6,
+    child: ListView(
+    padding: const EdgeInsets.fromLTRB(24, 16, 16, 40),
+    children: leftSections,
+    ),
+    ),
+    Container(width: 1, color: kBorderLight),
+    // ── Right: billing + actions ───────────────────────────────────
+    SizedBox(
+    width: 340,
+    child: ListView(
+    padding: const EdgeInsets.fromLTRB(20, 16, 24, 40),
+    children: rightSections,
+    ),
+    ),
+    ]),
     );
   }
 

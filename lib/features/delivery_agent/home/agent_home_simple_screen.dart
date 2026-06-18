@@ -37,6 +37,8 @@ class SimpleDashboard extends StatefulWidget {
     required this.onGoToDeliveryComplete,
     required this.onGoToDcView,
     required this.onGoToAllDeliveries,
+    this.onGoToPendingOrder,
+    this.onGoToMyOrders,
     this.onDeliveryCompleteItem,
     this.onTransferItem,
     this.onReassignItem,
@@ -53,6 +55,8 @@ class SimpleDashboard extends StatefulWidget {
   final VoidCallback onGoToBatchPickup, onGoToDeliveries, onGoToTransfers;
   final VoidCallback onGoToDeliveryComplete, onGoToDcView;
   final VoidCallback onGoToAllDeliveries;
+  final VoidCallback? onGoToPendingOrder;
+  final VoidCallback? onGoToMyOrders;
   final ValueChanged<String>? onDeliveryCompleteItem;
   final ValueChanged<String>? onTransferItem;
   final ValueChanged<Map<String, dynamic>>? onReassignItem;
@@ -119,6 +123,7 @@ class _SimpleDashboardState extends State<SimpleDashboard> {
             mort:     _mort,
             onOpen:   widget.onGoToShiftOpen,
             onClose:  widget.onGoToShiftClose,
+            onPendingOrder: widget.onGoToPendingOrder,
             tamil:    _tamil,
           ),
           const SizedBox(height: 14),
@@ -169,6 +174,7 @@ class _SimpleDashboardState extends State<SimpleDashboard> {
             onTransfer:     widget.onGoToTransfers,
             onDcView:       widget.onGoToDcView,
             onPickup:       widget.onGoToBatchPickup,
+            onMyOrders:     widget.onGoToMyOrders,
             tamil:          _tamil,
           ),
           const SizedBox(height: 14),
@@ -194,12 +200,14 @@ class _ShiftCard extends StatelessWidget {
     required this.mort,
     required this.onOpen,
     required this.onClose,
+    this.onPendingOrder,
     required this.tamil,
   });
   final bool hasShift;
   final int done, pending, mort;
   final double cash;
   final VoidCallback onOpen, onClose;
+  final VoidCallback? onPendingOrder;
   final bool tamil;
 
   String t(String en, String ta) => tamil ? ta : en;
@@ -278,6 +286,37 @@ class _ShiftCard extends StatelessWidget {
             ]),
           ),
         ),
+        // Pre-shift order entry — small secondary action, only before a
+        // shift is open. Deliberately subordinate to OPEN SHIFT above —
+        // most agents open their shift first; this is for the agent who
+        // wants to log a retailer's order on the way to the farm.
+        if (!hasShift && onPendingOrder != null) ...[
+          const SizedBox(height: 10),
+          GestureDetector(
+            onTap: onPendingOrder,
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 11),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(kRadiusCard),
+                border: Border.all(color: Colors.white38),
+              ),
+              child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                const Icon(Icons.pending_actions_outlined,
+                    color: Colors.white, size: 18),
+                const SizedBox(width: 8),
+                Text(
+                  t('Create Order (Pending Approval)',
+                      'ஆர்டர் உருவாக்கு (ஒப்புதலுக்கு)'),
+                  style: const TextStyle(
+                      fontSize: 13, fontWeight: FontWeight.w700,
+                      color: Colors.white),
+                ),
+              ]),
+            ),
+          ),
+        ],
       ]),
     );
   }
@@ -759,10 +798,12 @@ class _ManageGrid extends StatelessWidget {
     required this.onTransfer,
     required this.onDcView,
     required this.onPickup,
+    this.onMyOrders,
     required this.tamil,
   });
   final bool hasShift, hasBatches;
   final VoidCallback onInstantOrder, onDeliveries, onTransfer, onDcView, onPickup;
+  final VoidCallback? onMyOrders;
   final bool tamil;
   String t(String en, String ta) => tamil ? ta : en;
 
@@ -787,6 +828,10 @@ class _ManageGrid extends StatelessWidget {
       _GridItem(Icons.warning_amber_rounded, t('Mortality', 'இறப்பு'),
           kError, const Color(0xFFFEF2F2),
           const Color(0xFFFECACA), onDeliveries),
+      if (onMyOrders != null)
+        _GridItem(Icons.assignment_outlined, t('My\nOrders', 'என் ஆர்டர்கள்'),
+            Colors.indigo, const Color(0xFFEEF2FF),
+            const Color(0xFFC7D2FE), onMyOrders!),
     ];
 
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
