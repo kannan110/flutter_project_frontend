@@ -162,6 +162,8 @@ class _MoreSheet extends StatelessWidget {
       _MoreItem(Icons.rule_rounded,                   'Pricing',       Color(0xFF0369A1), R.pricing),
       _MoreItem(Icons.balance_rounded,                'Cash Recon',    Color(0xFF059669), R.cashRecon),
       _MoreItem(Icons.today_rounded,                  'Day Closure',   Color(0xFFDC2626), R.dayClosure),
+      _MoreItem(Icons.trending_up_rounded,            'P&L',           Color(0xFF1B5E20), R.pnlStatement),
+      _MoreItem(Icons.water_drop_rounded,             'Cash Flow',     Color(0xFF0369A1), R.cashFlowStatement),
       _MoreItem(Icons.summarize_rounded,              'Reports',       Color(0xFF00081E), R.reportsHub),
       _MoreItem(Icons.settings_rounded,               'Settings',      Color(0xFF475569), R.settings),
     ];

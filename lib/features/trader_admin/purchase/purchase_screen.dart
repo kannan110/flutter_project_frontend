@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../../core/providers/session_provider.dart';
+import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../shared/layouts/responsive_layout.dart';
 
@@ -1213,17 +1215,21 @@ class _S extends ConsumerState<PurchaseScreen>
                           padding: const EdgeInsets.only(top: 6),
                           child: _miniAlert(
                               '$overdueCnt overdue payment(s)', Colors.red)),
-                    Row(mainAxisAlignment: MainAxisAlignment.end, children: [
+                    Wrap(alignment: WrapAlignment.end, spacing: 6, runSpacing: 6, children: [
                       _actionBtn('View Ledger', Colors.blue, () {
                         setState(() => _farmFilter = f['id'] as String?);
                         _tab.animateTo(3);
                         _load();
                       }),
-                      const SizedBox(width: 6),
                       _actionBtn(
                           'Pay', Colors.green, () => _showPaymentForFarm(f)),
-                      const SizedBox(width: 6),
                       _actionBtn('Edit', kPrimary, () => _showEditFarm(f)),
+                      _actionBtn('Statement', const Color(0xFF6A1B9A), () {
+                        final fid = f['id'] as String?;
+                        if (fid != null) {
+                          context.push(R.supplierStatementPath(fid));
+                        }
+                      }),
                     ]),
                   ])));
         });

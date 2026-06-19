@@ -61,6 +61,8 @@ const _kR = [
   _Rep('discount_leakage',     'Discount Leakage',    Icons.remove_circle_outline,      Color(0xFFBF360C)),
   _Rep('rate_source_breakdown','Rate Source',         Icons.auto_fix_high_outlined,     Color(0xFF4527A0)),
   _Rep('profitability_enhanced','Profit (Full)',      Icons.analytics_outlined,         Color(0xFF1B5E20)),
+  // ── Phase 4/UI: Profitability Breakdown (by product/variant/retailer/zone/agent/batch) ──
+  _Rep('profitability_breakdown','Profit by...',       Icons.pie_chart_outline,           Color(0xFF004D40)),
 ];
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -80,6 +82,7 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
   String?    _error;
   String?    _agentId;
   String?    _retailerId;
+  String     _profitDimension = 'product'; // Phase 4 UI: product|variant|retailer|zone|agent|batch
   List<Map<String,dynamic>> _agents    = [];
   List<Map<String,dynamic>> _retailers = [];
 
@@ -108,6 +111,7 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
       'product_sales', 'zone_sales', 'discount_leakage',
       'rate_source_breakdown', 'profitability_enhanced',
     }.contains(_sel.key);
+    final isProfitBreakdown = _sel.key == 'profitability_breakdown';
 
     try {
       final p = <String,dynamic>{
@@ -115,13 +119,23 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
         'p_from_date': DateFormat('yyyy-MM-dd').format(_from),
         'p_to_date':   DateFormat('yyyy-MM-dd').format(_to),
       };
-      if (!isPricingAnalytics) {
+      String rpcName;
+      if (isProfitBreakdown) {
+        // Phase 3 backend RPC — single function covering all 6 dimensions.
+        // No new accounting logic here; this just picks which dimension to ask for.
+        rpcName = 'get_profitability_breakdown';
+        p['p_dimension'] = _profitDimension;
+        if (_agentId != null)    p['p_agent_id']    = _agentId;
+        if (_retailerId != null) p['p_retailer_id'] = _retailerId;
+      } else if (isPricingAnalytics) {
+        rpcName = 'get_pricing_analytics';
+        p['p_report'] = _sel.key;
+      } else {
+        rpcName = 'get_report_data';
         p['p_report'] = _sel.key;
         if (_agentId != null)    p['p_agent_id']    = _agentId;
         if (_retailerId != null) p['p_retailer_id'] = _retailerId;
       }
-      final rpcName = isPricingAnalytics ? 'get_pricing_analytics' : 'get_report_data';
-      if (isPricingAnalytics) p['p_report'] = _sel.key;
       final res = await _c.rpc(rpcName, params: p)
           .timeout(const Duration(seconds: 20));
       if (mounted) setState(() => _data = res as Map<String,dynamic>?);
@@ -155,6 +169,7 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
         body: Column(children: [
           _buildReportGrid(),
           _buildDateBar(),
+          if (_sel.key == 'profitability_breakdown') _buildDimensionBar(),
           Expanded(child: _loading ? const LoadingList()
               : _error != null ? _buildError()
               : _data == null  ? const EmptyState(icon: Icons.bar_chart_outlined, message: 'Loading...')
@@ -225,6 +240,40 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
                 ]))),
       ]));
 
+  // ─── DIMENSION BAR (Profitability Breakdown only) ──────────────────────────
+  static const _kDims = [
+    ('product',  'Product',  Icons.egg_alt_outlined),
+    ('variant',  'Variant',  Icons.category_outlined),
+    ('retailer', 'Retailer', Icons.storefront_outlined),
+    ('zone',     'Zone',     Icons.map_outlined),
+    ('agent',    'Agent',    Icons.person_outlined),
+    ('batch',    'Batch',    Icons.inventory_2_outlined),
+  ];
+
+  Widget _buildDimensionBar() => Container(
+      color: kSurface,
+      padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
+      child: Wrap(
+          spacing: 6, runSpacing: 6,
+          children: _kDims.map((d) {
+            final (key, lbl, icon) = d;
+            final sel = _profitDimension == key;
+            return GestureDetector(
+                onTap: () { setState(() => _profitDimension = key); _load(); },
+                child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                        color: sel ? const Color(0xFF004D40) : const Color(0xFF004D40).withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: sel ? const Color(0xFF004D40) : const Color(0xFF004D40).withValues(alpha: 0.3))),
+                    child: Row(mainAxisSize: MainAxisSize.min, children: [
+                      Icon(icon, size: 13, color: sel ? Colors.white : const Color(0xFF004D40)),
+                      const SizedBox(width: 4),
+                      Text(lbl, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700,
+                          color: sel ? Colors.white : const Color(0xFF004D40))),
+                    ])));
+          }).toList()));
+
   // ─── ERROR ────────────────────────────────────────────────────────────────
   Widget _buildError() => Center(child: Padding(
       padding: const EdgeInsets.all(24),
@@ -260,6 +309,7 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
     'discount_leakage'     => _rDiscountLeakage(),
     'rate_source_breakdown'=> _rRateSource(),
     'profitability_enhanced'=> _rProfitabilityEnhanced(),
+    'profitability_breakdown'=> _rProfitabilityBreakdown(),
     _                      => const EmptyState(icon: Icons.bar_chart_outlined, message: 'No data'),
   };
 
@@ -753,11 +803,22 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
 
   Future<void> _shareReport() async {
     if (_data == null) { showError(context, 'No report to share'); return; }
-    final s = _s(); final buf = StringBuffer();
+    final buf = StringBuffer();
     buf.writeln('DSR Chicken - ${_sel.label}');
     buf.writeln('${DateFormat("d MMM yyyy").format(_from)} - ${DateFormat("d MMM yyyy").format(_to)}');
     buf.writeln('');
-    s.forEach((k,v)=>buf.writeln('${k.replaceAll("_"," ").toUpperCase()}: $v'));
+    if (_sel.key == 'profitability_breakdown') {
+      final rows = List<Map<String,dynamic>>.from(_data?['rows'] as List? ?? []);
+      buf.writeln('BY ${(_data?['dimension'] as String? ?? _profitDimension).toUpperCase()}');
+      for (final r in rows) {
+        final cost = r['total_cost'] as num?;
+        buf.writeln('${_str(r,"group_label")}: ${Fmt.amount(_d(r,"total_revenue"))} revenue, '
+            '${cost == null ? "cost pending" : Fmt.amount(cost.toDouble())} cost');
+      }
+    } else {
+      final s = _s();
+      s.forEach((k,v)=>buf.writeln('${k.replaceAll("_"," ").toUpperCase()}: $v'));
+    }
     buf.writeln('');
     buf.writeln('Rooster Trader v2');
     await Clipboard.setData(ClipboardData(text: buf.toString()));
@@ -1189,6 +1250,87 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
         _sec('DAILY REVENUE TREND'),
         _dailyBar(daily, 'revenue', const Color(0xFF1B5E20)),
       ],
+    ]);
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // PHASE 4 UI — PROFITABILITY BREAKDOWN
+  // Data from get_profitability_breakdown RPC (Phase 3 backend, single
+  // dimension-parameterized function). No accounting calculation lives here —
+  // this only renders whatever rows the RPC returns for the selected dimension.
+  // ═══════════════════════════════════════════════════════════════════════════
+  Widget _rProfitabilityBreakdown() {
+    final rows = List<Map<String,dynamic>>.from(_data?['rows'] as List? ?? []);
+    final dimension = _data?['dimension'] as String? ?? _profitDimension;
+    final totalRevenue = rows.fold(0.0, (s,r) => s + _d(r,'total_revenue'));
+    final pendingRows = rows.where((r) => _i(r,'lines_cost_pending') > 0).length;
+
+    if (rows.isEmpty) {
+      return _scroll([
+        Padding(padding: const EdgeInsets.all(40),
+            child: EmptyState(icon: Icons.pie_chart_outline,
+                message: 'No invoiced sales for this $dimension in the selected period')),
+      ]);
+    }
+
+    return _scroll([
+      _banner('Revenue and cost matched per $dimension, using the same batch costing as the P&L statement.',
+          const Color(0xFF004D40)),
+      _kpiGrid([
+        _kpi('Total Revenue', Fmt.amount(totalRevenue), const Color(0xFF004D40), Icons.currency_rupee),
+        _kpi('${dimension[0].toUpperCase()}${dimension.substring(1)}s', '${rows.length}',
+            const Color(0xFF00695C), Icons.list_alt_outlined),
+      ]),
+      if (pendingRows > 0)
+        _banner('$pendingRows row${pendingRows == 1 ? '' : 's'} have batches not yet costed — '
+            'their Cost/Profit/Margin show as "Pending".', Colors.orange),
+      const SizedBox(height: 4),
+      _sec('BY ${dimension.toUpperCase()}'),
+      ...rows.map((r) {
+        final rev = _d(r, 'total_revenue');
+        final kg = _d(r, 'total_kg');
+        final cost = r['total_cost'] as num?;
+        final gp = r['gross_profit'] as num?;
+        final margin = r['margin_pct'] as num?;
+        final pending = _i(r, 'lines_cost_pending') > 0;
+        final pct = totalRevenue > 0 ? rev / totalRevenue * 100 : 0.0;
+        return Container(
+          margin: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+              color: kSurface, borderRadius: BorderRadius.circular(kRadiusCard),
+              border: Border.all(color: kBorderLight), boxShadow: kCardShadow),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              Expanded(child: Text(_str(r, 'group_label'),
+                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: kNavy),
+                  maxLines: 1, overflow: TextOverflow.ellipsis)),
+              if (pending)
+                Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(color: Colors.orange.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(4)),
+                    child: const Text('COST PENDING',
+                        style: TextStyle(fontSize: 8, fontWeight: FontWeight.w800, color: Colors.orange))),
+              const SizedBox(width: 6),
+              Text('${pct.toStringAsFixed(1)}%', style: const TextStyle(fontSize: 11, color: kTextSub)),
+            ]),
+            const SizedBox(height: 8),
+            ClipRRect(borderRadius: BorderRadius.circular(4),
+                child: LinearProgressIndicator(value: pct/100, minHeight: 6,
+                    backgroundColor: const Color(0xFF004D40).withValues(alpha: 0.1),
+                    valueColor: const AlwaysStoppedAnimation(Color(0xFF004D40)))),
+            const SizedBox(height: 8),
+            Row(children: [
+              _st('Revenue', Fmt.amount(rev)),
+              _st('kg', kg.toStringAsFixed(0)),
+              _st('Cost', cost == null ? (pending ? 'Pending' : '₹0') : Fmt.amount(cost.toDouble())),
+              _st('Profit', gp == null ? 'Pending' : Fmt.amount(gp.toDouble())),
+              _st('Margin', margin == null ? '—' : '${margin.toStringAsFixed(1)}%'),
+            ]),
+          ]),
+        );
+      }),
     ]);
   }
 

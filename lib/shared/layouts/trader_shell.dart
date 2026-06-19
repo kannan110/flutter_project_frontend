@@ -136,13 +136,7 @@ class TraderShell extends ConsumerWidget {
       useRootNavigator: true,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => DraggableScrollableSheet(
-        initialChildSize: 0.65,
-        minChildSize: 0.40,
-        maxChildSize: 0.92,
-        expand: false,
-        builder: (_, scrollCtrl) => const _MoreSheet(),
-      ),
+      builder: (_) => const _MoreSheet(),
     );
   }
 }
@@ -162,12 +156,14 @@ class _MoreSheet extends StatelessWidget {
       _MoreItem(Icons.directions_bike_rounded,        'Agents',        Color(0xFF57534E), R.agents),
       _MoreItem(Icons.assignment_return_rounded,      'Returns',       Color(0xFFDC2626), R.returns),
       _MoreItem(Icons.receipt_long_rounded,           'Invoices',      Color(0xFFB45309), R.invoices),
+      _MoreItem(Icons.price_change_rounded,           'Rates',         Color(0xFF059669), R.rates),
       _MoreItem(Icons.inventory_rounded,              'Crates',        Color(0xFF7C3AED), R.crates),
       _MoreItem(Icons.schedule_rounded,               'Shifts',        Color(0xFF475569), R.shifts),
-      _MoreItem(Icons.local_offer_rounded,            'Pricing',       Color(0xFF0369A1), R.pricingHub),
-      _MoreItem(Icons.history_rounded,                'Rate History',  Color(0xFF0369A1), R.zoneRateHistory),
+      _MoreItem(Icons.rule_rounded,                   'Pricing',       Color(0xFF0369A1), R.pricing),
       _MoreItem(Icons.balance_rounded,                'Cash Recon',    Color(0xFF059669), R.cashRecon),
       _MoreItem(Icons.today_rounded,                  'Day Closure',   Color(0xFFDC2626), R.dayClosure),
+      _MoreItem(Icons.trending_up_rounded,            'P&L',           Color(0xFF1B5E20), R.pnlStatement),
+      _MoreItem(Icons.water_drop_rounded,             'Cash Flow',     Color(0xFF0369A1), R.cashFlowStatement),
       _MoreItem(Icons.summarize_rounded,              'Reports',       Color(0xFF00081E), R.reportsHub),
       _MoreItem(Icons.settings_rounded,               'Settings',      Color(0xFF475569), R.settings),
     ];
@@ -177,7 +173,7 @@ class _MoreSheet extends StatelessWidget {
         color: Colors.white,
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      child: Column(children: [
+      child: Column(mainAxisSize: MainAxisSize.min, children: [
         // Handle bar
         Container(
           margin: const EdgeInsets.only(top: 12, bottom: 4),
@@ -203,19 +199,18 @@ class _MoreSheet extends StatelessWidget {
           ]),
         ),
         const Divider(height: 1),
-        // Scrollable grid — Expanded so it fills sheet height and scrolls
-        Expanded(
-          child: GridView.builder(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 3,
-              mainAxisSpacing: 10,
-              crossAxisSpacing: 10,
-              childAspectRatio: 2.0,
-            ),
-            itemCount: items.length,
-            itemBuilder: (_, i) => _MoreTile(item: items[i]),
+        GridView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 3,
+            mainAxisSpacing: 10,
+            crossAxisSpacing: 10,
+            childAspectRatio: 2.0,
           ),
+          itemCount: items.length,
+          itemBuilder: (_, i) => _MoreTile(item: items[i]),
         ),
       ]),
     );

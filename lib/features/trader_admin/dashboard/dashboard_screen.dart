@@ -170,6 +170,12 @@ class _S extends ConsumerState<DashboardScreen> {
               crossAxisAlignment: CrossAxisAlignment.start, children: [
             _MetricStrip(data: d, stock: _stock),
             const SizedBox(height: 20),
+            _BusinessHealthCard(
+              data: d,
+              onPnl: () => context.push(R.pnlStatement),
+              onCashFlow: () => context.push(R.cashFlowStatement),
+            ),
+            const SizedBox(height: 20),
             _OpsBoard(data: d, onNavigate: (r) => context.go(r)),
             const SizedBox(height: 20),
             Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -346,6 +352,14 @@ class _S extends ConsumerState<DashboardScreen> {
                       ),
                     ]),
                   ]),
+            ),
+          )),
+          SliverToBoxAdapter(child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            child: _BusinessHealthCard(
+              data: d,
+              onPnl: () => context.push(R.pnlStatement),
+              onCashFlow: () => context.push(R.cashFlowStatement),
             ),
           )),
           SliverToBoxAdapter(child: Padding(
@@ -584,6 +598,14 @@ class _S extends ConsumerState<DashboardScreen> {
                 onTap: () => context.go(R.ledger),
               ),
             ])),
+          )),
+          SliverToBoxAdapter(child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            child: _BusinessHealthCard(
+              data: d,
+              onPnl: () => context.push(R.pnlStatement),
+              onCashFlow: () => context.push(R.cashFlowStatement),
+            ),
           )),
           SliverToBoxAdapter(child: Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
@@ -1600,6 +1622,151 @@ class _MetricPanel extends StatelessWidget {
                   color: Colors.white.withValues(alpha: 0.6))),
         ]),
       );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// BUSINESS HEALTH CARD  (Phase 4 UI)
+// Answers: Revenue / Purchase Cost / Expense / Mortality Loss / Shrinkage Loss /
+// Gross Profit / Net Profit / Outstanding / Supplier Payable / Cash Position
+// — all for TODAY. Every figure is read directly from DashboardData, which is
+// itself populated from dashboard_summary's v_part3 (a thin wrapper that only
+// CALLS get_pnl_statement / get_cash_flow_statement / get_payable_aging).
+// No calculation happens in this widget.
+// ─────────────────────────────────────────────────────────────────────────────
+class _BusinessHealthCard extends StatelessWidget {
+  const _BusinessHealthCard({
+    required this.data,
+    required this.onPnl,
+    required this.onCashFlow,
+  });
+
+  final DashboardData data;
+  final VoidCallback onPnl;
+  final VoidCallback onCashFlow;
+
+  @override
+  Widget build(BuildContext context) {
+    final d = data;
+    final costPending = d.todayLinesCostPending > 0;
+    final revenue = d.todayRevenue > 0 ? d.todayRevenue : d.todayCollected;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: kSurface,
+        borderRadius: BorderRadius.circular(kRadiusCard),
+        border: Border.all(color: kBorderLight),
+        boxShadow: kCardShadow,
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
+          child: Row(children: [
+            const Icon(Icons.monitor_heart_outlined, color: kGold, size: 16),
+            const SizedBox(width: 8),
+            const Text('BUSINESS HEALTH — TODAY',
+                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: kNavy, letterSpacing: 0.6)),
+            const Spacer(),
+            GestureDetector(
+              onTap: onPnl,
+              child: const Text('FULL P&L', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: kGold, letterSpacing: 0.5)),
+            ),
+          ]),
+        ),
+        if (costPending)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(color: Colors.orange.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(8)),
+              child: Row(children: [
+                const Icon(Icons.info_outline, size: 13, color: Colors.orange),
+                const SizedBox(width: 6),
+                Expanded(child: Text(
+                    '${d.todayLinesCostPending} line${d.todayLinesCostPending == 1 ? '' : 's'} not yet costed — Gross/Net Profit pending',
+                    style: const TextStyle(fontSize: 10, color: Colors.orange, fontWeight: FontWeight.w600))),
+              ]),
+            ),
+          ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+          child: Column(children: [
+            Row(children: [
+              Expanded(child: _healthTile('Revenue', Fmt.amount(revenue), kSuccess, Icons.trending_up_outlined)),
+              const SizedBox(width: 8),
+              Expanded(child: _healthTile('Purchase Cost',
+                  d.todayPurchaseCostActual == null ? 'Pending' : Fmt.amount(d.todayPurchaseCostActual!),
+                  Colors.blue, Icons.shopping_cart_outlined)),
+            ]),
+            const SizedBox(height: 8),
+            Row(children: [
+              Expanded(child: _healthTile('Expenses', Fmt.amount(d.todayExpenseTotal), Colors.orange, Icons.receipt_long_outlined)),
+              const SizedBox(width: 8),
+              Expanded(child: _healthTile('Mortality Loss', Fmt.amount(d.todayMortalityLossAmount), kError, Icons.health_and_safety_outlined)),
+            ]),
+            const SizedBox(height: 8),
+            Row(children: [
+              Expanded(child: _healthTile('Shrinkage Loss', Fmt.amount(d.todayShrinkageLossAmount), const Color(0xFF6A1B9A), Icons.compress_outlined)),
+              const SizedBox(width: 8),
+              Expanded(child: _healthTile('Outstanding', Fmt.amount(d.totalOutstanding), Colors.deepOrange, Icons.account_balance_wallet_outlined)),
+            ]),
+            const SizedBox(height: 8),
+            Row(children: [
+              Expanded(child: _healthTile('Supplier Payable', Fmt.amount(d.totalSupplierPayable), Colors.brown, Icons.agriculture_outlined)),
+              const SizedBox(width: 8),
+              Expanded(child: GestureDetector(
+                onTap: onCashFlow,
+                child: _healthTile('Cash Position', Fmt.amount(d.todayCashIn - d.todayCashOut),
+                    (d.todayCashIn - d.todayCashOut) >= 0 ? kSuccess : kError, Icons.water_drop_outlined),
+              )),
+            ]),
+          ]),
+        ),
+        Container(
+          margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: d.todayNetProfit == null
+                ? Colors.orange.withValues(alpha: 0.08)
+                : d.todayNetProfit! >= 0
+                ? kSuccess.withValues(alpha: 0.08)
+                : kError.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(kRadiusInner),
+          ),
+          child: Row(children: [
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('Gross Profit',
+                  style: TextStyle(fontSize: 10, color: d.todayGrossProfit == null ? Colors.orange.shade800 : kTextSub)),
+              Text(d.todayGrossProfit == null ? 'Pending' : Fmt.amount(d.todayGrossProfit!),
+                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800,
+                      color: d.todayGrossProfit == null ? Colors.orange.shade800 : kTextMain)),
+            ])),
+            Container(width: 1, height: 32, color: kBorderLight),
+            const SizedBox(width: 12),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('Net Profit',
+                  style: TextStyle(fontSize: 10,
+                      color: d.todayNetProfit == null ? Colors.orange.shade800
+                          : d.todayNetProfit! >= 0 ? kSuccess : kError)),
+              Text(d.todayNetProfit == null ? 'Pending' : Fmt.amount(d.todayNetProfit!),
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900,
+                      color: d.todayNetProfit == null ? Colors.orange.shade800
+                          : d.todayNetProfit! >= 0 ? kSuccess : kError)),
+            ])),
+          ]),
+        ),
+      ]),
+    );
+  }
+
+  Widget _healthTile(String label, String value, Color c, IconData icon) => Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(color: c.withValues(alpha: 0.07), borderRadius: BorderRadius.circular(kRadiusInner)),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Icon(icon, size: 14, color: c),
+        const SizedBox(height: 4),
+        Text(value, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w900, color: c), maxLines: 1, overflow: TextOverflow.ellipsis),
+        Text(label, style: const TextStyle(fontSize: 9, color: kTextSub), maxLines: 1, overflow: TextOverflow.ellipsis),
+      ]));
 }
 
 class _OpsBoard extends StatelessWidget {

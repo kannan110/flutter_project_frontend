@@ -8,12 +8,14 @@ import 'package:rooster_trader/features/trader_admin/rates/zone_rate_history_scr
 import 'package:rooster_trader/features/trader_admin/retailers/retailer_link_screen.dart'
     show RetailerLinkScreen;
 import 'package:rooster_trader/features/trader_admin/settings/expenses_rule_screen.dart' show ExpenseRulesScreen;
-import 'package:rooster_trader/features/trader_admin/settings/purchase_screen.dart'
+import 'package:rooster_trader/features/trader_admin/purchase/purchase_screen.dart'
     show PurchaseScreen;
 import 'package:rooster_trader/features/trader_admin/stock/daily_stock_screen.dart' show DailyStockScreen;
 import 'package:rooster_trader/features/trader_admin/stock/stock_detail_screen.dart'
     show StockDetailScreen;
 import '../../features/delivery_agent/orders/agent_myorder_screen.dart' show AgentMyOrdersScreen;
+import '../../features/trader_admin/reports/cashflow_screen.dart' show CashFlowScreen;
+import '../../features/trader_admin/reports/supplier_statement_screen.dart' show SupplierStatementScreen;
 import '../models/app_user.dart';
 import '../providers/session_provider.dart';
 import '../../features/splash_screen.dart';
@@ -61,6 +63,7 @@ import '../../features/trader_admin/day_closure/day_closure_screen.dart';
 import '../../features/trader_admin/alerts/alerts_screen.dart';
 import '../../features/trader_admin/reports/daily_report_screen.dart';
 import '../../features/trader_admin/reports/reports_hub_screen.dart';
+import '../../features/trader_admin/reports/pnl_screen.dart';
 import '../../features/retailer/retailer_screen.dart';
 import '../../features/delivery_agent/home/agent_shell.dart';
 import '../../features/auth/trader_setup_screen.dart';
@@ -146,6 +149,9 @@ abstract class R {
   static const expenseRules = '/t/expense-rules';
   static const cashRecon = '/t/reconciliation';
   static const dayClosure = '/t/day-closure';
+  static const pnlStatement = '/t/pnl';
+  static const cashFlowStatement = '/t/cash-flow';
+  static const supplierStatement = '/t/supplier-statement/:fid';
   static const alerts = '/t/alerts';
   static const dailyReport  = '/t/reports/daily';
   static const dailyStock   = '/t/reports/stock';  // ← ADD THIS
@@ -179,6 +185,7 @@ abstract class R {
 
   static String retailerLedgerPath(String id) => '/t/ledger/$id';
   static String retailerStatementPath(String id) => '/t/statement/$id';
+  static String supplierStatementPath(String id) => '/t/supplier-statement/$id';
 
   static String retailerDetailPath(String id) => '/t/retailers/$id';
 
@@ -471,6 +478,16 @@ final appRouterProvider = Provider<GoRouter>((ref) => GoRouter(
         GoRoute(
             path: R.dayClosure,
             builder: (_, __) => const DayClosureScreen()),
+        GoRoute(
+            path: R.pnlStatement,
+            builder: (_, __) => const PnLScreen()),
+        GoRoute(
+            path: R.cashFlowStatement,
+            builder: (_, __) => const CashFlowScreen()),
+        GoRoute(
+            path: R.supplierStatement,
+            builder: (_, s) =>
+                SupplierStatementScreen(farmId: s.pathParameters['fid']!)),
         GoRoute(path: R.alerts, builder: (_, __) => const AlertsScreen()),
         GoRoute(
             path: R.dailyReport,

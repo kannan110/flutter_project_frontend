@@ -208,6 +208,24 @@ class DashboardData {
   //   Quality risk — triggers alert in _LiveStockPanel.
   final int agingStockBatches;
 
+  // ── Phase 4 UI: Business Health fields ─────────────────────────────────────
+  // All sourced from dashboard_summary's v_part3, which itself only CALLS
+  // get_pnl_statement / get_cash_flow_statement / get_payable_aging for
+  // CURRENT_DATE — no calculation happens in Flutter or in this model.
+  // null = cost-pending (batch not yet costed) or no rate data; never a
+  // silently-wrong zero.
+  final double? todayPurchaseCostActual;   // COGS for today, null if any line pending
+  final double todayExpenseTotal;          // trip + fixed expenses today
+  final double todayMortalityLossAmount;
+  final double todayShrinkageLossAmount;
+  final double? todayGrossProfit;          // null if any line cost-pending
+  final double? todayNetProfit;            // null if any line cost-pending
+  final int todayLinesCostPending;
+  final double todayCashIn;
+  final double todayCashOut;
+  final double todayNetCashMovement;
+  final double totalSupplierPayable;
+
   const DashboardData({
     this.pendingOrders=0, this.activeDeliveries=0, this.todayDelivered=0,
     this.pendingApprovals=0, this.pendingReturns=0,
@@ -237,6 +255,18 @@ class DashboardData {
     this.creditUtilisationPct=0,
     this.overLimitCount=0,
     this.agingStockBatches=0,
+    // Phase 4 UI: Business Health fields — all safe defaults
+    this.todayPurchaseCostActual,
+    this.todayExpenseTotal=0,
+    this.todayMortalityLossAmount=0,
+    this.todayShrinkageLossAmount=0,
+    this.todayGrossProfit,
+    this.todayNetProfit,
+    this.todayLinesCostPending=0,
+    this.todayCashIn=0,
+    this.todayCashOut=0,
+    this.todayNetCashMovement=0,
+    this.totalSupplierPayable=0,
   });
 
   factory DashboardData.fromMap(Map<String,dynamic> m) => DashboardData(
@@ -297,6 +327,20 @@ class DashboardData {
     creditUtilisationPct:   (m['credit_utilisation_pct']  as num?)?.toDouble() ?? 0,
     overLimitCount:         (m['over_limit_count']        as num?)?.toInt()    ?? 0,
     agingStockBatches:      (m['aging_stock_batches']     as num?)?.toInt()    ?? 0,
+    // Phase 4 UI: Business Health fields — sourced from dashboard_summary's
+    // v_part3, which itself only calls existing get_pnl_statement /
+    // get_cash_flow_statement / get_payable_aging. No calculation here.
+    todayPurchaseCostActual: (m['today_purchase_cost_actual'] as num?)?.toDouble(),
+    todayExpenseTotal:       (m['today_expense_total']        as num?)?.toDouble() ?? 0,
+    todayMortalityLossAmount:(m['today_mortality_loss_amount'] as num?)?.toDouble() ?? 0,
+    todayShrinkageLossAmount:(m['today_shrinkage_loss_amount'] as num?)?.toDouble() ?? 0,
+    todayGrossProfit:        (m['today_gross_profit']          as num?)?.toDouble(),
+    todayNetProfit:          (m['today_net_profit']            as num?)?.toDouble(),
+    todayLinesCostPending:   (m['today_lines_cost_pending']    as num?)?.toInt()    ?? 0,
+    todayCashIn:             (m['today_cash_in']               as num?)?.toDouble() ?? 0,
+    todayCashOut:            (m['today_cash_out']              as num?)?.toDouble() ?? 0,
+    todayNetCashMovement:    (m['today_net_cash_movement']     as num?)?.toDouble() ?? 0,
+    totalSupplierPayable:    (m['total_supplier_payable']      as num?)?.toDouble() ?? 0,
   );
 
   bool get isDayClosed => dayStatus == 'closed' || dayStatus == 'locked';

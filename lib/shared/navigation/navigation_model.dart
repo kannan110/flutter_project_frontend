@@ -164,6 +164,18 @@ class TraderNavigation {
               activeIcon: Icons.today_rounded,
               route:      R.dayClosure,
             ),
+            NavItem(
+              label:      'P&L',
+              icon:       Icons.trending_up_outlined,
+              activeIcon: Icons.trending_up_rounded,
+              route:      R.pnlStatement,
+            ),
+            NavItem(
+              label:      'Cash Flow',
+              icon:       Icons.water_drop_outlined,
+              activeIcon: Icons.water_drop_rounded,
+              route:      R.cashFlowStatement,
+            ),
           ],
         ),
 
