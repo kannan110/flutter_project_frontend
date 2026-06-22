@@ -286,6 +286,7 @@ class _PnLScreenState extends ConsumerState<PnLScreen> {
     final totalExp = _d(s, 'total_expenses');
 
     return SingleChildScrollView(
+        padding: const EdgeInsets.only(bottom: kBottomNavClearance),
         child: Column(children: [
           if (costPending)
             _banner(

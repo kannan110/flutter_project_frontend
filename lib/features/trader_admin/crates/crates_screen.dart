@@ -76,7 +76,7 @@ class _S extends ConsumerState<CratesScreen> {
       IconButton(icon: const Icon(Icons.refresh), onPressed: _load),
     ]),
     body: _loading ? const LoadingList() : _summary == null ? const EmptyState(icon: Icons.inventory_2_outlined, message: 'No crate data')
-        : RefreshIndicator(onRefresh: _load, child: ListView(padding: const EdgeInsets.all(16), children: [
+        : RefreshIndicator(onRefresh: _load, child: ListView(padding: const EdgeInsets.fromLTRB(16, 16, 16, kBottomNavClearance), children: [
       GridView.count(crossAxisCount: 3, shrinkWrap: true, physics: const NeverScrollableScrollPhysics(),
           crossAxisSpacing: 10, mainAxisSpacing: 10, childAspectRatio: 1.2, children: [
             KpiCard('Total', '${_summary!['total_crates'] ?? 0}', Icons.inventory_2_outlined, kPrimary),

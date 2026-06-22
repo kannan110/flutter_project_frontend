@@ -108,7 +108,7 @@ class _S extends ConsumerState<AgentDeliveriesScreen> {
                 : RefreshIndicator(
                 onRefresh: _load,
                 child: ListView.separated(
-                  padding: const EdgeInsets.all(16),
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, kBottomNavClearance),
                   itemCount: _list.length,
                   separatorBuilder: (_, __) => const SizedBox(height: 10),
                   itemBuilder: (_, i) => _deliveryCard(_list[i]),

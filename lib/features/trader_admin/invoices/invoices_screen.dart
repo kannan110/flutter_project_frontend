@@ -267,15 +267,14 @@ class _S extends ConsumerState<InvoicesScreen> {
 
   Widget _buildMobileList() {
     return RefreshIndicator(
-      onRefresh: _load,
-      child: ListView.separated(
-        padding:          const EdgeInsets.all(14),
-        itemCount:        _filtered.length,
-        separatorBuilder: (_, __) => const SizedBox(height: 8),
-        itemBuilder:      (_, i)  => _InvoiceCard(invoice: _filtered[i]),
-      ),
-    );
-  }
+        onRefresh: _load,
+        child: ListView.separated(
+          padding:          const EdgeInsets.fromLTRB(14, 14, 14, kBottomNavClearance),
+          itemCount:        _filtered.length,
+          separatorBuilder: (_, __) => const SizedBox(height: 8),
+          itemBuilder:      (_, i)  => _InvoiceCard(invoice: _filtered[i]),
+        ));
+    }
 }
 
 // ── Mobile invoice card ───────────────────────────────────────────────────────

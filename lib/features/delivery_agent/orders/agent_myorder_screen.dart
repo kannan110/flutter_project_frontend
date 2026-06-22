@@ -62,7 +62,7 @@ class _S extends ConsumerState<AgentMyOrdersScreen> {
       final rows = await _c
           .from('orders')
           .select('id,status,total_quantity,estimated_birds,total_amount,'
-              'final_price,order_date,notes,retailers(shop_name)')
+          'final_price,order_date,notes,retailers(shop_name)')
           .eq('created_by_agent_id', agentId)
           .order('created_at', ascending: false)
           .limit(100);
@@ -84,32 +84,32 @@ class _S extends ConsumerState<AgentMyOrdersScreen> {
   }
 
   String _label(_Bucket b) => switch (b) {
-        _Bucket.pending => 'Pending',
-        _Bucket.approved => 'Approved',
-        _Bucket.cancelled => 'Cancelled',
-        _Bucket.assigned => 'Assigned',
-      };
+    _Bucket.pending => 'Pending',
+    _Bucket.approved => 'Approved',
+    _Bucket.cancelled => 'Cancelled',
+    _Bucket.assigned => 'Assigned',
+  };
 
   Color _color(_Bucket b) => switch (b) {
-        _Bucket.pending => Colors.orange,
-        _Bucket.approved => Colors.green,
-        _Bucket.cancelled => kError,
-        _Bucket.assigned => Colors.blue,
-      };
+    _Bucket.pending => Colors.orange,
+    _Bucket.approved => Colors.green,
+    _Bucket.cancelled => kError,
+    _Bucket.assigned => Colors.blue,
+  };
 
   IconData _icon(_Bucket b) => switch (b) {
-        _Bucket.pending => Icons.pending_outlined,
-        _Bucket.approved => Icons.check_circle_outline,
-        _Bucket.cancelled => Icons.cancel_outlined,
-        _Bucket.assigned => Icons.local_shipping_outlined,
-      };
+    _Bucket.pending => Icons.pending_outlined,
+    _Bucket.approved => Icons.check_circle_outline,
+    _Bucket.cancelled => Icons.cancel_outlined,
+    _Bucket.assigned => Icons.local_shipping_outlined,
+  };
 
   List<Map<String, dynamic>> get _filtered => _filter == null
       ? _orders
       : _orders
-          .where(
-              (o) => _bucketOf(o['status'] as String? ?? 'pending') == _filter)
-          .toList();
+      .where(
+          (o) => _bucketOf(o['status'] as String? ?? 'pending') == _filter)
+      .toList();
 
   @override
   Widget build(BuildContext context) {
@@ -139,50 +139,50 @@ class _S extends ConsumerState<AgentMyOrdersScreen> {
       body: _loading
           ? const LoadingList()
           : Column(children: [
-              // Filter chips with live counts
-              Padding(
-                padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
-                child: SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(children: [
-                    _chip(null, 'All', _orders.length, kTextHint),
-                    const SizedBox(width: 8),
-                    for (final b in _Bucket.values) ...[
-                      _chip(b, _label(b), counts[b] ?? 0, _color(b)),
-                      const SizedBox(width: 8),
-                    ],
-                  ]),
-                ),
-              ),
-
-              Expanded(
-                child: _filtered.isEmpty
-                    ? Center(
-                        child: Padding(
-                        padding: const EdgeInsets.all(32),
-                        child:
-                            Column(mainAxisSize: MainAxisSize.min, children: [
-                          Icon(Icons.inbox_outlined,
-                              size: 48,
-                              color: kTextHint.withValues(alpha: 0.5)),
-                          const SizedBox(height: 12),
-                          Text(
-                              _filter == null
-                                  ? 'No orders created yet.'
-                                  : 'No ${_label(_filter!).toLowerCase()} orders.',
-                              style: const TextStyle(color: kTextHint)),
-                        ]),
-                      ))
-                    : RefreshIndicator(
-                        onRefresh: _load,
-                        child: ListView.builder(
-                          padding: const EdgeInsets.fromLTRB(12, 8, 12, 24),
-                          itemCount: _filtered.length,
-                          itemBuilder: (_, i) => _orderCard(_filtered[i]),
-                        ),
-                      ),
-              ),
+        // Filter chips with live counts
+        Padding(
+          padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(children: [
+              _chip(null, 'All', _orders.length, kTextHint),
+              const SizedBox(width: 8),
+              for (final b in _Bucket.values) ...[
+                _chip(b, _label(b), counts[b] ?? 0, _color(b)),
+                const SizedBox(width: 8),
+              ],
             ]),
+          ),
+        ),
+
+        Expanded(
+          child: _filtered.isEmpty
+              ? Center(
+              child: Padding(
+                padding: const EdgeInsets.all(32),
+                child:
+                Column(mainAxisSize: MainAxisSize.min, children: [
+                  Icon(Icons.inbox_outlined,
+                      size: 48,
+                      color: kTextHint.withValues(alpha: 0.5)),
+                  const SizedBox(height: 12),
+                  Text(
+                      _filter == null
+                          ? 'No orders created yet.'
+                          : 'No ${_label(_filter!).toLowerCase()} orders.',
+                      style: const TextStyle(color: kTextHint)),
+                ]),
+              ))
+              : RefreshIndicator(
+            onRefresh: _load,
+            child: ListView.builder(
+              padding: const EdgeInsets.fromLTRB(12, 8, 12, kBottomNavClearance),
+              itemCount: _filtered.length,
+              itemBuilder: (_, i) => _orderCard(_filtered[i]),
+            ),
+          ),
+        ),
+      ]),
     );
   }
 
@@ -253,7 +253,7 @@ class _S extends ConsumerState<AgentMyOrdersScreen> {
         const SizedBox(height: 8),
         Text(
             '${birds != null ? '$birds birds · ' : ''}${weight.toStringAsFixed(1)} kg'
-            '${amount > 0 ? ' · ${Fmt.amount(amount)}' : ''}',
+                '${amount > 0 ? ' · ${Fmt.amount(amount)}' : ''}',
             style: const TextStyle(fontSize: 12, color: kTextSub)),
         if (bucket == _Bucket.cancelled && notes != null && notes.isNotEmpty)
           Padding(

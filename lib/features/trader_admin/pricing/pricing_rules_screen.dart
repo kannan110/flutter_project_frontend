@@ -88,7 +88,7 @@ class _S extends ConsumerState<PricingRulesScreen> {
     floatingActionButton: FloatingActionButton.extended(onPressed: _addRule, icon: const Icon(Icons.add), label: const Text('Add Rule')),
     floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
     // Reserve space so FAB clears the parent TraderShell glass bottom nav
-    bottomNavigationBar: const SizedBox(height: 80),
+    bottomNavigationBar: const SizedBox(height: kBottomNavClearance),
     body: _loading ? const LoadingList() : _rules.isEmpty ? const EmptyState(icon: Icons.rule_outlined, message: 'No pricing rules', sub: 'Set custom rates or discounts per retailer or product')
         : ListView.separated(padding: const EdgeInsets.fromLTRB(16, 16, 16, 100), itemCount: _rules.length,
         separatorBuilder: (_, __) => const SizedBox(height: 8),

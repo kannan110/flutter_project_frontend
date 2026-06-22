@@ -164,7 +164,7 @@ class _S extends ConsumerState<AnalyticsScreen>
     final monthDelivered  = (month['delivered']   as num?)?.toInt()    ?? 0;
     final outstanding     = (month['outstanding'] as num?)?.toDouble() ?? 0;
 
-    return ListView(padding: const EdgeInsets.fromLTRB(16, 16, 16, 40), children: [
+    return ListView(padding: const EdgeInsets.fromLTRB(16, 16, 16, kBottomNavClearance), children: [
       // Summary strip
       MetricStrip(metrics: [
         MetricCard(label: 'Month Revenue', value: Fmt.amount(monthRevenue),
@@ -221,7 +221,7 @@ class _S extends ConsumerState<AnalyticsScreen>
           message: 'No stock data', sub: 'Add stock via DC pickup workflow');
     }
 
-    return ListView(padding: const EdgeInsets.fromLTRB(16, 16, 16, 40), children: [
+    return ListView(padding: const EdgeInsets.fromLTRB(16, 16, 16, kBottomNavClearance), children: [
       // Survival days cards
       if (_stockSurvival.isNotEmpty) ...[
         const Text('STOCK SURVIVAL FORECAST',
@@ -368,7 +368,7 @@ class _S extends ConsumerState<AnalyticsScreen>
           sub: 'Outstanding balances will appear here');
     }
 
-    return ListView(padding: const EdgeInsets.fromLTRB(16, 16, 16, 40), children: [
+    return ListView(padding: const EdgeInsets.fromLTRB(16, 16, 16, kBottomNavClearance), children: [
 
       // Aging bucket summary
       if (_aging.isNotEmpty) ...[
@@ -513,7 +513,7 @@ class _S extends ConsumerState<AnalyticsScreen>
     final totalDel     = _agentPerf.fold(0,
             (s, a) => s + ((a['deliveries_30d']     as num?)?.toInt()    ?? 0));
 
-    return ListView(padding: const EdgeInsets.fromLTRB(16, 16, 16, 40), children: [
+    return ListView(padding: const EdgeInsets.fromLTRB(16, 16, 16, kBottomNavClearance), children: [
       // Summary strip
       MetricStrip(metrics: [
         MetricCard(label: 'Total Deliveries', value: '$totalDel',

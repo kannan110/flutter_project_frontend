@@ -262,7 +262,7 @@ class _S extends ConsumerState<CreateOrderScreen> {
           : Form(
           key: _form,
           child: ListView(
-              padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + bottomInset),
+              padding: EdgeInsets.fromLTRB(16, 16, 16, kBottomNavClearance + bottomInset),
               children: [
                 // ── Customer ───────────────────────────────────────────
                 const SectionHeader('CUSTOMER'),

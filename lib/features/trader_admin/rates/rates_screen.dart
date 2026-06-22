@@ -207,7 +207,7 @@ class _S extends ConsumerState<RatesScreen> {
         : _products.isEmpty
         ? const EmptyState(icon: Icons.price_change_outlined, message: 'No products configured')
         : ListView.separated(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, kBottomNavClearance),
         itemCount: _products.length,
         separatorBuilder: (_, __) => const SizedBox(height: 10),
         itemBuilder: (_, i) {

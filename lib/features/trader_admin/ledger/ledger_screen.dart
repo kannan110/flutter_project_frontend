@@ -296,7 +296,7 @@ class _S extends ConsumerState<LedgerScreen> {
     return RefreshIndicator(
       onRefresh: _load,
       child: ListView.separated(
-        padding:          const EdgeInsets.fromLTRB(16, 8, 16, 20),
+        padding:          const EdgeInsets.fromLTRB(16, 8, 16, kBottomNavClearance),
         itemCount:        rows.length,
         separatorBuilder: (_, __) => const SizedBox(height: 8),
         itemBuilder:      (_, i)  => _LedgerCard(

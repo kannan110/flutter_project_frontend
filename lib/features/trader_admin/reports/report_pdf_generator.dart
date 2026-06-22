@@ -471,7 +471,7 @@ class ReportPdfGenerator {
         build: (_) => [
           _secTitle('SHIFT AUDIT LOG'),
           _table(
-              headers: ['Date','Agent','DC Loaded kg','Del Birds','Del kg','Returned kg','Mortality','Shrink kg','Loss%','Cash','Expenses','KM','Orders','Status'],
+              headers: ['Date','Agent','DC Loaded kg','Del Birds','Del kg','Returned kg','Mortality','Var kg','Var%','Cash','Expenses','KM','Orders','Status'],
               rows: shifts.map((s) {
                 final lp = _d(s,'loss_percent');
                 final approved = s['shift_approval_status'] == 'approved';

@@ -76,6 +76,15 @@ const kRadiusChip  = 14.0;   // action pills, chips
 const kRadiusInner = 10.0;   // internal containers
 const kRadiusBtn   = 14.0;   // action buttons
 
+// ── Scroll clearance for shell-hosted screens ─────────────────────────────
+// Both TraderShell and AgentShell use extendBody:true (required for glass
+// blur). MediaQuery.padding.bottom inside body widgets only reflects the
+// system safe area (~34 px) — NOT the glass nav height (~65 px). Any scroll
+// list with bottom padding < 80 px will have its last rows permanently hidden.
+// Use kBottomNavClearance as the bottom value on every main scroll list
+// or SingleChildScrollView that lives inside either shell.
+const kBottomNavClearance = 100.0;
+
 // ── Status colours helper ─────────────────────────────────────────────────
 class SC {
   static Color order(String s) => switch (s) {

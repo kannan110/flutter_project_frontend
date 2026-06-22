@@ -388,7 +388,7 @@ class _S extends ConsumerState<PurchaseScreen>
 
     return RefreshIndicator(
         onRefresh: _load,
-        child: ListView(padding: const EdgeInsets.all(14), children: [
+        child: ListView(padding: const EdgeInsets.fromLTRB(14, 14, 14, kBottomNavClearance), children: [
           // Date range label
           Container(
               margin: const EdgeInsets.only(bottom: 10),
@@ -763,7 +763,7 @@ class _S extends ConsumerState<PurchaseScreen>
                   icon: Icons.receipt_long_outlined,
                   message: 'No purchases')
                   : ListView.separated(
-                  padding: const EdgeInsets.all(12),
+                  padding: const EdgeInsets.fromLTRB(12, 12, 12, kBottomNavClearance),
                   itemCount: _purchases.length,
                   separatorBuilder: (_, __) => const SizedBox(height: 6),
                   itemBuilder: (_, i) => _purchaseCard(_purchases[i])))),
@@ -1129,7 +1129,7 @@ class _S extends ConsumerState<PurchaseScreen>
                 label: const Text('Add Supplier')),
           ]));
     return ListView.separated(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.fromLTRB(12, 12, 12, kBottomNavClearance),
         itemCount: _farms.length,
         separatorBuilder: (_, __) => const SizedBox(height: 6),
         itemBuilder: (_, i) {
@@ -1434,7 +1434,7 @@ class _S extends ConsumerState<PurchaseScreen>
           ])),
       Expanded(
         child: ListView.separated(
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.fromLTRB(12, 12, 12, kBottomNavClearance),
             itemCount: _costing.length,
             separatorBuilder: (_, __) => const SizedBox(height: 6),
             itemBuilder: (_, i) {
@@ -2897,6 +2897,13 @@ class _S extends ConsumerState<PurchaseScreen>
                                         .pop();
                                     _showPaymentForFarm(farm);
                                   },
+                                  style: ElevatedButton.styleFrom(
+                                    minimumSize: Size.zero,
+                                    tapTargetSize:
+                                    MaterialTapTargetSize.shrinkWrap,
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 14, vertical: 10),
+                                  ),
                                   icon: const Icon(Icons.payments_outlined,
                                       size: 14),
                                   label: const Text('Pay')),

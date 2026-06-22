@@ -109,8 +109,10 @@ class _ShiftExpenseValidationPanelState
       ElevatedButton(
         onPressed: _validate,
         style: ElevatedButton.styleFrom(
-            backgroundColor: kNavy, padding: const EdgeInsets.symmetric(
-            horizontal: 14, vertical: 8)),
+            backgroundColor: kNavy,
+            minimumSize: Size.zero,
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8)),
         child: const Text('Validate',
             style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700,
                 color: Colors.white)),

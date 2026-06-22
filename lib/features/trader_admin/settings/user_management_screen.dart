@@ -148,9 +148,7 @@ class _S extends ConsumerState<UserManagementScreen> {
           ? const EmptyState(icon: Icons.people_outline, message: 'No users found')
           : RefreshIndicator(
           onRefresh: _load,
-          child: ListView(padding: const EdgeInsets.all(16), children: [
-
-            // ── How to add users info banner ────────────────
+          child: ListView(padding: const EdgeInsets.fromLTRB(16, 16, 16, kBottomNavClearance), children: [
             Container(
                 padding: const EdgeInsets.all(18),
                 margin: const EdgeInsets.only(bottom: 16),

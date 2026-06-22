@@ -75,7 +75,7 @@ class _S extends ConsumerState<AlertsScreen> {
       ),
       body: _loading ? const LoadingList() : _alerts.isEmpty
           ? const EmptyState(icon: Icons.notifications_none_outlined, message: "All clear! No alerts.", sub: "You're up to date")
-          : ListView.separated(padding: const EdgeInsets.all(16), itemCount: _alerts.length,
+          : ListView.separated(padding: const EdgeInsets.fromLTRB(16, 16, 16, kBottomNavClearance), itemCount: _alerts.length,
           separatorBuilder: (_, __) => const SizedBox(height: 8),
           itemBuilder: (_, i) {
             final a = _alerts[i];

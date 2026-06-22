@@ -182,9 +182,7 @@ class _S extends ConsumerState<DayClosureScreen> {
           IconButton(icon: const Icon(Icons.refresh), onPressed: _load),
         ],
       ),
-      body: _loading ? const LoadingList() : RefreshIndicator(onRefresh: _load, child: ListView(padding: const EdgeInsets.all(16), children: [
-
-        // ── Day status header ──────────────────────────────────────
+      body: _loading ? const LoadingList() : RefreshIndicator(onRefresh: _load, child: ListView(padding: const EdgeInsets.fromLTRB(16, 16, 16, kBottomNavClearance), children: [
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(

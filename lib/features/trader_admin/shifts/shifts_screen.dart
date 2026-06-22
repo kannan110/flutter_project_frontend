@@ -48,7 +48,7 @@ class _S extends ConsumerState<ShiftsScreen> {
       ),
       body: _loading ? const LoadingList() : _shifts.isEmpty
           ? const EmptyState(icon: Icons.schedule_outlined, message: 'No shifts yet')
-          : ListView.separated(padding: const EdgeInsets.all(16), itemCount: _shifts.length,
+          : ListView.separated(padding: const EdgeInsets.fromLTRB(16, 16, 16, kBottomNavClearance), itemCount: _shifts.length,
           separatorBuilder: (_, __) => const SizedBox(height: 8),
           itemBuilder: (_, i) {
             final s = _shifts[i];

@@ -363,7 +363,7 @@ class _ZoneRatesTabState extends ConsumerState<_ZoneRatesTab> {
           onRefresh: _load,
           color: kNavy,
           child: ListView(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, kBottomNavClearance),
             children: [
               // Zone banner
               Container(
@@ -903,7 +903,7 @@ class _CustomerRatesTabState extends ConsumerState<_CustomerRatesTab> {
       onRefresh: _load,
       color: kNavy,
       child: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, kBottomNavClearance),
         children: [
           OutlinedButton.icon(
             onPressed: _addRate,
@@ -1184,7 +1184,7 @@ class _ProductsTabState extends ConsumerState<_ProductsTab> {
     return RefreshIndicator(
       onRefresh: _load,
       color: kNavy,
-      child: ListView(padding: const EdgeInsets.all(16), children: [
+      child: ListView(padding: const EdgeInsets.fromLTRB(16, 16, 16, kBottomNavClearance), children: [
         Container(
             padding: const EdgeInsets.all(12),
             margin: const EdgeInsets.only(bottom: 16),
@@ -1470,7 +1470,7 @@ class _ZonesTabState extends ConsumerState<_ZonesTab> {
     return RefreshIndicator(
       onRefresh: _load,
       color: kNavy,
-      child: ListView(padding: const EdgeInsets.all(16), children: [
+      child: ListView(padding: const EdgeInsets.fromLTRB(16, 16, 16, kBottomNavClearance), children: [
         Container(
             padding: const EdgeInsets.all(12),
             margin: const EdgeInsets.only(bottom: 16),
@@ -1636,7 +1636,7 @@ class _ZoneAssignTabState extends ConsumerState<_ZoneAssignTab> {
                 ? const EmptyState(
                 icon: Icons.store_outlined, message: 'No retailers found')
                 : ListView.separated(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, kBottomNavClearance),
                 itemCount: _filtered.length,
                 separatorBuilder: (_, __) => const SizedBox(height: 8),
                 itemBuilder: (_, i) {

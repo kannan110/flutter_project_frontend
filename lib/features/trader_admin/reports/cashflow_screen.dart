@@ -236,14 +236,12 @@ class _CashFlowScreenState extends ConsumerState<CashFlowScreen> {
     final currentBalance = daily.isNotEmpty ? _d(daily.first, 'running_balance') : 0.0;
 
     return SingleChildScrollView(
+        padding: const EdgeInsets.only(bottom: kBottomNavClearance),
         child: Column(children: [
           Container(
               margin: const EdgeInsets.all(12),
               padding: const EdgeInsets.all(18),
               decoration: BoxDecoration(
-                  gradient: const LinearGradient(colors: [kNavy, kNavyMid],
-                      begin: Alignment.topLeft, end: Alignment.bottomRight),
-                  borderRadius: BorderRadius.circular(kRadiusHero),
                   boxShadow: [BoxShadow(color: kNavy.withValues(alpha: 0.35), blurRadius: 24, offset: const Offset(0, 8))]),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 const Text('CASH POSITION (MOVEMENT)',

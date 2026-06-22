@@ -669,7 +669,7 @@ class _ShiftVerificationScreenState
                         if (mortalityB > 0 || isHighLoss)
                           Text(
                             '${mortalityB > 0 ? "Dead: $mortalityB birds  " : ""}'
-                                '${isHighLoss ? "⚠ High loss: ${lossPct.toStringAsFixed(1)}%" : ""}',
+                                '${isHighLoss ? "⚠ High variance: ${lossPct.toStringAsFixed(1)}%" : ""}',
                             style: const TextStyle(fontSize: 10, color: Colors.red),
                           ),
                       ])),
@@ -740,7 +740,7 @@ class _ShiftVerificationScreenState
                   if (d['mortality_birds'] != null && mortalityB > 0)
                     _detailRow('Mortality', '$mortalityB birds'),
                   if (lossPct > 0)
-                    _detailRow('Loss %', '${lossPct.toStringAsFixed(1)}%',
+                    _detailRow('Weight Variance %', '${lossPct.toStringAsFixed(1)}%',
                         isHighLoss ? Colors.red : null),
                   const SizedBox(height: 12),
                   const Text('TRADER VERIFICATION',

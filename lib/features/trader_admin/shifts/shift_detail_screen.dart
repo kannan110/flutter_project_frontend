@@ -35,11 +35,11 @@ class _S extends ConsumerState<ShiftDetailScreen> {
     if (mounted) setState(() => _loading = true);
     try {
       final res =
-          await _c.rpc('get_shift_summary', params: {'p_shift_id': widget.id});
+      await _c.rpc('get_shift_summary', params: {'p_shift_id': widget.id});
       if (!mounted) return;
       final summary = res != null
           ? Map<String, dynamic>.from(
-              ((res as Map?)?.cast<String, dynamic>()) ?? {})
+          ((res as Map?)?.cast<String, dynamic>()) ?? {})
           : null;
       if (mounted)
         setState(() {
@@ -88,13 +88,13 @@ class _S extends ConsumerState<ShiftDetailScreen> {
 
     // Show full batch-level loss breakdown before confirm
     final ok = await showDialog<bool>(
-          context: context,
-          useRootNavigator: true,
-          builder: (ctx) => AlertDialog(
-              title: const Text('Approve Shift',
-                  style: TextStyle(fontWeight: FontWeight.w800)),
-              content: SingleChildScrollView(
-                  child: Column(mainAxisSize: MainAxisSize.min, children: [
+      context: context,
+      useRootNavigator: true,
+      builder: (ctx) => AlertDialog(
+          title: const Text('Approve Shift',
+              style: TextStyle(fontWeight: FontWeight.w800)),
+          content: SingleChildScrollView(
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
                 Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
@@ -124,7 +124,7 @@ class _S extends ConsumerState<ShiftDetailScreen> {
                           '${mortKg.toStringAsFixed(2)} kg', false),
                       const Divider(),
                       _approvalRow(
-                          'Unaccounted Loss',
+                          'Weight Variance',
                           '${lossKg.toStringAsFixed(2)} kg (${lossPct.toStringAsFixed(1)}%)',
                           lossKg > 0),
                       if (lossKg > 0)
@@ -135,12 +135,12 @@ class _S extends ConsumerState<ShiftDetailScreen> {
                                 decoration: BoxDecoration(
                                     color: Colors.orange.shade50,
                                     borderRadius:
-                                        BorderRadius.circular(kRadiusInner)),
+                                    BorderRadius.circular(kRadiusInner)),
                                 child: const Text(
                                     'Approving will:\n'
-                                    '• Record this loss in audit log\n'
-                                    '• Reset agent stock to zero\n'
-                                    '• Mark shift as approved',
+                                        '• Record this loss in audit log\n'
+                                        '• Reset agent stock to zero\n'
+                                        '• Mark shift as approved',
                                     style: TextStyle(
                                         fontSize: 11,
                                         color: Colors.deepOrange)))),
@@ -152,23 +152,23 @@ class _S extends ConsumerState<ShiftDetailScreen> {
                                 decoration: BoxDecoration(
                                     color: Colors.green.shade50,
                                     borderRadius:
-                                        BorderRadius.circular(kRadiusInner)),
+                                    BorderRadius.circular(kRadiusInner)),
                                 child: const Text(
-                                    'No unaccounted loss. All stock accounted for.',
+                                    'No weight variance. All stock accounted for.',
                                     style: TextStyle(
                                         fontSize: 11, color: Colors.green)))),
                     ])),
               ])),
-              actions: [
-                TextButton(
-                    onPressed: () => Navigator.pop(ctx, false),
-                    child: const Text('Cancel')),
-                ElevatedButton(
-                    onPressed: () => Navigator.pop(ctx, true),
-                    style: ElevatedButton.styleFrom(backgroundColor: kPrimary),
-                    child: const Text('Approve & Reset Stock')),
-              ]),
-        ) ??
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Cancel')),
+            ElevatedButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                style: ElevatedButton.styleFrom(backgroundColor: kPrimary),
+                child: const Text('Approve & Reset Stock')),
+          ]),
+    ) ??
         false;
 
     if (!ok || !mounted) return;
@@ -179,6 +179,8 @@ class _S extends ConsumerState<ShiftDetailScreen> {
         'p_shift_id': widget.id,
         'p_approved_by': user?.userId,
         'p_notes': 'Approved by trader admin',
+        'p_actor_type': 'trader',
+        'p_entry_mode': 'system',
       });
       final r = result as Map<String, dynamic>?;
       final resetBirds = (r?['stock_reset_birds'] as num?)?.toInt() ?? 0;
@@ -188,8 +190,8 @@ class _S extends ConsumerState<ShiftDetailScreen> {
         showSuccess(
           context,
           'Shift approved ✓\n'
-          'Loss: ${lossResult.toStringAsFixed(2)} kg\n'
-          '${resetBirds > 0 ? 'Stock reset: $resetBirds birds returned' : 'No remaining stock'}',
+              'Variance: ${lossResult.toStringAsFixed(2)} kg\n'
+              '${resetBirds > 0 ? 'Stock reset: $resetBirds birds returned' : 'No remaining stock'}',
         );
     } catch (e) {
       if (mounted)
@@ -203,7 +205,7 @@ class _S extends ConsumerState<ShiftDetailScreen> {
       Padding(
           padding: const EdgeInsets.symmetric(vertical: 3),
           child:
-              Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+          Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
             Text(label,
                 style: TextStyle(
                     fontSize: 12,
@@ -221,23 +223,23 @@ class _S extends ConsumerState<ShiftDetailScreen> {
         context: context,
         useRootNavigator: true,
         builder: (ctx) => AlertDialog(
-              title: const Text('Reject Shift'),
-              content: TextField(
-                  controller: ctrl,
-                  decoration: const InputDecoration(labelText: 'Reason *'),
-                  autofocus: true),
-              actions: [
-                TextButton(
-                    onPressed: () => Navigator.pop(ctx),
-                    child: const Text('Cancel')),
-                ElevatedButton(
-                    onPressed: () {
-                      if (ctrl.text.trim().isNotEmpty)
-                        Navigator.pop(ctx, ctrl.text.trim());
-                    },
-                    child: const Text('Reject'))
-              ],
-            ));
+          title: const Text('Reject Shift'),
+          content: TextField(
+              controller: ctrl,
+              decoration: const InputDecoration(labelText: 'Reason *'),
+              autofocus: true),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Cancel')),
+            ElevatedButton(
+                onPressed: () {
+                  if (ctrl.text.trim().isNotEmpty)
+                    Navigator.pop(ctx, ctrl.text.trim());
+                },
+                child: const Text('Reject'))
+          ],
+        ));
     ctrl.dispose();
     if (reason == null || !mounted) return;
     if (mounted) setState(() => _submitting = true);
@@ -268,9 +270,9 @@ class _S extends ConsumerState<ShiftDetailScreen> {
     final shift = _summary!['shift'] as Map<String, dynamic>?;
     final totals = _summary!['totals'] as Map<String, dynamic>?;
     final deliveries =
-        (_summary!['deliveries'] as List? ?? []).cast<Map<String, dynamic>>();
+    (_summary!['deliveries'] as List? ?? []).cast<Map<String, dynamic>>();
     final challans =
-        (_summary!['challans'] as List? ?? []).cast<Map<String, dynamic>>();
+    (_summary!['challans'] as List? ?? []).cast<Map<String, dynamic>>();
     final shiftStatus = shift?['status'] as String? ?? 'open';
     final approvalStatus =
         shift?['shift_approval_status'] as String? ?? 'pending';
@@ -306,16 +308,16 @@ class _S extends ConsumerState<ShiftDetailScreen> {
                       child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                        Text(shift?['agent_name'] as String? ?? '—',
-                            style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w800,
-                                color: Colors.white)),
-                        Text(
-                            '${shift?['vehicle_no'] ?? ''}  |  Shift ${shiftStatus.toUpperCase()}',
-                            style: const TextStyle(
-                                color: Colors.white70, fontSize: 12)),
-                      ])),
+                            Text(shift?['agent_name'] as String? ?? '—',
+                                style: const TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w800,
+                                    color: Colors.white)),
+                            Text(
+                                '${shift?['vehicle_no'] ?? ''}  |  Shift ${shiftStatus.toUpperCase()}',
+                                style: const TextStyle(
+                                    color: Colors.white70, fontSize: 12)),
+                          ])),
                   if (approvalStatus != 'pending')
                     StatusBadge(
                         approvalStatus,
@@ -335,34 +337,34 @@ class _S extends ConsumerState<ShiftDetailScreen> {
                   child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                    const SectionHeader('DELIVERY CHALLANS (FARM PURCHASE)'),
-                    ...challans.map((ch) {
-                      final date =
+                        const SectionHeader('DELIVERY CHALLANS (FARM PURCHASE)'),
+                        ...challans.map((ch) {
+                          final date =
                           DateTime.tryParse(ch['dc_date'] as String? ?? '');
-                      return ListTile(
-                        dense: true,
-                        leading: const Icon(Icons.receipt_long_outlined,
-                            color: kPrimary, size: 20),
-                        title: Text(
-                            '${ch['dc_number']} — ${ch['farmer_name'] ?? '—'}',
-                            style: const TextStyle(
-                                fontSize: 13, fontWeight: FontWeight.w600)),
-                        subtitle: Text(
-                            '${ch['bird_count'] ?? 0} birds · ${(ch['net_weight'] as num?)?.toStringAsFixed(1) ?? 0} kg · ${ch['crates_count'] ?? 0} crates',
-                            style: const TextStyle(fontSize: 11)),
-                        trailing: date != null
-                            ? Text(DateFormat('d MMM').format(date),
+                          return ListTile(
+                            dense: true,
+                            leading: const Icon(Icons.receipt_long_outlined,
+                                color: kPrimary, size: 20),
+                            title: Text(
+                                '${ch['dc_number']} — ${ch['farmer_name'] ?? '—'}',
+                                style: const TextStyle(
+                                    fontSize: 13, fontWeight: FontWeight.w600)),
+                            subtitle: Text(
+                                '${ch['bird_count'] ?? 0} birds · ${(ch['net_weight'] as num?)?.toStringAsFixed(1) ?? 0} kg · ${ch['crates_count'] ?? 0} crates',
+                                style: const TextStyle(fontSize: 11)),
+                            trailing: date != null
+                                ? Text(DateFormat('d MMM').format(date),
                                 style: const TextStyle(
                                     fontSize: 11, color: kTextHint))
-                            : null,
-                      );
-                    }),
-                    Divider(height: 12),
-                    _trow('Total DC Birds',
-                        '${totals?['total_dc_birds'] ?? 0} birds'),
-                    _trow('Total DC Weight',
-                        '${(totals?['total_dc_weight_kg'] as num?)?.toStringAsFixed(1) ?? 0} kg'),
-                  ])),
+                                : null,
+                          );
+                        }),
+                        Divider(height: 12),
+                        _trow('Total DC Birds',
+                            '${totals?['total_dc_birds'] ?? 0} birds'),
+                        _trow('Total DC Weight',
+                            '${(totals?['total_dc_weight_kg'] as num?)?.toStringAsFixed(1) ?? 0} kg'),
+                      ])),
             const SizedBox(height: 10),
 
             // ── Delivery summary ─────────────────────────────────────────
@@ -370,29 +372,29 @@ class _S extends ConsumerState<ShiftDetailScreen> {
                 child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                  const SectionHeader('DELIVERY SUMMARY'),
-                  Row(children: [
-                    _sbox('Delivered', '${totals?['deliveries_count'] ?? 0}',
-                        kPrimary),
-                    _sbox(
-                        'Birds', '${totals?['total_birds'] ?? 0}', Colors.blue),
-                    _sbox(
-                        'Weight',
-                        '${(totals?['total_weight_kg'] as num?)?.toStringAsFixed(1) ?? 0} kg',
-                        Colors.teal),
-                  ]),
-                  const SizedBox(height: 8),
-                  Row(children: [
-                    _sbox('Dead', '${totals?['total_mortality'] ?? 0}',
-                        Colors.red),
-                    _sbox('Returns', '${totals?['total_returned'] ?? 0}',
-                        Colors.purple),
-                    _sbox(
-                        'Crates Pending',
-                        '${((totals?['crates_given'] as int? ?? 0) - (totals?['crates_back'] as int? ?? 0)).clamp(0, 9999)}',
-                        Colors.orange),
-                  ]),
-                ])),
+                      const SectionHeader('DELIVERY SUMMARY'),
+                      Row(children: [
+                        _sbox('Delivered', '${totals?['deliveries_count'] ?? 0}',
+                            kPrimary),
+                        _sbox(
+                            'Birds', '${totals?['total_birds'] ?? 0}', Colors.blue),
+                        _sbox(
+                            'Weight',
+                            '${(totals?['total_weight_kg'] as num?)?.toStringAsFixed(1) ?? 0} kg',
+                            Colors.teal),
+                      ]),
+                      const SizedBox(height: 8),
+                      Row(children: [
+                        _sbox('Dead', '${totals?['total_mortality'] ?? 0}',
+                            Colors.red),
+                        _sbox('Returns', '${totals?['total_returned'] ?? 0}',
+                            Colors.purple),
+                        _sbox(
+                            'Crates Pending',
+                            '${((totals?['crates_given'] as int? ?? 0) - (totals?['crates_back'] as int? ?? 0)).clamp(0, 9999)}',
+                            Colors.orange),
+                      ]),
+                    ])),
             const SizedBox(height: 10),
 
             // ── Cash summary ──────────────────────────────────────────────
@@ -400,35 +402,35 @@ class _S extends ConsumerState<ShiftDetailScreen> {
                 child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                  const SectionHeader('CASH & PAYMENT'),
-                  _trow(
-                      'Total Collected',
-                      Fmt.amount(
-                          (totals?['total_collected'] as num?)?.toDouble() ??
-                              0),
-                      color: kPrimary),
-                  _trow(
-                      'Cash',
-                      Fmt.amount(
-                          (totals?['cash_collected'] as num?)?.toDouble() ??
-                              0)),
-                  _trow(
-                      'UPI',
-                      Fmt.amount(
-                          (totals?['upi_collected'] as num?)?.toDouble() ?? 0)),
-                  _trow(
-                      'Expenses',
-                      Fmt.amount(
-                          (totals?['total_expenses'] as num?)?.toDouble() ?? 0),
-                      color: Colors.red),
-                  const Divider(height: 12),
-                  _trow(
-                      'Net Cash to Hand',
-                      Fmt.amount(
-                          (totals?['net_cash'] as num?)?.toDouble() ?? 0),
-                      color: kPrimary,
-                      bold: true),
-                ])),
+                      const SectionHeader('CASH & PAYMENT'),
+                      _trow(
+                          'Total Collected',
+                          Fmt.amount(
+                              (totals?['total_collected'] as num?)?.toDouble() ??
+                                  0),
+                          color: kPrimary),
+                      _trow(
+                          'Cash',
+                          Fmt.amount(
+                              (totals?['cash_collected'] as num?)?.toDouble() ??
+                                  0)),
+                      _trow(
+                          'UPI',
+                          Fmt.amount(
+                              (totals?['upi_collected'] as num?)?.toDouble() ?? 0)),
+                      _trow(
+                          'Expenses',
+                          Fmt.amount(
+                              (totals?['total_expenses'] as num?)?.toDouble() ?? 0),
+                          color: Colors.red),
+                      const Divider(height: 12),
+                      _trow(
+                          'Net Cash to Hand',
+                          Fmt.amount(
+                              (totals?['net_cash'] as num?)?.toDouble() ?? 0),
+                          color: kPrimary,
+                          bold: true),
+                    ])),
             const SizedBox(height: 10),
 
             // ── Per-delivery breakdown ────────────────────────────────────
@@ -495,7 +497,7 @@ class _S extends ConsumerState<ShiftDetailScreen> {
                               d['delivery_photo_url'] != null)
                             Padding(
                                 padding:
-                                    const EdgeInsets.fromLTRB(12, 0, 12, 10),
+                                const EdgeInsets.fromLTRB(12, 0, 12, 10),
                                 child: Row(children: [
                                   if (d['mortality_proof_url'] != null)
                                     _miniPhotoTile(
@@ -560,10 +562,10 @@ class _S extends ConsumerState<ShiftDetailScreen> {
               OutlinedButton.icon(
                 onPressed: () => Navigator.of(context)
                     .push(
-                      MaterialPageRoute(
-                          builder: (_) =>
-                              ShiftVerificationScreen(shiftId: widget.id)),
-                    )
+                  MaterialPageRoute(
+                      builder: (_) =>
+                          ShiftVerificationScreen(shiftId: widget.id)),
+                )
                     .then((_) => _load()),
                 icon: const Icon(Icons.fact_check_outlined, size: 18),
                 label: const Text('Review Deliveries Line-by-Line'),
@@ -578,10 +580,10 @@ class _S extends ConsumerState<ShiftDetailScreen> {
                 onPressed: _submitting ? null : _approveShift,
                 icon: _submitting
                     ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(
-                            strokeWidth: 2, color: Colors.white))
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(
+                        strokeWidth: 2, color: Colors.white))
                     : const Icon(Icons.check_circle_outline),
                 label: const Text('Approve Shift ✓'),
               ),
@@ -658,7 +660,7 @@ class _S extends ConsumerState<ShiftDetailScreen> {
               decoration: BoxDecoration(
                   color: Colors.teal.shade600,
                   borderRadius:
-                      const BorderRadius.vertical(top: Radius.circular(13))),
+                  const BorderRadius.vertical(top: Radius.circular(13))),
               child: Row(children: [
                 const Icon(Icons.speed_outlined, color: Colors.white, size: 18),
                 const SizedBox(width: 8),
@@ -739,10 +741,10 @@ class _S extends ConsumerState<ShiftDetailScreen> {
   }
 
   Widget _odoStat(String label, String value, Color c) => Expanded(
-          child: Column(children: [
+      child: Column(children: [
         Text(value,
             style:
-                TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: c),
+            TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: c),
             textAlign: TextAlign.center),
         const SizedBox(height: 2),
         Text(label,
@@ -759,11 +761,11 @@ class _S extends ConsumerState<ShiftDetailScreen> {
           child: Column(children: [
             Container(
                 padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
                 decoration: BoxDecoration(
                     color: c.withValues(alpha: 0.08),
                     borderRadius:
-                        const BorderRadius.vertical(top: Radius.circular(9))),
+                    const BorderRadius.vertical(top: Radius.circular(9))),
                 child: Row(children: [
                   Icon(Icons.speed_outlined, size: 13, color: c),
                   const SizedBox(width: 4),
@@ -778,7 +780,7 @@ class _S extends ConsumerState<ShiftDetailScreen> {
                 ])),
             ClipRRect(
                 borderRadius:
-                    const BorderRadius.vertical(bottom: Radius.circular(9)),
+                const BorderRadius.vertical(bottom: Radius.circular(9)),
                 child: Image.network(
                   url,
                   width: double.infinity,
@@ -787,11 +789,11 @@ class _S extends ConsumerState<ShiftDetailScreen> {
                   loadingBuilder: (ctx, child, prog) => prog == null
                       ? child
                       : Container(
-                          height: 130,
-                          color: c.withValues(alpha: 0.05),
-                          child: Center(
-                              child: CircularProgressIndicator(
-                                  color: c, strokeWidth: 2))),
+                      height: 130,
+                      color: c.withValues(alpha: 0.05),
+                      child: Center(
+                          child: CircularProgressIndicator(
+                              color: c, strokeWidth: 2))),
                   errorBuilder: (_, __, ___) => Container(
                       height: 100,
                       color: c.withValues(alpha: 0.05),
@@ -843,8 +845,8 @@ class _S extends ConsumerState<ShiftDetailScreen> {
                           loadingBuilder: (_, child, prog) => prog == null
                               ? child
                               : const Center(
-                                  child: CircularProgressIndicator(
-                                      color: Colors.white)),
+                              child: CircularProgressIndicator(
+                                  color: Colors.white)),
                           errorBuilder: (_, __, ___) => const Center(
                               child: Icon(Icons.broken_image,
                                   color: Colors.white, size: 64))))),
@@ -918,11 +920,11 @@ class _S extends ConsumerState<ShiftDetailScreen> {
                           loadingBuilder: (ctx, child, prog) => prog == null
                               ? child
                               : Container(
-                                  height: 90,
-                                  color: c.withValues(alpha: 0.05),
-                                  child: Center(
-                                      child: CircularProgressIndicator(
-                                          color: c, strokeWidth: 2))),
+                              height: 90,
+                              color: c.withValues(alpha: 0.05),
+                              child: Center(
+                                  child: CircularProgressIndicator(
+                                      color: c, strokeWidth: 2))),
                           errorBuilder: (_, __, ___) => Container(
                               height: 70,
                               color: c.withValues(alpha: 0.05),
@@ -955,7 +957,7 @@ class _S extends ConsumerState<ShiftDetailScreen> {
           ]));
 
   Widget _sbox(String label, String value, Color color) => Expanded(
-          child: Column(children: [
+      child: Column(children: [
         Text(value,
             style: TextStyle(
                 fontSize: 16, fontWeight: FontWeight.w800, color: color)),
@@ -1000,7 +1002,7 @@ class _S extends ConsumerState<ShiftDetailScreen> {
               Expanded(
                   child: Text(
                       'Wait for the batch loss summary to load before approving. '
-                      'Approving without DC data will record zero loss.',
+                          'Approving without DC data will record zero loss.',
                       style: TextStyle(
                           fontSize: 12,
                           color: Colors.orange,
@@ -1011,7 +1013,7 @@ class _S extends ConsumerState<ShiftDetailScreen> {
 
     // U6 FIX: check if DC data is actually present
     final _checkTotals =
-        (_batchLoss!['shift_totals'] as Map?)?.cast<String, dynamic>();
+    (_batchLoss!['shift_totals'] as Map?)?.cast<String, dynamic>();
     final _checkDcKg =
         (_checkTotals?['total_dc_weight_kg'] as num?)?.toDouble() ?? 0;
     if (_checkDcKg == 0) {
@@ -1022,7 +1024,7 @@ class _S extends ConsumerState<ShiftDetailScreen> {
               borderRadius: BorderRadius.circular(kRadiusCard),
               border: Border.all(color: Colors.amber.shade300, width: 1.5)),
           child:
-              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             const Row(children: [
               Icon(Icons.warning_amber_rounded, color: Colors.amber, size: 20),
               SizedBox(width: 8),
@@ -1035,8 +1037,8 @@ class _S extends ConsumerState<ShiftDetailScreen> {
             const SizedBox(height: 10),
             const Text(
                 'No delivery challans were recorded for the batches in this shift. '
-                'This means the loss calculation cannot be computed — approving now '
-                'will record zero loss, which may be incorrect.',
+                    'This means the loss calculation cannot be computed — approving now '
+                    'will record zero loss, which may be incorrect.',
                 style: TextStyle(fontSize: 12, color: kTextSub, height: 1.5)),
             const SizedBox(height: 10),
             Container(
@@ -1046,18 +1048,18 @@ class _S extends ConsumerState<ShiftDetailScreen> {
                   borderRadius: BorderRadius.circular(kRadiusInner)),
               child: const Text(
                   'Checklist before approving:'
-                  '• Verify with the agent that all DCs were uploaded in batch pickup'
-                  '• Check Dispatch screen — does the batch show challan data?'
-                  '• If DCs are genuinely missing, reject this shift and ask agent to re-upload',
+                      '• Verify with the agent that all DCs were uploaded in batch pickup'
+                      '• Check Dispatch screen — does the batch show challan data?'
+                      '• If DCs are genuinely missing, reject this shift and ask agent to re-upload',
                   style: TextStyle(fontSize: 11, color: kTextSub, height: 1.6)),
             ),
           ]));
     }
 
     final totals =
-        (_batchLoss!['shift_totals'] as Map?)?.cast<String, dynamic>();
+    (_batchLoss!['shift_totals'] as Map?)?.cast<String, dynamic>();
     final batches =
-        (_batchLoss!['batches'] as List? ?? []).cast<Map<String, dynamic>>();
+    (_batchLoss!['batches'] as List? ?? []).cast<Map<String, dynamic>>();
     final dcKg = (totals?['total_dc_weight_kg'] as num?)?.toDouble() ?? 0;
     final delKg = (totals?['total_delivered_kg'] as num?)?.toDouble() ?? 0;
     final retKg = (totals?['total_returned_kg'] as num?)?.toDouble() ?? 0;
@@ -1085,7 +1087,7 @@ class _S extends ConsumerState<ShiftDetailScreen> {
               decoration: BoxDecoration(
                   color: isHighLoss ? Colors.red.shade50 : Colors.green.shade50,
                   borderRadius:
-                      const BorderRadius.vertical(top: Radius.circular(13))),
+                  const BorderRadius.vertical(top: Radius.circular(13))),
               child: Row(children: [
                 Icon(
                     isHighLoss
@@ -1097,7 +1099,7 @@ class _S extends ConsumerState<ShiftDetailScreen> {
                 Expanded(
                     child: Text(
                         isHighLoss
-                            ? 'High Loss: ${lossPct.toStringAsFixed(1)}%  (${lossKg.toStringAsFixed(2)} kg)'
+                            ? 'High Weight Variance: ${lossPct.toStringAsFixed(1)}%  (${lossKg.toStringAsFixed(2)} kg)'
                             : 'All stock accounted for',
                         style: TextStyle(
                             fontWeight: FontWeight.w800,
@@ -1131,7 +1133,7 @@ class _S extends ConsumerState<ShiftDetailScreen> {
                       Colors.orange, false),
                 const Divider(height: 16),
                 _lossRow(
-                    'Unaccounted Loss',
+                    'Weight Variance',
                     '${lossKg.toStringAsFixed(2)} kg  (${lossPct.toStringAsFixed(1)}%)',
                     isHighLoss ? Colors.red : Colors.green,
                     isHighLoss),
@@ -1162,7 +1164,7 @@ class _S extends ConsumerState<ShiftDetailScreen> {
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
                       color:
-                          bHigh ? Colors.red.shade50 : const Color(0xFFF3F4F6),
+                      bHigh ? Colors.red.shade50 : const Color(0xFFF3F4F6),
                       borderRadius: BorderRadius.circular(kRadiusCard),
                       border: Border.all(
                           color: bHigh ? Colors.red.shade200 : kBorder)),
@@ -1188,12 +1190,12 @@ class _S extends ConsumerState<ShiftDetailScreen> {
                                       : Colors.green.shade100,
                                   borderRadius: BorderRadius.circular(6)),
                               child: Text(
-                                  'Loss: ${bLossPct.toStringAsFixed(1)}%',
+                                  'Variance: ${bLossPct.toStringAsFixed(1)}%',
                                   style: TextStyle(
                                       fontSize: 10,
                                       fontWeight: FontWeight.w700,
                                       color:
-                                          bHigh ? Colors.red : Colors.green))),
+                                      bHigh ? Colors.red : Colors.green))),
                         ]),
                         const SizedBox(height: 8),
                         Row(children: [
@@ -1209,7 +1211,7 @@ class _S extends ConsumerState<ShiftDetailScreen> {
                                   Colors.teal)),
                           Expanded(
                               child: _batchStat(
-                                  'Lost',
+                                  'Variance',
                                   '${bLossKg.toStringAsFixed(1)} kg',
                                   bHigh ? Colors.red : Colors.green)),
                           Expanded(
@@ -1227,13 +1229,13 @@ class _S extends ConsumerState<ShiftDetailScreen> {
       Padding(
           padding: const EdgeInsets.symmetric(vertical: 3),
           child:
-              Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+          Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
             Text(label,
                 style: TextStyle(
                     fontSize: 12,
                     color: highlight ? c : kTextSub,
                     fontWeight:
-                        highlight ? FontWeight.w700 : FontWeight.normal)),
+                    highlight ? FontWeight.w700 : FontWeight.normal)),
             Text(value,
                 style: TextStyle(
                     fontSize: 12,
@@ -1242,19 +1244,19 @@ class _S extends ConsumerState<ShiftDetailScreen> {
           ]));
 
   Widget _batchStat(String l, String v, Color c) => Column(children: [
-        Text(v,
-            style:
-                TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: c),
-            textAlign: TextAlign.center),
-        const SizedBox(height: 2),
-        Text(l,
-            style: const TextStyle(fontSize: 9, color: kTextHint),
-            textAlign: TextAlign.center),
-      ]);
+    Text(v,
+        style:
+        TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: c),
+        textAlign: TextAlign.center),
+    const SizedBox(height: 2),
+    Text(l,
+        style: const TextStyle(fontSize: 9, color: kTextHint),
+        textAlign: TextAlign.center),
+  ]);
 
   @override
   Widget build(BuildContext context) => ResponsiveLayout(
-        mobile: (_) => _buildScaffold(context),
-        desktop: (_) => _buildScaffold(context),
-      );
+    mobile: (_) => _buildScaffold(context),
+    desktop: (_) => _buildScaffold(context),
+  );
 }

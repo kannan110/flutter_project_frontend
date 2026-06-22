@@ -106,7 +106,7 @@ class _S extends ConsumerState<ZoneRateHistoryScreen> {
             ? DateFormat('yyyy-MM-dd').format(_fromDate!)
             : null,
         'p_to_date':
-            _toDate != null ? DateFormat('yyyy-MM-dd').format(_toDate!) : null,
+        _toDate != null ? DateFormat('yyyy-MM-dd').format(_toDate!) : null,
         'p_limit': 200,
       });
       if (!mounted) return;
@@ -125,9 +125,9 @@ class _S extends ConsumerState<ZoneRateHistoryScreen> {
 
   bool get _isFiltered =>
       _zoneId != null ||
-      _productId != null ||
-      _fromDate != null ||
-      _toDate != null;
+          _productId != null ||
+          _fromDate != null ||
+          _toDate != null;
 
   @override
   Widget build(BuildContext context) {
@@ -161,9 +161,9 @@ class _S extends ConsumerState<ZoneRateHistoryScreen> {
                   value: _zoneId,
                   items: _zones
                       .map((z) => DropdownMenuItem(
-                          value: z['id'] as String,
-                          child: Text(z['zone_name'] as String? ?? '—',
-                              overflow: TextOverflow.ellipsis)))
+                      value: z['id'] as String,
+                      child: Text(z['zone_name'] as String? ?? '—',
+                          overflow: TextOverflow.ellipsis)))
                       .toList(),
                   onChanged: (v) {
                     setState(() => _zoneId = v);
@@ -176,9 +176,9 @@ class _S extends ConsumerState<ZoneRateHistoryScreen> {
                   value: _productId,
                   items: _products
                       .map((p) => DropdownMenuItem(
-                          value: p['id'] as String,
-                          child: Text(p['name'] as String? ?? '—',
-                              overflow: TextOverflow.ellipsis)))
+                      value: p['id'] as String,
+                      child: Text(p['name'] as String? ?? '—',
+                          overflow: TextOverflow.ellipsis)))
                       .toList(),
                   onChanged: (v) {
                     setState(() => _productId = v);
@@ -286,7 +286,7 @@ class _S extends ConsumerState<ZoneRateHistoryScreen> {
                       fontSize: 13,
                       color: value != null ? kNavy : kTextHint,
                       fontWeight:
-                          value != null ? FontWeight.w700 : FontWeight.w500),
+                      value != null ? FontWeight.w700 : FontWeight.w500),
                   overflow: TextOverflow.ellipsis),
             ),
           ]),
@@ -363,7 +363,7 @@ class _S extends ConsumerState<ZoneRateHistoryScreen> {
           labelStyle: const TextStyle(fontSize: 12, color: kTextHint),
           isDense: true,
           contentPadding:
-              const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(kRadiusChip),
               borderSide: const BorderSide(color: kBorder)),
@@ -413,7 +413,7 @@ class _S extends ConsumerState<ZoneRateHistoryScreen> {
     return RefreshIndicator(
       onRefresh: _load,
       child: ListView.separated(
-        padding: const EdgeInsets.fromLTRB(14, 12, 14, 24),
+        padding: const EdgeInsets.fromLTRB(14, 12, 14, kBottomNavClearance),
         itemCount: _rows.length,
         separatorBuilder: (_, __) => const SizedBox(height: 8),
         itemBuilder: (_, i) => _historyCard(_rows[i]),
@@ -439,7 +439,7 @@ class _S extends ConsumerState<ZoneRateHistoryScreen> {
         : '—';
     final updatedAtLabel = updatedAt != null
         ? DateFormat('d MMM, h:mm a')
-            .format(DateTime.parse(updatedAt).toLocal())
+        .format(DateTime.parse(updatedAt).toLocal())
         : null;
 
     return Container(
@@ -465,7 +465,7 @@ class _S extends ConsumerState<ZoneRateHistoryScreen> {
         const SizedBox(width: 12),
         Expanded(
           child:
-              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Row(children: [
               Expanded(
                 child: Text(
@@ -480,7 +480,7 @@ class _S extends ConsumerState<ZoneRateHistoryScreen> {
               if (isLatest)
                 Container(
                   padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                   decoration: BoxDecoration(
                       color: kGold.withValues(alpha: 0.15),
                       borderRadius: BorderRadius.circular(6)),
@@ -512,7 +512,7 @@ class _S extends ConsumerState<ZoneRateHistoryScreen> {
                 const SizedBox(width: 8),
                 Container(
                   padding:
-                      const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                   decoration: BoxDecoration(
                       color: (difference > 0 ? kSuccess : kError)
                           .withValues(alpha: 0.10),

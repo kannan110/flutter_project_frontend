@@ -250,7 +250,7 @@ class _S extends ConsumerState<DailyReportScreen> {
   Widget _buildSummary() {
     final d = _d!;
     final distanceData = _deliveries.fold(0.0, (s, _) => s);
-    return ListView(padding: const EdgeInsets.all(16), children: [
+    return ListView(padding: const EdgeInsets.fromLTRB(16, 16, 16, kBottomNavClearance), children: [
       // Header
       Container(padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
@@ -324,7 +324,7 @@ class _S extends ConsumerState<DailyReportScreen> {
       return const EmptyState(icon: Icons.local_shipping_outlined, message: 'No deliveries today');
     }
     return ListView.separated(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, kBottomNavClearance),
         itemCount: _deliveries.length,
         separatorBuilder: (_, __) => const SizedBox(height: 8),
         itemBuilder: (_, i) {
@@ -383,7 +383,7 @@ class _S extends ConsumerState<DailyReportScreen> {
     final highLoss     = _deliveries.where((d) => d['is_high_loss'] == true).toList();
     final lossPct      = totalDc > 0 ? (totalLoss / totalDc * 100) : 0;
 
-    return ListView(padding: const EdgeInsets.all(16), children: [
+    return ListView(padding: const EdgeInsets.fromLTRB(16, 16, 16, kBottomNavClearance), children: [
       Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
@@ -444,7 +444,7 @@ class _S extends ConsumerState<DailyReportScreen> {
     if (_agents.isEmpty) {
       return const EmptyState(icon: Icons.delivery_dining_outlined, message: 'No agent data today');
     }
-    return ListView(padding: const EdgeInsets.all(16), children: [
+    return ListView(padding: const EdgeInsets.fromLTRB(16, 16, 16, kBottomNavClearance), children: [
       const SectionHeader('AGENT PERFORMANCE TODAY'),
       ..._agents.map((a) {
         final dcWt    = (a['dc_weight'] as double);

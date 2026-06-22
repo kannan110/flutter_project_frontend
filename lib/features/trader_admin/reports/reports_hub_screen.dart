@@ -556,7 +556,7 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
                 _sR('Delivered',  '${_i(s,"delivered_birds")} birds / ${_d(s,"delivered_kg").toStringAsFixed(0)} kg', Colors.green),
                 _sR('Returned',   '${_d(s,"returned_weight").toStringAsFixed(0)} kg', Colors.teal),
                 _sR('Mortality',  '${_i(s,"total_mortality")} birds', Colors.red),
-                _sR('Shrinkage',  '${_d(s,"shrinkage_kg").toStringAsFixed(2)} kg  (${lp.toStringAsFixed(2)}%)',
+                _sR('Weight Variance',  '${_d(s,"shrinkage_kg").toStringAsFixed(2)} kg  (${lp.toStringAsFixed(2)}%)',
                     lp>2?Colors.red:const Color(0xFF6A1B9A)),
                 const SizedBox(height: 8), const Divider(height:1), const SizedBox(height: 8),
                 Row(children: [
@@ -1396,7 +1396,7 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
   }
 
   Widget _scroll(List<Widget> c) => SingleChildScrollView(
-      child: Column(children:[...c, const SizedBox(height:80)]));
+      child: Column(children:[...c, const SizedBox(height: kBottomNavClearance)]));
 
   Widget _sec(String t) => Padding(
       padding: const EdgeInsets.fromLTRB(12,14,12,6),

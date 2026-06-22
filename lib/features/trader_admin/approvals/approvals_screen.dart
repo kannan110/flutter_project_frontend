@@ -269,7 +269,7 @@ class _S extends ConsumerState<ApprovalsScreen> {
     return RefreshIndicator(
       onRefresh: _load,
       child: ListView.separated(
-        padding:          const EdgeInsets.all(16),
+        padding:          const EdgeInsets.fromLTRB(16, 16, 16, kBottomNavClearance),
         itemCount:        _filtered.length,
         separatorBuilder: (_, __) => const SizedBox(height: 10),
         itemBuilder:      (_, i)  => _ApprovalCard(item: _filtered[i]),

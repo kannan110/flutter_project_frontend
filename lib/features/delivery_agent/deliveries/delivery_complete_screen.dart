@@ -111,9 +111,9 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
       final d = await Supabase.instance.client
           .from('deliveries')
           .select('*,orders(id,estimated_birds,total_quantity,product_id,'
-              'fulfilled_birds,fulfilled_quantity,backorder_birds,backorder_quantity,'
-              'is_partial_delivery,partial_count,'
-              'retailers(shop_name,address,phone))')
+          'fulfilled_birds,fulfilled_quantity,backorder_birds,backorder_quantity,'
+          'is_partial_delivery,partial_count,'
+          'retailers(shop_name,address,phone))')
           .eq('id', widget.deliveryId)
           .maybeSingle()
           .timeout(const Duration(seconds: 10));
@@ -201,7 +201,7 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
               .order('name');
           if (mounted)
             setState(() => _otherAgents =
-                List<Map<String, dynamic>>.from(agentRes as List? ?? []));
+            List<Map<String, dynamic>>.from(agentRes as List? ?? []));
         }
       } catch (_) {}
 
@@ -355,8 +355,8 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
 
   bool get _stockWarning =>
       _stock != null &&
-      _deliveryBirds > _stock!.availableBirds &&
-      _stock!.availableBirds > 0;
+          _deliveryBirds > _stock!.availableBirds &&
+          _stock!.availableBirds > 0;
 
   bool get _stockCritical => _stock != null && _stock!.availableBirds <= 0;
 
@@ -375,7 +375,7 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
                 decoration: const BoxDecoration(
                     color: Colors.white,
                     borderRadius:
-                        BorderRadius.vertical(top: Radius.circular(20))),
+                    BorderRadius.vertical(top: Radius.circular(20))),
                 padding: EdgeInsets.fromLTRB(
                     20, 16, 20, MediaQuery.of(ctx).viewInsets.bottom + 24),
                 child: Column(
@@ -398,15 +398,15 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
                             child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                              const Text('Handle Remaining Quantity',
-                                  style: TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w800)),
-                              Text(
-                                  '$_remainingBirds birds · ${_remainingWeight.toStringAsFixed(1)} kg remaining',
-                                  style: const TextStyle(
-                                      fontSize: 12, color: kTextSub)),
-                            ])),
+                                  const Text('Handle Remaining Quantity',
+                                      style: TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w800)),
+                                  Text(
+                                      '$_remainingBirds birds · ${_remainingWeight.toStringAsFixed(1)} kg remaining',
+                                      style: const TextStyle(
+                                          fontSize: 12, color: kTextSub)),
+                                ])),
                       ]),
                       const SizedBox(height: 16),
                       _optionTile(ctx, setS,
@@ -416,12 +416,12 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
                           color: Colors.green,
                           title: 'Close Remaining (Order Adjustment)',
                           subtitle:
-                              'Customer reduced quantity. Remove remaining $_remainingBirds birds from order.',
+                          'Customer reduced quantity. Remove remaining $_remainingBirds birds from order.',
                           onTap: () => setS(() {
-                                chosen = 'close';
-                                chosenId = null;
-                                chosenName = null;
-                              })),
+                            chosen = 'close';
+                            chosenId = null;
+                            chosenName = null;
+                          })),
                       const SizedBox(height: 8),
                       _optionTile(ctx, setS,
                           value: 'same',
@@ -430,12 +430,12 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
                           color: Colors.blue,
                           title: 'Same Agent — Deliver Later',
                           subtitle:
-                              'Queue remaining $_remainingBirds birds for you to deliver later.',
+                          'Queue remaining $_remainingBirds birds for you to deliver later.',
                           onTap: () => setS(() {
-                                chosen = 'same';
-                                chosenId = null;
-                                chosenName = null;
-                              })),
+                            chosen = 'same';
+                            chosenId = null;
+                            chosenName = null;
+                          })),
                       const SizedBox(height: 8),
                       _optionTile(ctx, setS,
                           value: 'transfer',
@@ -447,16 +447,16 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
                               ? 'Will be assigned to: $chosenName'
                               : 'Select an agent to take the remaining delivery',
                           onTap: () async {
-                        setS(() => chosen = 'transfer');
-                        if (_otherAgents.isEmpty) {
-                          setS(() {});
-                          return;
-                        }
-                        // BUG C4 FIX: use useRootNavigator: true on the inner showDialog
-                        final picked = await showDialog<Map<String, dynamic>>(
-                            context: ctx,
-                            useRootNavigator: true,
-                            builder: (dctx) => AlertDialog(
+                            setS(() => chosen = 'transfer');
+                            if (_otherAgents.isEmpty) {
+                              setS(() {});
+                              return;
+                            }
+                            // BUG C4 FIX: use useRootNavigator: true on the inner showDialog
+                            final picked = await showDialog<Map<String, dynamic>>(
+                                context: ctx,
+                                useRootNavigator: true,
+                                builder: (dctx) => AlertDialog(
                                   title: const Text('Select Agent'),
                                   content: SizedBox(
                                       width: 300,
@@ -464,37 +464,37 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
                                           shrinkWrap: true,
                                           children: _otherAgents
                                               .map((a) => ListTile(
-                                                    leading: const CircleAvatar(
-                                                        child: Icon(
-                                                            Icons.person,
-                                                            size: 18)),
-                                                    title: Text(
-                                                        a['name'] as String),
-                                                    subtitle: Text(
-                                                        a['vehicle_no']
-                                                                as String? ??
-                                                            ''),
-                                                    onTap: () => Navigator.of(
-                                                            dctx,
-                                                            rootNavigator: true)
-                                                        .pop(a),
-                                                  ))
+                                            leading: const CircleAvatar(
+                                                child: Icon(
+                                                    Icons.person,
+                                                    size: 18)),
+                                            title: Text(
+                                                a['name'] as String),
+                                            subtitle: Text(
+                                                a['vehicle_no']
+                                                as String? ??
+                                                    ''),
+                                            onTap: () => Navigator.of(
+                                                dctx,
+                                                rootNavigator: true)
+                                                .pop(a),
+                                          ))
                                               .toList())),
                                   actions: [
                                     TextButton(
                                         onPressed: () => Navigator.of(dctx,
-                                                rootNavigator: true)
+                                            rootNavigator: true)
                                             .pop(),
                                         child: const Text('Cancel'))
                                   ],
                                 ));
-                        if (picked != null) {
-                          setS(() {
-                            chosenId = picked['id'] as String;
-                            chosenName = picked['name'] as String;
-                          });
-                        }
-                      }),
+                            if (picked != null) {
+                              setS(() {
+                                chosenId = picked['id'] as String;
+                                chosenName = picked['name'] as String;
+                              });
+                            }
+                          }),
                       if (chosen == 'transfer' && chosenName != null) ...[
                         const SizedBox(height: 8),
                         Container(
@@ -503,9 +503,9 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
                             decoration: BoxDecoration(
                                 color: Colors.purple.shade50,
                                 borderRadius:
-                                    BorderRadius.circular(kRadiusChip),
+                                BorderRadius.circular(kRadiusChip),
                                 border:
-                                    Border.all(color: Colors.purple.shade200)),
+                                Border.all(color: Colors.purple.shade200)),
                             child: Row(children: [
                               const Icon(Icons.person_pin_outlined,
                                   color: Colors.purple, size: 16),
@@ -530,29 +530,29 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
                           height: 50,
                           child: ElevatedButton(
                             onPressed:
-                                (chosen == 'transfer' && chosenId == null)
-                                    ? null
-                                    : () {
-                                        setState(() {
-                                          _remainingAction = chosen;
-                                          _transferAgentId = chosenId;
-                                          _transferAgentName = chosenName;
-                                        });
-                                        Navigator.of(ctx, rootNavigator: true)
-                                            .pop();
-                                      },
+                            (chosen == 'transfer' && chosenId == null)
+                                ? null
+                                : () {
+                              setState(() {
+                                _remainingAction = chosen;
+                                _transferAgentId = chosenId;
+                                _transferAgentName = chosenName;
+                              });
+                              Navigator.of(ctx, rootNavigator: true)
+                                  .pop();
+                            },
                             style: ElevatedButton.styleFrom(
                                 backgroundColor: chosen == 'close'
                                     ? Colors.green
                                     : chosen == 'transfer'
-                                        ? Colors.purple
-                                        : Colors.blue),
+                                    ? Colors.purple
+                                    : Colors.blue),
                             child: Text(
                                 chosen == 'close'
                                     ? '✓ Confirm — Close Remaining'
                                     : chosen == 'transfer'
-                                        ? '✓ Confirm — Transfer to $chosenName'
-                                        : '✓ Confirm — Queue for Me',
+                                    ? '✓ Confirm — Transfer to $chosenName'
+                                    : '✓ Confirm — Queue for Me',
                                 style: const TextStyle(
                                     fontSize: 14,
                                     fontWeight: FontWeight.w700,
@@ -562,16 +562,16 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
   }
 
   Widget _optionTile(
-    BuildContext ctx,
-    StateSetter setS, {
-    required String value,
-    required String chosen,
-    required IconData icon,
-    required Color color,
-    required String title,
-    required String subtitle,
-    required VoidCallback onTap,
-  }) {
+      BuildContext ctx,
+      StateSetter setS, {
+        required String value,
+        required String chosen,
+        required IconData icon,
+        required Color color,
+        required String title,
+        required String subtitle,
+        required VoidCallback onTap,
+      }) {
     final selected = chosen == value;
     return GestureDetector(
         onTap: onTap,
@@ -601,16 +601,16 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
                   child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                    Text(title,
-                        style: TextStyle(
-                            fontWeight: FontWeight.w800,
-                            fontSize: 13,
-                            color: selected ? color : kTextMain)),
-                    const SizedBox(height: 3),
-                    Text(subtitle,
-                        style: const TextStyle(
-                            fontSize: 11, color: kTextSub, height: 1.4)),
-                  ])),
+                        Text(title,
+                            style: TextStyle(
+                                fontWeight: FontWeight.w800,
+                                fontSize: 13,
+                                color: selected ? color : kTextMain)),
+                        const SizedBox(height: 3),
+                        Text(subtitle,
+                            style: const TextStyle(
+                                fontSize: 11, color: kTextSub, height: 1.4)),
+                      ])),
               if (selected) Icon(Icons.check_circle, color: color, size: 20),
             ])));
   }
@@ -620,11 +620,11 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
   Future<void> _refreshStock() async {
     final user = ref.read(appUserProvider).valueOrNull;
     final productId = (_delivery?['orders']
-        as Map<String, dynamic>?)?['product_id'] as String?;
+    as Map<String, dynamic>?)?['product_id'] as String?;
     if (user?.traderId == null || productId == null) return;
     try {
       final res =
-          await Supabase.instance.client.rpc('get_available_stock', params: {
+      await Supabase.instance.client.rpc('get_available_stock', params: {
         'p_trader_id': user!.traderId,
         'p_product_id': productId,
         'p_agent_id': user.agentId,
@@ -632,7 +632,7 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
       final list = (res as List? ?? []);
       if (list.isNotEmpty && mounted) {
         setState(() =>
-            _stock = StockPosition.fromMap(list.first as Map<String, dynamic>));
+        _stock = StockPosition.fromMap(list.first as Map<String, dynamic>));
       }
     } catch (_) {}
   }
@@ -688,7 +688,7 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
       final ok = await confirmDialog(context,
           title: 'Partial Delivery',
           message:
-              'Delivering: $_deliveryBirds birds · ${weight.toStringAsFixed(1)} kg\n\n'
+          'Delivering: $_deliveryBirds birds · ${weight.toStringAsFixed(1)} kg\n\n'
               'Remaining: $_remainingBirds birds · ${_remainingWeight.toStringAsFixed(1)} kg\n\n'
               'The remaining will be queued as a new delivery for this shop.',
           confirmText: 'Confirm Partial',
@@ -699,8 +699,10 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
     if (mounted) setState(() => _submitting = true);
     try {
       final res =
-          await Supabase.instance.client.rpc('complete_delivery', params: {
+      await Supabase.instance.client.rpc('complete_delivery', params: {
         'p_delivery_id': widget.deliveryId,
+        'p_actor_type': 'agent',
+        'p_entry_mode': 'self',
         'p_birds_delivered': _deliveryBirds,
         'p_delivered_total_weight': weight,
         'p_received_bird_count': int.tryParse(_rcvBirdsCtrl.text),
@@ -713,7 +715,7 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
         'p_collected_amount': double.tryParse(_cashCtrl.text) ?? 0,
         'p_payment_mode': _payMode,
         'p_delivery_notes':
-            _notesCtrl.text.trim().isEmpty ? null : _notesCtrl.text.trim(),
+        _notesCtrl.text.trim().isEmpty ? null : _notesCtrl.text.trim(),
         'p_returned_birds': int.tryParse(_returnBirdsCtrl.text) ?? 0,
         'p_returned_weight': double.tryParse(_returnWtCtrl.text) ?? 0,
         'p_shrinkage_kg': double.tryParse(_shrinkKgCtrl.text) ?? 0,
@@ -755,11 +757,11 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
           msg.contains('Stock would go negative')) {
         final avail = _stock?.availableBirds ?? 0;
         msg =
-            'Not enough stock.\n\nAvailable: $avail birds\nYou entered: $_deliveryBirds birds\n\n'
+        'Not enough stock.\n\nAvailable: $avail birds\nYou entered: $_deliveryBirds birds\n\n'
             'Reduce the delivery quantity or ask admin to add more stock.';
       } else if (msg.contains('negative')) {
         msg =
-            'Stock check failed — available birds less than entered quantity. '
+        'Stock check failed — available birds less than entered quantity. '
             'Reduce birds delivered or contact admin.';
       }
       showError(context, msg);
@@ -913,17 +915,17 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
                               child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                Text(
-                                    'Partial Delivery — Attempt #${partialCount + 1}',
-                                    style: const TextStyle(
-                                        fontWeight: FontWeight.w800,
-                                        color: Colors.orange,
-                                        fontSize: 13)),
-                                Text(
-                                    'Remaining: $_orderBirds birds · ${_orderWeight.toStringAsFixed(1)} kg to deliver',
-                                    style: const TextStyle(
-                                        fontSize: 11, color: Colors.orange)),
-                              ])),
+                                    Text(
+                                        'Partial Delivery — Attempt #${partialCount + 1}',
+                                        style: const TextStyle(
+                                            fontWeight: FontWeight.w800,
+                                            color: Colors.orange,
+                                            fontSize: 13)),
+                                    Text(
+                                        'Remaining: $_orderBirds birds · ${_orderWeight.toStringAsFixed(1)} kg to deliver',
+                                        style: const TextStyle(
+                                            fontSize: 11, color: Colors.orange)),
+                                  ])),
                         ])),
 
                   // ── Order expected ──────────────────────────────────────────────
@@ -963,7 +965,7 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
                           Expanded(
                               child: Text(
                                   'Batch DC: $_dcBirds birds · ${_dcWeight.toStringAsFixed(1)} kg'
-                                  '${_avgBirdWeightG > 0 ? ' · Avg ${_avgBirdWeightG.toStringAsFixed(0)}g/bird' : ''}',
+                                      '${_avgBirdWeightG > 0 ? ' · Avg ${_avgBirdWeightG.toStringAsFixed(0)}g/bird' : ''}',
                                   style: const TextStyle(
                                       fontSize: 12,
                                       color: Colors.blue,
@@ -1033,54 +1035,54 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
                               decoration: BoxDecoration(
                                   color: Colors.white,
                                   borderRadius:
-                                      BorderRadius.circular(kRadiusCard),
+                                  BorderRadius.circular(kRadiusCard),
                                   border: Border.all(
                                       color: _remainingAction == 'close'
                                           ? Colors.green.shade400
                                           : _remainingAction == 'transfer'
-                                              ? Colors.purple.shade400
-                                              : Colors.blue.shade400,
+                                          ? Colors.purple.shade400
+                                          : Colors.blue.shade400,
                                       width: 1.5)),
                               child: Row(children: [
                                 Icon(
                                     _remainingAction == 'close'
                                         ? Icons.check_circle_outline
                                         : _remainingAction == 'transfer'
-                                            ? Icons.swap_horiz_rounded
-                                            : Icons.delivery_dining_outlined,
+                                        ? Icons.swap_horiz_rounded
+                                        : Icons.delivery_dining_outlined,
                                     color: _remainingAction == 'close'
                                         ? Colors.green
                                         : _remainingAction == 'transfer'
-                                            ? Colors.purple
-                                            : Colors.blue,
+                                        ? Colors.purple
+                                        : Colors.blue,
                                     size: 22),
                                 const SizedBox(width: 10),
                                 Expanded(
                                     child: Column(
                                         crossAxisAlignment:
-                                            CrossAxisAlignment.start,
+                                        CrossAxisAlignment.start,
                                         children: [
-                                      const Text('Handle Remaining',
-                                          style: TextStyle(
-                                              fontSize: 10,
-                                              color: kTextHint,
-                                              fontWeight: FontWeight.w600)),
-                                      Text(
-                                          _remainingAction == 'close'
-                                              ? 'Close remaining — adjust order quantity'
-                                              : _remainingAction == 'transfer'
+                                          const Text('Handle Remaining',
+                                              style: TextStyle(
+                                                  fontSize: 10,
+                                                  color: kTextHint,
+                                                  fontWeight: FontWeight.w600)),
+                                          Text(
+                                              _remainingAction == 'close'
+                                                  ? 'Close remaining — adjust order quantity'
+                                                  : _remainingAction == 'transfer'
                                                   ? 'Transfer to: ${_transferAgentName ?? "select agent →"}'
                                                   : 'Same agent — queue for my later delivery',
-                                          style: TextStyle(
-                                              fontSize: 13,
-                                              fontWeight: FontWeight.w700,
-                                              color: _remainingAction == 'close'
-                                                  ? Colors.green.shade700
-                                                  : _remainingAction ==
-                                                          'transfer'
+                                              style: TextStyle(
+                                                  fontSize: 13,
+                                                  fontWeight: FontWeight.w700,
+                                                  color: _remainingAction == 'close'
+                                                      ? Colors.green.shade700
+                                                      : _remainingAction ==
+                                                      'transfer'
                                                       ? Colors.purple.shade700
                                                       : Colors.blue.shade700)),
-                                    ])),
+                                        ])),
                                 const Icon(Icons.chevron_right,
                                     color: kTextHint, size: 18),
                               ]),
@@ -1105,25 +1107,25 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
                                 Expanded(
                                     child: Column(
                                         crossAxisAlignment:
-                                            CrossAxisAlignment.start,
+                                        CrossAxisAlignment.start,
                                         children: [
-                                      Text(
-                                          _weighmentDone
-                                              ? '✓ Weighment done — tap to re-weigh'
-                                              : '🔵 Use Weighment Machine',
-                                          style: const TextStyle(
-                                              color: Colors.white,
-                                              fontWeight: FontWeight.w800,
-                                              fontSize: 14)),
-                                      Text(
-                                          _weighmentDone
-                                              ? 'Weight: ${_weightCtrl.text} kg · Avg: ${_avgBirdWeightG.toStringAsFixed(1)}g/bird · '
+                                          Text(
+                                              _weighmentDone
+                                                  ? '✓ Weighment done — tap to re-weigh'
+                                                  : '🔵 Use Weighment Machine',
+                                              style: const TextStyle(
+                                                  color: Colors.white,
+                                                  fontWeight: FontWeight.w800,
+                                                  fontSize: 14)),
+                                          Text(
+                                              _weighmentDone
+                                                  ? 'Weight: ${_weightCtrl.text} kg · Avg: ${_avgBirdWeightG.toStringAsFixed(1)}g/bird · '
                                                   '${_weighmentSource == 'bluetooth' ? 'Bluetooth' : 'Manual'}'
-                                              : 'Connect Bluetooth scale or enter manually',
-                                          style: const TextStyle(
-                                              color: Colors.white70,
-                                              fontSize: 11)),
-                                    ])),
+                                                  : 'Connect Bluetooth scale or enter manually',
+                                              style: const TextStyle(
+                                                  color: Colors.white70,
+                                                  fontSize: 11)),
+                                        ])),
                                 const Icon(Icons.chevron_right,
                                     color: Colors.white, size: 20),
                               ])))),
@@ -1136,7 +1138,7 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
                             padding: const EdgeInsets.symmetric(horizontal: 10),
                             child: Text('or enter manually',
                                 style:
-                                    TextStyle(fontSize: 11, color: kTextHint))),
+                                TextStyle(fontSize: 11, color: kTextHint))),
                         const Expanded(child: Divider()),
                       ])),
 
@@ -1174,9 +1176,9 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
                               if (mounted) setState(() {});
                             },
                             validator: (v) =>
-                                (double.tryParse(v ?? '') ?? 0) <= 0
-                                    ? 'Enter weight'
-                                    : null)),
+                            (double.tryParse(v ?? '') ?? 0) <= 0
+                                ? 'Enter weight'
+                                : null)),
                   ]),
 
                   // ── Partial breakdown ────────────────────────────────────────────
@@ -1370,7 +1372,7 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
                                 borderRadius: BorderRadius.circular(8)),
                             child: Text(
                                 'Mortality weight ≈ ${_mortalityWtKg.toStringAsFixed(2)} kg'
-                                '${_avgBirdWeightG > 0 ? ' ($_mortalityBirds × ${_avgBirdWeightG.toStringAsFixed(0)}g)' : ''}',
+                                    '${_avgBirdWeightG > 0 ? ' ($_mortalityBirds × ${_avgBirdWeightG.toStringAsFixed(0)}g)' : ''}',
                                 style: const TextStyle(
                                     fontSize: 12,
                                     color: Colors.red,
@@ -1422,7 +1424,7 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
                             controller: _crateDropCtrl,
                             keyboardType: TextInputType.number,
                             decoration:
-                                const InputDecoration(labelText: 'Given'))),
+                            const InputDecoration(labelText: 'Given'))),
                     const SizedBox(width: 12),
                     Expanded(
                         child: TextFormField(
@@ -1444,7 +1446,7 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
                           FocusScope.of(context).nextFocus(),
                       controller: _cashCtrl,
                       keyboardType:
-                          const TextInputType.numberWithOptions(decimal: true),
+                      const TextInputType.numberWithOptions(decimal: true),
                       decoration: const InputDecoration(
                           labelText: 'Amount Collected (₹)', prefixText: '₹')),
                   const SizedBox(height: 8),
@@ -1482,8 +1484,8 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
                   // ── Submit — BUG C2+U2 FIX: no longer changes colour for _isHighLoss ─
                   ElevatedButton(
                       onPressed: (_submitting ||
-                              _uploadingMortality ||
-                              _uploadingDelivery)
+                          _uploadingMortality ||
+                          _uploadingDelivery)
                           ? null
                           : _submit,
                       style: ElevatedButton.styleFrom(
@@ -1491,16 +1493,16 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
                           backgroundColor: _isPartial ? Colors.orange : null),
                       child: _submitting
                           ? const SizedBox(
-                              width: 22,
-                              height: 22,
-                              child: CircularProgressIndicator(
-                                  strokeWidth: 2.5, color: Colors.white))
+                          width: 22,
+                          height: 22,
+                          child: CircularProgressIndicator(
+                              strokeWidth: 2.5, color: Colors.white))
                           : Text(
-                              _isPartial
-                                  ? '⚡ Submit Partial Delivery ($_deliveryBirds birds)'
-                                  : '✅ Mark as Delivered',
-                              style: const TextStyle(
-                                  fontSize: 15, fontWeight: FontWeight.w700))),
+                          _isPartial
+                              ? '⚡ Submit Partial Delivery ($_deliveryBirds birds)'
+                              : '✅ Mark as Delivered',
+                          style: const TextStyle(
+                              fontSize: 15, fontWeight: FontWeight.w700))),
                   const SizedBox(height: 20),
                 ])));
   }
@@ -1538,7 +1540,7 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
                   isReady
                       ? 'Open a shift first, then come back.'
                       : 'Status: "$_deliveryStatus"'
-                          '\nMust be "out_for_delivery". Ask admin.',
+                      '\nMust be "out_for_delivery". Ask admin.',
                   textAlign: TextAlign.center,
                   style: const TextStyle(
                       fontSize: 16, color: kTextSub, height: 1.6)),
@@ -1760,7 +1762,7 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
                       hint: '0',
                       prefix: '₹',
                       keyboardType:
-                          const TextInputType.numberWithOptions(decimal: true),
+                      const TextInputType.numberWithOptions(decimal: true),
                     ),
                     const SizedBox(height: 8),
                     // Payment mode as big chips
@@ -1821,31 +1823,31 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
                   height: 60,
                   child: ElevatedButton(
                     onPressed: (_submitting ||
-                            _uploadingMortality ||
-                            _uploadingDelivery)
+                        _uploadingMortality ||
+                        _uploadingDelivery)
                         ? null
                         : _submit,
                     style: ElevatedButton.styleFrom(
                       backgroundColor:
-                          _isPartial ? Colors.orange : const Color(0xFF2E7D32),
+                      _isPartial ? Colors.orange : const Color(0xFF2E7D32),
                       shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(18)),
                       elevation: 3,
                     ),
                     child: _submitting
                         ? const SizedBox(
-                            width: 26,
-                            height: 26,
-                            child: CircularProgressIndicator(
-                                strokeWidth: 3, color: Colors.white))
+                        width: 26,
+                        height: 26,
+                        child: CircularProgressIndicator(
+                            strokeWidth: 3, color: Colors.white))
                         : Text(
-                            _isPartial
-                                ? '⚡ Complete Partial Delivery'
-                                : '✅ Mark as Delivered',
-                            style: const TextStyle(
-                                fontSize: 20,
-                                fontWeight: FontWeight.w900,
-                                color: Colors.white)),
+                        _isPartial
+                            ? '⚡ Complete Partial Delivery'
+                            : '✅ Mark as Delivered',
+                        style: const TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.w900,
+                            color: Colors.white)),
                   ),
                 ),
                 const SizedBox(height: 30),
@@ -1880,7 +1882,7 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
           const SizedBox(width: 12),
           Expanded(
             child:
-                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(shopName,
                   style: const TextStyle(
                       fontSize: 20,
@@ -1894,7 +1896,7 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
               if (r?['phone'] != null)
                 Text(r!['phone'] as String,
                     style:
-                        const TextStyle(fontSize: 13, color: Colors.white70)),
+                    const TextStyle(fontSize: 13, color: Colors.white70)),
             ]),
           ),
         ]),
@@ -1929,28 +1931,28 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
   }
 
   Widget _simpleHeroStat(String emoji, String value, String label) => Expanded(
-        child: Container(
-          margin: const EdgeInsets.only(right: 6),
-          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 6),
-          decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.15),
-            borderRadius: BorderRadius.circular(kRadiusCard),
-          ),
-          child: Column(children: [
-            Text(emoji, style: const TextStyle(fontSize: 20)),
-            const SizedBox(height: 2),
-            Text(value,
-                style: const TextStyle(
-                    fontSize: 17,
-                    fontWeight: FontWeight.w900,
-                    color: Colors.white),
-                textAlign: TextAlign.center),
-            Text(label,
-                style: const TextStyle(fontSize: 11, color: Colors.white70),
-                textAlign: TextAlign.center),
-          ]),
-        ),
-      );
+    child: Container(
+      margin: const EdgeInsets.only(right: 6),
+      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 6),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(kRadiusCard),
+      ),
+      child: Column(children: [
+        Text(emoji, style: const TextStyle(fontSize: 20)),
+        const SizedBox(height: 2),
+        Text(value,
+            style: const TextStyle(
+                fontSize: 17,
+                fontWeight: FontWeight.w900,
+                color: Colors.white),
+            textAlign: TextAlign.center),
+        Text(label,
+            style: const TextStyle(fontSize: 11, color: Colors.white70),
+            textAlign: TextAlign.center),
+      ]),
+    ),
+  );
 
   Widget _simpleWeighmentCard() {
     return GestureDetector(
@@ -1977,12 +1979,12 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
             ),
             child: const Center(
                 child:
-                    Icon(Icons.scale_outlined, color: Colors.white, size: 32)),
+                Icon(Icons.scale_outlined, color: Colors.white, size: 32)),
           ),
           const SizedBox(width: 16),
           Expanded(
             child:
-                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(_weighmentDone ? '✓ Weighment Done' : '⚖️ Weigh the Birds',
                   style: const TextStyle(
                       color: Colors.white,
@@ -2027,7 +2029,7 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
           const SizedBox(width: 10),
           Expanded(
             child:
-                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(title,
                   style: const TextStyle(
                       fontSize: 16, fontWeight: FontWeight.w800)),
@@ -2070,7 +2072,7 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
         filled: true,
         fillColor: Colors.grey.shade50,
         contentPadding:
-            const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(kRadiusCard),
           borderSide: BorderSide(color: kBorder),
@@ -2097,10 +2099,10 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
           decoration: BoxDecoration(
             color: selected
                 ? (value == 'cash'
-                    ? Colors.green.shade100
-                    : value == 'upi'
-                        ? Colors.blue.shade100
-                        : Colors.purple.shade100)
+                ? Colors.green.shade100
+                : value == 'upi'
+                ? Colors.blue.shade100
+                : Colors.purple.shade100)
                 : Colors.grey.shade100,
             borderRadius: BorderRadius.circular(kRadiusCard),
             border: Border.all(
@@ -2132,7 +2134,7 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
     required VoidCallback onTap,
   }) {
     final Color c =
-        uploaded ? Colors.green : (required ? Colors.red : kPrimary);
+    uploaded ? Colors.green : (required ? Colors.red : kPrimary);
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -2150,7 +2152,7 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
             ClipRRect(
                 borderRadius: BorderRadius.circular(kRadiusChip),
                 child:
-                    Image.file(image, width: 56, height: 56, fit: BoxFit.cover))
+                Image.file(image, width: 56, height: 56, fit: BoxFit.cover))
           else
             Container(
               width: 56,
@@ -2166,20 +2168,20 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
               child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                Text(label,
-                    style: TextStyle(
-                        fontSize: 15, fontWeight: FontWeight.w700, color: c)),
-                const SizedBox(height: 2),
-                Text(
-                    uploading
-                        ? 'Uploading...'
-                        : uploaded
+                    Text(label,
+                        style: TextStyle(
+                            fontSize: 15, fontWeight: FontWeight.w700, color: c)),
+                    const SizedBox(height: 2),
+                    Text(
+                        uploading
+                            ? 'Uploading...'
+                            : uploaded
                             ? '✓ Photo uploaded'
                             : required
-                                ? 'Required — tap to take photo'
-                                : 'Tap to take photo',
-                    style: TextStyle(fontSize: 12, color: c)),
-              ])),
+                            ? 'Required — tap to take photo'
+                            : 'Tap to take photo',
+                        style: TextStyle(fontSize: 12, color: c)),
+                  ])),
           if (uploading)
             const SizedBox(
                 width: 24,
@@ -2219,8 +2221,8 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
             zero
                 ? 'No stock available! Ask admin.'
                 : over
-                    ? 'Stock: $avail birds — delivering $_deliveryBirds'
-                    : 'Stock OK: $avail birds ✓',
+                ? 'Stock: $avail birds — delivering $_deliveryBirds'
+                : 'Stock OK: $avail birds ✓',
             style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.w800,
@@ -2242,7 +2244,7 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
     required VoidCallback onTap,
   }) {
     final Color c =
-        uploaded ? Colors.green : (required ? Colors.red : kTextHint);
+    uploaded ? Colors.green : (required ? Colors.red : kTextHint);
     return GestureDetector(
         onTap: onTap,
         child: Container(
@@ -2266,21 +2268,21 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
                   child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                    Text(label,
-                        style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                            color: c)),
-                    Text(
-                        uploading
-                            ? 'Uploading...'
-                            : uploaded
+                        Text(label,
+                            style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: c)),
+                        Text(
+                            uploading
+                                ? 'Uploading...'
+                                : uploaded
                                 ? '✓ Uploaded'
                                 : required
-                                    ? 'Required — tap to take photo'
-                                    : 'Tap to take photo (optional)',
-                        style: TextStyle(fontSize: 11, color: c)),
-                  ])),
+                                ? 'Required — tap to take photo'
+                                : 'Tap to take photo (optional)',
+                            style: TextStyle(fontSize: 11, color: c)),
+                      ])),
               if (uploading)
                 const SizedBox(
                     width: 20,
@@ -2298,8 +2300,8 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
     final c = zero
         ? Colors.red
         : over
-            ? Colors.orange
-            : Colors.green;
+        ? Colors.orange
+        : Colors.green;
     return Container(
         margin: const EdgeInsets.only(bottom: 12),
         padding: const EdgeInsets.all(10),
@@ -2312,8 +2314,8 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
               zero
                   ? Icons.error
                   : over
-                      ? Icons.inventory_outlined
-                      : Icons.check_circle_outline,
+                  ? Icons.inventory_outlined
+                  : Icons.check_circle_outline,
               color: c,
               size: 18),
           const SizedBox(width: 8),
@@ -2322,18 +2324,18 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
                   zero
                       ? 'No stock. Ask admin to add DC.'
                       : over
-                          ? 'Stock: $avail birds · Delivering: $_deliveryBirds'
-                          : 'Stock OK: $avail birds ✓',
+                      ? 'Stock: $avail birds · Delivering: $_deliveryBirds'
+                      : 'Stock OK: $avail birds ✓',
                   style: TextStyle(
                       fontSize: 12, fontWeight: FontWeight.w600, color: c))),
         ]));
   }
 
   Widget _lossStat(String l, String v, Color c) => Expanded(
-          child: Column(children: [
+      child: Column(children: [
         Text(v,
             style:
-                TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: c),
+            TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: c),
             textAlign: TextAlign.center),
         Text(l,
             style: const TextStyle(fontSize: 9, color: kTextHint),
@@ -2341,15 +2343,15 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
       ]));
 
   Widget _splitStat(String l, String v, Color c) => Expanded(
-          child:
-              Column(crossAxisAlignment: CrossAxisAlignment.center, children: [
+      child:
+      Column(crossAxisAlignment: CrossAxisAlignment.center, children: [
         Text(l,
             style:
-                TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: c)),
+            TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: c)),
         const SizedBox(height: 4),
         Text(v,
             style:
-                TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: c),
+            TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: c),
             textAlign: TextAlign.center),
       ]));
 }

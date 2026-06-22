@@ -35,11 +35,11 @@ class _S extends ConsumerState<StockScreen> {
     if (mounted) setState(() => _loading = true);
     try {
       final r0 =
-          await _c.rpc('get_available_stock', params: {'p_trader_id': tid});
+      await _c.rpc('get_available_stock', params: {'p_trader_id': tid});
       final r1 = await _c
           .from('stock_ledger')
           .select(
-              'id,entry_date,movement_type,quantity_birds,quantity_kg,notes,master_products(name)')
+          'id,entry_date,movement_type,quantity_birds,quantity_kg,notes,master_products(name)')
           .eq('trader_id', tid)
           .order('created_at', ascending: false)
           .limit(60);
@@ -50,7 +50,7 @@ class _S extends ConsumerState<StockScreen> {
       final r3 = await _c
           .from('delivery_challans')
           .select(
-              'id,dc_number,dc_date,farmer_name,farm_location,vehicle_number,'
+          'id,dc_number,dc_date,farmer_name,farm_location,vehicle_number,'
               'bird_count,gross_weight,empty_crate_weight,net_weight,'
               'avg_bird_weight,crates_count,farm_rate,dc_photo_url,created_at,'
               'delivery_batches(id,delivery_agents(name))')
@@ -100,13 +100,13 @@ class _S extends ConsumerState<StockScreen> {
                 children: [
                   const Text('Record Opening Stock',
                       style:
-                          TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+                      TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
                   const SizedBox(height: 12),
                   DropdownButtonFormField<Map<String, dynamic>>(
                       hint: const Text('Product *'),
                       items: _products
                           .map((p) => DropdownMenuItem(
-                              value: p, child: Text(p['name'] as String)))
+                          value: p, child: Text(p['name'] as String)))
                           .toList(),
                       onChanged: (v) => selProd = v),
                   const SizedBox(height: 10),
@@ -138,7 +138,7 @@ class _S extends ConsumerState<StockScreen> {
                       onSubmitted: (_) => FocusScope.of(context).unfocus(),
                       controller: notesCtrl,
                       decoration:
-                          const InputDecoration(labelText: 'Notes (optional)')),
+                      const InputDecoration(labelText: 'Notes (optional)')),
                   const SizedBox(height: 16),
                   ElevatedButton(
                       onPressed: () async {
@@ -174,36 +174,36 @@ class _S extends ConsumerState<StockScreen> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-        backgroundColor: kBgPage,
-        appBar: AppBar(
-            backgroundColor: kSurface,
-            title: const Text('Stock Management'),
-            actions: [
-              IconButton(icon: const Icon(Icons.refresh), onPressed: _load)
-            ]),
-        // Reserve space so FAB clears the parent TraderShell glass bottom nav
-        bottomNavigationBar: const SizedBox(height: 80),
-        floatingActionButton: FloatingActionButton.extended(
-            onPressed: _recordOpening,
-            icon: const Icon(Icons.add),
-            label: const Text('Opening Stock')),
-        body: _loading
-            ? const LoadingList()
-            : Column(children: [
-                // Tab bar
-                Container(
-                    color: Colors.white,
-                    child: Row(children: [
-                      _tabBtn(0, 'Summary'),
-                      _tabBtn(1, 'Movements'),
-                      _tabBtn(2, 'DCs (${_challans.length})'),
-                    ])),
-                const Divider(height: 1),
-                Expanded(
-                    child:
-                        RefreshIndicator(onRefresh: _load, child: _buildTab())),
-              ]),
-      );
+    backgroundColor: kBgPage,
+    appBar: AppBar(
+        backgroundColor: kSurface,
+        title: const Text('Stock Management'),
+        actions: [
+          IconButton(icon: const Icon(Icons.refresh), onPressed: _load)
+        ]),
+    // Reserve space so FAB clears the parent TraderShell glass bottom nav
+    bottomNavigationBar: const SizedBox(height: kBottomNavClearance),
+    floatingActionButton: FloatingActionButton.extended(
+        onPressed: _recordOpening,
+        icon: const Icon(Icons.add),
+        label: const Text('Opening Stock')),
+    body: _loading
+        ? const LoadingList()
+        : Column(children: [
+      // Tab bar
+      Container(
+          color: Colors.white,
+          child: Row(children: [
+            _tabBtn(0, 'Summary'),
+            _tabBtn(1, 'Movements'),
+            _tabBtn(2, 'DCs (${_challans.length})'),
+          ])),
+      const Divider(height: 1),
+      Expanded(
+          child:
+          RefreshIndicator(onRefresh: _load, child: _buildTab())),
+    ]),
+  );
 
   Widget _tabBtn(int idx, String label) => Expanded(
       child: InkWell(
@@ -236,7 +236,7 @@ class _S extends ConsumerState<StockScreen> {
   }
 
   Widget _buildSummary() =>
-      ListView(padding: const EdgeInsets.all(16), children: [
+      ListView(padding: const EdgeInsets.fromLTRB(16, 16, 16, kBottomNavClearance), children: [
         if (_positions.isEmpty)
           Container(
               padding: const EdgeInsets.all(14),
@@ -266,8 +266,8 @@ class _S extends ConsumerState<StockScreen> {
               color: p.isNegative
                   ? Colors.red.shade200
                   : p.hasLowStock
-                      ? Colors.orange.shade200
-                      : kBorder)),
+                  ? Colors.orange.shade200
+                  : kBorder)),
       child: Column(children: [
         // Header
         Padding(
@@ -284,7 +284,7 @@ class _S extends ConsumerState<StockScreen> {
               else
                 Container(
                     padding:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                     decoration: BoxDecoration(
                         color: Colors.green.shade50,
                         borderRadius: BorderRadius.circular(6)),
@@ -302,8 +302,8 @@ class _S extends ConsumerState<StockScreen> {
                 color: p.isNegative
                     ? Colors.red.shade50
                     : p.hasLowStock
-                        ? Colors.orange.shade50
-                        : Colors.green.shade50,
+                    ? Colors.orange.shade50
+                    : Colors.green.shade50,
                 borderRadius: BorderRadius.circular(10)),
             child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
               Text('${p.availableBirds}',
@@ -313,8 +313,8 @@ class _S extends ConsumerState<StockScreen> {
                       color: p.isNegative
                           ? Colors.red
                           : p.hasLowStock
-                              ? Colors.orange
-                              : Colors.green)),
+                          ? Colors.orange
+                          : Colors.green)),
               const SizedBox(width: 12),
               Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 const Text('birds available now',
@@ -369,8 +369,8 @@ class _S extends ConsumerState<StockScreen> {
                           p.isNegative
                               ? Colors.red
                               : p.hasLowStock
-                                  ? Colors.orange
-                                  : Colors.green),
+                              ? Colors.orange
+                              : Colors.green),
                     ]),
                   ])),
               const SizedBox(height: 8),
@@ -404,7 +404,7 @@ class _S extends ConsumerState<StockScreen> {
                           const SizedBox(width: 6),
                           Text(
                               'Transfers: +${p.transferredInBirds} in  ·  −${p.transferredOutBirds} out  '
-                              '(net ${p.transferredInBirds - p.transferredOutBirds} — location change only, no stock impact)',
+                                  '(net ${p.transferredInBirds - p.transferredOutBirds} — location change only, no stock impact)',
                               style: const TextStyle(
                                   fontSize: 10, color: Colors.teal)),
                         ]))),
@@ -412,10 +412,10 @@ class _S extends ConsumerState<StockScreen> {
       ]));
 
   Widget _stockStat(String l, String v, String sub, Color c) => Expanded(
-          child: Column(children: [
+      child: Column(children: [
         Text(v,
             style:
-                TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: c)),
+            TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: c)),
         if (sub.isNotEmpty)
           Text(sub, style: const TextStyle(fontSize: 9, color: kTextSub)),
         Text(l, style: const TextStyle(fontSize: 9, color: kTextHint)),
@@ -430,7 +430,7 @@ class _S extends ConsumerState<StockScreen> {
     final isIn = (String t) =>
         ['opening', 'purchased', 'returned_in', 'transferred_in'].contains(t);
     return ListView.separated(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, kBottomNavClearance),
         itemCount: _ledger.length,
         separatorBuilder: (_, __) => const SizedBox(height: 6),
         itemBuilder: (_, i) {
@@ -447,7 +447,7 @@ class _S extends ConsumerState<StockScreen> {
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(10),
                   border:
-                      const Border.fromBorderSide(BorderSide(color: kBorder))),
+                  const Border.fromBorderSide(BorderSide(color: kBorder))),
               child: ListTile(
                   dense: true,
                   leading: Container(
@@ -513,7 +513,7 @@ class _S extends ConsumerState<StockScreen> {
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(12),
                   border:
-                      const Border.fromBorderSide(BorderSide(color: kBorder))),
+                  const Border.fromBorderSide(BorderSide(color: kBorder))),
               child: Column(children: [
                 // Header row
                 Padding(
@@ -532,14 +532,14 @@ class _S extends ConsumerState<StockScreen> {
                           child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                            Text(ch['dc_number'] as String? ?? '—',
-                                style: const TextStyle(
-                                    fontWeight: FontWeight.w800, fontSize: 14)),
-                            if (date != null)
-                              Text(DateFormat('d MMM y').format(date),
-                                  style: const TextStyle(
-                                      fontSize: 11, color: kTextHint)),
-                          ])),
+                                Text(ch['dc_number'] as String? ?? '—',
+                                    style: const TextStyle(
+                                        fontWeight: FontWeight.w800, fontSize: 14)),
+                                if (date != null)
+                                  Text(DateFormat('d MMM y').format(date),
+                                      style: const TextStyle(
+                                          fontSize: 11, color: kTextHint)),
+                              ])),
                       if (hasImg)
                         Container(
                             padding: const EdgeInsets.symmetric(
@@ -628,42 +628,42 @@ class _S extends ConsumerState<StockScreen> {
   }
 
   Widget _dcStat(String l, String v, Color c) => Expanded(
-          child: Column(children: [
+      child: Column(children: [
         Text(v,
             style:
-                TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: c)),
+            TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: c)),
         Text(l, style: const TextStyle(fontSize: 9, color: kTextHint)),
       ]));
 
   Color _movementColor(String t) => switch (t) {
-        'opening' => Colors.blue,
-        'purchased' => Colors.green,
-        'returned_in' => Colors.purple,
-        'transferred_in' =>
-          Colors.teal, // BUG 5 FIX: was grey (looked like outflow)
-        'delivered' => kPrimary,
-        'allocated' => Colors.orange,
-        'transferred_out' =>
-          Colors.indigo, // BUG 5 FIX: distinct colour from delivered
-        'mortality' => Colors.red,
-        'shrinkage' => Colors.deepOrange,
-        'shift_close_return' => Colors.purple,
-        'closing_stock' => Colors.grey,
-        _ => Colors.grey,
-      };
+    'opening' => Colors.blue,
+    'purchased' => Colors.green,
+    'returned_in' => Colors.purple,
+    'transferred_in' =>
+    Colors.teal, // BUG 5 FIX: was grey (looked like outflow)
+    'delivered' => kPrimary,
+    'allocated' => Colors.orange,
+    'transferred_out' =>
+    Colors.indigo, // BUG 5 FIX: distinct colour from delivered
+    'mortality' => Colors.red,
+    'shrinkage' => Colors.deepOrange,
+    'shift_close_return' => Colors.purple,
+    'closing_stock' => Colors.grey,
+    _ => Colors.grey,
+  };
 
   IconData _movementIcon(String t) => switch (t) {
-        'opening' => Icons.home_outlined,
-        'purchased' => Icons.add_shopping_cart,
-        'returned_in' => Icons.assignment_return_outlined,
-        'transferred_in' => Icons.swap_horiz, // BUG 5 FIX: distinct icon
-        'transferred_out' => Icons.swap_horiz,
-        'delivered' => Icons.local_shipping_outlined,
-        'allocated' => Icons.inventory_outlined,
-        'mortality' => Icons.sentiment_very_dissatisfied_outlined,
-        'shrinkage' => Icons.compress_outlined,
-        'shift_close_return' => Icons.assignment_return_outlined,
-        'closing_stock' => Icons.lock_outline,
-        _ => Icons.circle_outlined,
-      };
+    'opening' => Icons.home_outlined,
+    'purchased' => Icons.add_shopping_cart,
+    'returned_in' => Icons.assignment_return_outlined,
+    'transferred_in' => Icons.swap_horiz, // BUG 5 FIX: distinct icon
+    'transferred_out' => Icons.swap_horiz,
+    'delivered' => Icons.local_shipping_outlined,
+    'allocated' => Icons.inventory_outlined,
+    'mortality' => Icons.sentiment_very_dissatisfied_outlined,
+    'shrinkage' => Icons.compress_outlined,
+    'shift_close_return' => Icons.assignment_return_outlined,
+    'closing_stock' => Icons.lock_outline,
+    _ => Icons.circle_outlined,
+  };
 }

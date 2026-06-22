@@ -409,9 +409,7 @@ class _S extends ConsumerState<RetailerDetailScreen> {
             ],
         ],
       ),
-      body: ListView(padding: const EdgeInsets.all(16), children: [
-
-        // ── APP ACCESS / INVITE CODE SECTION ─────────────────────────
+      body: ListView(padding: const EdgeInsets.fromLTRB(16, 16, 16, kBottomNavClearance), children: [
         Container(
             padding: const EdgeInsets.all(14),
             margin: const EdgeInsets.only(bottom: 12),
