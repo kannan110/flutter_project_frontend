@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart' hide TextDirection;
+import 'package:rooster_trader/features/trader_admin/expenses/trader_expense_sheet.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/models/dashboard_models.dart';
 import '../../../core/providers/session_provider.dart';
@@ -1649,6 +1650,7 @@ class _BusinessHealthCard extends StatelessWidget {
     final d = data;
     final costPending = d.todayLinesCostPending > 0;
     final revenue = d.todayRevenue > 0 ? d.todayRevenue : d.todayCollected;
+    final hasPerKg = d.todayCostPerKg != null;
 
     return Container(
       decoration: BoxDecoration(
@@ -1658,71 +1660,132 @@ class _BusinessHealthCard extends StatelessWidget {
         boxShadow: kCardShadow,
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        // ── Header ──────────────────────────────────────────────────────────
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
           child: Row(children: [
             const Icon(Icons.monitor_heart_outlined, color: kGold, size: 16),
             const SizedBox(width: 8),
             const Text('BUSINESS HEALTH — TODAY',
-                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: kNavy, letterSpacing: 0.6)),
+                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900,
+                    color: kNavy, letterSpacing: 0.6)),
             const Spacer(),
             GestureDetector(
+              onTap: () async {
+                final added = await showTraderExpenseSheet(context);
+                if (added) onPnl(); // refresh triggers dashboard reload
+              },
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                    color: Colors.orange.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.orange.withValues(alpha: 0.3))),
+                child: const Row(children: [
+                  Icon(Icons.add, size: 11, color: Colors.orange),
+                  SizedBox(width: 3),
+                  Text('Expense', style: TextStyle(fontSize: 10,
+                      fontWeight: FontWeight.w800, color: Colors.orange)),
+                ]),
+              ),
+            ),
+            const SizedBox(width: 8),
+            GestureDetector(
               onTap: onPnl,
-              child: const Text('FULL P&L', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: kGold, letterSpacing: 0.5)),
+              child: const Text('FULL P&L', style: TextStyle(fontSize: 10,
+                  fontWeight: FontWeight.w900, color: kGold, letterSpacing: 0.5)),
             ),
           ]),
         ),
+
+        // ── Pending banner ───────────────────────────────────────────────────
         if (costPending)
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              decoration: BoxDecoration(color: Colors.orange.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(8)),
+              decoration: BoxDecoration(color: Colors.orange.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8)),
               child: Row(children: [
                 const Icon(Icons.info_outline, size: 13, color: Colors.orange),
                 const SizedBox(width: 6),
                 Expanded(child: Text(
-                    '${d.todayLinesCostPending} line${d.todayLinesCostPending == 1 ? '' : 's'} not yet costed — Gross/Net Profit pending',
-                    style: const TextStyle(fontSize: 10, color: Colors.orange, fontWeight: FontWeight.w600))),
+                    '${d.todayLinesCostPending} line${d.todayLinesCostPending == 1 ? '' : 's'} '
+                        'not yet costed — Gross/Net Profit pending',
+                    style: const TextStyle(fontSize: 10, color: Colors.orange,
+                        fontWeight: FontWeight.w600))),
               ]),
             ),
           ),
+
+        // ── Row 1: Revenue & Purchase Cost ───────────────────────────────────
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
           child: Column(children: [
             Row(children: [
-              Expanded(child: _healthTile('Revenue', Fmt.amount(revenue), kSuccess, Icons.trending_up_outlined)),
+              Expanded(child: _healthTile('Revenue', Fmt.amount(revenue),
+                  kSuccess, Icons.trending_up_outlined)),
               const SizedBox(width: 8),
               Expanded(child: _healthTile('Purchase Cost',
-                  d.todayPurchaseCostActual == null ? 'Pending' : Fmt.amount(d.todayPurchaseCostActual!),
+                  d.todayPurchaseCostActual == null ? 'Pending'
+                      : Fmt.amount(d.todayPurchaseCostActual!),
                   Colors.blue, Icons.shopping_cart_outlined)),
             ]),
             const SizedBox(height: 8),
+
+            // ── Row 2: Outstanding & Supplier Payable ─────────────────────
             Row(children: [
-              Expanded(child: _healthTile('Expenses', Fmt.amount(d.todayExpenseTotal), Colors.orange, Icons.receipt_long_outlined)),
+              Expanded(child: _healthTile('Outstanding', Fmt.amount(d.totalOutstanding),
+                  Colors.deepOrange, Icons.account_balance_wallet_outlined)),
               const SizedBox(width: 8),
-              Expanded(child: _healthTile('Mortality Loss', Fmt.amount(d.todayMortalityLossAmount), kError, Icons.health_and_safety_outlined)),
+              Expanded(child: _healthTile('Supplier Payable',
+                  Fmt.amount(d.totalSupplierPayable), Colors.brown,
+                  Icons.agriculture_outlined)),
             ]),
             const SizedBox(height: 8),
+
+            // ── Row 3: Expenses (with breakdown) & Cash ───────────────────
             Row(children: [
-              Expanded(child: _healthTile('Shrinkage Loss', Fmt.amount(d.todayShrinkageLossAmount), const Color(0xFF6A1B9A), Icons.compress_outlined)),
-              const SizedBox(width: 8),
-              Expanded(child: _healthTile('Outstanding', Fmt.amount(d.totalOutstanding), Colors.deepOrange, Icons.account_balance_wallet_outlined)),
-            ]),
-            const SizedBox(height: 8),
-            Row(children: [
-              Expanded(child: _healthTile('Supplier Payable', Fmt.amount(d.totalSupplierPayable), Colors.brown, Icons.agriculture_outlined)),
+              Expanded(child: _expenseTile(d)),
               const SizedBox(width: 8),
               Expanded(child: GestureDetector(
                 onTap: onCashFlow,
-                child: _healthTile('Cash Position', Fmt.amount(d.todayCashIn - d.todayCashOut),
-                    (d.todayCashIn - d.todayCashOut) >= 0 ? kSuccess : kError, Icons.water_drop_outlined),
+                child: _healthTile('Cash Position',
+                    Fmt.amount(d.todayCashIn - d.todayCashOut),
+                    (d.todayCashIn - d.todayCashOut) >= 0 ? kSuccess : kError,
+                    Icons.water_drop_outlined),
               )),
             ]),
+            const SizedBox(height: 8),
+
+            // ── Row 4: Loss tiles ─────────────────────────────────────────
+            Row(children: [
+              Expanded(child: _healthTile('Mortality Loss',
+                  Fmt.amount(d.todayMortalityLossAmount), kError,
+                  Icons.health_and_safety_outlined)),
+              const SizedBox(width: 8),
+              Expanded(child: _healthTile('Transit Shrinkage',
+                  Fmt.amount(d.todayShrinkageLossAmount),
+                  const Color(0xFF6A1B9A), Icons.compress_outlined)),
+            ]),
+            if (d.todayUnexplainedLossAmount > 0) ...[
+              const SizedBox(height: 8),
+              Row(children: [
+                Expanded(child: _healthTile('Weight Variance',
+                    Fmt.amount(d.todayUnexplainedLossAmount),
+                    Colors.deepPurple, Icons.balance_outlined)),
+                const SizedBox(width: 8),
+                Expanded(child: _healthTile('Total Loss ₹',
+                    Fmt.amount(d.todayTotalLossAmount), kError,
+                    Icons.crisis_alert_outlined)),
+              ]),
+            ],
           ]),
         ),
+
+        // ── Gross / Net Profit row ───────────────────────────────────────────
         Container(
-          margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
             color: d.todayNetProfit == null
@@ -1735,37 +1798,155 @@ class _BusinessHealthCard extends StatelessWidget {
           child: Row(children: [
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text('Gross Profit',
-                  style: TextStyle(fontSize: 10, color: d.todayGrossProfit == null ? Colors.orange.shade800 : kTextSub)),
+                  style: TextStyle(fontSize: 10,
+                      color: d.todayGrossProfit == null ? Colors.orange.shade800 : kTextSub)),
               Text(d.todayGrossProfit == null ? 'Pending' : Fmt.amount(d.todayGrossProfit!),
                   style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800,
                       color: d.todayGrossProfit == null ? Colors.orange.shade800 : kTextMain)),
+              if (d.todayGrossMarginPct != null)
+                Text('${d.todayGrossMarginPct!.toStringAsFixed(1)}% margin',
+                    style: const TextStyle(fontSize: 9, color: kTextSub)),
             ])),
-            Container(width: 1, height: 32, color: kBorderLight),
+            Container(width: 1, height: 40, color: kBorderLight),
             const SizedBox(width: 12),
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('Net Profit',
-                  style: TextStyle(fontSize: 10,
-                      color: d.todayNetProfit == null ? Colors.orange.shade800
-                          : d.todayNetProfit! >= 0 ? kSuccess : kError)),
+              Text('Net Profit', style: TextStyle(fontSize: 10,
+                  color: d.todayNetProfit == null ? Colors.orange.shade800
+                      : d.todayNetProfit! >= 0 ? kSuccess : kError)),
               Text(d.todayNetProfit == null ? 'Pending' : Fmt.amount(d.todayNetProfit!),
                   style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900,
                       color: d.todayNetProfit == null ? Colors.orange.shade800
                           : d.todayNetProfit! >= 0 ? kSuccess : kError)),
+              if (d.todayNetMarginPct != null)
+                Text('${d.todayNetMarginPct!.toStringAsFixed(1)}% net margin',
+                    style: TextStyle(fontSize: 9,
+                        color: d.todayNetMarginPct! >= 0 ? kSuccess : kError)),
             ])),
           ]),
         ),
+
+        // ── Per-KG strip (only when batch costing is available today) ────────
+        if (hasPerKg)
+          Container(
+            margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: kNavy.withValues(alpha: 0.04),
+              borderRadius: BorderRadius.circular(kRadiusInner),
+              border: Border.all(color: kNavy.withValues(alpha: 0.08)),
+            ),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              const Row(children: [
+                Icon(Icons.straighten_outlined, size: 11, color: kNavy),
+                SizedBox(width: 4),
+                Text('PER KG  —  Today\'s Averages',
+                    style: TextStyle(fontSize: 9, fontWeight: FontWeight.w900,
+                        color: kNavy, letterSpacing: 0.5)),
+              ]),
+              const SizedBox(height: 10),
+              Row(children: [
+                _kgPill('Cost/kg',    d.todayCostPerKg,           Colors.blue),
+                _kgPill('Sell/kg',    d.todaySellingPricePerKg,   kSuccess),
+                _kgPill('Profit/kg',  d.todayNetProfitPerKg,
+                    (d.todayNetProfitPerKg ?? 0) >= 0 ? kSuccess : kError),
+              ]),
+              const SizedBox(height: 6),
+              Row(children: [
+                _kgPill('Expense/kg', d.todayExpensePerKg,        Colors.orange),
+                _kgPill('Loss/kg',    d.todayLossPerKg,           kError),
+                _kgPill('G.Margin',
+                    d.todayGrossMarginPct != null
+                        ? d.todayGrossMarginPct! / 100 : null,
+                    Colors.purple, suffix: '%',
+                    format: (v) => '${(v * 100).toStringAsFixed(1)}%'),
+              ]),
+            ]),
+          )
+        else
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            child: Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                  color: Colors.grey.shade50,
+                  borderRadius: BorderRadius.circular(kRadiusInner),
+                  border: Border.all(color: Colors.grey.shade200)),
+              child: const Row(children: [
+                Icon(Icons.straighten_outlined, size: 12, color: kTextSub),
+                SizedBox(width: 6),
+                Text('Per-KG metrics available after first batch is approved today',
+                    style: TextStyle(fontSize: 10, color: kTextSub)),
+              ]),
+            ),
+          ),
       ]),
     );
   }
 
+  // ── Expense tile with breakdown ────────────────────────────────────────────
+  Widget _expenseTile(DashboardData d) {
+    final hasBreakdown = d.todayTripExpenses + d.todayTraderExpenses + d.todayFixedExpenses > 0;
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+          color: Colors.orange.withValues(alpha: 0.07),
+          borderRadius: BorderRadius.circular(kRadiusInner)),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        const Icon(Icons.receipt_long_outlined, size: 14, color: Colors.orange),
+        const SizedBox(height: 4),
+        Text(Fmt.amount(d.todayExpenseTotal),
+            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w900,
+                color: Colors.orange), maxLines: 1, overflow: TextOverflow.ellipsis),
+        const Text('Total Expenses',
+            style: TextStyle(fontSize: 9, color: kTextSub)),
+        if (hasBreakdown) ...[
+          const SizedBox(height: 4),
+          if (d.todayTripExpenses > 0)
+            Text('Agent: ${Fmt.amount(d.todayTripExpenses)}',
+                style: const TextStyle(fontSize: 8, color: kTextSub)),
+          if (d.todayTraderExpenses > 0)
+            Text('Trader: ${Fmt.amount(d.todayTraderExpenses)}',
+                style: const TextStyle(fontSize: 8, color: Colors.orange)),
+          if (d.todayFixedExpenses > 0)
+            Text('Fixed: ${Fmt.amount(d.todayFixedExpenses)}',
+                style: const TextStyle(fontSize: 8, color: kTextSub)),
+        ],
+      ]),
+    );
+  }
+
+  // ── Per-kg pill ────────────────────────────────────────────────────────────
+  Widget _kgPill(String label, double? value, Color c,
+      {String suffix = '/kg', String Function(double)? format}) =>
+      Expanded(child: Container(
+        margin: const EdgeInsets.only(right: 5),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+        decoration: BoxDecoration(
+            color: c.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(6),
+            border: Border.all(color: c.withValues(alpha: 0.2))),
+        child: Column(children: [
+          Text(value == null ? '—'
+              : format != null ? format(value)
+              : '${Fmt.amount(value)}$suffix',
+              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: c),
+              textAlign: TextAlign.center),
+          Text(label, style: const TextStyle(fontSize: 8, color: kTextSub),
+              textAlign: TextAlign.center),
+        ]),
+      ));
+
   Widget _healthTile(String label, String value, Color c, IconData icon) => Container(
       padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(color: c.withValues(alpha: 0.07), borderRadius: BorderRadius.circular(kRadiusInner)),
+      decoration: BoxDecoration(color: c.withValues(alpha: 0.07),
+          borderRadius: BorderRadius.circular(kRadiusInner)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Icon(icon, size: 14, color: c),
         const SizedBox(height: 4),
-        Text(value, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w900, color: c), maxLines: 1, overflow: TextOverflow.ellipsis),
-        Text(label, style: const TextStyle(fontSize: 9, color: kTextSub), maxLines: 1, overflow: TextOverflow.ellipsis),
+        Text(value, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w900, color: c),
+            maxLines: 1, overflow: TextOverflow.ellipsis),
+        Text(label, style: const TextStyle(fontSize: 9, color: kTextSub),
+            maxLines: 1, overflow: TextOverflow.ellipsis),
       ]));
 }
 

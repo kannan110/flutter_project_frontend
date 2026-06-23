@@ -226,6 +226,29 @@ class DashboardData {
   final double todayNetCashMovement;
   final double totalSupplierPayable;
 
+  // ── Phase 5: per-kg KPIs (from dashboard_summary.today_per_kg) ──────────
+  // All nullable — null until at least one batch is calculated today.
+  final double? todayCostPerKg;
+  final double? todaySellingPricePerKg;
+  final double? todayGrossProfitPerKg;
+  final double? todayNetProfitPerKg;
+  final double? todayExpensePerKg;
+  final double? todayLossPerKg;
+
+  // ── Phase 5: margin % (from get_pnl_statement via dashboard_summary) ─────
+  final double? todayGrossMarginPct;
+  final double? todayNetMarginPct;
+  final double? todayExpensePct;
+
+  // ── Phase 5: expense breakdown ────────────────────────────────────────────
+  final double todayTripExpenses;
+  final double todayTraderExpenses;
+  final double todayFixedExpenses;
+
+  // ── Phase 5: total loss ₹ and weight variance ─────────────────────────────
+  final double todayTotalLossAmount;
+  final double todayUnexplainedLossAmount;
+
   const DashboardData({
     this.pendingOrders=0, this.activeDeliveries=0, this.todayDelivered=0,
     this.pendingApprovals=0, this.pendingReturns=0,
@@ -267,6 +290,24 @@ class DashboardData {
     this.todayCashOut=0,
     this.todayNetCashMovement=0,
     this.totalSupplierPayable=0,
+    // Phase 5: per-kg KPIs
+    this.todayCostPerKg,
+    this.todaySellingPricePerKg,
+    this.todayGrossProfitPerKg,
+    this.todayNetProfitPerKg,
+    this.todayExpensePerKg,
+    this.todayLossPerKg,
+    // Phase 5: margins
+    this.todayGrossMarginPct,
+    this.todayNetMarginPct,
+    this.todayExpensePct,
+    // Phase 5: expense breakdown
+    this.todayTripExpenses=0,
+    this.todayTraderExpenses=0,
+    this.todayFixedExpenses=0,
+    // Phase 5: loss ₹
+    this.todayTotalLossAmount=0,
+    this.todayUnexplainedLossAmount=0,
   });
 
   factory DashboardData.fromMap(Map<String,dynamic> m) => DashboardData(
@@ -341,6 +382,24 @@ class DashboardData {
     todayCashOut:            (m['today_cash_out']              as num?)?.toDouble() ?? 0,
     todayNetCashMovement:    (m['today_net_cash_movement']     as num?)?.toDouble() ?? 0,
     totalSupplierPayable:    (m['total_supplier_payable']      as num?)?.toDouble() ?? 0,
+    // Phase 5: per-kg KPIs — sourced from dashboard_summary.today_per_kg nested map
+    todayCostPerKg:          ((m['today_per_kg'] as Map?)?['cost_per_kg']           as num?)?.toDouble(),
+    todaySellingPricePerKg:  ((m['today_per_kg'] as Map?)?['selling_price_per_kg']  as num?)?.toDouble(),
+    todayGrossProfitPerKg:   ((m['today_per_kg'] as Map?)?['gross_profit_per_kg']   as num?)?.toDouble(),
+    todayNetProfitPerKg:     ((m['today_per_kg'] as Map?)?['net_profit_per_kg']     as num?)?.toDouble(),
+    todayExpensePerKg:       ((m['today_per_kg'] as Map?)?['expense_per_kg']        as num?)?.toDouble(),
+    todayLossPerKg:          ((m['today_per_kg'] as Map?)?['loss_per_kg']           as num?)?.toDouble(),
+    // Phase 5: margins
+    todayGrossMarginPct:     (m['today_gross_margin_pct']  as num?)?.toDouble(),
+    todayNetMarginPct:       (m['today_net_margin_pct']    as num?)?.toDouble(),
+    todayExpensePct:         (m['today_expense_pct']       as num?)?.toDouble(),
+    // Phase 5: expense breakdown
+    todayTripExpenses:       (m['today_trip_expenses']     as num?)?.toDouble() ?? 0,
+    todayTraderExpenses:     (m['today_trader_expenses']   as num?)?.toDouble() ?? 0,
+    todayFixedExpenses:      (m['today_fixed_expenses']    as num?)?.toDouble() ?? 0,
+    // Phase 5: loss ₹
+    todayTotalLossAmount:    (m['today_total_loss_amount']        as num?)?.toDouble() ?? 0,
+    todayUnexplainedLossAmount: (m['today_unexplained_loss_amount'] as num?)?.toDouble() ?? 0,
   );
 
   bool get isDayClosed => dayStatus == 'closed' || dayStatus == 'locked';

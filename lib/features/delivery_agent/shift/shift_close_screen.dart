@@ -153,51 +153,78 @@ class _S extends ConsumerState<ShiftCloseScreen> {
 
   double get _returnWt => double.tryParse(_returnWtCtrl.text.trim()) ?? 0;
 
-  // Mortality during return (birds that died during transport back to stock point)
+  // ── Section 5: Dead birds during return transport ────────────────────────
+  // Independent from Section 4. Never a subset of live return.
   int get _mortReturnBirds =>
       int.tryParse(_mortReturnBirdsCtrl.text.trim()) ?? 0;
 
   double get _mortReturnWt =>
       double.tryParse(_mortReturnWtCtrl.text.trim()) ?? 0;
 
-  // Total effective mortality = shift mortality + mortality during return
+  // DC average weight — used for auto-calculation when dead bird weight not entered
+  // (dead birds are usually not weighed separately — auto-calc is the default path)
+  double get _dcAvgBirdWeightKg =>
+      _dcBirds > 0 ? _dcKg / _dcBirds : 0.0;
+
+  // Dead return weight:
+  //   Priority 1 — actual weight entered by agent (rare)
+  //   Priority 2 — auto-calculated: dead_birds × DC_avg_bird_weight (default)
+  double get _mortReturnWtEffective {
+    if (_mortReturnBirds <= 0) return 0.0;
+    if (_mortReturnWt > 0) return _mortReturnWt;
+    return double.parse(
+        (_mortReturnBirds * _dcAvgBirdWeightKg).toStringAsFixed(3));
+  }
+
+  // Total mortality = shift delivery mortality + return mortality (both independent)
   int get _totalMortalityBirds => _mortalityBirds + _mortReturnBirds;
+  double get _totalMortalityKg  => _mortalityKg   + _mortReturnWtEffective;
 
-  double get _totalMortalityKg => _mortalityKg + _mortReturnWt;
-
-  // SHRINKAGE FORMULA (weight-based, authoritative per spec):
-  // Shrinkage = (DC + TransferIn) - TransferOut - Delivered - TotalMortality - Returned
-  // TotalMortality = shift mortality + mortality during return transport
+  // ─── SHRINKAGE FORMULA ───────────────────────────────────────────────────
+  // DC = Delivered + LiveReturn + TotalMortality(delivery+return) + Shrinkage
+  // Shrinkage = DC − Delivered − LiveReturn − TotalMortality
+  //
+  // _returnWt is the DIRECT live return weight (separately weighed at stock point).
+  // _totalMortalityKg is INDEPENDENT — never subtracted from _returnWt.
+  //
+  // Example: DC=1100 | Delivered=1000 | LiveReturn=66 kg | Mortality=15.07 kg
+  //   Shrinkage = 1100 − 1000 − 66 − 15.07 = 18.93 kg ✓
   double get _shrinkageKg => (_dcKg +
-          _transferInKg -
-          _transferOutKg -
-          _deliveredKg -
-          _totalMortalityKg -
-          _returnWt)
+      _transferInKg -
+      _transferOutKg -
+      _deliveredKg -
+      _returnWt -          // direct live return weight (Section 4)
+      _totalMortalityKg)   // delivery mort + dead return (Section 5)
       .clamp(0.0, double.infinity);
 
   double get _shrinkagePct {
-    final base = _dcKg + _transferInKg; // total loaded into agent scope
+    final base = _dcKg + _transferInKg;
     return base > 0 ? (_shrinkageKg / base * 100) : 0.0;
   }
 
-  // Bird variance (operational count reconciliation — birds only)
-  // Expected = stock remaining; Declared = birds physically returned
-  // Include mortality-during-return in the declared total
-  int get _birdVariance => _stockBirds - (_returnBirds + _mortReturnBirds);
+  // ─── BIRD VARIANCE ───────────────────────────────────────────────────────
+  // DC = Delivered + LiveReturn(Sec4) + DeadReturn(Sec5) + ShiftMortality + Variance
+  // LiveReturn and DeadReturn are INDEPENDENT — neither is a subset of the other.
+  int get _birdVariance => _stockBirds - _returnBirds - _mortReturnBirds;
 
   double get _totalExpenses =>
       (double.tryParse(_dieselCtrl.text) ?? 0) +
-      (double.tryParse(_allowanceCtrl.text) ?? 0) +
-      (double.tryParse(_tollCtrl.text) ?? 0) +
-      _expenses.fold(
-          0.0, (s, e) => s + ((e['amount'] as num?)?.toDouble() ?? 0));
+          (double.tryParse(_allowanceCtrl.text) ?? 0) +
+          (double.tryParse(_tollCtrl.text) ?? 0) +
+          _expenses.fold(
+              0.0, (s, e) => s + ((e['amount'] as num?)?.toDouble() ?? 0));
 
   // Reconciliation status — drives status bar + close button colour
   // Priority: loading > pending > mismatch > highShrinkage > approvalNeeded > balanced
+  // Validation: total returned (live + dead) must not exceed available stock + 2
+  bool get _returnExceedsStock =>
+      (_returnBirds + _mortReturnBirds) > (_stockBirds + 2) && _stockLoaded;
+
   _RStatus get _status {
     if (!_stockLoaded) return _RStatus.loading;
     if (_pendingCount > 0) return _RStatus.pending;
+    // HARD BLOCK: total returned birds exceed system stock count
+    if (_returnExceedsStock) return _RStatus.returnExceedsStock;
     // Mortality proof photo is REQUIRED before close
     if (_mortalityBirds > 0 && _mortalityPhotoUrl == null)
       return _RStatus.mortProofRequired;
@@ -224,7 +251,7 @@ class _S extends ConsumerState<ShiftCloseScreen> {
       shift = await _c
           .from('delivery_shifts')
           .select(
-              'id,status,odometer_start,odometer_start_photo,shift_start_at,'
+          'id,status,odometer_start,odometer_start_photo,shift_start_at,'
               'opening_bird_count,opening_weight,crates_taken,crates_returned,'
               'delivery_agents(name,vehicle_no,vehicle_type)')
           .eq('delivery_agent_id', agentId)
@@ -246,9 +273,9 @@ class _S extends ConsumerState<ShiftCloseScreen> {
       final r = await _c
           .from('deliveries')
           .select('id,status,delivered_bird_count,delivered_total_weight,'
-              'collected_amount,payment_mode,mortality_birds,mortality_weight_kg,'
-              'returned_birds,returned_weight,shrinkage_kg,'
-              'orders(retailers(shop_name))')
+          'collected_amount,payment_mode,mortality_birds,mortality_weight_kg,'
+          'returned_birds,returned_weight,shrinkage_kg,'
+          'orders(retailers(shop_name))')
           .eq('delivery_shift_id', shift['id'])
           .timeout(const Duration(seconds: 10));
       deliveries = List<Map<String, dynamic>>.from(r as List? ?? []);
@@ -275,30 +302,30 @@ class _S extends ConsumerState<ShiftCloseScreen> {
     try {
       final shiftDate = shift!['shift_start_at'] != null
           ? DateTime.tryParse(shift['shift_start_at'] as String)
-              ?.toIso8601String()
-              .split('T')[0]
+          ?.toIso8601String()
+          .split('T')[0]
           : null;
 
       // Query 1: shift-linked rows (DC, delivery, mortality — have shift_id)
       final shiftRows = List<Map<String, dynamic>>.from((await _c
-              .from('stock_ledger')
-              .select('movement_type,quantity_birds,quantity_kg,notes')
-              .eq('agent_id', agentId)
-              .eq('shift_id', shift['id'])
-              .timeout(const Duration(seconds: 10))) as List? ??
+          .from('stock_ledger')
+          .select('movement_type,quantity_birds,quantity_kg,notes')
+          .eq('agent_id', agentId)
+          .eq('shift_id', shift['id'])
+          .timeout(const Duration(seconds: 10))) as List? ??
           []);
 
       // Query 2: transfer rows for agent on shift date (shift_id may be null on older rows)
       List<Map<String, dynamic>> transferRows = [];
       if (shiftDate != null) {
         transferRows = List<Map<String, dynamic>>.from((await _c
-                .from('stock_ledger')
-                .select('movement_type,quantity_birds,quantity_kg,notes')
-                .eq('agent_id', agentId)
-                .inFilter(
-                    'movement_type', ['transferred_in', 'transferred_out'])
-                .eq('entry_date', shiftDate)
-                .timeout(const Duration(seconds: 10))) as List? ??
+            .from('stock_ledger')
+            .select('movement_type,quantity_birds,quantity_kg,notes')
+            .eq('agent_id', agentId)
+            .inFilter(
+            'movement_type', ['transferred_in', 'transferred_out'])
+            .eq('entry_date', shiftDate)
+            .timeout(const Duration(seconds: 10))) as List? ??
             []);
       }
 
@@ -492,7 +519,7 @@ class _S extends ConsumerState<ShiftCloseScreen> {
       showError(
           context,
           '⚠️ Return stock not declared\n\n'
-          '$_stockBirds birds in your stock.\nFill Section 4 before closing.');
+              '$_stockBirds birds in your stock.\nFill Section 4 before closing.');
       return;
     }
     // REQUIRED: mortality proof photo must be captured at shift close
@@ -502,8 +529,8 @@ class _S extends ConsumerState<ShiftCloseScreen> {
       showError(
           context,
           '⚠️ Mortality proof photo required\n\n'
-          '$_mortalityBirds dead birds recorded this shift.\n'
-          'Open Section 5 and capture the mortality proof photo.');
+              '$_mortalityBirds dead birds recorded this shift.\n'
+              'Open Section 5 and capture the mortality proof photo.');
       return;
     }
     // REQUIRED: return mortality photo if return mortality recorded
@@ -512,8 +539,8 @@ class _S extends ConsumerState<ShiftCloseScreen> {
       showError(
           context,
           '⚠️ Return mortality photo required\n\n'
-          '$_mortReturnBirds birds died during return.\n'
-          'Capture the photo in Section 5.');
+              '$_mortReturnBirds birds died during return.\n'
+              'Capture the photo in Section 5.');
       return;
     }
 
@@ -525,19 +552,19 @@ class _S extends ConsumerState<ShiftCloseScreen> {
         'Expenses: ${Fmt.amount(_totalExpenses)}';
     if (_totalMortalityBirds > 0)
       msg +=
-          '\nMortality: ${_totalMortalityBirds} birds · ${_totalMortalityKg.toStringAsFixed(2)} kg';
+      '\nMortality: ${_totalMortalityBirds} birds · ${_totalMortalityKg.toStringAsFixed(2)} kg';
     if (_transferInBirds > 0 || _transferOutBirds > 0)
       msg +=
-          '\nTransfers: IN ${_transferInBirds} · OUT ${_transferOutBirds} birds';
+      '\nTransfers: IN ${_transferInBirds} · OUT ${_transferOutBirds} birds';
     if (_shrinkageKg > 0.01)
       msg +=
-          '\nShrinkage: ${_shrinkageKg.toStringAsFixed(2)} kg (${_shrinkagePct.toStringAsFixed(1)}%)';
+      '\nShrinkage: ${_shrinkageKg.toStringAsFixed(2)} kg (${_shrinkagePct.toStringAsFixed(1)}%)';
     if (st == _RStatus.mismatch)
       msg =
-          '⚠️ Bird mismatch: $_birdVariance birds unaccounted.\nTrader will review.\n\n$msg';
+      '⚠️ Bird mismatch: $_birdVariance birds unaccounted.\nTrader will review.\n\n$msg';
     if (st == _RStatus.highShrinkage)
       msg =
-          '🔴 High shrinkage: ${_shrinkagePct.toStringAsFixed(1)}%\nTrader approval required.\n\n$msg';
+      '🔴 High shrinkage: ${_shrinkagePct.toStringAsFixed(1)}%\nTrader approval required.\n\n$msg';
 
     final ok = await confirmDialog(context,
         title: 'Close Shift',
@@ -574,14 +601,18 @@ class _S extends ConsumerState<ShiftCloseScreen> {
       }
 
       await _c.rpc('close_delivery_shift', params: {
-        'p_shift_id': sid,
-        'p_odometer_end': double.tryParse(_odoEndCtrl.text.trim()) ?? 0,
-        'p_odometer_end_photo': _odoPhotoUrl,
-        'p_closing_bird_count': _returnBirds,
-        'p_closing_weight': _returnWt,
-        'p_expenses': _totalExpenses,
-        'p_diesel_cost': double.tryParse(_dieselCtrl.text) ?? 0,
-        'p_allowance': double.tryParse(_allowanceCtrl.text) ?? 0,
+        'p_shift_id':                sid,
+        'p_odometer_end':            double.tryParse(_odoEndCtrl.text.trim()) ?? 0,
+        'p_odometer_end_photo':      _odoPhotoUrl,
+        // Live return = total returned − return mortality
+        // DB writes shift_close_return for live birds, mortality for dead birds
+        'p_closing_bird_count':      _returnBirds,       // live birds (Section 4, directly entered)
+        'p_closing_weight':          _returnWt,           // live return weight (Section 4, directly weighed)
+        'p_expenses':                _totalExpenses,
+        'p_diesel_cost':             double.tryParse(_dieselCtrl.text) ?? 0,
+        'p_allowance':               double.tryParse(_allowanceCtrl.text) ?? 0,
+        'p_return_mortality_birds':  _mortReturnBirds,
+        'p_return_mortality_weight': _mortReturnWt, // 0 = auto-calc in DB
       });
 
       if (mounted) {
@@ -627,7 +658,7 @@ class _S extends ConsumerState<ShiftCloseScreen> {
                 children: [
                   Text('Close Shift',
                       style:
-                          TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+                      TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
                   Text('Reconciliation & Audit',
                       style: TextStyle(fontSize: 11, color: kTextHint)),
                 ]),
@@ -637,24 +668,24 @@ class _S extends ConsumerState<ShiftCloseScreen> {
         body: _checking
             ? const LoadingList()
             : _shift == null
-                ? _noShift()
-                : Column(children: [
-                    _statusBar(),
-                    Expanded(
-                        child: ListView(
-                            padding: const EdgeInsets.fromLTRB(14, 12, 14, 100),
-                            children: [
-                          _sec1ShiftSummary(),
-                          _sec2DeliverySummary(),
-                          _sec3StockRecon(),
-                          _sec4ReturnStock(),
-                          _sec5Mortality(),
-                          _sec6Expenses(),
-                          _sec7Odometer(),
-                          const SizedBox(height: 16),
-                          _closeButton(),
-                        ])),
-                  ]));
+            ? _noShift()
+            : Column(children: [
+          _statusBar(),
+          Expanded(
+              child: ListView(
+                  padding: const EdgeInsets.fromLTRB(14, 12, 14, 100),
+                  children: [
+                    _sec1ShiftSummary(),
+                    _sec2DeliverySummary(),
+                    _sec3StockRecon(),
+                    _sec4ReturnStock(),
+                    _sec5Mortality(),
+                    _sec6Expenses(),
+                    _sec7Odometer(),
+                    const SizedBox(height: 16),
+                    _closeButton(),
+                  ])),
+        ]));
   }
 
   // ── STATUS BAR ──────────────────────────────────────────────────────────
@@ -670,7 +701,7 @@ class _S extends ConsumerState<ShiftCloseScreen> {
       case _RStatus.approvalNeeded:
         bg = Colors.orange;
         label =
-            'APPROVAL NEEDED — Shrinkage ${_shrinkagePct.toStringAsFixed(1)}%';
+        'APPROVAL NEEDED — Shrinkage ${_shrinkagePct.toStringAsFixed(1)}%';
         ic = Icons.pending_outlined;
       case _RStatus.highShrinkage:
         bg = Colors.red;
@@ -692,6 +723,10 @@ class _S extends ConsumerState<ShiftCloseScreen> {
         bg = Colors.red.shade700;
         label = 'MORTALITY PROOF REQUIRED — Capture photo in Section 5';
         ic = Icons.camera_alt_outlined;
+      case _RStatus.returnExceedsStock:
+        bg = Colors.red.shade900;
+        label = 'RETURN EXCEEDS STOCK — ${_returnBirds + _mortReturnBirds} returned but only $_stockBirds in system';
+        ic = Icons.block;
     }
     return Container(
         color: bg,
@@ -735,10 +770,10 @@ class _S extends ConsumerState<ShiftCloseScreen> {
   Widget _sec1ShiftSummary() {
     final agent = _shift!['delivery_agents'] as Map?;
     final startAt =
-        DateTime.tryParse(_shift!['shift_start_at'] as String? ?? '');
+    DateTime.tryParse(_shift!['shift_start_at'] as String? ?? '');
     final dur = startAt != null ? DateTime.now().difference(startAt) : null;
     final durStr =
-        dur != null ? '${dur.inHours}h ${dur.inMinutes.remainder(60)}m' : '—';
+    dur != null ? '${dur.inHours}h ${dur.inMinutes.remainder(60)}m' : '—';
     return _Card(
         title: '1. Shift Summary',
         icon: Icons.schedule_outlined,
@@ -788,12 +823,12 @@ class _S extends ConsumerState<ShiftCloseScreen> {
     final done = _deliveries.where((d) => d['status'] == 'delivered').toList();
     final pending = _deliveries
         .where((d) =>
-            ['assigned', 'picked_up', 'out_for_delivery'].contains(d['status']))
+        ['assigned', 'picked_up', 'out_for_delivery'].contains(d['status']))
         .toList();
     final totBirds = done.fold(
         0, (s, d) => s + ((d['delivered_bird_count'] as num?)?.toInt() ?? 0));
     final totKg = done.fold(0.0,
-        (s, d) => s + ((d['delivered_total_weight'] as num?)?.toDouble() ?? 0));
+            (s, d) => s + ((d['delivered_total_weight'] as num?)?.toDouble() ?? 0));
     final totCash = done.fold(
         0.0, (s, d) => s + ((d['collected_amount'] as num?)?.toDouble() ?? 0));
     final totMort = done.fold(
@@ -837,7 +872,7 @@ class _S extends ConsumerState<ShiftCloseScreen> {
             const SizedBox(height: 8),
             ...done.map((d) {
               final shop = ((d['orders'] as Map?)?['retailers']
-                      as Map?)?['shop_name'] as String? ??
+              as Map?)?['shop_name'] as String? ??
                   'Delivery';
               final b = (d['delivered_bird_count'] as num?)?.toInt() ?? 0;
               final k = (d['delivered_total_weight'] as num?)?.toDouble() ?? 0;
@@ -871,8 +906,8 @@ class _S extends ConsumerState<ShiftCloseScreen> {
     final sc = _shrinkagePct > 5
         ? Colors.red
         : _shrinkagePct > 2
-            ? Colors.orange
-            : Colors.green;
+        ? Colors.orange
+        : Colors.green;
     final hasTransfers = _transferInKg > 0 || _transferOutKg > 0;
     return _Card(
         title: '3. Final Stock Reconciliation',
@@ -908,7 +943,8 @@ class _S extends ConsumerState<ShiftCloseScreen> {
             _rrow(
                 'Mortality (return)',
                 '−$_mortReturnBirds birds',
-                '−${_mortReturnWt.toStringAsFixed(2)} kg',
+                '−${_mortReturnWtEffective.toStringAsFixed(2)} kg'
+                    '${_mortReturnWt == 0 && _mortReturnBirds > 0 ? ' (auto)' : ''}',
                 Colors.deepOrange,
                 false),
           _rrow('Returned (actual)', '−$_returnBirds birds',
@@ -935,23 +971,23 @@ class _S extends ConsumerState<ShiftCloseScreen> {
                     child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                      Text('TRANSPORT SHRINKAGE',
-                          style: TextStyle(
-                              fontSize: 9,
-                              fontWeight: FontWeight.w800,
-                              color: sc,
-                              letterSpacing: 0.6)),
-                      Text(
-                          '${_shrinkageKg.toStringAsFixed(2)} kg  (${_shrinkagePct.toStringAsFixed(1)}%)',
-                          style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w900,
-                              color: sc)),
-                      Text(
-                          'Base: ${(_dcKg + _transferInKg).toStringAsFixed(1)} kg loaded',
-                          style: TextStyle(
-                              fontSize: 9, color: sc.withValues(alpha: 0.7))),
-                    ])),
+                          Text('TRANSPORT SHRINKAGE',
+                              style: TextStyle(
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.w800,
+                                  color: sc,
+                                  letterSpacing: 0.6)),
+                          Text(
+                              '${_shrinkageKg.toStringAsFixed(2)} kg  (${_shrinkagePct.toStringAsFixed(1)}%)',
+                              style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w900,
+                                  color: sc)),
+                          Text(
+                              'Base: ${(_dcKg + _transferInKg).toStringAsFixed(1)} kg loaded',
+                              style: TextStyle(
+                                  fontSize: 9, color: sc.withValues(alpha: 0.7))),
+                        ])),
                 if (_shrinkagePct > 2)
                   Container(
                       padding: const EdgeInsets.symmetric(
@@ -977,23 +1013,23 @@ class _S extends ConsumerState<ShiftCloseScreen> {
                 const SizedBox(width: 6),
                 Expanded(
                     child: Text(
-                        'Stock: $_expectedReturnBirds  ·  Returned: $_returnBirds'
-                        '${_mortReturnBirds > 0 ? "  ·  Mort-return: $_mortReturnBirds" : ""}',
+                        'Stock: $_expectedReturnBirds  ·  Live: $_returnBirds'
+                            '${_mortReturnBirds > 0 ? "  ·  Dead: $_mortReturnBirds" : ""}',
                         style: const TextStyle(fontSize: 10, color: kTextSub))),
                 Text(
                     _birdVariance == 0
                         ? '✓ Matched'
                         : _birdVariance > 0
-                            ? '−$_birdVariance missing'
-                            : '+${-_birdVariance} extra',
+                        ? '−$_birdVariance missing'
+                        : '+${-_birdVariance} extra',
                     style: TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.w700,
                         color: _birdVariance == 0
                             ? Colors.green
                             : _birdVariance > 5
-                                ? Colors.red
-                                : Colors.orange)),
+                            ? Colors.red
+                            : Colors.orange)),
               ])),
           // Transfer notes (if any)
           if (_transferNotes.isNotEmpty) ...[
@@ -1021,6 +1057,16 @@ class _S extends ConsumerState<ShiftCloseScreen> {
                     ])),
           ],
           // Alerts
+          if (_returnExceedsStock) ...[
+            const SizedBox(height: 6),
+            _alert(
+                Icons.block,
+                '⛔ Return exceeds available stock: '
+                    '${_returnBirds} live + ${_mortReturnBirds} dead = ${_returnBirds + _mortReturnBirds} birds '
+                    '> ${_stockBirds} in system. '
+                    'Recount and correct before closing.',
+                Colors.red.shade900),
+          ],
           if (_birdVariance > 5) ...[
             const SizedBox(height: 6),
             _alert(
@@ -1047,7 +1093,7 @@ class _S extends ConsumerState<ShiftCloseScreen> {
     final weighmentDone = _returnWt > 0 && _returnPhotoUrl != null;
 
     return _Card(
-        title: '4. Return Stock Weighment',
+        title: '4. Live Return Stock',
         icon: Icons.assignment_return_outlined,
         iconColor: Colors.purple,
         expanded: _showReturn,
@@ -1055,15 +1101,17 @@ class _S extends ConsumerState<ShiftCloseScreen> {
         badge: weighmentDone
             ? 'Weighed ✓'
             : declared
-                ? '$_returnBirds birds'
-                : hasStock
-                    ? 'REQUIRED'
-                    : null,
+            ? _mortReturnBirds > 0
+            ? '$_returnBirds live · $_mortReturnBirds dead'
+            : '$_returnBirds birds'
+            : hasStock
+            ? 'REQUIRED'
+            : null,
         badgeColor: weighmentDone
             ? Colors.green
             : declared
-                ? Colors.purple
-                : Colors.red,
+            ? Colors.purple
+            : Colors.red,
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           // ── System expected stock ────────────────────────────────────
           if (_stockLoaded)
@@ -1104,11 +1152,11 @@ class _S extends ConsumerState<ShiftCloseScreen> {
                     },
                     decoration: InputDecoration(
                         labelText:
-                            hasStock ? 'Returned Birds *' : 'Returned Birds',
+                        hasStock ? 'Live Birds Returned *' : 'Live Birds Returned',
                         suffixText: 'birds',
                         labelStyle: TextStyle(
                             color:
-                                hasStock && !declared ? Colors.red : null)))),
+                            hasStock && !declared ? Colors.red : null)))),
             const SizedBox(width: 10),
             Expanded(
                 child: TextField(
@@ -1116,16 +1164,16 @@ class _S extends ConsumerState<ShiftCloseScreen> {
                     onSubmitted: (_) => FocusScope.of(context).nextFocus(),
                     controller: _returnWtCtrl,
                     keyboardType:
-                        const TextInputType.numberWithOptions(decimal: true),
+                    const TextInputType.numberWithOptions(decimal: true),
                     onChanged: (_) {
                       if (mounted) setState(() {});
                     },
                     decoration: InputDecoration(
-                        labelText: 'Weighed Return (kg) *',
+                        labelText: 'Live Return Weight (kg) *',
                         suffixText: 'kg',
                         labelStyle: TextStyle(
                             color:
-                                hasStock && !declared ? Colors.red : null)))),
+                            hasStock && !declared ? Colors.red : null)))),
           ]),
 
           // ── Weighment variance indicator ───────────────────────────
@@ -1137,15 +1185,15 @@ class _S extends ConsumerState<ShiftCloseScreen> {
               final varColor = varKg.abs() < 0.5
                   ? Colors.green
                   : varKg.abs() < 2.0
-                      ? Colors.orange
-                      : Colors.red;
+                  ? Colors.orange
+                  : Colors.red;
               return Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
                       color: varColor.withValues(alpha: 0.07),
                       borderRadius: BorderRadius.circular(8),
                       border:
-                          Border.all(color: varColor.withValues(alpha: 0.3))),
+                      Border.all(color: varColor.withValues(alpha: 0.3))),
                   child: Row(children: [
                     Icon(
                         varKg.abs() < 0.5
@@ -1158,7 +1206,7 @@ class _S extends ConsumerState<ShiftCloseScreen> {
                         varKg.abs() < 0.1
                             ? 'Weight matches expected ✓'
                             : 'Weight variance: ${varKg > 0 ? "+" : ""}${varKg.toStringAsFixed(2)} kg '
-                                '(expected ${expectedKg.toStringAsFixed(1)} kg)',
+                            '(expected ${expectedKg.toStringAsFixed(1)} kg)',
                         style: TextStyle(
                             fontSize: 10,
                             color: varColor,
@@ -1166,6 +1214,7 @@ class _S extends ConsumerState<ShiftCloseScreen> {
                   ]));
             }),
           ],
+
           const SizedBox(height: 10),
 
           // ── Photo evidence ─────────────────────────────────────────
@@ -1211,15 +1260,18 @@ class _S extends ConsumerState<ShiftCloseScreen> {
                       size: 14),
                   const SizedBox(width: 6),
                   Expanded(
-                      child: Text(
-                          '$_returnBirds birds · ${_returnWt.toStringAsFixed(1)} kg'
-                          '${weighmentDone ? " — Weighed & photographed ✓" : " — Add photo to complete"}',
-                          style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                              color: weighmentDone
-                                  ? Colors.green
-                                  : Colors.purple))),
+                    child: _mortReturnBirds > 0
+                        ? Text(
+                        '$_returnBirds live birds · ${_returnWt.toStringAsFixed(1)} kg'
+                            '${weighmentDone ? " — Weighed & photographed ✓" : " — Add photo to complete"}',
+                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600,
+                            color: weighmentDone ? Colors.green : Colors.purple))
+                        : Text(
+                        '$_returnBirds birds · ${_returnWt.toStringAsFixed(1)} kg'
+                            '${weighmentDone ? " — Weighed & photographed ✓" : " — Add photo to complete"}',
+                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600,
+                            color: weighmentDone ? Colors.green : Colors.purple)),
+                  ),
                 ])),
           ],
         ]));
@@ -1351,12 +1403,12 @@ class _S extends ConsumerState<ShiftCloseScreen> {
                     onSubmitted: (_) => FocusScope.of(context).nextFocus(),
                     controller: _mortReturnWtCtrl,
                     keyboardType:
-                        const TextInputType.numberWithOptions(decimal: true),
+                    const TextInputType.numberWithOptions(decimal: true),
                     onChanged: (_) {
                       if (mounted) setState(() {});
                     },
                     decoration: const InputDecoration(
-                        labelText: 'Weighed Weight (kg)',
+                        labelText: 'Dead Bird Weight (kg) — optional',
                         suffixText: 'kg',
                         contentPadding: EdgeInsets.symmetric(
                             horizontal: 10, vertical: 10)))),
@@ -1393,7 +1445,8 @@ class _S extends ConsumerState<ShiftCloseScreen> {
             const SizedBox(height: 6),
             _alert(
                 Icons.info_outline,
-                'Return mortality: $_mortReturnBirds birds · ${_mortReturnWt.toStringAsFixed(1)} kg included in reconciliation',
+                'Return mortality: $_mortReturnBirds birds · ${_mortReturnWtEffective.toStringAsFixed(2)} kg included in reconciliation'
+                    '${_mortReturnWt == 0 && _mortReturnBirds > 0 ? '\n⚡ Auto-calc: ${_mortReturnBirds} × ${_dcAvgBirdWeightKg.toStringAsFixed(3)} kg (DC avg)' : ' (actual weighed)'}',
                 Colors.deepOrange),
           ],
           const SizedBox(height: 8),
@@ -1406,7 +1459,7 @@ class _S extends ConsumerState<ShiftCloseScreen> {
                     color: Colors.red.withValues(alpha: 0.06),
                     borderRadius: BorderRadius.circular(8),
                     border:
-                        Border.all(color: Colors.red.withValues(alpha: 0.2))),
+                    Border.all(color: Colors.red.withValues(alpha: 0.2))),
                 child: Row(children: [
                   const Icon(Icons.summarize_outlined,
                       color: Colors.red, size: 14),
@@ -1458,7 +1511,7 @@ class _S extends ConsumerState<ShiftCloseScreen> {
                 Expanded(
                     child: Text(
                         '${_expLabel(exp['type'] as String)}  ₹${(exp['amount'] as double).toStringAsFixed(0)}'
-                        '${(exp['notes'] as String?)?.isNotEmpty == true ? "  ·  ${exp['notes']}" : ""}',
+                            '${(exp['notes'] as String?)?.isNotEmpty == true ? "  ·  ${exp['notes']}" : ""}',
                         style: const TextStyle(
                             fontSize: 11, fontWeight: FontWeight.w600))),
                 GestureDetector(
@@ -1476,14 +1529,14 @@ class _S extends ConsumerState<ShiftCloseScreen> {
                   decoration: const InputDecoration(
                       labelText: 'Type',
                       contentPadding:
-                          EdgeInsets.symmetric(horizontal: 10, vertical: 10)),
+                      EdgeInsets.symmetric(horizontal: 10, vertical: 10)),
                   items: ['vehicle', 'loading', 'misc', 'food', 'other']
                       .map((t) => DropdownMenuItem(
-                          value: t,
-                          child: Text(_expLabel(t),
-                              style: const TextStyle(fontSize: 12),
-                              overflow: TextOverflow.ellipsis,
-                              maxLines: 1)))
+                      value: t,
+                      child: Text(_expLabel(t),
+                          style: const TextStyle(fontSize: 12),
+                          overflow: TextOverflow.ellipsis,
+                          maxLines: 1)))
                       .toList(),
                   onChanged: (v) => setState(() => _expType = v!))),
           const SizedBox(width: 8),
@@ -1493,12 +1546,12 @@ class _S extends ConsumerState<ShiftCloseScreen> {
                   onSubmitted: (_) => FocusScope.of(context).nextFocus(),
                   controller: _expAmtCtrl,
                   keyboardType:
-                      const TextInputType.numberWithOptions(decimal: true),
+                  const TextInputType.numberWithOptions(decimal: true),
                   decoration: const InputDecoration(
                       labelText: 'Amount ₹',
                       prefixText: '₹',
                       contentPadding:
-                          EdgeInsets.symmetric(horizontal: 10, vertical: 10)))),
+                      EdgeInsets.symmetric(horizontal: 10, vertical: 10)))),
         ]),
         const SizedBox(height: 6),
         Row(children: [
@@ -1510,7 +1563,7 @@ class _S extends ConsumerState<ShiftCloseScreen> {
                   decoration: const InputDecoration(
                       labelText: 'Note (optional)',
                       contentPadding:
-                          EdgeInsets.symmetric(horizontal: 10, vertical: 10)))),
+                      EdgeInsets.symmetric(horizontal: 10, vertical: 10)))),
           const SizedBox(width: 8),
           ElevatedButton(
               style: ElevatedButton.styleFrom(
@@ -1627,7 +1680,10 @@ class _S extends ConsumerState<ShiftCloseScreen> {
     final st = _status;
     final Color c;
     final String label;
-    if (st == _RStatus.mortProofRequired) {
+    if (st == _RStatus.returnExceedsStock) {
+      c = Colors.red.shade900;
+      label = '⛔ Fix Bird Count — Return Exceeds Stock';
+    } else if (st == _RStatus.mortProofRequired) {
       c = Colors.red.shade700;
       label = '📷 Capture Mortality Photo First (Section 5)';
     } else if (st == _RStatus.mismatch || st == _RStatus.highShrinkage) {
@@ -1643,17 +1699,18 @@ class _S extends ConsumerState<ShiftCloseScreen> {
 
     return ElevatedButton.icon(
         onPressed: (_submitting ||
-                st == _RStatus.pending ||
-                st == _RStatus.loading ||
-                st == _RStatus.mortProofRequired)
+            st == _RStatus.pending ||
+            st == _RStatus.loading ||
+            st == _RStatus.mortProofRequired ||
+            st == _RStatus.returnExceedsStock)
             ? null
             : _doClose,
         icon: _submitting
             ? const SizedBox(
-                width: 18,
-                height: 18,
-                child: CircularProgressIndicator(
-                    strokeWidth: 2, color: Colors.white))
+            width: 18,
+            height: 18,
+            child: CircularProgressIndicator(
+                strokeWidth: 2, color: Colors.white))
             : const Icon(Icons.lock_outline, size: 18),
         label: Text(label,
             style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
@@ -1730,15 +1787,15 @@ class _S extends ConsumerState<ShiftCloseScreen> {
     final totBirds = done.fold(
         0, (s, d) => s + ((d['delivered_bird_count'] as num?)?.toInt() ?? 0));
     final totKg = done.fold(0.0,
-        (s, d) => s + ((d['delivered_total_weight'] as num?)?.toDouble() ?? 0));
+            (s, d) => s + ((d['delivered_total_weight'] as num?)?.toDouble() ?? 0));
     final totCash = done.fold(
         0.0, (s, d) => s + ((d['collected_amount'] as num?)?.toDouble() ?? 0));
 
     final sc = _shrinkagePct > 5
         ? Colors.red
         : _shrinkagePct > 2
-            ? Colors.orange
-            : Colors.green;
+        ? Colors.orange
+        : Colors.green;
 
     return Container(
       padding: const EdgeInsets.all(24),
@@ -1784,7 +1841,7 @@ class _S extends ConsumerState<ShiftCloseScreen> {
   }
 
   Widget _simpleKpi(String emoji, String value, String label,
-          {Color? valueColor}) =>
+      {Color? valueColor}) =>
       Expanded(
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
@@ -1815,10 +1872,10 @@ class _S extends ConsumerState<ShiftCloseScreen> {
   Widget _simpleShiftSummary() {
     final agent = _shift!['delivery_agents'] as Map?;
     final startAt =
-        DateTime.tryParse(_shift!['shift_start_at'] as String? ?? '');
+    DateTime.tryParse(_shift!['shift_start_at'] as String? ?? '');
     final dur = startAt != null ? DateTime.now().difference(startAt) : null;
     final durStr =
-        dur != null ? '${dur.inHours}h ${dur.inMinutes.remainder(60)}m' : '—';
+    dur != null ? '${dur.inHours}h ${dur.inMinutes.remainder(60)}m' : '—';
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -1880,12 +1937,12 @@ class _S extends ConsumerState<ShiftCloseScreen> {
     final done = _deliveries.where((d) => d['status'] == 'delivered').toList();
     final pending = _deliveries
         .where((d) =>
-            ['assigned', 'picked_up', 'out_for_delivery'].contains(d['status']))
+        ['assigned', 'picked_up', 'out_for_delivery'].contains(d['status']))
         .toList();
     final totBirds = done.fold(
         0, (s, d) => s + ((d['delivered_bird_count'] as num?)?.toInt() ?? 0));
     final totKg = done.fold(0.0,
-        (s, d) => s + ((d['delivered_total_weight'] as num?)?.toDouble() ?? 0));
+            (s, d) => s + ((d['delivered_total_weight'] as num?)?.toDouble() ?? 0));
     final totCash = done.fold(
         0.0, (s, d) => s + ((d['collected_amount'] as num?)?.toDouble() ?? 0));
     final totMort = done.fold(
@@ -1910,7 +1967,7 @@ class _S extends ConsumerState<ShiftCloseScreen> {
           Expanded(
             child: Text('Delivery Summary',
                 style:
-                    const TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
+                const TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
           ),
           if (pending.isNotEmpty)
             Container(
@@ -1994,7 +2051,7 @@ class _S extends ConsumerState<ShiftCloseScreen> {
           const SizedBox(height: 6),
           ...done.map((d) {
             final shop = ((d['orders'] as Map?)?['retailers']
-                    as Map?)?['shop_name'] as String? ??
+            as Map?)?['shop_name'] as String? ??
                 'Delivery';
             final b = (d['delivered_bird_count'] as num?)?.toInt() ?? 0;
             final k = (d['delivered_total_weight'] as num?)?.toDouble() ?? 0;
@@ -2033,8 +2090,8 @@ class _S extends ConsumerState<ShiftCloseScreen> {
     final sc = _shrinkagePct > 5
         ? Colors.red
         : _shrinkagePct > 2
-            ? Colors.orange
-            : Colors.green;
+        ? Colors.orange
+        : Colors.green;
     final hasTransfers = _transferInKg > 0 || _transferOutKg > 0;
     return Container(
       padding: const EdgeInsets.all(20),
@@ -2088,10 +2145,11 @@ class _S extends ConsumerState<ShiftCloseScreen> {
           _simpleReconRow(
               '💀 Mort-Return',
               '−$_mortReturnBirds birds',
-              '−${_mortReturnWt.toStringAsFixed(2)} kg',
+              '−${_mortReturnWtEffective.toStringAsFixed(2)} kg'
+                  '${_mortReturnWt == 0 ? '(auto)' : ''}',
               Colors.deepOrange,
               false),
-        _simpleReconRow('📤 Returned', '−$_returnBirds birds',
+        _simpleReconRow('📤 Live Return', '−$_returnBirds birds',
             '−${_returnWt.toStringAsFixed(1)} kg', Colors.purple, false),
         const Padding(
             padding: EdgeInsets.symmetric(vertical: 6),
@@ -2116,19 +2174,19 @@ class _S extends ConsumerState<ShiftCloseScreen> {
                 child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                  Text('SHRINKAGE',
-                      style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w800,
-                          color: sc,
-                          letterSpacing: 0.6)),
-                  Text(
-                      '${_shrinkageKg.toStringAsFixed(2)} kg  (${_shrinkagePct.toStringAsFixed(1)}%)',
-                      style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w900,
-                          color: sc)),
-                ])),
+                      Text('SHRINKAGE',
+                          style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w800,
+                              color: sc,
+                              letterSpacing: 0.6)),
+                      Text(
+                          '${_shrinkageKg.toStringAsFixed(2)} kg  (${_shrinkagePct.toStringAsFixed(1)}%)',
+                          style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w900,
+                              color: sc)),
+                    ])),
           ]),
         ),
         // Bird variance
@@ -2145,22 +2203,23 @@ class _S extends ConsumerState<ShiftCloseScreen> {
             const SizedBox(width: 6),
             Expanded(
                 child: Text(
-                    'Expected: $_expectedReturnBirds birds  ·  Returned: $_returnBirds',
+                    'Expected: $_expectedReturnBirds  ·  Live: $_returnBirds'
+                        '${_mortReturnBirds > 0 ? "  ·  Dead: $_mortReturnBirds" : ""}',
                     style: const TextStyle(fontSize: 12, color: kTextSub))),
             Text(
                 _birdVariance == 0
                     ? '✓ Matched'
                     : _birdVariance > 0
-                        ? '−$_birdVariance missing'
-                        : '+${-_birdVariance} extra',
+                    ? '−$_birdVariance missing'
+                    : '+${-_birdVariance} extra',
                 style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w700,
                     color: _birdVariance == 0
                         ? Colors.green
                         : _birdVariance > 5
-                            ? Colors.red
-                            : Colors.orange)),
+                        ? Colors.red
+                        : Colors.orange)),
           ]),
         ),
         // Transfer notes
@@ -2173,7 +2232,7 @@ class _S extends ConsumerState<ShiftCloseScreen> {
               borderRadius: BorderRadius.circular(10),
             ),
             child:
-                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               const Text('TRANSFER DETAILS',
                   style: TextStyle(
                       fontSize: 10,
@@ -2185,7 +2244,7 @@ class _S extends ConsumerState<ShiftCloseScreen> {
                   padding: const EdgeInsets.only(bottom: 2),
                   child: Text('· $n',
                       style:
-                          const TextStyle(fontSize: 11, color: Colors.teal)))),
+                      const TextStyle(fontSize: 11, color: Colors.teal)))),
             ]),
           ),
         ],
@@ -2263,7 +2322,7 @@ class _S extends ConsumerState<ShiftCloseScreen> {
           const Text('📦', style: TextStyle(fontSize: 24)),
           const SizedBox(width: 10),
           const Expanded(
-              child: Text('Return Stock Weighment',
+              child: Text('Live Return Stock',
                   style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800))),
           if (_stockBirds > 0 && !declared)
             Container(
@@ -2275,6 +2334,18 @@ class _S extends ConsumerState<ShiftCloseScreen> {
                       fontSize: 10,
                       fontWeight: FontWeight.w800,
                       color: Colors.white)),
+            ),
+          // When mortality entered, show live/mort split in header badge
+          if (declared && _mortReturnBirds > 0)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                  color: Colors.teal.shade100,
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(color: Colors.teal.shade300)),
+              child: Text('$_returnBirds live · $_mortReturnBirds dead',
+                  style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800,
+                      color: Colors.teal.shade800)),
             ),
         ]),
         if (_stockLoaded) ...[
@@ -2311,14 +2382,14 @@ class _S extends ConsumerState<ShiftCloseScreen> {
               decoration: InputDecoration(
                 labelText: 'Birds *',
                 labelStyle:
-                    const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
                 suffixText: 'birds',
                 suffixStyle:
-                    const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+                const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
                 border:
-                    OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                 contentPadding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+                const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
               ),
             ),
           ),
@@ -2329,7 +2400,7 @@ class _S extends ConsumerState<ShiftCloseScreen> {
               onSubmitted: (_) => FocusScope.of(context).nextFocus(),
               controller: _returnWtCtrl,
               keyboardType:
-                  const TextInputType.numberWithOptions(decimal: true),
+              const TextInputType.numberWithOptions(decimal: true),
               style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
               onChanged: (_) {
                 if (mounted) setState(() {});
@@ -2337,14 +2408,14 @@ class _S extends ConsumerState<ShiftCloseScreen> {
               decoration: InputDecoration(
                 labelText: 'Weight *',
                 labelStyle:
-                    const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
                 suffixText: 'kg',
                 suffixStyle:
-                    const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+                const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
                 border:
-                    OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                 contentPadding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+                const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
               ),
             ),
           ),
@@ -2358,8 +2429,8 @@ class _S extends ConsumerState<ShiftCloseScreen> {
             final varColor = varKg.abs() < 0.5
                 ? Colors.green
                 : varKg.abs() < 2.0
-                    ? Colors.orange
-                    : Colors.red;
+                ? Colors.orange
+                : Colors.red;
             return Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
@@ -2408,15 +2479,12 @@ class _S extends ConsumerState<ShiftCloseScreen> {
                   size: 18),
               const SizedBox(width: 8),
               Expanded(
-                  child: Text(
-                      '$_returnBirds birds · ${_returnWt.toStringAsFixed(1)} kg'
-                      '${_returnPhotoUrl != null ? " — Weighed & photographed ✓" : " — Add photo to complete"}',
-                      style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          color: _returnPhotoUrl != null
-                              ? Colors.green
-                              : Colors.purple))),
+                child: Text(
+                    '$_returnBirds live birds · ${_returnWt.toStringAsFixed(1)} kg'
+                        '${_returnPhotoUrl != null ? " — Weighed & photographed ✓" : " — Add photo to complete"}',
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600,
+                        color: _returnPhotoUrl != null ? Colors.green : Colors.purple)),
+              ),
             ]),
           ),
           const SizedBox(height: 12),
@@ -2425,23 +2493,23 @@ class _S extends ConsumerState<ShiftCloseScreen> {
         Row(children: [
           Expanded(
               child: _simplePhotoTile(
-            label: 'Return Photo',
-            required: declared,
-            file: _returnPhotoFile,
-            uploaded: _returnPhotoUrl != null,
-            uploading: _uploadingReturn,
-            onTap: () => _capture('return'),
-          )),
+                label: 'Return Photo',
+                required: declared,
+                file: _returnPhotoFile,
+                uploaded: _returnPhotoUrl != null,
+                uploading: _uploadingReturn,
+                onTap: () => _capture('return'),
+              )),
           const SizedBox(width: 8),
           Expanded(
               child: _simplePhotoTile(
-            label: 'Weigh Slip',
-            required: false,
-            file: _returnSlipFile,
-            uploaded: _returnSlipUrl != null,
-            uploading: _uploadingReturnSlip,
-            onTap: () => _capture('return-slip'),
-          )),
+                label: 'Weigh Slip',
+                required: false,
+                file: _returnSlipFile,
+                uploaded: _returnSlipUrl != null,
+                uploading: _uploadingReturnSlip,
+                onTap: () => _capture('return-slip'),
+              )),
         ]),
       ]),
     );
@@ -2511,7 +2579,7 @@ class _S extends ConsumerState<ShiftCloseScreen> {
               _simpleKpi('💀', '$_mortReturnBirds', 'During Return'),
               if (_mortReturnWt > 0)
                 _simpleKpi(
-                    '⚖️', '${_mortReturnWt.toStringAsFixed(1)} kg', 'Weight'),
+                    '⚖️', '${_mortReturnWtEffective.toStringAsFixed(1)} kg', 'Weight'),
             ]),
           ),
         ],
@@ -2525,10 +2593,10 @@ class _S extends ConsumerState<ShiftCloseScreen> {
             decoration: InputDecoration(
               labelText: 'Reason *',
               labelStyle:
-                  const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+              const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
               hintText: 'Disease, injury, heat stress...',
               border:
-                  OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+              OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
               contentPadding: const EdgeInsets.all(16),
             ),
           ),
@@ -2555,12 +2623,12 @@ class _S extends ConsumerState<ShiftCloseScreen> {
                 SizedBox(width: 8),
                 Expanded(
                     child: Text(
-                  'Photo required before closing shift',
-                  style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.red,
-                      fontWeight: FontWeight.w600),
-                )),
+                      'Photo required before closing shift',
+                      style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.red,
+                          fontWeight: FontWeight.w600),
+                    )),
               ]),
             ),
           ],
@@ -2592,7 +2660,7 @@ class _S extends ConsumerState<ShiftCloseScreen> {
             border: Border.all(color: Colors.deepOrange.shade200),
           ),
           child:
-              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Row(children: [
               const Icon(Icons.warning_amber_rounded,
                   color: Colors.deepOrange, size: 18),
@@ -2639,7 +2707,7 @@ class _S extends ConsumerState<ShiftCloseScreen> {
                   onSubmitted: (_) => FocusScope.of(context).nextFocus(),
                   controller: _mortReturnWtCtrl,
                   keyboardType:
-                      const TextInputType.numberWithOptions(decimal: true),
+                  const TextInputType.numberWithOptions(decimal: true),
                   style: const TextStyle(
                       fontSize: 18, fontWeight: FontWeight.w800),
                   onChanged: (_) {
@@ -2668,23 +2736,23 @@ class _S extends ConsumerState<ShiftCloseScreen> {
               Row(children: [
                 Expanded(
                     child: _simplePhotoTile(
-                  label: 'Return Mortality Photo',
-                  required: true,
-                  file: _mortReturnPhotoFile,
-                  uploaded: _mortReturnPhotoUrl != null,
-                  uploading: _uploadingMortReturn,
-                  onTap: () => _capture('mort-return'),
-                )),
+                      label: 'Return Mortality Photo',
+                      required: true,
+                      file: _mortReturnPhotoFile,
+                      uploaded: _mortReturnPhotoUrl != null,
+                      uploading: _uploadingMortReturn,
+                      onTap: () => _capture('mort-return'),
+                    )),
                 const SizedBox(width: 8),
                 Expanded(
                     child: _simplePhotoTile(
-                  label: 'Weigh Slip',
-                  required: false,
-                  file: _mortReturnSlipFile,
-                  uploaded: _mortReturnSlipUrl != null,
-                  uploading: _uploadingMortReturnSlip,
-                  onTap: () => _capture('mort-return-slip'),
-                )),
+                      label: 'Weigh Slip',
+                      required: false,
+                      file: _mortReturnSlipFile,
+                      uploaded: _mortReturnSlipUrl != null,
+                      uploading: _uploadingMortReturnSlip,
+                      onTap: () => _capture('mort-return-slip'),
+                    )),
               ]),
             ],
           ]),
@@ -2776,14 +2844,14 @@ class _S extends ConsumerState<ShiftCloseScreen> {
               decoration: InputDecoration(
                 labelText: 'End *',
                 labelStyle:
-                    const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
                 suffixText: 'km',
                 suffixStyle:
-                    const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+                const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
                 border:
-                    OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                 contentPadding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+                const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
               ),
             ),
           ),
@@ -2887,7 +2955,7 @@ class _S extends ConsumerState<ShiftCloseScreen> {
               Expanded(
                 child: Text(
                     '${_expLabel(exp['type'] as String)}  ₹${(exp['amount'] as double).toStringAsFixed(0)}'
-                    '${(exp['notes'] as String?)?.isNotEmpty == true ? "  ·  ${exp['notes']}" : ""}',
+                        '${(exp['notes'] as String?)?.isNotEmpty == true ? "  ·  ${exp['notes']}" : ""}',
                     style: const TextStyle(
                         fontSize: 13, fontWeight: FontWeight.w600)),
               ),
@@ -2909,17 +2977,17 @@ class _S extends ConsumerState<ShiftCloseScreen> {
               decoration: InputDecoration(
                 labelText: 'Type',
                 border:
-                    OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
                 contentPadding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
               ),
               items: ['vehicle', 'loading', 'misc', 'food', 'other']
                   .map((t) => DropdownMenuItem(
-                      value: t,
-                      child: Text(_expLabel(t),
-                          style: const TextStyle(fontSize: 12),
-                          overflow: TextOverflow.ellipsis,
-                          maxLines: 1)))
+                  value: t,
+                  child: Text(_expLabel(t),
+                      style: const TextStyle(fontSize: 12),
+                      overflow: TextOverflow.ellipsis,
+                      maxLines: 1)))
                   .toList(),
               onChanged: (v) => setState(() => _expType = v!),
             ),
@@ -2931,15 +2999,15 @@ class _S extends ConsumerState<ShiftCloseScreen> {
               onSubmitted: (_) => FocusScope.of(context).nextFocus(),
               controller: _expAmtCtrl,
               keyboardType:
-                  const TextInputType.numberWithOptions(decimal: true),
+              const TextInputType.numberWithOptions(decimal: true),
               style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
               decoration: InputDecoration(
                 labelText: 'Amount ₹',
                 prefixText: '₹',
                 border:
-                    OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
                 contentPadding:
-                    const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
               ),
             ),
           ),
@@ -2955,9 +3023,9 @@ class _S extends ConsumerState<ShiftCloseScreen> {
               decoration: InputDecoration(
                 labelText: 'Note (optional)',
                 border:
-                    OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
                 contentPadding:
-                    const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
               ),
             ),
           ),
@@ -3005,7 +3073,7 @@ class _S extends ConsumerState<ShiftCloseScreen> {
 
   // ── Simple Expense Field ─────────────────────────────────────────────────
   Widget _simpleExpField(
-          TextEditingController c, String label, IconData icon) =>
+      TextEditingController c, String label, IconData icon) =>
       TextField(
         textInputAction: TextInputAction.next,
         onSubmitted: (_) => FocusScope.of(context).nextFocus(),
@@ -3020,38 +3088,38 @@ class _S extends ConsumerState<ShiftCloseScreen> {
           prefixText: '₹',
           border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
           contentPadding:
-              const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+          const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
         ),
       );
 
   // ── Simple Info Tile ─────────────────────────────────────────────────────
   Widget _simpleInfoTile(String label, String value) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        decoration: BoxDecoration(
-          color: Colors.grey.shade50,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: kBorder),
-        ),
-        child: Row(children: [
-          Expanded(
-            child:
-                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(label,
-                  style: const TextStyle(fontSize: 9, color: kTextHint)),
-              const SizedBox(height: 2),
-              Text(value,
-                  style: const TextStyle(
-                      fontSize: 12, fontWeight: FontWeight.w700),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis),
-            ]),
-          ),
+    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+    decoration: BoxDecoration(
+      color: Colors.grey.shade50,
+      borderRadius: BorderRadius.circular(10),
+      border: Border.all(color: kBorder),
+    ),
+    child: Row(children: [
+      Expanded(
+        child:
+        Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(label,
+              style: const TextStyle(fontSize: 9, color: kTextHint)),
+          const SizedBox(height: 2),
+          Text(value,
+              style: const TextStyle(
+                  fontSize: 12, fontWeight: FontWeight.w700),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis),
         ]),
-      );
+      ),
+    ]),
+  );
 
   // ── Simple Recon Row ─────────────────────────────────────────────────────
   Widget _simpleReconRow(
-          String label, String birds, String kg, Color c, bool isIn) =>
+      String label, String birds, String kg, Color c, bool isIn) =>
       Padding(
         padding: const EdgeInsets.symmetric(vertical: 3),
         child: Row(children: [
@@ -3077,7 +3145,7 @@ class _S extends ConsumerState<ShiftCloseScreen> {
                       fontSize: 12,
                       fontWeight: FontWeight.w700,
                       color:
-                          isIn ? Colors.green.shade700 : Colors.red.shade700))),
+                      isIn ? Colors.green.shade700 : Colors.red.shade700))),
         ]),
       );
 
@@ -3086,11 +3154,16 @@ class _S extends ConsumerState<ShiftCloseScreen> {
     final canClose = !_submitting &&
         st != _RStatus.pending &&
         st != _RStatus.loading &&
-        st != _RStatus.mortProofRequired;
+        st != _RStatus.mortProofRequired &&
+        st != _RStatus.returnExceedsStock;
     String label;
     Color color;
     IconData icon;
     switch (st) {
+      case _RStatus.returnExceedsStock:
+        label = '⛔ Fix Bird Count — Return Exceeds Stock';
+        color = Colors.red.shade900;
+        icon = Icons.block;
       case _RStatus.mortProofRequired:
         label = '📷 Capture Mortality Photo First';
         color = Colors.red.shade700;
@@ -3125,10 +3198,10 @@ class _S extends ConsumerState<ShiftCloseScreen> {
         onPressed: canClose ? _doClose : null,
         icon: _submitting
             ? const SizedBox(
-                width: 24,
-                height: 24,
-                child: CircularProgressIndicator(
-                    strokeWidth: 3, color: Colors.white))
+            width: 24,
+            height: 24,
+            child: CircularProgressIndicator(
+                strokeWidth: 3, color: Colors.white))
             : Icon(icon, size: 26),
         label: Text(label,
             style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
@@ -3136,7 +3209,7 @@ class _S extends ConsumerState<ShiftCloseScreen> {
           backgroundColor: color,
           foregroundColor: Colors.white,
           shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+          RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
           elevation: 0,
         ),
       ),
@@ -3155,8 +3228,8 @@ class _S extends ConsumerState<ShiftCloseScreen> {
     final Color c = uploaded
         ? Colors.green
         : required
-            ? Colors.red.shade400
-            : kTextHint;
+        ? Colors.red.shade400
+        : kTextHint;
     return GestureDetector(
       onTap: uploading ? null : onTap,
       child: Container(
@@ -3165,40 +3238,40 @@ class _S extends ConsumerState<ShiftCloseScreen> {
           color: uploaded
               ? Colors.green.shade50
               : required
-                  ? Colors.red.shade50
-                  : Colors.grey.shade50,
+              ? Colors.red.shade50
+              : Colors.grey.shade50,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(color: c.withValues(alpha: 0.3)),
         ),
         child: Row(children: [
           file != null
               ? ClipRRect(
-                  borderRadius: BorderRadius.circular(6),
-                  child: Image.file(file!,
-                      width: 44, height: 44, fit: BoxFit.cover))
+              borderRadius: BorderRadius.circular(6),
+              child: Image.file(file!,
+                  width: 44, height: 44, fit: BoxFit.cover))
               : Container(
-                  width: 44,
-                  height: 44,
-                  decoration: BoxDecoration(
-                      color: c.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(10)),
-                  child: Icon(Icons.camera_alt, color: c, size: 22)),
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                  color: c.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(10)),
+              child: Icon(Icons.camera_alt, color: c, size: 22)),
           const SizedBox(width: 10),
           Expanded(
               child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                Text(label,
-                    style: TextStyle(
-                        fontSize: 12, fontWeight: FontWeight.w700, color: c)),
-                Text(
-                    uploading
-                        ? 'Uploading...'
-                        : uploaded
+                    Text(label,
+                        style: TextStyle(
+                            fontSize: 12, fontWeight: FontWeight.w700, color: c)),
+                    Text(
+                        uploading
+                            ? 'Uploading...'
+                            : uploaded
                             ? '✓ Uploaded'
                             : 'Tap to capture',
-                    style: const TextStyle(fontSize: 10, color: kTextHint)),
-              ])),
+                        style: const TextStyle(fontSize: 10, color: kTextHint)),
+                  ])),
           if (uploading)
             const SizedBox(
                 width: 20,
@@ -3222,7 +3295,7 @@ class _S extends ConsumerState<ShiftCloseScreen> {
   }
 
   Widget _noShift() => Center(
-          child: Column(mainAxisSize: MainAxisSize.min, children: [
+      child: Column(mainAxisSize: MainAxisSize.min, children: [
         const Icon(Icons.info_outline, size: 56, color: kTextHint),
         const SizedBox(height: 12),
         const Text('No active shift found',
@@ -3256,7 +3329,7 @@ class _S extends ConsumerState<ShiftCloseScreen> {
           labelText: label,
           prefixText: '₹',
           contentPadding:
-              const EdgeInsets.symmetric(horizontal: 10, vertical: 10)));
+          const EdgeInsets.symmetric(horizontal: 10, vertical: 10)));
 
   Widget _tile(String l, String v, IconData ic) => Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
@@ -3269,20 +3342,20 @@ class _S extends ConsumerState<ShiftCloseScreen> {
         const SizedBox(width: 6),
         Expanded(
             child:
-                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(l, style: const TextStyle(fontSize: 8, color: kTextHint)),
-          Text(v,
-              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis),
-        ])),
+            Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(l, style: const TextStyle(fontSize: 8, color: kTextHint)),
+              Text(v,
+                  style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis),
+            ])),
       ]));
 
   Widget _kpi(String l, String v, Color c) => Expanded(
-          child: Column(children: [
+      child: Column(children: [
         Text(v,
             style:
-                TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: c),
+            TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: c),
             textAlign: TextAlign.center),
         Text(l,
             style: const TextStyle(fontSize: 9, color: kTextHint),
@@ -3336,14 +3409,14 @@ class _S extends ConsumerState<ShiftCloseScreen> {
           ]));
 
   String _expLabel(String t) => switch (t) {
-        'fuel' || 'diesel' => '⛽ Fuel',
-        'toll' => '🚧 Toll',
-        'allowance' => '💰 Allowance',
-        'vehicle' => '🔧 Vehicle',
-        'loading' => '📦 Loading',
-        'food' => '🍽 Food',
-        _ => '📋 Misc',
-      };
+    'fuel' || 'diesel' => '⛽ Fuel',
+    'toll' => '🚧 Toll',
+    'allowance' => '💰 Allowance',
+    'vehicle' => '🔧 Vehicle',
+    'loading' => '📦 Loading',
+    'food' => '🍽 Food',
+    _ => '📋 Misc',
+  };
 }
 
 // =============================================================================
@@ -3356,7 +3429,8 @@ enum _RStatus {
   mismatch,
   pending,
   loading,
-  mortProofRequired
+  mortProofRequired,
+  returnExceedsStock  // live + dead return > available stock
 }
 
 // =============================================================================
@@ -3365,13 +3439,13 @@ enum _RStatus {
 class _Card extends StatelessWidget {
   const _Card(
       {required this.title,
-      required this.icon,
-      required this.iconColor,
-      required this.child,
-      required this.expanded,
-      this.onToggle,
-      this.badge,
-      this.badgeColor});
+        required this.icon,
+        required this.iconColor,
+        required this.child,
+        required this.expanded,
+        this.onToggle,
+        this.badge,
+        this.badgeColor});
 
   final String title;
   final IconData icon;
@@ -3451,12 +3525,12 @@ class _Card extends StatelessWidget {
 class _PhotoTile extends StatelessWidget {
   const _PhotoTile(
       {required this.label,
-      required this.sublabel,
-      required this.required,
-      required this.file,
-      required this.uploaded,
-      required this.uploading,
-      required this.onTap});
+        required this.sublabel,
+        required this.required,
+        required this.file,
+        required this.uploaded,
+        required this.uploading,
+        required this.onTap});
 
   final String label, sublabel;
   final bool required, uploaded, uploading;
@@ -3468,8 +3542,8 @@ class _PhotoTile extends StatelessWidget {
     final Color c = uploaded
         ? Colors.green
         : required
-            ? Colors.red.shade400
-            : kTextHint;
+        ? Colors.red.shade400
+        : kTextHint;
     return GestureDetector(
         onTap: uploading ? null : onTap,
         child: Container(
@@ -3478,42 +3552,42 @@ class _PhotoTile extends StatelessWidget {
                 color: uploaded
                     ? Colors.green.shade50
                     : required
-                        ? Colors.red.shade50
-                        : Colors.grey.shade50,
+                    ? Colors.red.shade50
+                    : Colors.grey.shade50,
                 borderRadius: BorderRadius.circular(10),
                 border: Border.all(color: c.withValues(alpha: 0.3))),
             child: Row(children: [
               file != null
                   ? ClipRRect(
-                      borderRadius: BorderRadius.circular(6),
-                      child: Image.file(file!,
-                          width: 42, height: 42, fit: BoxFit.cover))
+                  borderRadius: BorderRadius.circular(6),
+                  child: Image.file(file!,
+                      width: 42, height: 42, fit: BoxFit.cover))
                   : Container(
-                      width: 42,
-                      height: 42,
-                      decoration: BoxDecoration(
-                          color: c.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(8)),
-                      child:
-                          Icon(Icons.camera_alt_outlined, color: c, size: 18)),
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                      color: c.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(8)),
+                  child:
+                  Icon(Icons.camera_alt_outlined, color: c, size: 18)),
               const SizedBox(width: 10),
               Expanded(
                   child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                    Text(label,
-                        style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                            color: c)),
-                    Text(
-                        uploading
-                            ? 'Uploading...'
-                            : uploaded
+                        Text(label,
+                            style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                                color: c)),
+                        Text(
+                            uploading
+                                ? 'Uploading...'
+                                : uploaded
                                 ? '✓ Uploaded'
                                 : sublabel,
-                        style: const TextStyle(fontSize: 10, color: kTextHint)),
-                  ])),
+                            style: const TextStyle(fontSize: 10, color: kTextHint)),
+                      ])),
               if (uploading)
                 const SizedBox(
                     width: 16,
@@ -3524,7 +3598,7 @@ class _PhotoTile extends StatelessWidget {
               else
                 Container(
                     padding:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(
                         color: c.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(6)),

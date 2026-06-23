@@ -281,9 +281,14 @@ class _PnLScreenState extends ConsumerState<PnLScreen> {
     final netProfit = _dn(s, 'net_profit');
     final mortality = _d(s, 'mortality_loss_amount');
     final shrinkage = _d(s, 'shrinkage_loss_amount');
+    final totalLoss = _d(s, 'total_loss_amount');
     final tripExp = _d(s, 'trip_expenses');
+    final traderExp = _d(s, 'trader_expenses');
     final fixedExp = _d(s, 'fixed_expenses');
     final totalExp = _d(s, 'total_expenses');
+    final grossMarginPct = _dn(s, 'gross_margin_pct');
+    final netMarginPct   = _dn(s, 'net_margin_pct');
+    final expensePct     = _dn(s, 'expense_pct');
 
     return SingleChildScrollView(
         padding: const EdgeInsets.only(bottom: kBottomNavClearance),
@@ -302,11 +307,18 @@ class _PnLScreenState extends ConsumerState<PnLScreen> {
               child: Column(children: [
                 _hdr('Profit & Loss', Icons.trending_up_outlined, kSuccess),
                 _plRow('Revenue', revenue, Colors.green, '+'),
-                _plRow('Cost of Goods (COGS)', cogs!, Colors.blue, '-'),
+                _plRow(
+                    cogs == null ? 'COGS (Pending)' : 'Cost of Goods (COGS)',
+                    cogs ?? 0, Colors.blue, '-'),
                 _plRow('Mortality Loss', mortality, Colors.red, '-'),
-                _plRow('Shrinkage Loss', shrinkage, const Color(0xFF6A1B9A), '-'),
-                _plRow('Trip Expenses', tripExp, Colors.orange, '-'),
-                _plRow('Fixed Expenses', fixedExp, Colors.brown, '-'),
+                _plRow('Transit Shrinkage', shrinkage, const Color(0xFF6A1B9A), '-'),
+                if (totalLoss > 0 && totalLoss != mortality + shrinkage)
+                  _plRow('Total Loss ₹', totalLoss, kError, '-'),
+                _plRow('Agent Expenses', tripExp, Colors.orange, '-'),
+                if (traderExp > 0)
+                  _plRow('Trader Expenses', traderExp, Colors.deepOrange, '-'),
+                if (fixedExp > 0)
+                  _plRow('Fixed Overhead', fixedExp, Colors.brown, '-'),
                 Container(
                     padding: const EdgeInsets.all(18),
                     decoration: BoxDecoration(
@@ -345,11 +357,34 @@ class _PnLScreenState extends ConsumerState<PnLScreen> {
                 grossProfit == null ? Colors.orange : (grossProfit >= 0 ? kSuccess : kError),
                 Icons.calculate_outlined),
           ]),
+          // Margin % strip
+          if (grossMarginPct != null || netMarginPct != null || expensePct != null)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+              child: Row(children: [
+                if (grossMarginPct != null) _marginPill('Gross Margin',
+                    '${grossMarginPct.toStringAsFixed(1)}%', Colors.green),
+                if (netMarginPct != null) _marginPill('Net Margin',
+                    '${netMarginPct.toStringAsFixed(1)}%',
+                    netMarginPct >= 0 ? kSuccess : kError),
+                if (expensePct != null) _marginPill('Expense %',
+                    '${expensePct.toStringAsFixed(1)}%', Colors.orange),
+              ]),
+            ),
           _kpiGrid([
             _kpi2('Total Expenses', Fmt.amount(totalExp), Colors.orange, Icons.receipt_long_outlined),
             _kpi2('Mortality', Fmt.amount(mortality), Colors.red, Icons.health_and_safety_outlined),
-            _kpi2('Shrinkage', Fmt.amount(shrinkage), const Color(0xFF6A1B9A), Icons.compress_outlined),
+            _kpi2('Shrinkage + Variance', Fmt.amount(shrinkage), const Color(0xFF6A1B9A), Icons.compress_outlined),
           ]),
+          if (traderExp > 0 || fixedExp > 0)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 6, 12, 0),
+              child: Row(children: [
+                if (tripExp > 0) _marginPill('Agent Exp', Fmt.amount(tripExp), Colors.orange),
+                if (traderExp > 0) _marginPill('Trader Exp', Fmt.amount(traderExp), Colors.deepOrange),
+                if (fixedExp > 0) _marginPill('Fixed', Fmt.amount(fixedExp), Colors.brown),
+              ]),
+            ),
           _sec('${_gran.label.toUpperCase()} BREAKDOWN'),
           _tbl(
               ['Period', 'Revenue', 'COGS', 'Gross Profit', 'Net Profit'],
@@ -416,6 +451,21 @@ class _PnLScreenState extends ConsumerState<PnLScreen> {
         Text('$sign ${Fmt.amount(value)}', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
       ]));
 
+  Widget _marginPill(String label, String value, Color c) => Expanded(
+      child: Container(
+        margin: const EdgeInsets.only(right: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+        decoration: BoxDecoration(
+            color: c.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: c.withValues(alpha: 0.25))),
+        child: Column(children: [
+          Text(value, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: c),
+              textAlign: TextAlign.center),
+          Text(label, style: const TextStyle(fontSize: 8, color: kTextSub),
+              textAlign: TextAlign.center),
+        ]),
+      ));
   Widget _kpiGrid(List<Widget> cards) => Padding(
       padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
       child: Row(children: cards.expand((c) => [c, const SizedBox(width: 8)]).toList()..removeLast()));

@@ -69,95 +69,114 @@ class _S extends ConsumerState<ShiftDetailScreen> {
   }
 
   Future<void> _approveShift() async {
-    // Load batch loss summary for review before approval
     await _loadBatchLoss();
     if (!mounted) return;
 
-    final bl = _batchLoss;
+    final bl     = _batchLoss;
     final totals = bl?['shift_totals'] as Map<String, dynamic>?;
-    final dcKg = (totals?['total_dc_weight_kg'] as num?)?.toDouble() ?? 0;
-    final delKg = (totals?['total_delivered_kg'] as num?)?.toDouble() ?? 0;
-    final retKg = (totals?['total_returned_kg'] as num?)?.toDouble() ?? 0;
-    final closeRetKg =
-        (totals?['shift_close_return_kg'] as num?)?.toDouble() ?? 0;
-    final closeRetBirds =
-        (totals?['shift_close_return_birds'] as num?)?.toInt() ?? 0;
-    final mortKg = (totals?['total_mortality_kg'] as num?)?.toDouble() ?? 0;
-    final lossKg = (totals?['unaccounted_loss_kg'] as num?)?.toDouble() ?? 0;
-    final lossPct = dcKg > 0 ? (lossKg / dcKg * 100) : 0.0;
 
-    // Show full batch-level loss breakdown before confirm
+    final dcBirds      = (totals?['total_dc_birds']           as num?)?.toInt()    ?? 0;
+    final dcKg         = (totals?['total_dc_weight_kg']       as num?)?.toDouble() ?? 0;
+    final delBirds     = (totals?['total_delivered_birds']    as num?)?.toInt()    ?? 0;
+    final delKg        = (totals?['total_delivered_kg']       as num?)?.toDouble() ?? 0;
+    final liveRetBirds = (totals?['shift_close_return_birds'] as num?)?.toInt()    ?? 0;
+    final liveRetKg    = (totals?['shift_close_return_kg']    as num?)?.toDouble() ?? 0;
+    final mortBirds    = (totals?['total_mortality_birds']    as num?)?.toInt()    ?? 0;
+    final mortKg       = (totals?['total_mortality_kg']       as num?)?.toDouble() ?? 0;
+    final delMortBirds = (totals?['delivery_mortality_birds'] as num?)?.toInt()    ?? 0;
+    final delMortKg    = (totals?['delivery_mortality_kg']    as num?)?.toDouble() ?? 0;
+    final retMortBirds = (totals?['return_mortality_birds']   as num?)?.toInt()    ?? 0;
+    final retMortKg    = (totals?['return_mortality_kg']      as num?)?.toDouble() ?? 0;
+    final lossKg       = (totals?['unaccounted_loss_kg']      as num?)?.toDouble() ?? 0;
+    final totalLossKg  = (totals?['total_loss_kg']            as num?)?.toDouble() ?? 0;
+    final lossPct      = dcKg > 0 ? (lossKg / dcKg * 100) : 0.0;
+    final hasDelMort   = delMortBirds > 0;
+    final hasRetMort   = retMortBirds > 0;
+
     final ok = await showDialog<bool>(
       context: context,
       useRootNavigator: true,
       builder: (ctx) => AlertDialog(
-          title: const Text('Approve Shift',
-              style: TextStyle(fontWeight: FontWeight.w800)),
+          contentPadding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+          title: const Row(children: [
+            Icon(Icons.fact_check_outlined, size: 18, color: kNavy),
+            SizedBox(width: 8),
+            Text('Approve Shift',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+          ]),
           content: SingleChildScrollView(
               child: Column(mainAxisSize: MainAxisSize.min, children: [
                 Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                        color: const Color(0xFFF3F4F6),
-                        borderRadius: BorderRadius.circular(kRadiusCard)),
-                    child: Column(children: [
-                      const Text('BATCH-LEVEL LOSS SUMMARY',
-                          style: TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: 0.8,
-                              color: Color(0xFF616161))),
-                      const SizedBox(height: 10),
-                      _approvalRow('DC Weight (Loaded)',
-                          '${dcKg.toStringAsFixed(2)} kg', false),
-                      _approvalRow(
-                          'Delivered', '${delKg.toStringAsFixed(2)} kg', false),
-                      if (retKg > 0)
-                        _approvalRow('Returned (at delivery)',
-                            '${retKg.toStringAsFixed(2)} kg', false),
-                      if (closeRetKg > 0)
-                        _approvalRow(
-                            'Returned to Stock Point',
-                            '$closeRetBirds birds · ${closeRetKg.toStringAsFixed(2)} kg',
-                            false),
-                      _approvalRow('Mortality',
-                          '${mortKg.toStringAsFixed(2)} kg', false),
-                      const Divider(),
-                      _approvalRow(
-                          'Weight Variance',
-                          '${lossKg.toStringAsFixed(2)} kg (${lossPct.toStringAsFixed(1)}%)',
-                          lossKg > 0),
-                      if (lossKg > 0)
-                        Padding(
-                            padding: const EdgeInsets.only(top: 8),
-                            child: Container(
-                                padding: const EdgeInsets.all(8),
-                                decoration: BoxDecoration(
-                                    color: Colors.orange.shade50,
-                                    borderRadius:
-                                    BorderRadius.circular(kRadiusInner)),
-                                child: const Text(
-                                    'Approving will:\n'
-                                        '• Record this loss in audit log\n'
-                                        '• Reset agent stock to zero\n'
-                                        '• Mark shift as approved',
-                                    style: TextStyle(
-                                        fontSize: 11,
-                                        color: Colors.deepOrange)))),
-                      if (lossKg == 0)
-                        Padding(
-                            padding: const EdgeInsets.only(top: 8),
-                            child: Container(
-                                padding: const EdgeInsets.all(8),
-                                decoration: BoxDecoration(
-                                    color: Colors.green.shade50,
-                                    borderRadius:
-                                    BorderRadius.circular(kRadiusInner)),
-                                child: const Text(
-                                    'No weight variance. All stock accounted for.',
-                                    style: TextStyle(
-                                        fontSize: 11, color: Colors.green)))),
-                    ])),
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                      color: const Color(0xFFF8F9FA),
+                      borderRadius: BorderRadius.circular(kRadiusCard),
+                      border: Border.all(color: kBorderLight)),
+                  child: Column(children: [
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: Row(children: [
+                        const Expanded(flex: 3, child: SizedBox()),
+                        SizedBox(width: 80, child: Text('Birds',
+                            textAlign: TextAlign.right,
+                            style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800,
+                                color: kTextHint, letterSpacing: 0.5))),
+                        SizedBox(width: 86, child: Text('Weight',
+                            textAlign: TextAlign.right,
+                            style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800,
+                                color: kTextHint, letterSpacing: 0.5))),
+                      ]),
+                    ),
+                    _approvalReconRow('DC Loaded', dcBirds, dcKg,
+                        Colors.blue, false, prefix: '+'),
+                    _approvalReconRow('Delivered', delBirds, delKg,
+                        Colors.teal, false, prefix: '\u2212'),
+                    if (liveRetBirds > 0 || liveRetKg > 0)
+                      _approvalReconRow('Live Return (Stock Added)',
+                          liveRetBirds, liveRetKg, Colors.indigo, false, prefix: '\u2212'),
+                    if (hasDelMort && hasRetMort) ...[
+                      _approvalReconRow('Delivery Mortality',
+                          delMortBirds, delMortKg, Colors.red, false, prefix: '\u2212'),
+                      _approvalReconRow('Dead Return (Mortality)',
+                          retMortBirds, retMortKg, Colors.deepOrange, false, prefix: '\u2212'),
+                    ] else if (hasRetMort)
+                      _approvalReconRow('Dead Return (Mortality)',
+                          retMortBirds, retMortKg, Colors.deepOrange, false, prefix: '\u2212')
+                    else if (hasDelMort)
+                        _approvalReconRow('Delivery Mortality',
+                            delMortBirds, delMortKg, Colors.red, false, prefix: '\u2212'),
+                    _approvalReconRow('Weight Variance', null, lossKg,
+                        lossKg > 0 ? Colors.orange : Colors.green, lossKg > 0,
+                        suffix: lossKg > 0 ? '  (${lossPct.toStringAsFixed(1)}%)' : null),
+                    const Divider(height: 16, thickness: 1),
+                    _approvalReconRow('Total Loss', null, totalLossKg,
+                        totalLossKg > 0 ? Colors.red : Colors.green, totalLossKg > 0),
+                  ]),
+                ),
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: totalLossKg > 0 ? Colors.orange.shade50 : Colors.green.shade50,
+                    borderRadius: BorderRadius.circular(kRadiusInner),
+                    border: Border.all(color: totalLossKg > 0
+                        ? Colors.orange.shade200 : Colors.green.shade200),
+                  ),
+                  child: Text(
+                      totalLossKg > 0
+                          ? 'Approving will:\n'
+                          '\u2022 Record ${totalLossKg.toStringAsFixed(2)} kg total loss in audit log\n'
+                          '\u2022 Classify: ${mortKg.toStringAsFixed(2)} kg mortality + '
+                          '${lossKg.toStringAsFixed(2)} kg weight variance\n'
+                          '\u2022 Reset agent stock to zero\n'
+                          '\u2022 Mark shift as approved'
+                          : 'No loss. All stock fully accounted for.\n'
+                          'Approving will mark the shift as complete.',
+                      style: TextStyle(
+                          fontSize: 11, height: 1.5,
+                          color: totalLossKg > 0
+                              ? Colors.deepOrange : Colors.green.shade700)),
+                ),
               ])),
           actions: [
             TextButton(
@@ -168,38 +187,85 @@ class _S extends ConsumerState<ShiftDetailScreen> {
                 style: ElevatedButton.styleFrom(backgroundColor: kPrimary),
                 child: const Text('Approve & Reset Stock')),
           ]),
-    ) ??
-        false;
+    ) ?? false;
 
     if (!ok || !mounted) return;
     if (mounted) setState(() => _submitting = true);
     try {
       final user = ref.read(appUserProvider).valueOrNull;
       final result = await _c.rpc('approve_shift', params: {
-        'p_shift_id': widget.id,
+        'p_shift_id':    widget.id,
         'p_approved_by': user?.userId,
-        'p_notes': 'Approved by trader admin',
-        'p_actor_type': 'trader',
-        'p_entry_mode': 'system',
+        'p_notes':       'Approved by trader admin',
+        'p_actor_type':  'trader',
+        'p_entry_mode':  'system',
       });
-      final r = result as Map<String, dynamic>?;
-      final resetBirds = (r?['stock_reset_birds'] as num?)?.toInt() ?? 0;
-      final lossResult = (r?['unaccounted_loss_kg'] as num?)?.toDouble() ?? 0;
+      final r           = result as Map<String, dynamic>?;
+      final resetBirds  = (r?['stock_reset_birds']   as num?)?.toInt()    ?? 0;
+      final lossResult  = (r?['unaccounted_loss_kg'] as num?)?.toDouble() ?? 0;
+      final mortResult  = (r?['total_mortality_kg']  as num?)?.toDouble() ?? 0;
       _load();
       if (mounted)
-        showSuccess(
-          context,
-          'Shift approved ✓\n'
-              'Variance: ${lossResult.toStringAsFixed(2)} kg\n'
-              '${resetBirds > 0 ? 'Stock reset: $resetBirds birds returned' : 'No remaining stock'}',
+        showSuccess(context,
+          'Shift approved \u2713\n'
+              'Mortality: ${mortResult.toStringAsFixed(2)} kg\n'
+              'Weight Variance: ${lossResult.toStringAsFixed(2)} kg\n'
+              '${resetBirds > 0 ? 'Stock reset: $resetBirds birds' : 'Stock fully settled'}',
         );
     } catch (e) {
-      if (mounted)
-        showError(context, e.toString().replaceAll('Exception: ', ''));
+      if (mounted) showError(context, e.toString().replaceAll('Exception: ', ''));
     } finally {
       if (mounted) setState(() => _submitting = false);
     }
   }
+
+
+  // ── _approvalReconRow ─────────────────────────────────────────────────────
+  // 3-column reconciliation row: label | birds | kg
+  // Used in both the approval dialog and _buildBatchLossPanel.
+  static Widget _approvalReconRow(
+      String label,
+      int?   birds,
+      double kg,
+      Color  c,
+      bool   highlight, {
+        String? prefix,
+        String? suffix,
+      }) {
+    final String birdsStr = birds != null ? '${prefix ?? ""}$birds birds' : '';
+    final String kgStr    =
+        '${prefix ?? ""}${kg.toStringAsFixed(2)} kg${suffix ?? ""}';
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 3),
+      child: Row(children: [
+        Expanded(
+            flex: 3,
+            child: Text(label,
+                style: TextStyle(
+                    fontSize: 11,
+                    color: highlight ? c : kTextSub,
+                    fontWeight:
+                    highlight ? FontWeight.w700 : FontWeight.w400))),
+        SizedBox(
+            width: 80,
+            child: Text(birdsStr,
+                textAlign: TextAlign.right,
+                style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: highlight ? c : kTextMain))),
+        SizedBox(
+            width: 86,
+            child: Text(kgStr,
+                textAlign: TextAlign.right,
+                style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: highlight ? c : kTextMain))),
+      ]),
+    );
+  }
+
 
   static Widget _approvalRow(String label, String value, bool isLoss) =>
       Padding(
@@ -1060,18 +1126,24 @@ class _S extends ConsumerState<ShiftDetailScreen> {
     (_batchLoss!['shift_totals'] as Map?)?.cast<String, dynamic>();
     final batches =
     (_batchLoss!['batches'] as List? ?? []).cast<Map<String, dynamic>>();
-    final dcKg = (totals?['total_dc_weight_kg'] as num?)?.toDouble() ?? 0;
-    final delKg = (totals?['total_delivered_kg'] as num?)?.toDouble() ?? 0;
-    final retKg = (totals?['total_returned_kg'] as num?)?.toDouble() ?? 0;
-    final closeRetKg =
-        (totals?['shift_close_return_kg'] as num?)?.toDouble() ?? 0;
-    final closeRetBirds =
-        (totals?['shift_close_return_birds'] as num?)?.toInt() ?? 0;
-    final mortKg = (totals?['total_mortality_kg'] as num?)?.toDouble() ?? 0;
-    final shrinkKg = (totals?['total_shrinkage_kg'] as num?)?.toDouble() ?? 0;
-    final lossKg = (totals?['unaccounted_loss_kg'] as num?)?.toDouble() ?? 0;
-    final lossPct = dcKg > 0 ? (lossKg / dcKg * 100) : 0.0;
-    final isHighLoss = lossPct >= 2;
+    final dcBirds      = (totals?['total_dc_birds']           as num?)?.toInt()    ?? 0;
+    final dcKg         = (totals?['total_dc_weight_kg']       as num?)?.toDouble() ?? 0;
+    final delBirds     = (totals?['total_delivered_birds']    as num?)?.toInt()    ?? 0;
+    final delKg        = (totals?['total_delivered_kg']       as num?)?.toDouble() ?? 0;
+    final liveRetBirds = (totals?['shift_close_return_birds'] as num?)?.toInt()    ?? 0;
+    final liveRetKg    = (totals?['shift_close_return_kg']    as num?)?.toDouble() ?? 0;
+    final mortBirds    = (totals?['total_mortality_birds']    as num?)?.toInt()    ?? 0;
+    final mortKg       = (totals?['total_mortality_kg']       as num?)?.toDouble() ?? 0;
+    final delMortBirds = (totals?['delivery_mortality_birds'] as num?)?.toInt()    ?? 0;
+    final delMortKg    = (totals?['delivery_mortality_kg']    as num?)?.toDouble() ?? 0;
+    final retMortBirds = (totals?['return_mortality_birds']   as num?)?.toInt()    ?? 0;
+    final retMortKg    = (totals?['return_mortality_kg']      as num?)?.toDouble() ?? 0;
+    final lossKg       = (totals?['unaccounted_loss_kg']      as num?)?.toDouble() ?? 0;
+    final totalLossKg  = (totals?['total_loss_kg']            as num?)?.toDouble() ?? 0;
+    final lossPct      = dcKg > 0 ? (lossKg / dcKg * 100) : 0.0;
+    final isHighLoss   = lossPct >= 2;
+    final hasDelMort   = delMortBirds > 0;
+    final hasRetMort   = retMortBirds > 0;
 
     return Container(
         decoration: BoxDecoration(
@@ -1109,34 +1181,48 @@ class _S extends ConsumerState<ShiftDetailScreen> {
                                 : Colors.green.shade700))),
               ])),
 
-          // Shift totals
+          // ── Shift reconciliation table (spec-aligned 6-row layout) ─────────
           Padding(
-              padding: const EdgeInsets.all(14),
+              padding: const EdgeInsets.fromLTRB(14, 14, 14, 8),
               child: Column(children: [
-                _lossRow('DC Loaded (Picked Up)',
-                    '${dcKg.toStringAsFixed(2)} kg', Colors.blue, false),
-                _lossRow('Delivered to Retailers',
-                    '${delKg.toStringAsFixed(2)} kg', Colors.teal, false),
-                if (retKg > 0)
-                  _lossRow('Returned (at delivery)',
-                      '${retKg.toStringAsFixed(2)} kg', Colors.purple, false),
-                if (closeRetKg > 0)
-                  _lossRow(
-                      'Returned to Stock Point',
-                      '$closeRetBirds birds · ${closeRetKg.toStringAsFixed(2)} kg',
-                      Colors.indigo,
-                      false),
-                _lossRow('Mortality', '${mortKg.toStringAsFixed(2)} kg',
-                    Colors.red, false),
-                if (shrinkKg > 0)
-                  _lossRow('Shrinkage', '${shrinkKg.toStringAsFixed(2)} kg',
-                      Colors.orange, false),
-                const Divider(height: 16),
-                _lossRow(
-                    'Weight Variance',
-                    '${lossKg.toStringAsFixed(2)} kg  (${lossPct.toStringAsFixed(1)}%)',
-                    isHighLoss ? Colors.red : Colors.green,
-                    isHighLoss),
+                // Column headers
+                Row(children: [
+                  const Expanded(flex: 3, child: SizedBox()),
+                  SizedBox(width: 80, child: Text('Birds',
+                      textAlign: TextAlign.right,
+                      style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800,
+                          color: kTextHint, letterSpacing: 0.5))),
+                  SizedBox(width: 86, child: Text('Weight',
+                      textAlign: TextAlign.right,
+                      style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800,
+                          color: kTextHint, letterSpacing: 0.5))),
+                ]),
+                const SizedBox(height: 4),
+                _approvalReconRow('DC Loaded', dcBirds, dcKg,
+                    Colors.blue, false, prefix: '+'),
+                _approvalReconRow('Delivered', delBirds, delKg,
+                    Colors.teal, false, prefix: '−'),
+                if (liveRetBirds > 0 || liveRetKg > 0)
+                  _approvalReconRow('Live Return (Stock Added)',
+                      liveRetBirds, liveRetKg, Colors.indigo, false, prefix: '−'),
+                if (hasDelMort && hasRetMort) ...[
+                  _approvalReconRow('Delivery Mortality',
+                      delMortBirds, delMortKg, Colors.red, false, prefix: '−'),
+                  _approvalReconRow('Dead Return (Mortality)',
+                      retMortBirds, retMortKg, Colors.deepOrange, false, prefix: '−'),
+                ] else if (hasRetMort)
+                  _approvalReconRow('Dead Return (Mortality)',
+                      retMortBirds, retMortKg, Colors.deepOrange, false, prefix: '−')
+                else if (hasDelMort || mortBirds > 0)
+                    _approvalReconRow('Mortality',
+                        mortBirds, mortKg, Colors.red, false, prefix: '−'),
+                _approvalReconRow('Weight Variance', null, lossKg,
+                    lossKg > 0 ? Colors.orange : Colors.green, lossKg > 0,
+                    suffix: lossKg > 0 ? '  (${lossPct.toStringAsFixed(1)}%)' : null),
+                const Divider(height: 16, thickness: 1),
+                _approvalReconRow('Total Loss', null, totalLossKg,
+                    totalLossKg > 0 ? Colors.red : Colors.green,
+                    totalLossKg > 0),
               ])),
 
           // Per-batch breakdown
@@ -1151,20 +1237,27 @@ class _S extends ConsumerState<ShiftDetailScreen> {
                         color: kTextHint,
                         letterSpacing: 0.8))),
             ...batches.map((b) {
-              final bDcKg = (b['dc_weight_kg'] as num?)?.toDouble() ?? 0;
-              final bDelKg = (b['delivered_kg'] as num?)?.toDouble() ?? 0;
-              final bLossKg =
-                  (b['unaccounted_loss_kg'] as num?)?.toDouble() ?? 0;
-              final bLossPct = (b['loss_percent'] as num?)?.toDouble() ?? 0;
-              final bHigh = bLossPct >= 2;
-              final done = (b['deliveries_done'] as num?)?.toInt() ?? 0;
-              final pending = (b['deliveries_pending'] as num?)?.toInt() ?? 0;
+              final bDcBirds   = (b['dc_birds']             as num?)?.toInt()    ?? 0;
+              final bDcKg      = (b['dc_weight_kg']         as num?)?.toDouble() ?? 0;
+              final bDelBirds  = (b['delivered_birds']      as num?)?.toInt()    ?? 0;
+              final bDelKg     = (b['delivered_kg']         as num?)?.toDouble() ?? 0;
+              final bLiveRet   = (b['close_return_birds']   as num?)?.toInt()    ?? 0;
+              final bLiveRetKg = (b['close_return_kg']      as num?)?.toDouble() ?? 0;
+              final bMortBirds = (b['mortality_birds']      as num?)?.toInt()    ?? 0;
+              final bMortKg    = (b['mortality_kg']         as num?)?.toDouble() ?? 0;
+              final bRetMBirds = (b['return_mortality_birds'] as num?)?.toInt()  ?? 0;
+              final bRetMKg    = (b['return_mortality_kg']    as num?)?.toDouble() ?? 0;
+              final bLossKg    = (b['unaccounted_loss_kg']  as num?)?.toDouble() ?? 0;
+              final bLossPct   = (b['loss_percent']         as num?)?.toDouble() ?? 0;
+              final bHigh      = bLossPct >= 2;
+              final done       = (b['deliveries_done']      as num?)?.toInt()    ?? 0;
+              final pending    = (b['deliveries_pending']   as num?)?.toInt()    ?? 0;
+              final bTotalLoss = bMortKg + bLossKg;
               return Container(
                   margin: const EdgeInsets.fromLTRB(14, 0, 14, 10),
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                      color:
-                      bHigh ? Colors.red.shade50 : const Color(0xFFF3F4F6),
+                      color: bHigh ? Colors.red.shade50 : const Color(0xFFF3F4F6),
                       borderRadius: BorderRadius.circular(kRadiusCard),
                       border: Border.all(
                           color: bHigh ? Colors.red.shade200 : kBorder)),
@@ -1176,47 +1269,38 @@ class _S extends ConsumerState<ShiftDetailScreen> {
                               size: 14, color: bHigh ? Colors.red : kPrimary),
                           const SizedBox(width: 6),
                           Text(b['vehicle_no'] as String? ?? 'Batch',
-                              style: TextStyle(
-                                  fontSize: 12,
+                              style: TextStyle(fontSize: 12,
                                   fontWeight: FontWeight.w700,
                                   color: bHigh ? Colors.red : kTextMain)),
                           const Spacer(),
                           Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 7, vertical: 2),
+                              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
                               decoration: BoxDecoration(
-                                  color: bHigh
-                                      ? Colors.red.shade100
-                                      : Colors.green.shade100,
+                                  color: bHigh ? Colors.red.shade100 : Colors.green.shade100,
                                   borderRadius: BorderRadius.circular(6)),
-                              child: Text(
-                                  'Variance: ${bLossPct.toStringAsFixed(1)}%',
-                                  style: TextStyle(
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.w700,
-                                      color:
-                                      bHigh ? Colors.red : Colors.green))),
+                              child: Text('Variance: ${bLossPct.toStringAsFixed(1)}%',
+                                  style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700,
+                                      color: bHigh ? Colors.red : Colors.green))),
                         ]),
                         const SizedBox(height: 8),
+                        // Compact 3-column rows inside each batch card
+                        _approvalReconRow('DC', bDcBirds, bDcKg, Colors.blue, false),
+                        _approvalReconRow('Delivered', bDelBirds, bDelKg, Colors.teal, false),
+                        if (bLiveRet > 0 || bLiveRetKg > 0)
+                          _approvalReconRow('Live Return', bLiveRet, bLiveRetKg, Colors.indigo, false),
+                        if (bRetMBirds > 0)
+                          _approvalReconRow('Dead Return', bRetMBirds, bRetMKg, Colors.deepOrange, false)
+                        else if (bMortBirds > 0)
+                          _approvalReconRow('Mortality', bMortBirds, bMortKg, Colors.red, false),
+                        _approvalReconRow('Weight Variance', null, bLossKg,
+                            bHigh ? Colors.red : Colors.green, bHigh),
+                        const Divider(height: 10, thickness: 0.5),
                         Row(children: [
-                          Expanded(
-                              child: _batchStat(
-                                  'DC',
-                                  '${bDcKg.toStringAsFixed(1)} kg',
-                                  Colors.blue)),
-                          Expanded(
-                              child: _batchStat(
-                                  'Delivered',
-                                  '${bDelKg.toStringAsFixed(1)} kg',
-                                  Colors.teal)),
-                          Expanded(
-                              child: _batchStat(
-                                  'Variance',
-                                  '${bLossKg.toStringAsFixed(1)} kg',
-                                  bHigh ? Colors.red : Colors.green)),
-                          Expanded(
-                              child: _batchStat('Orders',
-                                  '$done / ${done + pending}', kPrimary)),
+                          Expanded(child: _batchStat('Orders',
+                              '$done/${done + pending}', kPrimary)),
+                          Expanded(child: _batchStat('Total Loss',
+                              '${bTotalLoss.toStringAsFixed(1)} kg',
+                              bHigh ? Colors.red : Colors.green)),
                         ]),
                       ]));
             }),
