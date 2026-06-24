@@ -365,20 +365,36 @@ class _WS extends ConsumerState<WeighmentScreen> {
   // ── Calculations ────────────────────────────────────
   double get _totalLoadWt => _rows.fold(0.0, (s, r) => s + r.loadWt);
 
-  double get _totalEmptyWt =>
-      _rows.where((r) => r.emptyFilled).fold(0.0, (s, r) => s + r.emptyWt);
+  // FIX: Use ALL rows, not just emptyFilled.
+  // The emptyFilled filter caused sessions to be saved with partial net weight when
+  // some rows hadn't had empty weight recorded yet — later rows would be added to
+  // weighment_rows via upsert_weighment_rows but the session was never recomputed,
+  // leaving session.total_net_wt permanently stale vs the actual row sum.
+  // Individual rows where emptyFilled=false have emptyWt=0 → netWt=loadWt-0=loadWt,
+  // so they're not yet meaningful; but the DB trigger (see migration) will recompute
+  // the session after every row change, making this getter only the fallback for display.
+  double get _totalEmptyWt => _rows.fold(0.0, (s, r) => s + r.emptyWt);
 
-  double get _totalNetWt =>
-      _rows.where((r) => r.emptyFilled).fold(0.0, (s, r) => s + r.netWt);
+  // FIX: SUM all rows. Each row.netWt is computed as (loadWt - emptyWt).clamp(0,∞)
+  // by the WeighmentRow model — already authoritative per-row arithmetic.
+  double get _totalNetWt => _rows.fold(0.0, (s, r) => s + r.netWt);
+
+  // Count of rows with empty weight actually recorded (for UI progress indicator)
+  int get _filledEmptyCount => _rows.where((r) => r.emptyFilled).length;
 
   int get _totalLoadCages => _rows.fold(0, (s, r) => s + r.loadCages);
 
   int get _totalEmptyCages => _rows.fold(0, (s, r) => s + r.emptyCages);
 
-  int get _filledEmpty => _rows.where((r) => r.emptyFilled).length;
+  int get _filledEmpty => _filledEmptyCount;
 
-  double get _avgBirdWtKg =>
-      _totalBirds > 0 && _totalNetWt > 0 ? _totalNetWt / _totalBirds : 0;
+  double get _avgBirdWtKg {
+    // Only compute avg from rows that have BOTH load and empty weights confirmed
+    final confirmed = _rows.where((r) => r.emptyFilled).toList();
+    if (_totalBirds <= 0 || confirmed.isEmpty) return 0;
+    final confirmedNet = confirmed.fold(0.0, (s, r) => s + r.netWt);
+    return confirmedNet / _totalBirds;
+  }
 
   double get _avgBirdWtG => _avgBirdWtKg * 1000;
 
@@ -388,6 +404,7 @@ class _WS extends ConsumerState<WeighmentScreen> {
     final avg = _avgBirdWtKg;
     for (final r in _rows) {
       if (r.emptyFilled) r.avgWt = avg;
+
     }
   }
 

@@ -21,7 +21,11 @@ class _S extends ConsumerState<ApprovalDetailScreen> {
   final _c = Supabase.instance.client;
   final _rateCtrl = TextEditingController(); // single-product fallback
   final _notesCtrl = TextEditingController();
-  final _rejectCtrl = TextEditingController();
+  final _rejectCtrl   = TextEditingController();  // legacy — kept for backward compat
+  final _flagNotesCtrl = TextEditingController();
+  String? _flagCategory;
+  bool _showBleExpanded   = false;   // BLE log collapsed for 5-second approval
+  bool _showFlagExpanded  = false;
 
   // Per-product rate controllers: order_item_id -> TextEditingController
   final Map<String, TextEditingController> _itemRateCtrls = {};
@@ -45,6 +49,7 @@ class _S extends ConsumerState<ApprovalDetailScreen> {
     _rateCtrl.dispose();
     _notesCtrl.dispose();
     _rejectCtrl.dispose();
+    _flagNotesCtrl.dispose();
     for (final c in _itemRateCtrls.values) c.dispose();
     super.dispose();
   }
@@ -200,10 +205,29 @@ class _S extends ConsumerState<ApprovalDetailScreen> {
   double get _billAmount =>
       _isMultiProduct ? _multiProductTotal : _billingWeight * _rate;
 
-  // Weighment net total (from BLE scale rows) — most accurate
-  double get _weighNetTotal => _weighSession != null
+  // ── BLE weight sources ────────────────────────────────────────────────────
+
+  // Sum of INDIVIDUAL weighment_rows.net_wt — most authoritative BLE weight.
+  // More reliable than session summary which can be corrupted (e.g. bird count
+  // stored as net weight in some BLE device firmware versions).
+  double get _weighRowNetTotal => _weighRows.fold<double>(
+      0, (sum, r) => sum + ((r['net_wt'] as num?)?.toDouble() ?? 0));
+
+  // Session summary net weight (may differ from row sum if device had a bug)
+  double get _weighSessionNetTotal => _weighSession != null
       ? ((_weighSession!['total_net_wt'] as num?)?.toDouble() ?? 0)
       : 0;
+
+  // Whether BLE session summary differs significantly from individual row sum.
+  bool get _bleDiscrepancy {
+    if (_weighRows.isEmpty || _weighSessionNetTotal <= 0) return false;
+    final ratio =
+        (_weighRowNetTotal - _weighSessionNetTotal).abs() / _weighSessionNetTotal;
+    return ratio > 0.01;
+  }
+
+  double get _bleDiscrepancyKg =>
+      (_weighRowNetTotal - _weighSessionNetTotal).abs();
 
   // What agent manually entered at delivery completion
   double get _agentDeliveredWt =>
@@ -212,9 +236,18 @@ class _S extends ConsumerState<ApprovalDetailScreen> {
           ?.toDouble() ??
           0;
 
-  // Best weight to use for billing: weighment if available, else agent entry
-  double get _billingWeight =>
-      _weighNetTotal > 0 ? _weighNetTotal : _agentDeliveredWt;
+  // ── BILLING WEIGHT PRIORITY CHAIN ─────────────────────────────────────────
+  // Priority 1: SUM(weighment_rows.net_wt) — immune to session summary corruption
+  // Priority 2: delivery.delivered_total_weight — stored by complete_delivery RPC
+  // Priority 3: Session summary — last resort (may equal bird count due to BLE bug)
+  double get _billingWeight {
+    if (_weighRows.isNotEmpty && _weighRowNetTotal > 0) return _weighRowNetTotal;
+    if (_agentDeliveredWt > 0) return _agentDeliveredWt;
+    return _weighSessionNetTotal;
+  }
+
+  // Legacy alias used by BLE display header
+  double get _weighNetTotal => _weighSessionNetTotal;
 
   // ORDER-level loss (correct formula)
   double get _orderExpectedWt =>
@@ -375,6 +408,42 @@ class _S extends ConsumerState<ApprovalDetailScreen> {
     }
   }
 
+  // ─────────────────────────────────────────────────────────────────────────
+  // FLAG ISSUE (replaces Reject for structured issue reporting)
+  // Delivery stays in pending state but is tagged for review.
+  // ─────────────────────────────────────────────────────────────────────────
+  Future<void> _flagIssue() async {
+    if (_flagCategory == null) {
+      showError(context, 'Select an issue category');
+      return;
+    }
+    final ok = await confirmDialog(context,
+        title: 'Flag Issue',
+        message: 'Flag this delivery for review? '
+            'It will remain pending until the issue is resolved.');
+    if (!ok || !mounted) return;
+    if (mounted) setState(() => _submitting = true);
+    try {
+      final userId = ref.read(appUserProvider).valueOrNull?.userId;
+      await _c.from('deliveries').update({
+        'flag_category':   _flagCategory,
+        'flag_notes':      _flagNotesCtrl.text.trim().isEmpty
+            ? null : _flagNotesCtrl.text.trim(),
+        'flagged_by':      userId,
+        'flagged_at':      DateTime.now().toIso8601String(),
+        'approval_status': 'flagged',
+      }).eq('id', widget.id);
+      if (mounted) {
+        showSuccess(context, 'Issue flagged — delivery held for review');
+        context.go(R.approvals);
+      }
+    } catch (e) {
+      if (mounted) showError(context, e.toString());
+    } finally {
+      if (mounted) setState(() => _submitting = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_loading)
@@ -399,74 +468,71 @@ class _S extends ConsumerState<ApprovalDetailScreen> {
       actions: [IconButton(icon: const Icon(Icons.refresh), onPressed: _load)],
     );
 
-    // All body sections as widget list
+    // ══ REDESIGNED SECTION FLOW ══════════════════════════════════════════
+    //  Goal: trader approves within 5 seconds
+    //  Order: Customer → Delivery Summary → BLE (collapsed) → Mortality → Billing → Approve → Flag
     final allSections = <Widget>[
-      // ── Customer & Agent header ───────────────────────────────
+
+      // ── 1. CUSTOMER HEADER (compact + View DC link) ─────────────────
       WhiteCard(
-          child:
-          Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(r?['shop_name'] as String? ?? '—',
-                style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
-            if (r?['owner_name'] != null)
-              Text(r!['owner_name'] as String,
-                  style: const TextStyle(fontSize: 13, color: kTextSub)),
-            if (r?['phone'] != null)
-              Text(r!['phone'] as String,
-                  style: const TextStyle(fontSize: 12, color: kTextHint)),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(r?['shop_name'] as String? ?? '—',
+                    style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
+                if (r?['owner_name'] != null)
+                  Text(r!['owner_name'] as String,
+                      style: const TextStyle(fontSize: 13, color: kTextSub)),
+                if (r?['phone'] != null)
+                  Text(r!['phone'] as String,
+                      style: const TextStyle(fontSize: 12, color: kTextHint)),
+              ])),
+              // View DC Details link — replaces the full DC card in main flow
+              if (challans.isNotEmpty)
+                GestureDetector(
+                  onTap: () => _showDCSheet(context, challans),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                        color: Colors.blue.shade50,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.blue.shade200)),
+                    child: const Row(mainAxisSize: MainAxisSize.min, children: [
+                      Icon(Icons.receipt_long_outlined, size: 13, color: Colors.blue),
+                      SizedBox(width: 4),
+                      Text('View DC', style: TextStyle(fontSize: 11,
+                          fontWeight: FontWeight.w700, color: Colors.blue)),
+                    ]),
+                  ),
+                ),
+            ]),
             const SizedBox(height: 8),
             Row(children: [
               const Icon(Icons.delivery_dining, size: 14, color: kPrimary),
               const SizedBox(width: 6),
               Text('${a?['name'] ?? '—'}  ·  ${a?['vehicle_no'] ?? ''}',
                   style: const TextStyle(fontSize: 12, color: kTextSub)),
-            ]),
-            if (_delivery!['delivered_at'] != null) ...[
-              const SizedBox(height: 4),
-              Row(children: [
+              if (_delivery!['delivered_at'] != null) ...[
+                const SizedBox(width: 10),
                 const Icon(Icons.access_time, size: 13, color: kTextHint),
-                const SizedBox(width: 6),
-                Text(
-                    DateFormat('d MMM y, hh:mm a').format(
-                        DateTime.parse(_delivery!['delivered_at'] as String)
-                            .toLocal()),
+                const SizedBox(width: 4),
+                Text(DateFormat('d MMM, hh:mm a').format(
+                    DateTime.parse(_delivery!['delivered_at'] as String).toLocal()),
                     style: const TextStyle(fontSize: 12, color: kTextHint)),
-              ]),
-            ],
+              ],
+            ]),
           ])),
       const SizedBox(height: 10),
 
-      // ── ORDER vs DELIVERED comparison (ORDER-level loss) ──────
-      _buildLossCard(o),
+      // ── 2. DELIVERY SUMMARY — Ordered / Delivered / Variance ────────
+      _buildDeliverySummary(o),
       const SizedBox(height: 10),
 
-      // ── WEIGHMENT LOG (BLE Scale data) ────────────────────────
-      if (_weighSession != null) ...[
-        _buildWeighmentLog(challans),
-        const SizedBox(height: 10),
-      ] else ...[
-        Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-                color: Colors.grey.shade50,
-                borderRadius: BorderRadius.circular(kRadiusCard),
-                border: Border.all(color: kBorder)),
-            child: const Row(children: [
-              Icon(Icons.scale_outlined, size: 18, color: kTextHint),
-              SizedBox(width: 8),
-              Text('No scale weighment recorded for this delivery',
-                  style: TextStyle(fontSize: 12, color: kTextHint)),
-            ])),
-        const SizedBox(height: 10),
-      ],
+      // ── 3. BLE SCALE LOG — collapsed by default ──────────────────────
+      _buildBleCollapsible(challans),
+      const SizedBox(height: 10),
 
-      // ── DC / Farm Pickup details ──────────────────────────────
-      if (challans.isNotEmpty) ...[
-        _buildDCDetails(challans),
-        const SizedBox(height: 10),
-      ],
-
-      // ── MORTALITY & PROOF IMAGES ─────────────────────────────
-      // Always shown — trader must verify mortality before approving
+      // ── 4. MORTALITY & PROOF IMAGES ──────────────────────────────────
       _buildPhotos(),
 
       // ── Rate & Bill ───────────────────────────────────────────
@@ -490,7 +556,8 @@ class _S extends ConsumerState<ApprovalDetailScreen> {
                   const SizedBox(width: 6),
                   Text(
                       _weighNetTotal > 0
-                          ? 'Using BLE scale weight: ${_billingWeight.toStringAsFixed(2)} kg'
+                          ? 'Using BLE row sum: ${_billingWeight.toStringAsFixed(2)} kg'
+                          '${_bleDiscrepancy ? "  ⚠ Session showed ${_weighSessionNetTotal.toStringAsFixed(1)} kg" : ""}'
                           : 'Using agent entry: ${_billingWeight.toStringAsFixed(2)} kg (no scale data)',
                       style: TextStyle(
                           fontSize: 12,
@@ -796,31 +863,8 @@ class _S extends ConsumerState<ApprovalDetailScreen> {
                   TextStyle(fontSize: 15, fontWeight: FontWeight.w700)))),
       const SizedBox(height: 12),
 
-      // ── Reject ─────────────────────────────────────────────────
-      ExpansionTile(
-          title: const Text('Reject Delivery',
-              style: TextStyle(color: kError, fontWeight: FontWeight.w600)),
-          leading: const Icon(Icons.cancel_outlined, color: kError, size: 20),
-          children: [
-            Padding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      TextField(
-                          controller: _rejectCtrl,
-                          maxLines: 2,
-                          decoration: const InputDecoration(
-                              labelText: 'Reason *', alignLabelWithHint: true)),
-                      const SizedBox(height: 10),
-                      OutlinedButton(
-                          onPressed: _submitting ? null : _reject,
-                          style: OutlinedButton.styleFrom(
-                              foregroundColor: kError,
-                              side: const BorderSide(color: kError)),
-                          child: const Text('Reject')),
-                    ]))
-          ]),
+      // ── Flag Issue (replaces Reject) ─────────────────────────────────
+      _buildFlagIssueSection(),
       const SizedBox(height: 20),
     ];
 
@@ -912,8 +956,8 @@ class _S extends ConsumerState<ApprovalDetailScreen> {
                     !dcAvailable
                         ? 'DC weight not recorded — loss cannot be computed'
                         : (_isHighLoss
-                        ? '⚠️ High Loss — ${_lossPct.toStringAsFixed(1)}% needs attention'
-                        : 'Loss: ${_lossPct.toStringAsFixed(1)}%'),
+                        ? '⚠️ Weight Variance — ${_lossPct.toStringAsFixed(1)}% vs DC (preliminary)'
+                        : 'Weight Variance: ${_lossPct.toStringAsFixed(1)}% vs DC'),
                     style: TextStyle(
                         fontWeight: FontWeight.w800,
                         fontSize: 13,
@@ -968,17 +1012,35 @@ class _S extends ConsumerState<ApprovalDetailScreen> {
               ])),
           const SizedBox(height: 10),
           Row(children: [
-            _lossChip('Transport Loss',
-                '${_transportLoss.toStringAsFixed(2)} kg', Colors.orange),
+            _lossChip('vs Order Expected',
+                '${_transportLoss.toStringAsFixed(2)} kg',
+                Colors.orange),
             const SizedBox(width: 8),
             _lossChip(
-                'Mortality Loss',
+                'Mortality',
                 '$_mortalityBirds birds\n${_mortalityWt.toStringAsFixed(2)} kg',
                 Colors.red),
             const SizedBox(width: 8),
-            _lossChip('Total Loss', '${_totalLoss.toStringAsFixed(2)} kg',
+            _lossChip('Vs DC (Prelim)',
+                '${_totalLoss.toStringAsFixed(2)} kg',
                 _isHighLoss ? Colors.red : Colors.orange),
           ]),
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Colors.blue.shade50,
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: const Row(children: [
+              Icon(Icons.info_outline, size: 12, color: Colors.blue),
+              SizedBox(width: 6),
+              Expanded(child: Text(
+                  'Preliminary only. Actual loss (including live returns, return mortality, '
+                      'weight variance) is calculated when the shift is approved.',
+                  style: TextStyle(fontSize: 10, color: Colors.blue))),
+            ]),
+          ),
           if (_delivery?['delivery_notes'] != null) ...[
             const SizedBox(height: 8),
             Text('Agent notes: ${_delivery!['delivery_notes']}',
@@ -1106,6 +1168,39 @@ class _S extends ConsumerState<ApprovalDetailScreen> {
                     Colors.teal),
                 _wStat('Cages', '$cages', kTextSub),
               ])),
+
+          // ── Scale reading note (only when row sum ≠ session summary) ──────
+          // This can appear when the weighment was saved mid-session before
+          // all crate empty-weights were recorded. The DB trigger now keeps
+          // these in sync automatically; this is shown only as an audit trail.
+          if (_bleDiscrepancy) ...[
+            Container(
+              margin: const EdgeInsets.fromLTRB(12, 6, 12, 0),
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                  color: Colors.blue.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.blue.shade200)),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                const Row(children: [
+                  Icon(Icons.info_outline, color: Colors.blue, size: 14),
+                  SizedBox(width: 6),
+                  Text('SCALE LOG NOTE',
+                      style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900,
+                          color: Colors.blue, letterSpacing: 0.4)),
+                ]),
+                const SizedBox(height: 6),
+                Text('Individual readings sum: ${_weighRowNetTotal.toStringAsFixed(2)} kg  '
+                    '·  Session total: ${_weighSessionNetTotal.toStringAsFixed(2)} kg',
+                    style: const TextStyle(fontSize: 11, color: Colors.blue,
+                        fontWeight: FontWeight.w600)),
+                const SizedBox(height: 4),
+                const Text(
+                    'Billing uses the individual readings sum (more precise).',
+                    style: TextStyle(fontSize: 10, color: kTextSub)),
+              ]),
+            ),
+          ],
 
           // Row-by-row table header
           if (rows.isNotEmpty) ...[
@@ -1546,4 +1641,513 @@ class _S extends ConsumerState<ApprovalDetailScreen> {
             style: const TextStyle(fontSize: 9, color: kTextHint),
             textAlign: TextAlign.center),
       ]));
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // NEW WIDGET 1 — DELIVERY SUMMARY (Ordered / Delivered / Variance)
+  // ═══════════════════════════════════════════════════════════════════════════
+  Widget _buildDeliverySummary(Map<String, dynamic>? o) {
+    final orderedWt   = _orderExpectedWt;
+    final deliveredWt = _billingWeight;
+    final variance    = deliveredWt - orderedWt;
+    final shortagePct = orderedWt > 0
+        ? ((orderedWt - deliveredWt) / orderedWt * 100).clamp(0.0, 100.0)
+        : 0.0;
+
+    final Color varColor;
+    final String varLabel;
+    final IconData varIcon;
+
+    if (variance >= 0) {
+      varColor = Colors.green;
+      varLabel  = orderedWt > 0 ? '+${variance.toStringAsFixed(1)} kg' : 'Delivered';
+      varIcon   = Icons.check_circle_outline;
+    } else if (shortagePct <= 3) {
+      varColor = Colors.orange;
+      varLabel  = '−${variance.abs().toStringAsFixed(1)} kg  (${shortagePct.toStringAsFixed(1)}%)';
+      varIcon   = Icons.warning_amber_outlined;
+    } else {
+      varColor = Colors.red;
+      varLabel  = '−${variance.abs().toStringAsFixed(1)} kg  (${shortagePct.toStringAsFixed(1)}%)';
+      varIcon   = Icons.cancel_outlined;
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+          color: varColor.withValues(alpha: 0.06),
+          borderRadius: BorderRadius.circular(kRadiusCard),
+          border: Border.all(color: varColor.withValues(alpha: 0.3), width: 1.5)),
+      child: Column(children: [
+        // ── Three-column header ─────────────────────────────────
+        Row(children: [
+          Expanded(child: _summaryCol('ORDERED', kTextSub)),
+          Expanded(child: _summaryCol('DELIVERED', kTextSub)),
+          Expanded(child: _summaryCol('VARIANCE', varColor)),
+        ]),
+        const SizedBox(height: 8),
+        Row(children: [
+          Expanded(child: _summaryVal(
+              orderedWt > 0 ? '${orderedWt.toStringAsFixed(1)} kg' : '— kg',
+              kTextMain)),
+          Expanded(child: _summaryVal('${deliveredWt.toStringAsFixed(1)} kg', kTextMain)),
+          Expanded(child: _summaryVal(varLabel, varColor)),
+        ]),
+        const SizedBox(height: 12),
+        // ── Visual progress bar ─────────────────────────────────
+        if (orderedWt > 0) ...[
+          ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: LinearProgressIndicator(
+              value: (deliveredWt / orderedWt).clamp(0.0, 1.0),
+              minHeight: 7,
+              backgroundColor: Colors.grey.shade200,
+              valueColor: AlwaysStoppedAnimation<Color>(varColor),
+            ),
+          ),
+          const SizedBox(height: 8),
+        ],
+        // ── Variance status chip ────────────────────────────────
+        Row(children: [
+          Icon(varIcon, size: 14, color: varColor),
+          const SizedBox(width: 6),
+          Text(
+              variance >= 0
+                  ? 'Delivered meets or exceeds order'
+                  : shortagePct <= 3
+                  ? 'Minor shortage — within 3% tolerance'
+                  : 'Significant shortage — exceeds 3% threshold',
+              style: TextStyle(fontSize: 11, color: varColor, fontWeight: FontWeight.w600)),
+        ]),
+        // ── BLE mismatch warning — surfaced here, NOT buried in the BLE log ──
+        // Shown only when session total differs from row sum by >1%.
+        // After the DB trigger fix this should rarely appear; if it does,
+        // it means the session was saved before all crate empty-weights were
+        // recorded and the auto-sync hasn't run yet.
+        if (_bleDiscrepancy) ...[
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            decoration: BoxDecoration(
+                color: Colors.orange.shade50,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.orange.shade300)),
+            child: Row(children: [
+              const Icon(Icons.info_outline, size: 13, color: Colors.orange),
+              const SizedBox(width: 8),
+              Expanded(child: Text(
+                  'Scale reading updated — billing uses ${_weighRowNetTotal.toStringAsFixed(1)} kg '
+                      '(from ${_weighRows.length} individual readings). '
+                      'Expand the scale log to review.',
+                  style: const TextStyle(fontSize: 10, color: Colors.deepOrange,
+                      fontWeight: FontWeight.w600))),
+            ]),
+          ),
+        ],
+      ]),
+    );
+  }
+
+  Widget _summaryCol(String label, Color c) => Text(label,
+      textAlign: TextAlign.center,
+      style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800,
+          color: c, letterSpacing: 0.5));
+
+  Widget _summaryVal(String val, Color c) => Text(val,
+      textAlign: TextAlign.center,
+      style: TextStyle(fontSize: 15, fontWeight: FontWeight.w900, color: c));
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // NEW WIDGET 2 — BLE COLLAPSIBLE (replaces always-expanded BLE log)
+  // ═══════════════════════════════════════════════════════════════════════════
+  Widget _buildBleCollapsible(List<Map<String, dynamic>> challans) {
+    // Header summary row — always visible
+    final rowCount   = _weighRows.length;
+    final rowNetSum  = _weighRowNetTotal;
+    final sessNet    = _weighSessionNetTotal;
+    final totBirds   = (_weighSession?['total_birds'] as num?)?.toInt() ?? 0;
+
+    return Container(
+      decoration: BoxDecoration(
+          color: kSurface,
+          borderRadius: BorderRadius.circular(kRadiusCard),
+          border: Border.all(color: Colors.blue.shade200, width: 1.5)),
+      child: Column(children: [
+        // ── Always-visible header ─────────────────────────────────────────
+        InkWell(
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(kRadiusCard - 2)),
+          onTap: () => setState(() => _showBleExpanded = !_showBleExpanded),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            child: Row(children: [
+              const Icon(Icons.scale, size: 16, color: Colors.blue),
+              const SizedBox(width: 8),
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                const Text('BLE Scale Weighment',
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800)),
+                const SizedBox(height: 2),
+                if (_weighSession == null)
+                  const Text('No BLE session recorded',
+                      style: TextStyle(fontSize: 11, color: kTextHint))
+                else
+                  Row(children: [
+                    _bleSummaryChip('Net', '${rowNetSum.toStringAsFixed(1)} kg', Colors.blue.shade700),
+                    const SizedBox(width: 8),
+                    _bleSummaryChip('Birds', '$totBirds', kPrimary),
+                    const SizedBox(width: 8),
+                    _bleSummaryChip('Rows', '$rowCount readings', Colors.teal),
+                    if (_bleDiscrepancy) ...[
+                      const SizedBox(width: 8),
+                      _bleSummaryChip('⚠ Mismatch', '!', Colors.red),
+                    ],
+                  ]),
+              ])),
+              Icon(_showBleExpanded ? Icons.expand_less : Icons.expand_more,
+                  color: kTextSub, size: 20),
+            ]),
+          ),
+        ),
+        // ── Expandable full log ───────────────────────────────────────────
+        if (_showBleExpanded && _weighSession != null) ...[
+          const Divider(height: 1),
+          _buildBleFullLog(),
+        ],
+      ]),
+    );
+  }
+
+  Widget _bleSummaryChip(String label, String val, Color c) => Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+          color: c.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(6)),
+      child: Text('$label: $val',
+          style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: c)));
+
+  // Full BLE details — only rendered when expanded
+  Widget _buildBleFullLog() {
+    final ws       = _weighSession!;
+    final rows     = _weighRows;
+    final sessLoad = (ws['total_load_wt'] as num?)?.toDouble() ?? 0;
+    final sessEmpty= (ws['total_empty_wt'] as num?)?.toDouble() ?? 0;
+    final sessNet  = _weighSessionNetTotal;
+    final rowNet   = _weighRowNetTotal;
+    final avgWt    = (ws['avg_bird_wt'] as num?)?.toDouble() ?? 0;
+    final totBirds = (ws['total_birds'] as num?)?.toInt() ?? 0;
+    final cages    = (ws['total_cages'] as num?)?.toInt() ?? 0;
+
+    // ── Formula validation ──
+    // 1. Session: net = load - empty
+    final sessNetCalc    = sessLoad - sessEmpty;
+    final sessNetOk      = (sessNet - sessNetCalc).abs() < 0.1;
+    // 2. Row sum vs session net
+    final rowSumMatchesSess = (rowNet - sessNet).abs() / (sessNet > 0 ? sessNet : 1) < 0.01;
+    // 3. Avg bird weight sanity (broilers: 1000–3000g)
+    final avgG           = (avgWt * 1000);
+    final avgSane        = avgG >= 800 && avgG <= 3500;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        // ── Formula validation summary ────────────────────────────
+        Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+              color: Colors.grey.shade50,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: kBorder)),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            const Text('FORMULA AUDIT', style: TextStyle(fontSize: 9,
+                fontWeight: FontWeight.w900, color: kTextHint, letterSpacing: 0.6)),
+            const SizedBox(height: 6),
+            _formulaRow(
+                'Session: Net = Load − Empty',
+                '${sessLoad.toStringAsFixed(1)} − ${sessEmpty.toStringAsFixed(1)} = ${sessNetCalc.toStringAsFixed(1)} kg (session: ${sessNet.toStringAsFixed(1)})',
+                sessNetOk),
+            _formulaRow(
+                'Row sum vs session net',
+                '${rowNet.toStringAsFixed(2)} kg vs ${sessNet.toStringAsFixed(2)} kg',
+                rowSumMatchesSess),
+            _formulaRow(
+                'Avg bird weight (broiler: 1000–3000g)',
+                '${avgG.toStringAsFixed(0)}g/bird${avgSane ? "" : " ← SUSPECT — verify bird count"}',
+                avgSane),
+          ]),
+        ),
+        const SizedBox(height: 10),
+
+        // ── Individual rows ───────────────────────────────────────
+        Row(children: [
+          _tHead('#', 28), _tHead('Time', 48),
+          _tHead('Load', 68), _tHead('Empty', 68),
+          _tHead('Net', 68), _tHead('Cages', 45),
+          _tHead('Check', 56),
+        ]),
+        const Divider(height: 8),
+        ...rows.map((row) {
+          final loadWt  = (row['load_wt']   as num?)?.toDouble() ?? 0;
+          final emptyWt = (row['empty_wt']  as num?)?.toDouble() ?? 0;
+          final netWt   = (row['net_wt']    as num?)?.toDouble() ?? 0;
+          final cageL   = (row['load_cages'] as num?)?.toInt() ?? 0;
+          final seq     = (row['seq_no']    as num?)?.toInt() ?? 0;
+          final time    = row['entry_time'] as String? ?? '—';
+          // Per-row formula check
+          final calcNet = loadWt - emptyWt;
+          final rowOk   = (netWt - calcNet).abs() < 0.1;
+          return Container(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              color: seq.isOdd ? const Color(0xFFF8F9FC) : Colors.white,
+              child: Row(children: [
+                _tCell('$seq', 28, kTextHint),
+                _tCell(time, 48, kTextSub),
+                _tCell('${loadWt.toStringAsFixed(1)}', 68, kTextMain),
+                _tCell('${emptyWt.toStringAsFixed(1)}', 68, kTextSub),
+                _tCell('${netWt.toStringAsFixed(1)}', 68, Colors.green.shade700),
+                _tCell('$cageL', 45, kTextSub),
+                SizedBox(width: 56, child: Icon(
+                    rowOk ? Icons.check : Icons.warning_amber,
+                    size: 14,
+                    color: rowOk ? Colors.green : Colors.red)),
+              ]));
+        }),
+        // ── Footer totals ────────────────────────────────────────
+        Container(
+          padding: const EdgeInsets.fromLTRB(0, 8, 0, 0),
+          decoration: BoxDecoration(
+              border: Border(top: BorderSide(color: Colors.blue.shade200))),
+          child: Row(children: [
+            _tHead('TOTAL', 76),
+            _tHead('', 48),
+            _tHead('', 68),
+            _tHead('', 68),
+            _tHead('${rowNet.toStringAsFixed(2)} kg', 68,
+                isTotal: true, color: Colors.blue.shade700),
+            _tHead('', 45),
+            _tHead(rowSumMatchesSess ? '✓' : '⚠', 56,
+                isTotal: true, color: rowSumMatchesSess ? Colors.green : Colors.red),
+          ]),
+        ),
+        // ── Row sum vs billing weight ────────────────────────────
+        const SizedBox(height: 6),
+        Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+              color: Colors.blue.shade50,
+              borderRadius: BorderRadius.circular(6)),
+          child: Text(
+              'Billing weight: ${_billingWeight.toStringAsFixed(2)} kg '
+                  '(from ${_weighRows.isNotEmpty ? "row sum" : _agentDeliveredWt > 0 ? "delivery record" : "session total"})',
+              style: const TextStyle(fontSize: 10, color: Colors.blue,
+                  fontWeight: FontWeight.w700)),
+        ),
+      ]),
+    );
+  }
+
+  Widget _formulaRow(String label, String detail, bool ok) => Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Icon(ok ? Icons.check_circle : Icons.error_outline,
+            size: 13, color: ok ? Colors.green : Colors.red),
+        const SizedBox(width: 6),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(label, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600)),
+          Text(detail, style: TextStyle(fontSize: 9,
+              color: ok ? kTextSub : Colors.red)),
+        ])),
+      ]));
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // NEW WIDGET 3 — VIEW DC BOTTOM SHEET
+  // ═══════════════════════════════════════════════════════════════════════════
+  void _showDCSheet(BuildContext context, List<Map<String, dynamic>> challans) {
+    showModalBottomSheet(
+      context: context,
+      useRootNavigator: true,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => Container(
+        decoration: const BoxDecoration(
+            color: kSurface,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+        padding: const EdgeInsets.fromLTRB(20, 20, 20, 36),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Center(child: Container(width: 40, height: 4,
+              decoration: BoxDecoration(color: Colors.grey.shade300,
+                  borderRadius: BorderRadius.circular(2)))),
+          const SizedBox(height: 14),
+          const Row(children: [
+            Icon(Icons.local_shipping_outlined, size: 18, color: kNavy),
+            SizedBox(width: 8),
+            Text('Farm Pickup — DC Details',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900)),
+          ]),
+          const SizedBox(height: 14),
+          ...challans.map((dc) {
+            final gross  = (dc['gross_weight']       as num?)?.toDouble() ?? 0;
+            final empty  = (dc['empty_crate_weight'] as num?)?.toDouble() ?? 0;
+            final net    = (dc['net_weight']          as num?)?.toDouble() ?? 0;
+            final birds  = (dc['bird_count']          as num?)?.toInt()   ?? 0;
+            final dcNum  = dc['dc_number'] as String? ?? '—';
+            final dcDate = dc['dc_date']   as String? ?? '—';
+            final farm   = (dc['farms']?['name'])     as String?? '—';
+            return Container(
+              margin: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                  color: Colors.grey.shade50,
+                  borderRadius: BorderRadius.circular(kRadiusCard),
+                  border: Border.all(color: kBorder)),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Row(children: [
+                  Text('DC $dcNum',
+                      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800)),
+                  const Spacer(),
+                  Text(dcDate, style: const TextStyle(fontSize: 11, color: kTextSub)),
+                ]),
+                const SizedBox(height: 4),
+                Text(farm, style: const TextStyle(fontSize: 11, color: kTextSub)),
+                const Divider(height: 14),
+                Row(children: [
+                  _dcStat('Gross', '${gross.toStringAsFixed(1)} kg', Colors.blue),
+                  _dcStat('Empty', '${empty.toStringAsFixed(1)} kg', Colors.grey),
+                  _dcStat('Net', '${net.toStringAsFixed(1)} kg', Colors.green.shade700),
+                  _dcStat('Birds', '$birds', kPrimary),
+                ]),
+              ]),
+            );
+          }),
+        ]),
+      ),
+    );
+  }
+
+  Widget _dcStat(String l, String v, Color c) => Expanded(
+      child: Column(children: [
+        Text(v, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: c),
+            textAlign: TextAlign.center),
+        Text(l, style: const TextStyle(fontSize: 9, color: kTextHint),
+            textAlign: TextAlign.center),
+      ]));
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // NEW WIDGET 4 — FLAG ISSUE SECTION (replaces Reject)
+  // ═══════════════════════════════════════════════════════════════════════════
+  static const _flagCategories = [
+    ('weight_mismatch',      '⚖️ Weight Mismatch',      'Delivered weight differs from expected'),
+    ('ble_issue',            '📡 BLE Issue',             'Scale readings look incorrect or inconsistent'),
+    ('mortality_concern',    '🐦 Mortality Concern',     'Dead birds not properly recorded or disputed'),
+    ('customer_complaint',   '🏪 Customer Complaint',    'Retailer has raised a concern about delivery'),
+    ('rate_concern',         '💰 Rate Concern',          'Applied rate is disputed or incorrect'),
+    ('other',                '📋 Other',                 'Issue not covered by above categories'),
+  ];
+
+  Widget _buildFlagIssueSection() {
+    return Container(
+      decoration: BoxDecoration(
+          color: kSurface,
+          borderRadius: BorderRadius.circular(kRadiusCard),
+          border: Border.all(color: Colors.orange.shade200)),
+      child: Column(children: [
+        InkWell(
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(kRadiusCard - 2)),
+          onTap: () => setState(() => _showFlagExpanded = !_showFlagExpanded),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            child: Row(children: [
+              const Icon(Icons.flag_outlined, size: 18, color: Colors.orange),
+              const SizedBox(width: 8),
+              const Expanded(child: Text('Flag Issue',
+                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700,
+                      color: Colors.orange))),
+              const Text('Hold for review without rejecting',
+                  style: TextStyle(fontSize: 10, color: kTextSub)),
+              const SizedBox(width: 8),
+              Icon(_showFlagExpanded ? Icons.expand_less : Icons.expand_more,
+                  color: Colors.orange, size: 18),
+            ]),
+          ),
+        ),
+        if (_showFlagExpanded) ...[
+          const Divider(height: 1, color: Color(0xFFFFE0B2)),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+              // Category chips
+              const Text('SELECT ISSUE CATEGORY *',
+                  style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800,
+                      color: kTextHint, letterSpacing: 0.5)),
+              const SizedBox(height: 8),
+              ...(_flagCategories.map((cat) {
+                final selected = _flagCategory == cat.$1;
+                return GestureDetector(
+                  onTap: () => setState(() => _flagCategory =
+                  selected ? null : cat.$1),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 150),
+                    margin: const EdgeInsets.only(bottom: 6),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 10),
+                    decoration: BoxDecoration(
+                        color: selected
+                            ? Colors.orange.withValues(alpha: 0.12)
+                            : Colors.grey.shade50,
+                        borderRadius: BorderRadius.circular(kRadiusChip),
+                        border: Border.all(
+                            color: selected
+                                ? Colors.orange
+                                : Colors.grey.shade300,
+                            width: selected ? 1.5 : 1)),
+                    child: Row(children: [
+                      Text(cat.$2,
+                          style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                              color: selected ? Colors.orange : kTextMain)),
+                      const SizedBox(width: 8),
+                      Expanded(child: Text(cat.$3,
+                          style: const TextStyle(
+                              fontSize: 11, color: kTextSub))),
+                      if (selected)
+                        const Icon(Icons.check_circle,
+                            size: 16, color: Colors.orange),
+                    ]),
+                  ),
+                );
+              })),
+              const SizedBox(height: 10),
+              // Optional notes
+              TextField(
+                controller: _flagNotesCtrl,
+                maxLines: 2,
+                decoration: InputDecoration(
+                  labelText: 'Additional notes (optional)',
+                  hintText: 'Describe the issue in detail...',
+                  filled: true,
+                  fillColor: Colors.grey.shade50,
+                  border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: BorderSide(color: Colors.grey.shade300)),
+                  enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: BorderSide(color: Colors.grey.shade300)),
+                  contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 14, vertical: 10),
+                ),
+              ),
+              const SizedBox(height: 12),
+              OutlinedButton.icon(
+                onPressed: _submitting ? null : _flagIssue,
+                icon: const Icon(Icons.flag, size: 16),
+                label: const Text('Flag & Hold for Review'),
+                style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.orange,
+                    side: const BorderSide(color: Colors.orange),
+                    padding: const EdgeInsets.symmetric(vertical: 12)),
+              ),
+            ]),
+          ),
+        ],
+      ]),
+    );
+  }
 }
