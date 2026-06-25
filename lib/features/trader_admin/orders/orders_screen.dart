@@ -67,12 +67,12 @@ class _S extends ConsumerState<OrdersScreen> {
     }
     final lower = q.toLowerCase();
     setState(() => _filtered = _orders.where((o) {
-          final r = o['retailers'] as Map<String, dynamic>?;
-          return (r?['shop_name'] as String? ?? '')
-                  .toLowerCase()
-                  .contains(lower) ||
-              (o['id'] as String? ?? '').toLowerCase().contains(lower);
-        }).toList());
+      final r = o['retailers'] as Map<String, dynamic>?;
+      return (r?['shop_name'] as String? ?? '')
+          .toLowerCase()
+          .contains(lower) ||
+          (o['id'] as String? ?? '').toLowerCase().contains(lower);
+    }).toList());
   }
 
   Future<void> _load() async {
@@ -87,7 +87,9 @@ class _S extends ConsumerState<OrdersScreen> {
       var q = _c
           .from('orders')
           .select(
-              'id,status,estimated_birds,total_quantity,total_amount,created_at,order_date,retailers(shop_name)')
+          'id,status,estimated_birds,total_quantity,total_amount,created_at,order_date,'
+              'retailers(shop_name),'
+              'order_items(master_products(name))')
           .eq('trader_id', tid);
       if (_filter != 'all') q = q.eq('status', _filter);
       final data = await q.order('created_at', ascending: false).limit(300);
@@ -118,12 +120,12 @@ class _S extends ConsumerState<OrdersScreen> {
       appBar: isDesktop
           ? null
           : AppBar(
-              title: const Text('Orders'),
-              actions: [
-                IconButton(
-                    icon: const Icon(Icons.refresh_outlined), onPressed: _load)
-              ],
-            ),
+        title: const Text('Orders'),
+        actions: [
+          IconButton(
+              icon: const Icon(Icons.refresh_outlined), onPressed: _load)
+        ],
+      ),
 
       // Toolbar: search + new order button
       toolbar: ListToolbar(
@@ -139,11 +141,11 @@ class _S extends ConsumerState<OrdersScreen> {
         onPrimary: () => context.push(R.orderCreate),
         secondaryActions: isDesktop
             ? [
-                IconButton(
-                    icon: const Icon(Icons.refresh_outlined),
-                    onPressed: _load,
-                    tooltip: 'Refresh')
-              ]
+          IconButton(
+              icon: const Icon(Icons.refresh_outlined),
+              onPressed: _load,
+              tooltip: 'Refresh')
+        ]
             : null,
       ),
 
@@ -163,10 +165,10 @@ class _S extends ConsumerState<OrdersScreen> {
       fab: isDesktop
           ? null
           : FloatingActionButton.extended(
-              onPressed: () => context.push(R.orderCreate),
-              icon: const Icon(Icons.add),
-              label: const Text('New Order'),
-            ),
+        onPressed: () => context.push(R.orderCreate),
+        icon: const Icon(Icons.add),
+        label: const Text('New Order'),
+      ),
 
       // Content
       content: AsyncStateView(
@@ -209,12 +211,38 @@ class _S extends ConsumerState<OrdersScreen> {
           label: 'Retailer',
           flex: 3,
           cellBuilder: (o) {
-            final r = o['retailers'] as Map<String, dynamic>?;
-            return Text(
-              r?['shop_name'] as String? ?? '—',
-              style: const TextStyle(
-                  fontSize: 13, fontWeight: FontWeight.w600, color: kTextMain),
-              overflow: TextOverflow.ellipsis,
+            final r   = o['retailers'] as Map<String, dynamic>?;
+            final lbl = _OrderCard._productLabel(o);
+            final c   = _OrderCard._productColor(lbl);
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  r?['shop_name'] as String? ?? '—',
+                  style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: kTextMain),
+                  overflow: TextOverflow.ellipsis,
+                ),
+                if (lbl.isNotEmpty)
+                  Container(
+                    margin: const EdgeInsets.only(top: 2),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 6, vertical: 1),
+                    decoration: BoxDecoration(
+                        color: c.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(4),
+                        border: Border.all(
+                            color: c.withValues(alpha: 0.3))),
+                    child: Text(lbl,
+                        style: TextStyle(
+                            fontSize: 9,
+                            fontWeight: FontWeight.w700,
+                            color: c)),
+                  ),
+              ],
             );
           },
         ),
@@ -270,7 +298,7 @@ class _S extends ConsumerState<OrdersScreen> {
           width: 40,
           alignment: Alignment.center,
           cellBuilder: (_) =>
-              const Icon(Icons.chevron_right, size: 16, color: kTextHint),
+          const Icon(Icons.chevron_right, size: 16, color: kTextHint),
         ),
       ],
       rows: _filtered,
@@ -328,6 +356,27 @@ class _OrderCard extends StatelessWidget {
 
   final Map<String, dynamic> order;
 
+  // ── Product helpers (display-only, read-only) ─────────────────────────────
+  static String _productLabel(Map<String, dynamic> o) {
+    final items =
+        (o['order_items'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+    final names = items
+        .map((i) => (i['master_products'] as Map?)?['name'] as String? ?? '')
+        .where((n) => n.isNotEmpty)
+        .toSet()
+        .toList();
+    if (names.isEmpty) return '';
+    return names.length == 1 ? names.first : 'Multi-product';
+  }
+
+  static Color _productColor(String label) {
+    final l = label.toLowerCase();
+    if (l.contains('country')) return const Color(0xFF6D4C41); // brown
+    if (l.contains('quail'))   return Colors.purple;
+    if (l.contains('multi'))   return Colors.indigo;
+    return const Color(0xFF00796B); // teal — broiler default
+  }
+
   @override
   Widget build(BuildContext context) {
     final retailer = order['retailers'] as Map<String, dynamic>?;
@@ -359,7 +408,7 @@ class _OrderCard extends StatelessWidget {
                   top: Radius.circular(kRadiusCard)),
               border: Border(
                   bottom:
-                      BorderSide(color: kBorderLight.withValues(alpha: 0.5))),
+                  BorderSide(color: kBorderLight.withValues(alpha: 0.5))),
             ),
             child: Row(children: [
               // Avatar
@@ -376,34 +425,57 @@ class _OrderCard extends StatelessWidget {
                 ),
                 child: Center(
                     child: Text(
-                  shopName.isNotEmpty ? shopName[0].toUpperCase() : '?',
-                  style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w900,
-                      color: kGoldLight),
-                )),
+                      shopName.isNotEmpty ? shopName[0].toUpperCase() : '?',
+                      style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w900,
+                          color: kGoldLight),
+                    )),
               ),
               const SizedBox(width: 12),
               Expanded(
                   child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                    Text(shopName,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                            fontWeight: FontWeight.w900,
-                            fontSize: 16,
-                            color: kNavy,
-                            letterSpacing: -0.3)),
-                    if (date != null)
-                      Text(
-                          DateFormat('d MMM y · h:mm a').format(date.toLocal()),
-                          style: const TextStyle(
-                              fontSize: 11,
-                              color: kTextHint,
-                              fontWeight: FontWeight.w500)),
-                  ])),
+                        Text(shopName,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                                fontWeight: FontWeight.w900,
+                                fontSize: 16,
+                                color: kNavy,
+                                letterSpacing: -0.3)),
+                        const SizedBox(height: 3),
+                        Row(children: [
+                          // ── Product chip (display-only, no logic change) ──────
+                          Builder(builder: (_) {
+                            final lbl = _productLabel(order);
+                            if (lbl.isEmpty) return const SizedBox.shrink();
+                            final c = _productColor(lbl);
+                            return Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 7, vertical: 2),
+                              decoration: BoxDecoration(
+                                  color: c.withValues(alpha: 0.1),
+                                  borderRadius: BorderRadius.circular(5),
+                                  border: Border.all(
+                                      color: c.withValues(alpha: 0.3))),
+                              child: Text(lbl,
+                                  style: TextStyle(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w700,
+                                      color: c)),
+                            );
+                          }),
+                        ]),
+                        if (date != null)
+                          Text(
+                              DateFormat('d MMM y · h:mm a').format(date.toLocal()),
+                              style: const TextStyle(
+                                  fontSize: 11,
+                                  color: kTextHint,
+                                  fontWeight: FontWeight.w500)),
+                      ])),
               StatusChip.order(status, size: StatusChipSize.small),
             ]),
           ),
@@ -422,7 +494,7 @@ class _OrderCard extends StatelessWidget {
               const Spacer(),
               Container(
                 padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 decoration: BoxDecoration(
                   color: kNavy,
                   borderRadius: BorderRadius.circular(kRadiusChip),

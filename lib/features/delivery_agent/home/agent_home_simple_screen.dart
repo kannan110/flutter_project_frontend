@@ -45,6 +45,7 @@ class SimpleDashboard extends StatefulWidget {
     this.onDeliveryCompleteItem,
     this.onTransferItem,
     this.onReassignItem,
+    this.stockByProduct,
   });
 
   final bool hasShift;
@@ -65,6 +66,7 @@ class SimpleDashboard extends StatefulWidget {
   final ValueChanged<String>? onDeliveryCompleteItem;
   final ValueChanged<String>? onTransferItem;
   final ValueChanged<Map<String, dynamic>>? onReassignItem;
+  final List<Map<String, dynamic>>? stockByProduct;
 
   @override
   State<SimpleDashboard> createState() => _SimpleDashboardState();
@@ -106,7 +108,7 @@ class _SimpleDashboardState extends State<SimpleDashboard> {
               onTap: () => setState(() => _tamil = !_tamil),
               child: Container(
                 padding:
-                    const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
                 decoration: BoxDecoration(
                   color: kNavy,
                   borderRadius: BorderRadius.circular(99),
@@ -149,6 +151,7 @@ class _SimpleDashboardState extends State<SimpleDashboard> {
               onPickup: widget.onGoToBatchPickup,
               onViewDCs: widget.onGoToDcView,
               tamil: _tamil,
+              stockByProduct: widget.stockByProduct,
             )
           else if (widget.hasShift)
             _NoBatchCard(onPickup: widget.onGoToBatchPickup, tamil: _tamil),
@@ -180,7 +183,7 @@ class _SimpleDashboardState extends State<SimpleDashboard> {
             hasShift: widget.hasShift,
             hasBatches: widget.activeBatches.isNotEmpty,
             onInstantOrder:
-                widget.onGoToInstantOrder ?? widget.onGoToDeliveryComplete,
+            widget.onGoToInstantOrder ?? widget.onGoToDeliveryComplete,
             onDeliveries: widget.onGoToDeliveries,
             onTransfer: widget.onGoToTransfers,
             onDcView: widget.onGoToDcView,
@@ -267,7 +270,7 @@ class _ShiftCard extends StatelessWidget {
           hasShift
               ? t('You are on duty now.', 'நீங்கள் இப்போது பணியில் உள்ளீர்கள்.')
               : t('Tap below to start your shift.',
-                  'ஷிஃப்ட் தொடங்க கீழே அழுத்தவும்.'),
+              'ஷிஃப்ட் தொடங்க கீழே அழுத்தவும்.'),
           style: const TextStyle(color: Colors.white70, fontSize: 13),
         ),
         const SizedBox(height: 18),
@@ -330,7 +333,7 @@ class _ShiftCard extends StatelessWidget {
                 border: Border.all(color: Colors.white38),
               ),
               child:
-                  Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+              Row(mainAxisAlignment: MainAxisAlignment.center, children: [
                 const Icon(Icons.pending_actions_outlined,
                     color: Colors.white, size: 18),
                 const SizedBox(width: 8),
@@ -351,7 +354,7 @@ class _ShiftCard extends StatelessWidget {
   }
 
   Widget _kpi(String label, String value, Color c) => Expanded(
-          child: Column(children: [
+      child: Column(children: [
         Container(
           width: double.infinity,
           margin: const EdgeInsets.symmetric(horizontal: 3),
@@ -390,6 +393,7 @@ class _BatchCard extends StatelessWidget {
     required this.onPickup,
     required this.onViewDCs,
     required this.tamil,
+    this.stockByProduct,
   });
 
   final Map<String, dynamic> batch;
@@ -397,6 +401,7 @@ class _BatchCard extends StatelessWidget {
   final double reqWeight, availKg;
   final VoidCallback onPickup, onViewDCs;
   final bool tamil;
+  final List<Map<String, dynamic>>? stockByProduct;
 
   String t(String en, String ta) => tamil ? ta : en;
 
@@ -502,50 +507,82 @@ class _BatchCard extends StatelessWidget {
                       ? const Color(0xFF86EFAC)
                       : const Color(0xFFFCD34D))),
         ]),
+        // ── Per-product breakdown chips ──────────────────────────────
+        if ((stockByProduct?.length ?? 0) > 1) ...[
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: stockByProduct!.map((p) {
+              final birds = (p['available_birds'] as num?)?.toInt() ?? 0;
+              final kg = (p['available_kg'] as num?)?.toDouble() ?? 0;
+              final cat = p['category'] as String? ?? '';
+              final name = tamil
+                  ? (p['name_tamil'] as String? ?? p['product_name'] as String? ?? cat)
+                  : (p['product_name'] as String? ?? cat);
+              final color = _batchProductColor(cat);
+              return Container(
+                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.10),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: color.withValues(alpha: 0.5)),
+                ),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  Container(width: 7, height: 7,
+                      decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+                  const SizedBox(width: 5),
+                  Text('$name: $birds b  ${kg.toStringAsFixed(1)} kg',
+                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: color)),
+                ]),
+              );
+            }).toList(),
+          ),
+        ],
         const SizedBox(height: 14),
         // Action buttons
         Row(children: [
           Expanded(
               child: _actionBtn(
-            icon: Icons.agriculture_rounded,
-            label: t('PICKUP', 'பிக்அப்'),
-            bg: const Color(0xFF1A7A3C),
-            onTap: onPickup,
-          )),
+                icon: Icons.agriculture_rounded,
+                label: t('PICKUP', 'பிக்அப்'),
+                bg: const Color(0xFF1A7A3C),
+                onTap: onPickup,
+              )),
           const SizedBox(width: 10),
           Expanded(
               child: _actionBtn(
-            icon: Icons.receipt_long_rounded,
-            label: t('VIEW DCS', 'DC பார்'),
-            bg: const Color(0xFF1B6CA8),
-            onTap: onViewDCs,
-          )),
+                icon: Icons.receipt_long_rounded,
+                label: t('VIEW DCS', 'DC பார்'),
+                bg: const Color(0xFF1B6CA8),
+                onTap: onViewDCs,
+              )),
         ]),
       ]),
     );
   }
 
   Widget _statBox(String label, String v1, String v2, Color c) => Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.08),
-          borderRadius: BorderRadius.circular(kRadiusInner),
-        ),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(label,
-              style: const TextStyle(
-                  fontSize: 9,
-                  color: Colors.white60,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 0.5)),
-          const SizedBox(height: 4),
-          Text(v1,
-              style: TextStyle(
-                  fontSize: 16, fontWeight: FontWeight.w900, color: c)),
-          Text(v2,
-              style: TextStyle(fontSize: 11, color: c.withValues(alpha: 0.8))),
-        ]),
-      );
+    padding: const EdgeInsets.all(12),
+    decoration: BoxDecoration(
+      color: Colors.white.withValues(alpha: 0.08),
+      borderRadius: BorderRadius.circular(kRadiusInner),
+    ),
+    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Text(label,
+          style: const TextStyle(
+              fontSize: 9,
+              color: Colors.white60,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0.5)),
+      const SizedBox(height: 4),
+      Text(v1,
+          style: TextStyle(
+              fontSize: 16, fontWeight: FontWeight.w900, color: c)),
+      Text(v2,
+          style: TextStyle(fontSize: 11, color: c.withValues(alpha: 0.8))),
+    ]),
+  );
 
   Widget _actionBtn({
     required IconData icon,
@@ -570,6 +607,13 @@ class _BatchCard extends StatelessWidget {
           ]),
         ),
       );
+
+  Color _batchProductColor(String category) => switch (category) {
+    'broiler' => const Color(0xFF4DD0C4),  // lighter teal — readable on dark navy
+    'country' => const Color(0xFFBCAAA4),  // lighter brown — readable on dark navy
+    'quail'   => const Color(0xFFCE93D8),  // light purple
+    _         => const Color(0xFF9FA8DA),  // light indigo
+  };
 }
 
 // No batch card
@@ -583,24 +627,24 @@ class _NoBatchCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: kSurface,
-          borderRadius: BorderRadius.circular(kRadiusCard),
-          border: Border.all(color: kBorderLight),
-          boxShadow: kCardShadow,
-        ),
-        child: Column(children: [
-          const Icon(Icons.inbox_outlined, size: 40, color: kTextHint),
-          const SizedBox(height: 8),
-          Text(t('No batch assigned yet', 'பேட்ச் இல்லை'),
-              style: const TextStyle(
-                  fontSize: 15, fontWeight: FontWeight.w800, color: kTextSub)),
-          const SizedBox(height: 4),
-          Text(t('Ask admin to assign a batch', 'அட்மினிடம் கேளுங்கள்'),
-              style: const TextStyle(fontSize: 12, color: kTextHint)),
-        ]),
-      );
+    padding: const EdgeInsets.all(20),
+    decoration: BoxDecoration(
+      color: kSurface,
+      borderRadius: BorderRadius.circular(kRadiusCard),
+      border: Border.all(color: kBorderLight),
+      boxShadow: kCardShadow,
+    ),
+    child: Column(children: [
+      const Icon(Icons.inbox_outlined, size: 40, color: kTextHint),
+      const SizedBox(height: 8),
+      Text(t('No batch assigned yet', 'பேட்ச் இல்லை'),
+          style: const TextStyle(
+              fontSize: 15, fontWeight: FontWeight.w800, color: kTextSub)),
+      const SizedBox(height: 4),
+      Text(t('Ask admin to assign a batch', 'அட்மினிடம் கேளுங்கள்'),
+          style: const TextStyle(fontSize: 12, color: kTextHint)),
+    ]),
+  );
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -635,6 +679,11 @@ class _NextDeliveryCard extends StatelessWidget {
     final weight = (delivery['total_quantity'] as num?)?.toDouble() ?? 0;
     final id = delivery['id'] as String? ?? '';
     final batchId = delivery['batch_id'] as String?;
+    // order_items: full multi-product breakdown per delivery from RPC
+    final orderItems = (delivery['order_items'] as List? ?? [])
+        .whereType<Map>()
+        .map((e) => e.cast<String, dynamic>())
+        .toList();
 
     return Container(
       decoration: BoxDecoration(
@@ -651,7 +700,7 @@ class _NextDeliveryCard extends StatelessWidget {
           decoration: BoxDecoration(
             color: const Color(0xFFEFF6FF),
             borderRadius:
-                const BorderRadius.vertical(top: Radius.circular(kRadiusHero)),
+            const BorderRadius.vertical(top: Radius.circular(kRadiusHero)),
           ),
           child: Row(children: [
             const Icon(Icons.local_shipping_rounded,
@@ -669,7 +718,7 @@ class _NextDeliveryCard extends StatelessWidget {
                 onTap: onViewAll,
                 child: Container(
                   padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                   decoration: BoxDecoration(
                     color: const Color(0xFF1B6CA8),
                     borderRadius: BorderRadius.circular(kRadiusChip),
@@ -688,7 +737,7 @@ class _NextDeliveryCard extends StatelessWidget {
         Padding(
           padding: const EdgeInsets.fromLTRB(18, 16, 18, 0),
           child:
-              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Row(children: [
               Container(
                 width: 36,
@@ -705,27 +754,44 @@ class _NextDeliveryCard extends StatelessWidget {
                   child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                    Text(shop,
-                        style: const TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.w900,
-                            color: kNavy),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis),
-                    if (addr.isNotEmpty)
-                      Row(children: [
-                        const Icon(Icons.location_on_outlined,
-                            size: 12, color: kTextHint),
-                        const SizedBox(width: 3),
-                        Expanded(
-                            child: Text(addr,
-                                style: const TextStyle(
-                                    fontSize: 12, color: kTextHint),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis)),
-                      ]),
-                  ])),
+                        Text(shop,
+                            style: const TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.w900,
+                                color: kNavy),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis),
+                        if (addr.isNotEmpty)
+                          Row(children: [
+                            const Icon(Icons.location_on_outlined,
+                                size: 12, color: kTextHint),
+                            const SizedBox(width: 3),
+                            Expanded(
+                                child: Text(addr,
+                                    style: const TextStyle(
+                                        fontSize: 12, color: kTextHint),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis)),
+                          ]),
+                      ])),
             ]),
+            // Product lines — one per order_item (handles multi-product orders)
+            if (orderItems.isNotEmpty) ...[
+              const SizedBox(height: 10),
+              Wrap(
+                spacing: 6, runSpacing: 6,
+                children: orderItems.map((item) {
+                  final pName = tamil
+                      ? (item['product_name_tamil'] as String? ?? item['product_name'] as String? ?? '')
+                      : (item['product_name'] as String? ?? '');
+                  final pCat   = item['category'] as String? ?? '';
+                  final pBirds = (item['bird_count'] as num?)?.toInt() ?? 0;
+                  final pWt    = (item['total_weight'] as num?)?.toDouble() ?? 0;
+                  return _simpleProductBadge(
+                      '$pName · $pBirds ${t("b", "கோ")}  ${pWt.toStringAsFixed(0)} kg', pCat);
+                }).toList(),
+              ),
+            ],
             const SizedBox(height: 16),
             // Deliver birds / weight
             Row(children: [
@@ -753,7 +819,7 @@ class _NextDeliveryCard extends StatelessWidget {
                   ],
                 ),
                 child:
-                    Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                Row(mainAxisAlignment: MainAxisAlignment.center, children: [
                   const Icon(Icons.check_circle_outline_rounded,
                       color: Colors.white, size: 22),
                   const SizedBox(width: 10),
@@ -772,19 +838,19 @@ class _NextDeliveryCard extends StatelessWidget {
               if (batchId != null)
                 Expanded(
                     child: _ghostBtn(
-                  icon: Icons.swap_horiz_rounded,
-                  label: t('TRANSFER', 'மாற்று'),
-                  color: Colors.purple,
-                  onTap: () => onTransfer?.call(batchId),
-                )),
+                      icon: Icons.swap_horiz_rounded,
+                      label: t('TRANSFER', 'மாற்று'),
+                      color: Colors.purple,
+                      onTap: () => onTransfer?.call(batchId),
+                    )),
               if (batchId != null) const SizedBox(width: 10),
               Expanded(
                   child: _ghostBtn(
-                icon: Icons.person_pin_circle_outlined,
-                label: t('REASSIGN', 'மாற்றவும்'),
-                color: Colors.brown,
-                onTap: () => onReassign?.call(delivery),
-              )),
+                    icon: Icons.person_pin_circle_outlined,
+                    label: t('REASSIGN', 'மாற்றவும்'),
+                    color: Colors.brown,
+                    onTap: () => onReassign?.call(delivery),
+                  )),
             ]),
             const SizedBox(height: 16),
           ]),
@@ -794,7 +860,7 @@ class _NextDeliveryCard extends StatelessWidget {
   }
 
   Widget _delivStat(String label, String value, Color c) => Expanded(
-          child: Container(
+      child: Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
           color: c.withValues(alpha: 0.07),
@@ -839,6 +905,31 @@ class _NextDeliveryCard extends StatelessWidget {
           ]),
         ),
       );
+
+  // Product badge for simple mode (light card background)
+  Widget _simpleProductBadge(String name, String category) {
+    final color = switch (category) {
+      'broiler' => const Color(0xFF00796B),
+      'country' => const Color(0xFF6D4C41),
+      'quail'   => Colors.purple,
+      _         => Colors.indigo,
+    };
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.09),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withValues(alpha: 0.35)),
+      ),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        Container(width: 8, height: 8,
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+        const SizedBox(width: 7),
+        Text(name,
+            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w900, color: color)),
+      ]),
+    );
+  }
 }
 
 // Pending but not OFD yet
@@ -857,30 +948,38 @@ class _PendingListCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.all(18),
-        decoration: BoxDecoration(
-          color: kSurface,
-          borderRadius: BorderRadius.circular(kRadiusCard),
-          border: Border.all(color: kBorderLight),
-          boxShadow: kCardShadow,
-        ),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(t('PENDING DELIVERIES', 'மீதமுள்ள டெலிவரி'),
-              style: const TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w900,
-                  color: kNavy,
-                  letterSpacing: 0.5)),
-          const SizedBox(height: 12),
-          ...list.take(3).map((raw) {
-            final d = (raw as Map).cast<String, dynamic>();
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: Row(children: [
+    padding: const EdgeInsets.all(18),
+    decoration: BoxDecoration(
+      color: kSurface,
+      borderRadius: BorderRadius.circular(kRadiusCard),
+      border: Border.all(color: kBorderLight),
+      boxShadow: kCardShadow,
+    ),
+    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Text(t('PENDING DELIVERIES', 'மீதமுள்ள டெலிவரி'),
+          style: const TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w900,
+              color: kNavy,
+              letterSpacing: 0.5)),
+      const SizedBox(height: 12),
+      ...list.take(3).map((raw) {
+        final d = (raw as Map).cast<String, dynamic>();
+        // order_items: full multi-product breakdown per delivery
+        final itemsRaw = (d['order_items'] as List? ?? [])
+            .whereType<Map>()
+            .map((e) => e.cast<String, dynamic>())
+            .toList();
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Shop name row
+              Row(children: [
                 Container(
-                    width: 8,
-                    height: 8,
-                    decoration: BoxDecoration(
+                    width: 8, height: 8,
+                    decoration: const BoxDecoration(
                         color: Colors.orange, shape: BoxShape.circle)),
                 const SizedBox(width: 10),
                 Expanded(
@@ -890,24 +989,61 @@ class _PendingListCard extends StatelessWidget {
                             fontWeight: FontWeight.w700,
                             color: kNavy))),
                 Text(
-                    '${(d['estimated_birds'] as num?)?.toInt() ?? 0} ${t("birds", "கோழி")}',
+                    '${(d["estimated_birds"] as num?)?.toInt() ?? 0} ${t("birds", "கோழி")}',
                     style: const TextStyle(fontSize: 12, color: kTextSub)),
               ]),
-            );
-          }),
-          if (list.length > 3) ...[
-            const SizedBox(height: 8),
-            GestureDetector(
-              onTap: onViewAll,
-              child: Text('+${list.length - 3} ${t("more", "மேலும்")} →',
-                  style: const TextStyle(
-                      fontSize: 12,
-                      color: Color(0xFF1B6CA8),
-                      fontWeight: FontWeight.w700)),
-            ),
-          ],
-        ]),
-      );
+              // Product line items
+              if (itemsRaw.isNotEmpty) ...[
+                const SizedBox(height: 4),
+                Padding(
+                  padding: const EdgeInsets.only(left: 18),
+                  child: Wrap(
+                    spacing: 5, runSpacing: 4,
+                    children: itemsRaw.map((item) {
+                      final pName = tamil
+                          ? (item['product_name_tamil'] as String? ?? item['product_name'] as String? ?? '')
+                          : (item['product_name'] as String? ?? '');
+                      final pCat   = item['category'] as String? ?? '';
+                      final pBirds = (item['bird_count'] as num?)?.toInt() ?? 0;
+                      final pWt    = (item['total_weight'] as num?)?.toDouble() ?? 0;
+                      final pColor = switch (pCat) {
+                        'broiler' => const Color(0xFF00796B),
+                        'country' => const Color(0xFF6D4C41),
+                        'quail'   => Colors.purple,
+                        _         => Colors.indigo,
+                      };
+                      return Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: pColor.withValues(alpha: 0.09),
+                          borderRadius: BorderRadius.circular(5),
+                          border: Border.all(color: pColor.withValues(alpha: 0.3)),
+                        ),
+                        child: Text('$pName · $pBirds ${t("b", "கோ")}  ${pWt.toStringAsFixed(0)} kg',
+                            style: TextStyle(fontSize: 11,
+                                fontWeight: FontWeight.w800, color: pColor)),
+                      );
+                    }).toList(),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        );
+      }),
+      if (list.length > 3) ...[
+        const SizedBox(height: 8),
+        GestureDetector(
+          onTap: onViewAll,
+          child: Text('+${list.length - 3} ${t("more", "மேலும்")} →',
+              style: const TextStyle(
+                  fontSize: 12,
+                  color: Color(0xFF1B6CA8),
+                  fontWeight: FontWeight.w700)),
+        ),
+      ],
+    ]),
+  );
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -1034,42 +1170,42 @@ class _GridTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => GestureDetector(
-        onTap: item.onTap,
-        child: Container(
+    onTap: item.onTap,
+    child: Container(
+      decoration: BoxDecoration(
+        color: item.bg,
+        borderRadius: BorderRadius.circular(kRadiusCard),
+        border: Border.all(color: item.border),
+        boxShadow: kCardShadow,
+      ),
+      child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+        Container(
+          width: 44,
+          height: 44,
           decoration: BoxDecoration(
-            color: item.bg,
-            borderRadius: BorderRadius.circular(kRadiusCard),
-            border: Border.all(color: item.border),
-            boxShadow: kCardShadow,
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(kRadiusChip),
+            boxShadow: [
+              BoxShadow(
+                  color: item.color.withValues(alpha: 0.2),
+                  blurRadius: 6,
+                  offset: const Offset(0, 2))
+            ],
           ),
-          child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-            Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(kRadiusChip),
-                boxShadow: [
-                  BoxShadow(
-                      color: item.color.withValues(alpha: 0.2),
-                      blurRadius: 6,
-                      offset: const Offset(0, 2))
-                ],
-              ),
-              child: Icon(item.icon, size: 22, color: item.color),
-            ),
-            const SizedBox(height: 8),
-            Text(item.label,
-                style: TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w800,
-                    color: item.color),
-                textAlign: TextAlign.center,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis),
-          ]),
+          child: Icon(item.icon, size: 22, color: item.color),
         ),
-      );
+        const SizedBox(height: 8),
+        Text(item.label,
+            style: TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.w800,
+                color: item.color),
+            textAlign: TextAlign.center,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis),
+      ]),
+    ),
+  );
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -1129,7 +1265,7 @@ class _PerfSnap extends StatelessWidget {
   }
 
   Widget _snap(IconData icon, String value, String label, Color c) => Expanded(
-          child: Row(children: [
+      child: Row(children: [
         Container(
           width: 36,
           height: 36,

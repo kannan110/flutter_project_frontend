@@ -62,7 +62,8 @@ class _S extends ConsumerState<ApprovalsScreen> {
           .select('id,delivered_total_weight,received_total_weight,collected_amount,'
           'delivered_bird_count,is_partial_delivery,delivered_at,created_at,'
           'orders(id,estimated_birds,total_quantity,fulfilled_birds,'
-          'partial_count,is_partial_delivery,retailers(shop_name)),'
+          'partial_count,is_partial_delivery,retailers(shop_name),'
+          'order_items(master_products(name))),'
           'delivery_agents(name)')
           .eq('trader_id', tid)
           .eq('status', 'delivered')
@@ -164,12 +165,30 @@ class _S extends ConsumerState<ApprovalsScreen> {
           label: 'Retailer',
           flex:  2,
           cellBuilder: (d) {
-            final o = d['orders']     as Map<String, dynamic>?;
-            final r = o?['retailers'] as Map<String, dynamic>?;
-            return Text(
-              r?['shop_name'] as String? ?? '—',
-              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-              overflow: TextOverflow.ellipsis,
+            final o   = d['orders']     as Map<String, dynamic>?;
+            final r   = o?['retailers'] as Map<String, dynamic>?;
+            final lbl = _ApprovalCard._productLabel(d);
+            final c   = _ApprovalCard._productColor(lbl);
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(r?['shop_name'] as String? ?? '—',
+                    style: const TextStyle(
+                        fontSize: 13, fontWeight: FontWeight.w600),
+                    overflow: TextOverflow.ellipsis),
+                if (lbl.isNotEmpty)
+                  Container(
+                    margin: const EdgeInsets.only(top: 2),
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                    decoration: BoxDecoration(
+                        color: c.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(4),
+                        border: Border.all(color: c.withValues(alpha: 0.3))),
+                    child: Text(lbl,
+                        style: TextStyle(fontSize: 9, fontWeight: FontWeight.w700, color: c)),
+                  ),
+              ],
             );
           },
         ),
@@ -284,6 +303,27 @@ class _ApprovalCard extends StatelessWidget {
   const _ApprovalCard({required this.item});
   final Map<String, dynamic> item;
 
+  // ── Product helpers (display-only) ────────────────────────────────────────
+  static String _productLabel(Map<String, dynamic> delivery) {
+    final o     = delivery['orders'] as Map<String, dynamic>?;
+    final items = (o?['order_items'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+    final names = items
+        .map((i) => (i['master_products'] as Map?)?['name'] as String? ?? '')
+        .where((n) => n.isNotEmpty)
+        .toSet()
+        .toList();
+    if (names.isEmpty) return '';
+    return names.length == 1 ? names.first : 'Multi-product';
+  }
+
+  static Color _productColor(String label) {
+    final l = label.toLowerCase();
+    if (l.contains('country')) return const Color(0xFF6D4C41);
+    if (l.contains('quail'))   return Colors.purple;
+    if (l.contains('multi'))   return Colors.indigo;
+    return const Color(0xFF00796B); // broiler
+  }
+
   Widget _chip(String label, IconData icon, Color c) => Container(
     padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
     decoration: BoxDecoration(
@@ -353,6 +393,22 @@ class _ApprovalCard extends StatelessWidget {
                 Text(shopName, maxLines: 1, overflow: TextOverflow.ellipsis,
                     style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900,
                         color: kNavy, letterSpacing: -0.3)),
+                const SizedBox(height: 2),
+                // ── Product chip (display-only) ───────────────────────────
+                Builder(builder: (_) {
+                  final lbl = _productLabel(item);
+                  if (lbl.isEmpty) return const SizedBox.shrink();
+                  final c = _productColor(lbl);
+                  return Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                    decoration: BoxDecoration(
+                        color: c.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(5),
+                        border: Border.all(color: c.withValues(alpha: 0.3))),
+                    child: Text(lbl,
+                        style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: c)),
+                  );
+                }),
                 Text('Agent: $agentName', style: const TextStyle(
                     fontSize: 11, color: kTextHint, fontWeight: FontWeight.w600)),
               ])),

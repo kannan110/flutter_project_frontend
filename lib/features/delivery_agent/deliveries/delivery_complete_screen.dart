@@ -48,6 +48,9 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
   Map<String, dynamic>? _delivery;
   StockPosition? _stock;
   String _deliveryStatus = '';
+  // Multi-product order support
+  String? _selectedOrderItemId;     // null = single-product (backward compat)
+  List<Map<String, dynamic>> _orderItems = [];  // from order_items join
   bool _hasOpenShift = false;
 
   int _dcBirds = 0;
@@ -113,7 +116,10 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
           .select('*,orders(id,estimated_birds,total_quantity,product_id,'
           'fulfilled_birds,fulfilled_quantity,backorder_birds,backorder_quantity,'
           'is_partial_delivery,partial_count,'
-          'retailers(shop_name,address,phone))')
+          'retailers(shop_name,address,phone),'
+          'master_products(name,name_tamil,category),'
+          'order_items(id,product_id,bird_count,total_weight,applied_rate,'
+          'master_products(name,name_tamil,category)))')
           .eq('id', widget.deliveryId)
           .maybeSingle()
           .timeout(const Duration(seconds: 10));
@@ -180,12 +186,30 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
         }
       } catch (_) {}
 
+      // Parse order_items for multi-product selector
+      final rawItems = (o?['order_items'] as List? ?? [])
+          .whereType<Map>()
+          .map((e) => e.cast<String, dynamic>())
+          .where((e) => e['product_id'] != null)
+          .toList();
+      // Sort by product name for consistent display
+      rawItems.sort((a, b) {
+        final na = ((a['master_products'] as Map?)?.cast<String,dynamic>()?['name'] as String? ?? '');
+        final nb = ((b['master_products'] as Map?)?.cast<String,dynamic>()?['name'] as String? ?? '');
+        return na.compareTo(nb);
+      });
+
       if (mounted)
         setState(() {
           _delivery = d;
           _deliveryStatus = dStatus;
           _hasOpenShift = openShift;
           _loaded = true;
+          _orderItems = rawItems;
+          // Auto-select the only item for single-product orders
+          if (rawItems.length == 1) {
+            _selectedOrderItemId = rawItems.first['id'] as String?;
+          }
         });
 
       try {
@@ -640,6 +664,11 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
   Future<void> _submit() async {
     if (!_form.currentState!.validate()) return;
     final weight = double.tryParse(_weightCtrl.text.trim()) ?? 0;
+    // Multi-product: require item selection before submitting
+    if (_orderItems.length > 1 && _selectedOrderItemId == null) {
+      showError(context, 'Select which product you are delivering.');
+      return;
+    }
     if (weight <= 0) {
       showError(context, 'Enter delivered weight');
       return;
@@ -731,6 +760,9 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
         'p_transfer_agent_id': (_remainingAction == 'transfer' && reallyPartial)
             ? _transferAgentId
             : null,
+        // Multi-product: pass selected order_item_id when set
+        if (_selectedOrderItemId != null)
+          'p_selected_order_item_id': _selectedOrderItemId,
       });
 
       if (!mounted) return;
@@ -789,6 +821,7 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
     final isSimple = ref.watch(uiModeProvider).isSimple;
     final o = _delivery?['orders'] as Map<String, dynamic>?;
     final r = o?['retailers'] as Map<String, dynamic>?;
+    final mp = o?['master_products'] as Map<String, dynamic>?;
     final shopName = r?['shop_name'] as String? ?? 'Delivery';
     final partialCount = (o?['partial_count'] as num?)?.toInt() ?? 0;
     final isAlreadyPartial = o?['is_partial_delivery'] == true;
@@ -851,7 +884,7 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
     }
 
     if (isSimple) {
-      return _buildSimpleView(shopName, r, isAlreadyPartial, partialCount);
+      return _buildSimpleView(shopName, r, mp, isAlreadyPartial, partialCount);
     }
 
     return Scaffold(
@@ -896,7 +929,14 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
                                 Text(r['phone'] as String,
                                     style: const TextStyle(
                                         fontSize: 11, color: kTextHint)),
+                              if (mp != null) ...[
+                                const SizedBox(height: 6),
+                                _productChip(mp),
+                              ],
                             ])),
+
+                  // ── Multi-product item selector ─────────────────────────────────
+                  _buildItemSelector(),
 
                   // ── Partial continuation banner ─────────────────────────────────
                   if (isAlreadyPartial)
@@ -1584,7 +1624,7 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
   }
 
   Widget _buildSimpleView(String shopName, Map<String, dynamic>? r,
-      bool isAlreadyPartial, int partialCount) {
+      Map<String, dynamic>? mp, bool isAlreadyPartial, int partialCount) {
     final isReady = _deliveryStatus == 'out_for_delivery';
     if (!isReady || !_hasOpenShift) {
       return _buildSimpleNotReadyView(shopName, isReady);
@@ -1611,8 +1651,11 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
               children: [
                 // ── Shop header card ──────────────────────────────────────
-                _simpleHeroCard(shopName, r, isAlreadyPartial, partialCount),
+                _simpleHeroCard(shopName, r, mp, isAlreadyPartial, partialCount),
                 const SizedBox(height: 12),
+
+                // ── Multi-product item selector (simple view) ────────
+                _buildItemSelector(),
 
                 // ── Weighment button ──────────────────────────────────────
                 _simpleWeighmentCard(),
@@ -1856,7 +1899,7 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
   }
 
   Widget _simpleHeroCard(String shopName, Map<String, dynamic>? r,
-      bool isAlreadyPartial, int partialCount) {
+      Map<String, dynamic>? mp, bool isAlreadyPartial, int partialCount) {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -1897,6 +1940,10 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
                 Text(r!['phone'] as String,
                     style:
                     const TextStyle(fontSize: 13, color: Colors.white70)),
+              if (mp != null) ...[
+                const SizedBox(height: 6),
+                _productChip(mp),
+              ],
             ]),
           ),
         ]),
@@ -1953,6 +2000,146 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
       ]),
     ),
   );
+
+  // ── Multi-product item selector ──────────────────────────────────────────
+  // Shown only when the order has >1 order_items (multi-product order).
+  // Single-product orders skip this entirely — backward compat preserved.
+  Widget _buildItemSelector() {
+    if (_orderItems.length <= 1) return const SizedBox.shrink();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          margin: const EdgeInsets.only(bottom: 14),
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF3F0FF),
+            borderRadius: BorderRadius.circular(kRadiusCard),
+            border: Border.all(color: const Color(0xFF7C3AED).withValues(alpha: 0.3)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Row(children: [
+                Icon(Icons.inventory_2_outlined, size: 16, color: Color(0xFF7C3AED)),
+                SizedBox(width: 6),
+                Text('DELIVERING ITEM',
+                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800,
+                        color: Color(0xFF7C3AED), letterSpacing: 0.5)),
+              ]),
+              const SizedBox(height: 10),
+              ..._orderItems.map((item) {
+                final itemId   = item['id'] as String?;
+                final mp       = (item['master_products'] as Map?)?.cast<String,dynamic>();
+                final name     = mp?['name'] as String? ?? 'Product';
+                final category = mp?['category'] as String? ?? '';
+                final birds    = (item['bird_count'] as num?)?.toInt() ?? 0;
+                final kg       = (item['total_weight'] as num?)?.toDouble() ?? 0;
+                // Stock availability from coverage_by_family via agent dashboard
+                // We check shift-scoped stock per product category
+                final isSelected = _selectedOrderItemId == itemId;
+                final color = _productColor(category);
+
+                return GestureDetector(
+                  onTap: () {
+                    setState(() {
+                      _selectedOrderItemId = itemId;
+                      // Auto-populate delivery fields with this item's ordered qty
+                      _birdsCtrl.text = birds.toString();
+                      _weightCtrl.text = kg.toStringAsFixed(1);
+                    });
+                  },
+                  child: Container(
+                    margin: const EdgeInsets.only(bottom: 8),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: isSelected
+                          ? color.withValues(alpha: 0.12)
+                          : Colors.white,
+                      borderRadius: BorderRadius.circular(kRadiusInner),
+                      border: Border.all(
+                        color: isSelected ? color : kBorderLight,
+                        width: isSelected ? 2.0 : 1.0,
+                      ),
+                    ),
+                    child: Row(children: [
+                      // Product color dot
+                      Container(width: 10, height: 10,
+                          decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+                      const SizedBox(width: 10),
+                      // Product name + qty
+                      Expanded(child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(name,
+                              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800,
+                                  color: isSelected ? color : kTextMain)),
+                          Text('$birds birds  ·  ${kg.toStringAsFixed(1)} kg ordered',
+                              style: const TextStyle(fontSize: 11, color: kTextSub)),
+                        ],
+                      )),
+                      // Selected indicator
+                      if (isSelected)
+                        Icon(Icons.check_circle_rounded, color: color, size: 20)
+                      else
+                        Icon(Icons.radio_button_unchecked_rounded,
+                            color: kTextHint, size: 20),
+                    ]),
+                  ),
+                );
+              }),
+              if (_selectedOrderItemId == null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Row(children: const [
+                    Icon(Icons.info_outline, size: 13, color: Colors.orange),
+                    SizedBox(width: 4),
+                    Text('Select the product you are delivering',
+                        style: TextStyle(fontSize: 11, color: Colors.orange,
+                            fontWeight: FontWeight.w600)),
+                  ]),
+                ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Color _productColor(String category) => switch (category) {
+    'broiler' => const Color(0xFF00796B),
+    'country' => const Color(0xFF6D4C41),
+    'quail'   => Colors.purple,
+    _         => Colors.indigo,
+  };
+
+  // ── Product chip — used in both normal and simple shop header ─────────────
+  Widget _productChip(Map<String, dynamic> mp) {
+    final category = mp['category'] as String? ?? '';
+    final name = mp['name'] as String? ?? category;
+    final color = switch (category) {
+      'broiler' => const Color(0xFF00796B),
+      'country' => const Color(0xFF6D4C41),
+      'quail'   => Colors.purple,
+      _         => Colors.indigo,
+    };
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withValues(alpha: 0.4)),
+      ),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        Container(width: 7, height: 7,
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+        const SizedBox(width: 6),
+        Text(name,
+            style: TextStyle(
+                fontSize: 11, fontWeight: FontWeight.w800, color: color)),
+      ]),
+    );
+  }
 
   Widget _simpleWeighmentCard() {
     return GestureDetector(

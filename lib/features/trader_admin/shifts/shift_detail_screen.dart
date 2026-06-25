@@ -439,6 +439,29 @@ class _S extends ConsumerState<ShiftDetailScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const SectionHeader('DELIVERY SUMMARY'),
+                      // Order status row
+                      Builder(builder: (_) {
+                        final osc = totals?['order_status_counts'] as Map?;
+                        final total     = (osc?['total']     as num?)?.toInt() ?? 0;
+                        final delivered = (osc?['delivered'] as num?)?.toInt() ?? 0;
+                        final partial   = (osc?['partial']   as num?)?.toInt() ?? 0;
+                        final pending   = (osc?['pending']   as num?)?.toInt() ?? 0;
+                        final cancelled = (osc?['cancelled'] as num?)?.toInt() ?? 0;
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 10),
+                          child: Wrap(spacing: 8, runSpacing: 6, children: [
+                            _statusPill('$total Orders', kPrimary),
+                            _statusPill('$delivered Delivered', Colors.green),
+                            if (partial > 0)
+                              _statusPill('$partial Partial', Colors.orange),
+                            if (pending > 0)
+                              _statusPill('$pending Pending', Colors.amber.shade700),
+                            if (cancelled > 0)
+                              _statusPill('$cancelled Cancelled', Colors.red),
+                          ]),
+                        );
+                      }),
+                      // Main stat boxes
                       Row(children: [
                         _sbox('Delivered', '${totals?['deliveries_count'] ?? 0}',
                             kPrimary),
@@ -451,19 +474,49 @@ class _S extends ConsumerState<ShiftDetailScreen> {
                       ]),
                       const SizedBox(height: 8),
                       Row(children: [
-                        _sbox('Dead', '${totals?['total_mortality'] ?? 0}',
+                        _sbox('Mortality',
+                            '${totals?['total_mortality'] ?? 0}b  '
+                                '${(totals?['total_mortality_kg'] as num?)?.toStringAsFixed(1) ?? '0'} kg',
                             Colors.red),
-                        _sbox('Returns', '${totals?['total_returned'] ?? 0}',
+                        _sbox('Customer Returns',
+                            '${totals?['total_returned'] ?? 0} b',
                             Colors.purple),
                         _sbox(
                             'Crates Pending',
-                            '${((totals?['crates_given'] as int? ?? 0) - (totals?['crates_back'] as int? ?? 0)).clamp(0, 9999)}',
+                            '${(() { final g = (totals?['crates_given'] as num?)?.toInt() ?? 0; final b = (totals?['crates_back'] as num?)?.toInt() ?? 0; return (g - b).clamp(0, 9999); })()}',
                             Colors.orange),
                       ]),
+                      // Live return row — shown when > 0 (shift-close return, NOT customer return)
+                      Builder(builder: (_) {
+                        final liveB  = (totals?['auto_returned_birds'] as num?)?.toInt()    ?? 0;
+                        final liveKg = (totals?['auto_returned_kg']    as num?)?.toDouble() ?? 0;
+                        if (liveB == 0 && liveKg == 0) return const SizedBox.shrink();
+                        return Container(
+                          margin: const EdgeInsets.only(top: 10),
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: Colors.indigo.shade50,
+                            borderRadius: BorderRadius.circular(kRadiusInner),
+                            border: Border.all(color: Colors.indigo.shade200),
+                          ),
+                          child: Row(children: [
+                            const Icon(Icons.undo_rounded, size: 14, color: Colors.indigo),
+                            const SizedBox(width: 8),
+                            Expanded(child: Text(
+                              'Live Return to Stock (Shift End)',
+                              style: TextStyle(fontSize: 11, color: Colors.indigo.shade700,
+                                  fontWeight: FontWeight.w600),
+                            )),
+                            Text('$liveB birds  ·  ${liveKg.toStringAsFixed(1)} kg',
+                                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800,
+                                    color: Colors.indigo.shade700)),
+                          ]),
+                        );
+                      }),
                     ])),
             const SizedBox(height: 10),
 
-            // ── Cash summary ──────────────────────────────────────────────
+            // ── Cash & Payment summary ────────────────────────────────────
             WhiteCard(
                 child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -474,7 +527,8 @@ class _S extends ConsumerState<ShiftDetailScreen> {
                           Fmt.amount(
                               (totals?['total_collected'] as num?)?.toDouble() ??
                                   0),
-                          color: kPrimary),
+                          color: kPrimary, bold: true),
+                      const SizedBox(height: 4),
                       _trow(
                           'Cash',
                           Fmt.amount(
@@ -484,6 +538,15 @@ class _S extends ConsumerState<ShiftDetailScreen> {
                           'UPI',
                           Fmt.amount(
                               (totals?['upi_collected'] as num?)?.toDouble() ?? 0)),
+                      _trow(
+                          'Credit',
+                          Fmt.amount(
+                              (totals?['credit_collected'] as num?)?.toDouble() ?? 0)),
+                      _trow(
+                          'Bank',
+                          Fmt.amount(
+                              (totals?['bank_collected'] as num?)?.toDouble() ?? 0)),
+                      const Divider(height: 12),
                       _trow(
                           'Expenses',
                           Fmt.amount(
@@ -498,6 +561,96 @@ class _S extends ConsumerState<ShiftDetailScreen> {
                           bold: true),
                     ])),
             const SizedBox(height: 10),
+
+            // ── Product Movement ──────────────────────────────────────────
+            // From stock_ledger per product — shows what was purchased, delivered, returned.
+            // Answers: which product moved, how much, and what remains accounted.
+            Builder(builder: (_) {
+              final productSummary = (totals?['product_summary'] as List? ?? [])
+                  .cast<Map<String, dynamic>>()
+                  .where((p) =>
+              (p['purchased_birds'] as int? ?? 0) > 0 ||
+                  (p['delivered_birds'] as int? ?? 0) > 0 ||
+                  (p['returned_birds']  as int? ?? 0) > 0 ||
+                  (p['mortality_birds'] as int? ?? 0) > 0)
+                  .toList();
+              if (productSummary.isEmpty) return const SizedBox.shrink();
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SectionHeader('PRODUCT MOVEMENT'),
+                  ...productSummary.map((p) {
+                    final name    = p['product_name'] as String? ?? '';
+                    final cat     = p['category']     as String? ?? '';
+                    final pBirds  = (p['purchased_birds']  as num?)?.toInt()    ?? 0;
+                    final pKg     = (p['purchased_kg']     as num?)?.toDouble() ?? 0;
+                    final dBirds  = (p['delivered_birds']  as num?)?.toInt()    ?? 0;
+                    final dKg     = (p['delivered_kg']     as num?)?.toDouble() ?? 0;
+                    final rBirds  = (p['returned_birds']   as num?)?.toInt()    ?? 0;
+                    final rKg     = (p['returned_kg']      as num?)?.toDouble() ?? 0;
+                    final mBirds  = (p['mortality_birds']  as num?)?.toInt()    ?? 0;
+                    final mKg     = (p['mortality_kg']     as num?)?.toDouble() ?? 0;
+                    final color   = switch (cat) {
+                      'broiler' => const Color(0xFF00796B),
+                      'country' => const Color(0xFF6D4C41),
+                      'quail'   => Colors.purple,
+                      _         => Colors.indigo,
+                    };
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 8),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(kRadiusCard),
+                        border: Border.all(color: color.withValues(alpha: 0.3)),
+                        boxShadow: kCardShadow,
+                      ),
+                      child: Column(children: [
+                        // Product header
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+                          decoration: BoxDecoration(
+                            color: color.withValues(alpha: 0.08),
+                            borderRadius: const BorderRadius.vertical(top: Radius.circular(13)),
+                          ),
+                          child: Row(children: [
+                            Container(width: 10, height: 10,
+                                decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+                            const SizedBox(width: 8),
+                            Text(name, style: TextStyle(fontSize: 13,
+                                fontWeight: FontWeight.w800, color: color)),
+                            const Spacer(),
+                            // Column headers
+                            SizedBox(width: 68, child: Text('Birds',
+                                textAlign: TextAlign.right,
+                                style: const TextStyle(fontSize: 9,
+                                    fontWeight: FontWeight.w700, color: kTextHint))),
+                            SizedBox(width: 72, child: Text('Weight',
+                                textAlign: TextAlign.right,
+                                style: const TextStyle(fontSize: 9,
+                                    fontWeight: FontWeight.w700, color: kTextHint))),
+                          ]),
+                        ),
+                        // Movement rows
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(14, 8, 14, 10),
+                          child: Column(children: [
+                            if (pBirds > 0 || pKg > 0)
+                              _productMoveRow('Loaded', pBirds, pKg, Colors.blue, prefix: '+'),
+                            if (dBirds > 0 || dKg > 0)
+                              _productMoveRow('Delivered', dBirds, dKg, Colors.teal, prefix: '−'),
+                            if (rBirds > 0 || rKg > 0)
+                              _productMoveRow('Live Return', rBirds, rKg, Colors.indigo, prefix: '−'),
+                            if (mBirds > 0 || mKg > 0)
+                              _productMoveRow('Mortality', mBirds, mKg, Colors.red, prefix: '−'),
+                          ]),
+                        ),
+                      ]),
+                    );
+                  }),
+                  const SizedBox(height: 4),
+                ],
+              );
+            }),
 
             // ── Per-delivery breakdown ────────────────────────────────────
             if (deliveries.isNotEmpty) ...[
@@ -1226,7 +1379,9 @@ class _S extends ConsumerState<ShiftDetailScreen> {
               ])),
 
           // Per-batch breakdown
-          if (batches.isNotEmpty) ...[
+          // Hidden when shift has only 1 batch (duplicates info already shown above).
+          // Shown for multi-batch shifts using the same formula as shift_totals.
+          if (batches.length > 1) ...[
             const Divider(height: 1),
             Padding(
                 padding: const EdgeInsets.fromLTRB(14, 10, 14, 4),
@@ -1248,66 +1403,118 @@ class _S extends ConsumerState<ShiftDetailScreen> {
               final bRetMBirds = (b['return_mortality_birds'] as num?)?.toInt()  ?? 0;
               final bRetMKg    = (b['return_mortality_kg']    as num?)?.toDouble() ?? 0;
               final bLossKg    = (b['unaccounted_loss_kg']  as num?)?.toDouble() ?? 0;
+              final bTotalLoss = (b['total_loss_kg']        as num?)?.toDouble() ?? 0;
               final bLossPct   = (b['loss_percent']         as num?)?.toDouble() ?? 0;
               final bHigh      = bLossPct >= 2;
               final done       = (b['deliveries_done']      as num?)?.toInt()    ?? 0;
               final pending    = (b['deliveries_pending']   as num?)?.toInt()    ?? 0;
-              final bTotalLoss = bMortKg + bLossKg;
+              final bStatus    = b['batch_status'] as String? ?? '';
               return Container(
                   margin: const EdgeInsets.fromLTRB(14, 0, 14, 10),
-                  padding: const EdgeInsets.all(10),
+                  padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
                       color: bHigh ? Colors.red.shade50 : const Color(0xFFF3F4F6),
                       borderRadius: BorderRadius.circular(kRadiusCard),
                       border: Border.all(
-                          color: bHigh ? Colors.red.shade200 : kBorder)),
+                          color: bHigh ? Colors.red.shade300 : Colors.green.shade200,
+                          width: 1.2)),
                   child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        // Batch header: vehicle + variance badge
                         Row(children: [
                           Icon(Icons.local_shipping_outlined,
                               size: 14, color: bHigh ? Colors.red : kPrimary),
                           const SizedBox(width: 6),
                           Text(b['vehicle_no'] as String? ?? 'Batch',
-                              style: TextStyle(fontSize: 12,
-                                  fontWeight: FontWeight.w700,
+                              style: TextStyle(fontSize: 13,
+                                  fontWeight: FontWeight.w800,
                                   color: bHigh ? Colors.red : kTextMain)),
                           const Spacer(),
+                          // Approval-readiness badge
                           Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                               decoration: BoxDecoration(
                                   color: bHigh ? Colors.red.shade100 : Colors.green.shade100,
                                   borderRadius: BorderRadius.circular(6)),
-                              child: Text('Variance: ${bLossPct.toStringAsFixed(1)}%',
-                                  style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700,
-                                      color: bHigh ? Colors.red : Colors.green))),
+                              child: Text(
+                                  bHigh
+                                      ? 'Variance: ${bLossPct.toStringAsFixed(1)}%'
+                                      : '✓ OK',
+                                  style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800,
+                                      color: bHigh ? Colors.red.shade700 : Colors.green.shade700))),
                         ]),
-                        const SizedBox(height: 8),
-                        // Compact 3-column rows inside each batch card
-                        _approvalReconRow('DC', bDcBirds, bDcKg, Colors.blue, false),
-                        _approvalReconRow('Delivered', bDelBirds, bDelKg, Colors.teal, false),
+                        const SizedBox(height: 4),
+                        Text(
+                            '$done/${done + pending} orders  ·  '
+                                '${bStatus == 'completed' ? 'Completed' : 'In progress'}',
+                            style: const TextStyle(fontSize: 10, color: kTextHint)),
+                        const SizedBox(height: 10),
+                        // Reconciliation rows — same layout and formula as shift-level above
+                        Row(children: [
+                          const Expanded(flex: 3, child: SizedBox()),
+                          SizedBox(width: 76, child: Text('Birds',
+                              textAlign: TextAlign.right,
+                              style: TextStyle(fontSize: 9, fontWeight: FontWeight.w700,
+                                  color: kTextHint))),
+                          SizedBox(width: 82, child: Text('Weight',
+                              textAlign: TextAlign.right,
+                              style: TextStyle(fontSize: 9, fontWeight: FontWeight.w700,
+                                  color: kTextHint))),
+                        ]),
+                        const SizedBox(height: 2),
+                        _approvalReconRow('DC Loaded', bDcBirds, bDcKg, Colors.blue, false, prefix: '+'),
+                        _approvalReconRow('Delivered', bDelBirds, bDelKg, Colors.teal, false, prefix: '−'),
                         if (bLiveRet > 0 || bLiveRetKg > 0)
-                          _approvalReconRow('Live Return', bLiveRet, bLiveRetKg, Colors.indigo, false),
+                          _approvalReconRow('Live Return', bLiveRet, bLiveRetKg, Colors.indigo, false, prefix: '−'),
                         if (bRetMBirds > 0)
-                          _approvalReconRow('Dead Return', bRetMBirds, bRetMKg, Colors.deepOrange, false)
+                          _approvalReconRow('Dead Return', bRetMBirds, bRetMKg, Colors.deepOrange, false, prefix: '−')
                         else if (bMortBirds > 0)
-                          _approvalReconRow('Mortality', bMortBirds, bMortKg, Colors.red, false),
+                          _approvalReconRow('Mortality', bMortBirds, bMortKg, Colors.red, false, prefix: '−'),
                         _approvalReconRow('Weight Variance', null, bLossKg,
                             bHigh ? Colors.red : Colors.green, bHigh),
-                        const Divider(height: 10, thickness: 0.5),
-                        Row(children: [
-                          Expanded(child: _batchStat('Orders',
-                              '$done/${done + pending}', kPrimary)),
-                          Expanded(child: _batchStat('Total Loss',
-                              '${bTotalLoss.toStringAsFixed(1)} kg',
-                              bHigh ? Colors.red : Colors.green)),
-                        ]),
+                        const Divider(height: 12, thickness: 0.5),
+                        _approvalReconRow('Total Loss', null, bTotalLoss,
+                            bTotalLoss > 0 ? Colors.red : Colors.green,
+                            bTotalLoss > 0),
                       ]));
             }),
             const SizedBox(height: 4),
           ],
         ]));
   }
+
+  // Small status pill for order status counts in Delivery Summary
+  Widget _statusPill(String label, Color color) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+    decoration: BoxDecoration(
+      color: color.withValues(alpha: 0.10),
+      borderRadius: BorderRadius.circular(20),
+      border: Border.all(color: color.withValues(alpha: 0.3)),
+    ),
+    child: Text(label,
+        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: color)),
+  );
+
+  // Product movement row: label | birds | kg — used in PRODUCT MOVEMENT section
+  static Widget _productMoveRow(
+      String label, int birds, double kg, Color c,
+      {String prefix = ''}) =>
+      Padding(
+        padding: const EdgeInsets.symmetric(vertical: 3),
+        child: Row(children: [
+          Expanded(child: Text(label,
+              style: const TextStyle(fontSize: 11, color: kTextSub))),
+          SizedBox(width: 68,
+              child: Text('$prefix$birds b',
+                  textAlign: TextAlign.right,
+                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: c))),
+          SizedBox(width: 72,
+              child: Text('$prefix${kg.toStringAsFixed(1)} kg',
+                  textAlign: TextAlign.right,
+                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: c))),
+        ]),
+      );
 
   Widget _lossRow(String label, String value, Color c, bool highlight) =>
       Padding(

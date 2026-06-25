@@ -61,7 +61,7 @@ class _S extends ConsumerState<AgentHomeScreen> {
       final raw = await _c
           .from('delivery_batches')
           .select(
-          'id,status,vehicle_no,deliveries(id,status,orders(estimated_birds,total_quantity,retailers(shop_name,address,phone)))')
+          'id,status,vehicle_no,deliveries(id,status,orders(estimated_birds,total_quantity,product_id,master_products(name,category),order_items(bird_count,total_weight,master_products(name,name_tamil,category)),retailers(shop_name,address,phone)))')
           .eq('delivery_agent_id', user!.agentId!)
           .order('created_at', ascending: false)
           .limit(10);
@@ -88,6 +88,49 @@ class _S extends ConsumerState<AgentHomeScreen> {
 
   Map<String, dynamic>? get _stock =>
       (_dash?['stock'] as Map?)?.cast<String, dynamic>();
+
+  List<Map<String, dynamic>> get _stockByProduct =>
+      (_dash?['stock_by_product'] as List? ?? [])
+          .whereType<Map>()
+          .map((e) => e.cast<String, dynamic>())
+          .toList();
+
+  // Per-product required breakdown from order_items via RPC
+  List<Map<String, dynamic>> get _requiredByProduct =>
+      ((_dash?['required'] as Map?)
+      ?['required_by_product'] as List? ?? [])
+          .whereType<Map>()
+          .map((e) => e.cast<String, dynamic>())
+          .toList();
+
+  // Per-family coverage: required vs available vs short, computed server-side
+  // by product family (category). Gives correct shortage — Country 50b 150kg
+  // is not confused with Broiler stock even when totals look close.
+  List<Map<String, dynamic>> get _coverageByFamily =>
+      (_dash?['coverage_by_family'] as List? ?? [])
+          .whereType<Map>()
+          .map((e) => e.cast<String, dynamic>())
+          .toList();
+
+  // True shortage exists when any family has short_birds > 0
+  bool get _hasFamilyShortage =>
+      _coverageByFamily.any((f) => ((f['short_birds'] as num?)?.toInt() ?? 0) > 0);
+
+  // Total short across all families (for the header banner)
+  int get _totalShortBirds => _coverageByFamily
+      .fold(0, (s, f) => s + ((f['short_birds'] as num?)?.toInt() ?? 0));
+
+  double get _totalShortKg => _coverageByFamily
+      .fold(0.0, (s, f) => s + ((f['short_kg'] as num?)?.toDouble() ?? 0.0));
+
+  // Coverage % based on family-level coverage (birds covered / total required)
+  double get _familyCoverPct {
+    final totalReq = _coverageByFamily
+        .fold(0, (s, f) => s + ((f['req_birds'] as num?)?.toInt() ?? 0));
+    if (totalReq == 0) return 1.0;
+    final totalShort = _totalShortBirds;
+    return ((totalReq - totalShort) / totalReq).clamp(0.0, 1.0);
+  }
 
   Map<String, dynamic>? get _dcToday =>
       (_dash?['dc_today'] as Map?)?.cast<String, dynamic>();
@@ -121,11 +164,20 @@ class _S extends ConsumerState<AgentHomeScreen> {
 
   double get _shortKg => (_reqWeight - _availKg).clamp(0.0, 999999.0);
 
-  bool get _hasShortage => _reqBirds > 0 && _availBirds < _reqBirds;
+  // Use family-level shortage — correct for multi-product scenarios.
+  // Falls back to aggregate comparison when coverage_by_family is empty
+  // (single product, no order_items) for backward compatibility.
+  bool get _hasShortage {
+    if (_coverageByFamily.isNotEmpty) return _hasFamilyShortage;
+    return _reqBirds > 0 && _availBirds < _reqBirds;
+  }
 
-  double get _coverPct => _reqBirds > 0
-      ? (_availBirds / _reqBirds).clamp(0.0, 1.0)
-      : (_reqBirds == 0 ? 1.0 : 0.0);
+  double get _coverPct {
+    if (_coverageByFamily.isNotEmpty) return _familyCoverPct;
+    return _reqBirds > 0
+        ? (_availBirds / _reqBirds).clamp(0.0, 1.0)
+        : (_reqBirds == 0 ? 1.0 : 0.0);
+  }
 
   // ── Reassign: pick delivery then pick agent ───────────────────────────────
   Future<void> _pickAndReassign() async {
@@ -284,6 +336,7 @@ class _S extends ConsumerState<AgentHomeScreen> {
       shortKg: _shortKg,
       pendingList: _pendingList,
       activeBatches: _activeBatches,
+      stockByProduct: _stockByProduct,
       onRefresh: _load,
       onGoToShiftOpen: () => context.go(R.shiftOpen),
       onGoToShiftClose: () => context.go(R.shiftClose),
@@ -715,215 +768,291 @@ class _S extends ConsumerState<AgentHomeScreen> {
   // ══════════════════════════════════════════════════════════════════════════
   // SECTION 2: STOCK vs REQUIREMENT PANEL
   // ══════════════════════════════════════════════════════════════════════════
+  // ══════════════════════════════════════════════════════════════════════════
+  // SECTION 2: STOCK vs REQUIREMENT PANEL
+  // Coverage is calculated per PRODUCT FAMILY (category), not aggregate totals.
+  // Broiler family (Broiler + Small + Medium + Big) vs Broiler stock.
+  // Country family vs Country stock. Prevents "1b short" misread.
+  // ══════════════════════════════════════════════════════════════════════════
   Widget _buildStockPanel() {
-    final hasData = _reqBirds > 0 || _availBirds > 0;
-    final Color borderClr = _hasShortage
+    final coverage = _coverageByFamily;
+    final hasOrders = _reqBirds > 0;
+    final hasCoverage = coverage.isNotEmpty;
+    final shortage = _hasFamilyShortage;
+
+    // Header state
+    final Color borderClr = shortage
         ? Colors.red.shade300
-        : hasData
-        ? Colors.green.shade300
-        : kBorder;
-    final Color headerBg = _hasShortage
+        : hasOrders ? Colors.green.shade300 : kBorder;
+    final Color headerBg = shortage
         ? Colors.red.shade50
-        : !hasData
-        ? Colors.grey.shade50
-        : Colors.green.shade50;
-    final Color headerClr = _hasShortage
+        : !hasOrders ? Colors.grey.shade50 : Colors.green.shade50;
+    final Color headerClr = shortage
         ? Colors.red.shade700
-        : !hasData
-        ? kTextSub
-        : Colors.green.shade700;
-    final String headerTxt = _hasShortage
-        ? 'Shortage: $_shortBirds birds  ${_shortKg.toStringAsFixed(1)} kg short'
-        : !hasData
-        ? 'Stock & Requirements'
-        : _reqBirds == 0
-        ? 'No pending orders'
-        : 'Stock sufficient for all orders';
-    final IconData headerIcon = _hasShortage
+        : !hasOrders ? kTextSub : Colors.green.shade700;
+    final IconData headerIcon = shortage
         ? Icons.warning_amber_rounded
-        : !hasData
-        ? Icons.inventory_2_outlined
-        : Icons.check_circle_outline;
+        : !hasOrders ? Icons.inventory_2_outlined : Icons.check_circle_outline;
+
+    String headerTxt;
+    if (!hasOrders) {
+      headerTxt = 'Stock & Requirements';
+    } else if (shortage) {
+      final shortFamilies = coverage
+          .where((f) => ((f['short_birds'] as num?)?.toInt() ?? 0) > 0)
+          .map((f) => '${f['family_name']}: ${(f['short_birds'] as num?)?.toInt() ?? 0}b')
+          .join('  ');
+      headerTxt = 'SHORT — $shortFamilies';
+    } else {
+      headerTxt = 'Stock sufficient for all orders';
+    }
 
     return Container(
-        decoration: BoxDecoration(
-            color: kSurface,
-            borderRadius: BorderRadius.circular(kRadiusCard),
-            border: Border.all(
-                color: borderClr, width: hasData || _hasShortage ? 1.5 : 1),
-            boxShadow: kCardShadow),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          // ── Header bar ───────────────────────────────────────────
-          Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-              decoration: BoxDecoration(
-                  color: headerBg,
-                  borderRadius:
-                  const BorderRadius.vertical(top: Radius.circular(14))),
-              child: Row(children: [
-                Icon(headerIcon, color: headerClr, size: 18),
-                const SizedBox(width: 8),
-                Expanded(
-                    child: Text(headerTxt,
-                        style: TextStyle(
-                            fontWeight: FontWeight.w800,
-                            fontSize: 13,
-                            color: headerClr))),
-              ])),
+      decoration: BoxDecoration(
+        color: kSurface,
+        borderRadius: BorderRadius.circular(kRadiusCard),
+        border: Border.all(color: borderClr, width: hasOrders || shortage ? 1.5 : 1),
+        boxShadow: kCardShadow,
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        // ── Header bar ─────────────────────────────────────────────────────
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          decoration: BoxDecoration(
+            color: headerBg,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(14)),
+          ),
+          child: Row(children: [
+            Icon(headerIcon, color: headerClr, size: 18),
+            const SizedBox(width: 8),
+            Expanded(child: Text(headerTxt,
+                style: TextStyle(fontWeight: FontWeight.w800,
+                    fontSize: 13, color: headerClr))),
+          ]),
+        ),
 
-          Padding(
-              padding: const EdgeInsets.all(14),
-              child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // ── Coverage progress bar ─────────────────────────────
-                    if (_reqBirds > 0) ...[
-                      Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            const Text('Stock Coverage',
-                                style: TextStyle(
-                                    fontSize: 11,
-                                    color: kTextSub,
-                                    fontWeight: FontWeight.w600)),
-                            Text('${(_coverPct * 100).toStringAsFixed(0)}%',
-                                style: TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w800,
-                                    color: _coverPct >= 1.0
-                                        ? Colors.green
-                                        : _coverPct >= 0.7
-                                        ? Colors.orange
-                                        : Colors.red)),
-                          ]),
-                      const SizedBox(height: 6),
-                      ClipRRect(
-                          borderRadius: BorderRadius.circular(6),
-                          child: LinearProgressIndicator(
-                              value: _coverPct,
-                              minHeight: 10,
-                              backgroundColor: Colors.red.shade100,
-                              valueColor:
-                              AlwaysStoppedAnimation(_coverPct >= 1.0
-                                  ? Colors.green
-                                  : _coverPct >= 0.7
-                                  ? Colors.orange
-                                  : Colors.red))),
-                      const SizedBox(height: 16),
-                    ],
+        Padding(
+          padding: const EdgeInsets.all(14),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
 
-                    // ── 3-column comparison: Required | Available | Shortage ─
+            // ── Overall totals row ──────────────────────────────────────────
+            if (hasOrders) ...[
+              Row(children: [
+                _stockCol('Required', _reqBirds, _reqWeight, Colors.blue),
+                _divider(),
+                _stockCol('In Stock', _availBirds, _availKg,
+                    shortage ? Colors.red : Colors.green),
+              ]),
+              const SizedBox(height: 14),
+
+              // ── Family-level coverage (the correct shortage display) ───────
+              const Text('COVERAGE BY PRODUCT FAMILY',
+                  style: TextStyle(fontSize: 9, color: kTextHint,
+                      fontWeight: FontWeight.w700, letterSpacing: 0.6)),
+              const SizedBox(height: 8),
+              ...coverage.map((fam) {
+                final famName   = fam['family_name'] as String? ?? '';
+                final reqB      = (fam['req_birds'] as num?)?.toInt() ?? 0;
+                final reqKg     = (fam['req_kg'] as num?)?.toDouble() ?? 0;
+                final availB    = (fam['avail_birds'] as num?)?.toInt() ?? 0;
+                final availKg   = (fam['avail_kg'] as num?)?.toDouble() ?? 0;
+                final shortB    = (fam['short_birds'] as num?)?.toInt() ?? 0;
+                final shortKg   = (fam['short_kg'] as num?)?.toDouble() ?? 0;
+                final famCat    = fam['family_category'] as String? ?? '';
+                final isCovered = shortB == 0;
+                final pct = reqB > 0 ? (availB / reqB).clamp(0.0, 1.0) : 1.0;
+                final color = _productColor(famCat);
+                final statusColor = isCovered ? Colors.green.shade700 : Colors.red.shade700;
+                final bgColor = isCovered ? Colors.green.shade50 : Colors.red.shade50;
+
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: bgColor,
+                    borderRadius: BorderRadius.circular(kRadiusInner),
+                    border: Border.all(
+                        color: isCovered ? Colors.green.shade200 : Colors.red.shade200),
+                  ),
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    // Family header row
                     Row(children: [
-                      _stockCol('Required', _reqBirds, _reqWeight, Colors.blue),
-                      _divider(),
-                      _stockCol('In Stock', _availBirds, _availKg,
-                          _hasShortage ? Colors.red : Colors.green),
-                      if (_hasShortage) ...[
-                        _divider(),
-                        _stockCol('Short', _shortBirds, _shortKg, Colors.red)
-                      ],
+                      Container(width: 10, height: 10,
+                          decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+                      const SizedBox(width: 6),
+                      Text(famName,
+                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w900,
+                              color: statusColor)),
+                      const Spacer(),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: isCovered ? Colors.green.shade100 : Colors.red.shade100,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          isCovered ? 'COVERED' : 'SHORT ${shortB}b  ${shortKg.toStringAsFixed(0)}kg',
+                          style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800,
+                              color: statusColor),
+                        ),
+                      ),
                     ]),
+                    const SizedBox(height: 8),
+                    // Progress bar
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(4),
+                      child: LinearProgressIndicator(
+                        value: pct,
+                        minHeight: 6,
+                        backgroundColor: isCovered
+                            ? Colors.green.shade100 : Colors.red.shade100,
+                        valueColor: AlwaysStoppedAnimation(
+                            isCovered ? Colors.green : Colors.red),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    // Required vs Available
+                    Row(children: [
+                      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        const Text('REQUIRED', style: TextStyle(fontSize: 9,
+                            color: kTextHint, fontWeight: FontWeight.w700)),
+                        Text('$reqB b  ${reqKg.toStringAsFixed(0)} kg',
+                            style: const TextStyle(fontSize: 12,
+                                fontWeight: FontWeight.w800, color: kTextMain)),
+                      ])),
+                      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        const Text('IN STOCK', style: TextStyle(fontSize: 9,
+                            color: kTextHint, fontWeight: FontWeight.w700)),
+                        Text('$availB b  ${availKg.toStringAsFixed(0)} kg',
+                            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800,
+                                color: isCovered ? Colors.green.shade700 : Colors.red.shade700)),
+                      ])),
+                    ]),
+                  ]),
+                );
+              }),
+            ],
 
-                    // ── Status breakdown: OFD vs Assigned ────────────────
-                    if (_reqBirds > 0) ...[
-                      const SizedBox(height: 12),
-                      Container(
-                          padding: const EdgeInsets.all(10),
-                          decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.08),
-                              borderRadius:
-                              BorderRadius.circular(kRadiusInner)),
-                          child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                _statusRow(
-                                    Icons.local_shipping_outlined,
-                                    Colors.blue,
-                                    'Out for delivery',
-                                    '$_ofdBirds birds'),
-                                const SizedBox(height: 6),
-                                _statusRow(
-                                    Icons.pending_outlined,
-                                    Colors.orange,
-                                    'Assigned / Picked up',
-                                    '$_asnBirds birds'),
-                              ])),
-                    ],
+            // ── Per-product ORDER breakdown from order_items ───────────────
+            if (_requiredByProduct.length > 1) ...[
+              const SizedBox(height: 10),
+              const Text('ORDERED BY PRODUCT',
+                  style: TextStyle(fontSize: 9, color: kTextHint,
+                      fontWeight: FontWeight.w700, letterSpacing: 0.6)),
+              const SizedBox(height: 6),
+              Wrap(
+                spacing: 6, runSpacing: 6,
+                children: _requiredByProduct.map((p) {
+                  final color = _productColor(p['category'] as String? ?? '');
+                  final name  = p['product_name'] as String? ?? '';
+                  final birds = (p['birds'] as num?)?.toInt() ?? 0;
+                  final kg    = (p['weight'] as num?)?.toDouble() ?? 0;
+                  return Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: color.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: color.withValues(alpha: 0.3)),
+                    ),
+                    child: Row(mainAxisSize: MainAxisSize.min, children: [
+                      Container(width: 7, height: 7,
+                          decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+                      const SizedBox(width: 5),
+                      Text('$name: $birds b  ${kg.toStringAsFixed(0)} kg',
+                          style: TextStyle(fontSize: 11,
+                              fontWeight: FontWeight.w700, color: color)),
+                    ]),
+                  );
+                }).toList(),
+              ),
+            ],
 
-                    // ── DC Today ─────────────────────────────────────────
-                    if (((_dcToday?['dc_count'] as num?)?.toInt() ?? 0) >
-                        0) ...[
-                      const SizedBox(height: 10),
-                      Container(
-                          padding: const EdgeInsets.all(10),
-                          decoration: BoxDecoration(
-                              color: kPrimary.withValues(alpha: 0.06),
-                              borderRadius: BorderRadius.circular(10)),
-                          child: Row(children: [
-                            const Icon(Icons.receipt_long_outlined,
-                                size: 14, color: kPrimary),
-                            const SizedBox(width: 6),
-                            Expanded(
-                                child: Text(
-                                    'Today DC: ${(_dcToday!['dc_count'] as num?)?.toInt() ?? 0} pickup(s)  '
-                                        '${(_dcToday!['total_birds'] as num?)?.toInt() ?? 0} birds  '
-                                        '${(_dcToday!['total_kg'] as num?)?.toDouble().toStringAsFixed(1) ?? '0'} kg',
-                                    style: const TextStyle(
-                                        fontSize: 12,
-                                        color: kPrimary,
-                                        fontWeight: FontWeight.w600))),
-                          ])),
-                    ],
+            // ── Status breakdown: OFD vs Assigned ────────────────────────
+            if (_reqBirds > 0) ...[
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(kRadiusInner),
+                ),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  _statusRow(Icons.local_shipping_outlined, Colors.blue,
+                      'Out for delivery', '$_ofdBirds birds'),
+                  const SizedBox(height: 6),
+                  _statusRow(Icons.pending_outlined, Colors.orange,
+                      'Assigned / Picked up', '$_asnBirds birds'),
+                ]),
+              ),
+            ],
 
-                    // ── Shortage action buttons ───────────────────────────
-                    if (_hasShortage) ...[
-                      const SizedBox(height: 12),
-                      Row(children: [
-                        Expanded(
-                            child: ElevatedButton.icon(
-                                onPressed: () {
-                                  if (_activeBatches.isNotEmpty) {
-                                    context.push(R.batchPickupPath(
-                                        _activeBatches.first['id'] as String));
-                                  } else {
-                                    showError(context,
-                                        'No active batch. Ask admin to create one.');
-                                  }
-                                },
-                                icon: const Icon(Icons.agriculture, size: 16),
-                                label: const Text('Farm Pickup',
-                                    style: TextStyle(
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w700)),
-                                style: ElevatedButton.styleFrom(
-                                    minimumSize: const Size(0, 40),
-                                    backgroundColor: Colors.red))),
-                        const SizedBox(width: 8),
-                        Expanded(
-                            child: OutlinedButton.icon(
-                                onPressed: () {
-                                  if (_activeBatches.isNotEmpty) {
-                                    context.push(R.birdTransferPath(
-                                        _activeBatches.first['id'] as String));
-                                  } else {
-                                    showError(context,
-                                        'No active batch for transfer.');
-                                  }
-                                },
-                                icon: const Icon(Icons.swap_horiz,
-                                    size: 16, color: Colors.purple),
-                                label: const Text('Request Stock',
-                                    style: TextStyle(
-                                        fontSize: 12, color: Colors.purple)),
-                                style: OutlinedButton.styleFrom(
-                                    minimumSize: const Size(0, 40),
-                                    side: const BorderSide(
-                                        color: Colors.purple)))),
-                      ]),
-                    ],
-                  ])),
-        ]));
+            // ── DC Today ────────────────────────────────────────────────
+            if (((_dcToday?['dc_count'] as num?)?.toInt() ?? 0) > 0) ...[
+              const SizedBox(height: 10),
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: kPrimary.withValues(alpha: 0.06),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Row(children: [
+                  const Icon(Icons.receipt_long_outlined, size: 14, color: kPrimary),
+                  const SizedBox(width: 6),
+                  Expanded(child: Text(
+                      'Today DC: ${(_dcToday!['dc_count'] as num?)?.toInt() ?? 0} pickup(s)  '
+                          '${(_dcToday!['total_birds'] as num?)?.toInt() ?? 0} birds  '
+                          '${(_dcToday!['total_kg'] as num?)?.toDouble().toStringAsFixed(1) ?? '0'} kg',
+                      style: const TextStyle(fontSize: 12, color: kPrimary,
+                          fontWeight: FontWeight.w600))),
+                ]),
+              ),
+            ],
+
+            // ── Shortage action buttons ──────────────────────────────────
+            if (shortage) ...[
+              const SizedBox(height: 12),
+              Row(children: [
+                Expanded(child: ElevatedButton.icon(
+                  onPressed: () {
+                    if (_activeBatches.isNotEmpty) {
+                      context.push(R.batchPickupPath(
+                          _activeBatches.first['id'] as String));
+                    } else {
+                      showError(context, 'No active batch. Ask admin to create one.');
+                    }
+                  },
+                  icon: const Icon(Icons.agriculture, size: 16),
+                  label: const Text('Farm Pickup',
+                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+                  style: ElevatedButton.styleFrom(
+                      minimumSize: const Size(0, 40),
+                      backgroundColor: Colors.red),
+                )),
+                const SizedBox(width: 8),
+                Expanded(child: OutlinedButton.icon(
+                  onPressed: () {
+                    if (_activeBatches.isNotEmpty) {
+                      context.push(R.birdTransferPath(
+                          _activeBatches.first['id'] as String));
+                    } else {
+                      showError(context, 'No active batch for transfer.');
+                    }
+                  },
+                  icon: const Icon(Icons.swap_horiz, size: 16, color: Colors.purple),
+                  label: const Text('Request Stock',
+                      style: TextStyle(fontSize: 12, color: Colors.purple)),
+                  style: OutlinedButton.styleFrom(
+                      minimumSize: const Size(0, 40),
+                      side: const BorderSide(color: Colors.purple)),
+                )),
+              ]),
+            ],
+          ]),
+        ),
+      ]),
+    );
   }
+
 
   // ══════════════════════════════════════════════════════════════════════════
   // SECTION 3: QUICK ACTIONS
@@ -1082,6 +1211,11 @@ class _S extends ConsumerState<AgentHomeScreen> {
           final st = d['status'] as String? ?? '';
           final isOfd = st == 'out_for_delivery';
           final bid = d['batch_id'] as String?;
+          // order_items from RPC: full multi-product breakdown per delivery
+          final orderItems = (d['order_items'] as List? ?? [])
+              .whereType<Map>()
+              .map((e) => e.cast<String, dynamic>())
+              .toList();
 
           return Container(
               margin: const EdgeInsets.only(bottom: 8),
@@ -1120,13 +1254,32 @@ class _S extends ConsumerState<AgentHomeScreen> {
                     ]),
                     const SizedBox(height: 8),
 
-                    // Info chips
-                    Row(children: [
-                      _chip(Icons.numbers, '$birds birds', Colors.blue),
-                      const SizedBox(width: 6),
-                      _chip(Icons.scale_outlined, '${wt.toStringAsFixed(1)} kg',
-                          Colors.teal),
-                    ]),
+                    // Product lines — one row per product from order_items
+                    if (orderItems.isNotEmpty)
+                      ...orderItems.map((item) {
+                        final pName = item['product_name'] as String? ?? '';
+                        final pCat  = item['category'] as String? ?? '';
+                        final pBirds = (item['bird_count'] as num?)?.toInt() ?? 0;
+                        final pWt    = (item['total_weight'] as num?)?.toDouble() ?? 0;
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 4),
+                          child: Row(children: [
+                            _productBadge(pName, pCat),
+                            const SizedBox(width: 6),
+                            _chip(Icons.egg_alt_outlined, '$pBirds b', Colors.blue),
+                            const SizedBox(width: 4),
+                            _chip(Icons.scale_outlined, '${pWt.toStringAsFixed(0)} kg', Colors.teal),
+                          ]),
+                        );
+                      })
+                    else ...[
+                      // Fallback: no order_items, show header totals
+                      Row(children: [
+                        _chip(Icons.egg_alt_outlined, '$birds birds', Colors.blue),
+                        const SizedBox(width: 6),
+                        _chip(Icons.scale_outlined, '${wt.toStringAsFixed(1)} kg', Colors.teal),
+                      ]),
+                    ],
                     const SizedBox(height: 10),
 
                     // Action buttons — 2-row layout when all 3 are present to prevent label wrapping
@@ -1346,29 +1499,59 @@ class _S extends ConsumerState<AgentHomeScreen> {
                       final o = d['orders'] as Map<String, dynamic>?;
                       final r = o?['retailers'] as Map<String, dynamic>?;
                       final dSt = d['status'] as String? ?? '';
-                      final birds =
-                          (o?['estimated_birds'] as num?)?.toInt() ?? 0;
-                      final wt =
-                          (o?['total_quantity'] as num?)?.toDouble() ?? 0;
+                      final birds = (o?['estimated_birds'] as num?)?.toInt() ?? 0;
+                      final wt    = (o?['total_quantity'] as num?)?.toDouble() ?? 0;
+                      // order_items from nested select — full product breakdown
+                      final batchOrderItems = (o?['order_items'] as List? ?? [])
+                          .whereType<Map>()
+                          .map((e) => e.cast<String, dynamic>())
+                          .toList();
                       return Padding(
-                          padding: const EdgeInsets.only(bottom: 8),
+                          padding: const EdgeInsets.only(bottom: 10),
                           child: Row(children: [
                             Icon(_dIcon(dSt), size: 15, color: _dColor(dSt)),
                             const SizedBox(width: 8),
                             Expanded(
                                 child: Column(
-                                    crossAxisAlignment:
-                                    CrossAxisAlignment.start,
+                                    crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
                                       Text(r?['shop_name'] as String? ?? '--',
                                           style: const TextStyle(
                                               fontSize: 14,
                                               fontWeight: FontWeight.w800,
                                               color: Colors.white)),
-                                      Text(
-                                          '$birds birds  ${wt.toStringAsFixed(1)} kg',
-                                          style: const TextStyle(
-                                              fontSize: 11, color: Colors.white60)),
+                                      const SizedBox(height: 4),
+                                      // One product line per order_item
+                                      if (batchOrderItems.isNotEmpty)
+                                        ...batchOrderItems.map((item) {
+                                          final pName  = item['product_name'] as String? ?? '';
+                                          final pCat   = item['category'] as String? ?? '';
+                                          final pBirds = (item['bird_count'] as num?)?.toInt() ?? 0;
+                                          final pWt    = (item['total_weight'] as num?)?.toDouble() ?? 0;
+                                          final col    = _productColor(pCat);
+                                          final lightCol = Color.lerp(col, Colors.white, 0.45)!;
+                                          return Padding(
+                                            padding: const EdgeInsets.only(bottom: 3),
+                                            child: Row(children: [
+                                              Container(
+                                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                                decoration: BoxDecoration(
+                                                  color: lightCol.withValues(alpha: 0.15),
+                                                  borderRadius: BorderRadius.circular(4),
+                                                  border: Border.all(color: lightCol.withValues(alpha: 0.4)),
+                                                ),
+                                                child: Text(pName,
+                                                    style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: lightCol)),
+                                              ),
+                                              const SizedBox(width: 5),
+                                              Text('$pBirds b  ${pWt.toStringAsFixed(0)} kg',
+                                                  style: const TextStyle(fontSize: 10, color: Colors.white60)),
+                                            ]),
+                                          );
+                                        })
+                                      else
+                                        Text('$birds b  ${wt.toStringAsFixed(1)} kg',
+                                            style: const TextStyle(fontSize: 11, color: Colors.white60)),
                                     ])),
                             StatusBadge(dSt, SC.order(dSt), small: true),
                             if (dSt == 'out_for_delivery') ...[
@@ -1380,10 +1563,8 @@ class _S extends ConsumerState<AgentHomeScreen> {
                                       padding: const EdgeInsets.symmetric(
                                           horizontal: 10, vertical: 4),
                                       decoration: BoxDecoration(
-                                          color:
-                                          kPrimary.withValues(alpha: 0.1),
-                                          borderRadius:
-                                          BorderRadius.circular(6)),
+                                          color: kPrimary.withValues(alpha: 0.1),
+                                          borderRadius: BorderRadius.circular(6)),
                                       child: const Text('Complete',
                                           style: TextStyle(
                                               fontSize: 11,
@@ -1608,6 +1789,43 @@ class _S extends ConsumerState<AgentHomeScreen> {
                 fontSize: 11, fontWeight: FontWeight.w600, color: color)),
       ]));
 
+  // Product badge on white/light card background
+  Widget _productBadge(String name, String category) {
+    final color = _productColor(category);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: color.withValues(alpha: 0.35)),
+      ),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        Container(width: 7, height: 7,
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+        const SizedBox(width: 5),
+        Text(name,
+            style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: color)),
+      ]),
+    );
+  }
+
+  // Product badge on dark navy batch card background
+  Widget _productBadgeDark(String name, String category) {
+    final color = _productColor(category);
+    // Lighten for readability on dark background
+    final lightColor = Color.lerp(color, Colors.white, 0.45)!;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+      decoration: BoxDecoration(
+        color: lightColor.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(5),
+        border: Border.all(color: lightColor.withValues(alpha: 0.4)),
+      ),
+      child: Text(name,
+          style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: lightColor)),
+    );
+  }
+
   IconData _dIcon(String s) => switch (s) {
     'delivered' => Icons.check_circle_outline,
     'out_for_delivery' => Icons.local_shipping_outlined,
@@ -1620,6 +1838,13 @@ class _S extends ConsumerState<AgentHomeScreen> {
     'out_for_delivery' => Colors.blue,
     'picked_up' => Colors.teal,
     _ => Colors.grey,
+  };
+
+  Color _productColor(String category) => switch (category) {
+    'broiler' => const Color(0xFF00796B),   // teal
+    'country' => const Color(0xFF6D4C41),   // brown
+    'quail'   => Colors.purple,
+    _         => Colors.indigo,
   };
 
   @override

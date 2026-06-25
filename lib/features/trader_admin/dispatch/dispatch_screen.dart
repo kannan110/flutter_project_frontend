@@ -47,7 +47,8 @@ class _S extends ConsumerState<DispatchScreen> with SingleTickerProviderStateMix
           .select('id,status,total_birds,total_weight,created_at,vehicle_no,'
           'delivery_agents(id,name,vehicle_no,phone),'
           'deliveries(id,status,delivered_total_weight,'
-          'orders(estimated_birds,total_quantity,retailers(shop_name))),'
+          'orders(estimated_birds,total_quantity,retailers(shop_name),'
+          'order_items(master_products(name)))),'
           'delivery_challans(id,dc_number,net_weight,bird_count,dc_photo_url,farmer_name,created_at)')
           .eq('trader_id', tid)
           .or('status.in.(assigned,picked_up,out_for_delivery),'
@@ -471,10 +472,27 @@ class _BatchCard extends StatelessWidget {
                 ]),
               ],
 
-              // ── Row 4: DC photo indicator + shops ───────────────────
+              // ── Row 4: Product + DC photo + shops ───────────────────
               if (challans.isNotEmpty || deliveries.isNotEmpty) ...[
                 const SizedBox(height: 8),
                 Wrap(spacing: 6, children: [
+                  // ── Product chip (display-only) ──────────────────────
+                  Builder(builder: (_) {
+                    final firstDel = deliveries.isNotEmpty ? deliveries.first : null;
+                    final firstOrd = firstDel?['orders'] as Map<String,dynamic>?;
+                    final items = (firstOrd?['order_items'] as List?)
+                        ?.cast<Map<String,dynamic>>() ?? [];
+                    final names = items
+                        .map((i) => (i['master_products'] as Map?)?['name'] as String? ?? '')
+                        .where((n) => n.isNotEmpty).toSet().toList();
+                    final lbl = names.isEmpty ? '' : names.length == 1 ? names.first : 'Multi-product';
+                    if (lbl.isEmpty) return const SizedBox.shrink();
+                    final cl = lbl.toLowerCase().contains('country') ? const Color(0xFF6D4C41)
+                        : lbl.toLowerCase().contains('quail') ? Colors.purple
+                        : lbl.toLowerCase().contains('multi') ? Colors.indigo
+                        : const Color(0xFF00796B);
+                    return _chip(Icons.category_outlined, lbl, cl);
+                  }),
                   if (hasDcPhoto) _chip(Icons.photo_outlined, 'DC Photo', Colors.green),
                   if (challans.isNotEmpty)
                     _chip(Icons.receipt_outlined, challans.first['dc_number'] as String? ?? 'DC', Colors.purple),

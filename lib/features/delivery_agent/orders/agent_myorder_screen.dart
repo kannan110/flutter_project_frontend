@@ -62,7 +62,8 @@ class _S extends ConsumerState<AgentMyOrdersScreen> {
       final rows = await _c
           .from('orders')
           .select('id,status,total_quantity,estimated_birds,total_amount,'
-          'final_price,order_date,notes,retailers(shop_name)')
+          'final_price,order_date,notes,retailers(shop_name),'
+          'order_items(master_products(name))')
           .eq('created_by_agent_id', agentId)
           .order('created_at', ascending: false)
           .limit(100);
@@ -237,9 +238,35 @@ class _S extends ConsumerState<AgentMyOrdersScreen> {
           Icon(_icon(bucket), size: 18, color: c),
           const SizedBox(width: 8),
           Expanded(
-              child: Text(shopName,
-                  style: const TextStyle(
-                      fontWeight: FontWeight.w800, fontSize: 14))),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(shopName,
+                    style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14)),
+                // ── Product chip (display-only) ──────────────────────────
+                Builder(builder: (_) {
+                  final items = (o['order_items'] as List?)?.cast<Map<String,dynamic>>() ?? [];
+                  final names = items
+                      .map((i) => (i['master_products'] as Map?)?['name'] as String? ?? '')
+                      .where((n) => n.isNotEmpty).toSet().toList();
+                  final lbl = names.isEmpty ? '' : names.length == 1 ? names.first : 'Multi-product';
+                  if (lbl.isEmpty) return const SizedBox.shrink();
+                  final pc = lbl.toLowerCase().contains('country') ? const Color(0xFF6D4C41)
+                      : lbl.toLowerCase().contains('quail') ? Colors.purple
+                      : lbl.toLowerCase().contains('multi') ? Colors.indigo
+                      : const Color(0xFF00796B);
+                  return Padding(
+                    padding: const EdgeInsets.only(top: 3),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                      decoration: BoxDecoration(
+                          color: pc.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(5),
+                          border: Border.all(color: pc.withValues(alpha: 0.3))),
+                      child: Text(lbl,
+                          style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: pc)),
+                    ),
+                  );
+                }),
+              ])),
           Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               decoration: BoxDecoration(

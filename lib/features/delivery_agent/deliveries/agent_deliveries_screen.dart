@@ -32,7 +32,8 @@ class _S extends ConsumerState<AgentDeliveriesScreen> {
           'dc_weight_kg,total_loss_kg,loss_percentage,is_high_loss,'
           'is_partial_delivery,partial_birds,partial_quantity,order_id,'
           'mortality_birds,approval_status,'
-          'orders(id,estimated_birds,total_quantity,retailers(shop_name,address,phone))')
+          'orders(id,estimated_birds,total_quantity,retailers(shop_name,address,phone),'
+          'order_items(master_products(name)))')
           .eq('delivery_agent_id', agentId);
 
       if (_filter == 'active')
@@ -196,6 +197,23 @@ class _S extends ConsumerState<AgentDeliveriesScreen> {
   Widget _simpleDeliveryCard(Map<String, dynamic> d) {
     final o = d['orders'] as Map<String, dynamic>?;
     final r = o?['retailers'] as Map<String, dynamic>?;
+
+    // ── Product helper (display-only, no logic) ───────────────────────────
+    String productLabel() {
+      final items = (o?['order_items'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+      final names = items
+          .map((i) => (i['master_products'] as Map?)?['name'] as String? ?? '')
+          .where((n) => n.isNotEmpty).toSet().toList();
+      if (names.isEmpty) return '';
+      return names.length == 1 ? names.first : 'Multi-product';
+    }
+    Color productColor(String lbl) {
+      final l = lbl.toLowerCase();
+      if (l.contains('country')) return const Color(0xFF6D4C41);
+      if (l.contains('quail'))   return Colors.purple;
+      if (l.contains('multi'))   return Colors.indigo;
+      return const Color(0xFF00796B);
+    }
     final status = d['status'] as String? ?? '-';
     final isActive = ['assigned', 'picked_up', 'out_for_delivery'].contains(status);
     final isDelivered = status == 'delivered';
@@ -248,8 +266,26 @@ class _S extends ConsumerState<AgentDeliveriesScreen> {
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(shopName, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
+              // ── Product chip (display-only) ─────────────────────────
+              Builder(builder: (_) {
+                final lbl = productLabel();
+                if (lbl.isEmpty) return const SizedBox.shrink();
+                final c = productColor(lbl);
+                return Padding(
+                  padding: const EdgeInsets.only(top: 3),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                        color: c.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(color: c.withValues(alpha: 0.35))),
+                    child: Text(lbl,
+                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: c)),
+                  ),
+                );
+              }),
               if (address != null)
-                Text(address, style: const TextStyle(fontSize: 12, color: kTextHint),
+                Text(address!, style: const TextStyle(fontSize: 12, color: kTextHint),
                     maxLines: 1, overflow: TextOverflow.ellipsis),
             ]),
           ),
