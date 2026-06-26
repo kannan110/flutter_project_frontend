@@ -15,14 +15,32 @@ class CashReconciliationScreen extends ConsumerStatefulWidget {
 class _S extends ConsumerState<CashReconciliationScreen> {
   final _c = Supabase.instance.client;
   List<Map<String, dynamic>> _pendingShifts = [];
+  List<Map<String, dynamic>> _filteredPending = [];
   List<Map<String, dynamic>> _history = [];
+  List<Map<String, dynamic>> _filteredHistory = [];
+  final _searchCtrl = TextEditingController();
+
+  void _applySearch(String q) {
+    if (!mounted) return;
+    final lower = q.trim().toLowerCase();
+    bool match(Map<String,dynamic> s) {
+      final a = s['delivery_agents'] as Map<String,dynamic>?;
+      return (a?['name'] as String? ?? '').toLowerCase().contains(lower);
+    }
+    setState(() {
+      _filteredPending = lower.isEmpty ? List.from(_pendingShifts) : _pendingShifts.where(match).toList();
+      _filteredHistory = lower.isEmpty ? List.from(_history) : _history.where(match).toList();
+    });
+  }
   bool _loading = true;
 
   @override
   void initState() {
     super.initState();
     _load();
+    _searchCtrl.addListener(() => _applySearch(_searchCtrl.text));
   }
+  @override void dispose() { _searchCtrl.dispose(); super.dispose(); }
 
   Future<void> _load() async {
     final tid = ref.read(appUserProvider).valueOrNull?.traderId;
@@ -56,6 +74,7 @@ class _S extends ConsumerState<CashReconciliationScreen> {
               .where((s) => !reconShiftIds.contains(s['id']))
               .toList();
           _history = List<Map<String, dynamic>>.from(hist);
+          _applySearch(_searchCtrl.text);
           _loading = false;
         });
     } catch (_) {
@@ -132,8 +151,7 @@ class _S extends ConsumerState<CashReconciliationScreen> {
                       },
                       child: const Text('Submit Reconciliation')),
                 ])));
-    cashCtrl.dispose();
-    notesCtrl.dispose();
+    // controllers are ephemeral locals — GC handles disposal
   }
 
   @override
@@ -145,12 +163,24 @@ class _S extends ConsumerState<CashReconciliationScreen> {
             actions: [
               IconButton(icon: const Icon(Icons.refresh), onPressed: _load)
             ]),
-        body: _loading
+        body: Column(children: [
+          Container(
+            color: Colors.white,
+            padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+            child: AppSearchBar(
+              controller: _searchCtrl,
+              hint: 'Search by agent name…',
+              onChanged: _applySearch,
+              onClear: () { _searchCtrl.clear(); _applySearch(''); },
+            ),
+          ),
+          const Divider(height: 1),
+          Expanded(child: _loading
             ? const LoadingList()
             : ListView(
                 padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
                 children: [
-                    if (_pendingShifts.isEmpty)
+                    if (_filteredPending.isEmpty)
                       Container(
                           padding: const EdgeInsets.all(14),
                           decoration: BoxDecoration(
@@ -168,7 +198,7 @@ class _S extends ConsumerState<CashReconciliationScreen> {
                           ]))
                     else ...[
                       const SectionHeader('PENDING RECONCILIATION'),
-                      ..._pendingShifts.map((s) {
+                      ..._filteredPending.map((s) {
                         final a = s['delivery_agents'] as Map<String, dynamic>?;
                         final exp =
                             (s['total_cash_collected'] as num?)?.toDouble() ??
@@ -210,10 +240,10 @@ class _S extends ConsumerState<CashReconciliationScreen> {
                             ]));
                       }),
                     ],
-                    if (_history.isNotEmpty) ...[
+                    if (_filteredHistory.isNotEmpty) ...[
                       const SizedBox(height: 8),
                       const SectionHeader('HISTORY'),
-                      ..._history.map((h) {
+                      ..._filteredHistory.map((h) {
                         final a = h['delivery_agents'] as Map<String, dynamic>?;
                         final exp =
                             (h['expected_cash_total'] as num?)?.toDouble() ?? 0;
@@ -275,5 +305,7 @@ class _S extends ConsumerState<CashReconciliationScreen> {
                       }),
                     ],
                   ]),
+          ),
+        ]),
       );
 }

@@ -16,13 +16,30 @@ class TransferHistoryScreen extends ConsumerStatefulWidget {
 class _S extends ConsumerState<TransferHistoryScreen> {
   final _c = Supabase.instance.client;
   List<Map<String, dynamic>> _transfers = [];
+  List<Map<String, dynamic>> _filtered = [];
   bool _loading = true;
+  final _searchCtrl = TextEditingController();
+
+  void _applySearch(String q) {
+    if (!mounted) return;
+    final lower = q.trim().toLowerCase();
+    setState(() => _filtered = lower.isEmpty
+        ? List.from(_transfers)
+        : _transfers.where((t) {
+            final fa = t['from_agent'] as Map<String,dynamic>?;
+            final ta = t['to_agent']   as Map<String,dynamic>?;
+            return (fa?['name'] as String? ?? '').toLowerCase().contains(lower) ||
+                   (ta?['name'] as String? ?? '').toLowerCase().contains(lower);
+          }).toList());
+  }
 
   @override
   void initState() {
     super.initState();
     _load();
+    _searchCtrl.addListener(() => _applySearch(_searchCtrl.text));
   }
+  @override void dispose() { _searchCtrl.dispose(); super.dispose(); }
 
   Future<void> _load() async {
     final agentId = ref.read(appUserProvider).valueOrNull?.agentId;
@@ -44,6 +61,7 @@ class _S extends ConsumerState<TransferHistoryScreen> {
       setState(() {
         _transfers = List<Map<String, dynamic>>.from(sent as List? ?? []);
         _loading = false;
+        _applySearch(_searchCtrl.text);
       });
     } catch (e) {
       if (mounted) setState(() => _loading = false);
@@ -57,18 +75,32 @@ class _S extends ConsumerState<TransferHistoryScreen> {
       appBar: AppBar(title: const Text('Transfer History'), actions: [
         IconButton(icon: const Icon(Icons.refresh), onPressed: _load)
       ]),
-      body: _loading
+      body: Column(children: [
+        Container(
+          color: Colors.white,
+          padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+          child: AppSearchBar(
+            controller: _searchCtrl,
+            hint: 'Search by agent name…',
+            onChanged: _applySearch,
+            onClear: () { _searchCtrl.clear(); _applySearch(''); },
+          ),
+        ),
+        const Divider(height: 1),
+        Expanded(child: _loading
           ? const LoadingList()
           : _transfers.isEmpty
               ? const EmptyState(
                   icon: Icons.swap_horiz, message: 'No bird transfers yet')
+              : _filtered.isEmpty
+              ? const EmptyState(icon: Icons.search_off_rounded, message: 'No transfers match')
               : ListView.separated(
                   padding: const EdgeInsets.fromLTRB(
                       16, 16, 16, kBottomNavClearance),
-                  itemCount: _transfers.length,
+                  itemCount: _filtered.length,
                   separatorBuilder: (_, __) => const SizedBox(height: 10),
                   itemBuilder: (_, i) {
-                    final t = _transfers[i];
+                    final t = _filtered[i];
                     final isOut = t['from_agent_id'] == agentId;
                     final other = isOut
                         ? t['to_agent'] as Map<String, dynamic>?
@@ -165,6 +197,8 @@ class _S extends ConsumerState<TransferHistoryScreen> {
                                       fontSize: 10, color: kTextHint)),
                             ]));
                   }),
+        ),
+      ]),
     );
   }
 

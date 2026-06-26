@@ -266,23 +266,16 @@ class _S extends ConsumerState<CreateOrderScreen> {
               children: [
                 // ── Customer ───────────────────────────────────────────
                 const SectionHeader('CUSTOMER'),
-                DropdownButtonFormField<Map<String, dynamic>>(
+                SearchableRetailerPicker(
+                    items: _retailers,
+                    labelKey: 'shop_name',
+                    hint: 'Select Customer',
+                    sheetTitle: 'Select Customer',
+                    prefixIcon: const Icon(Icons.store_outlined,
+                        size: 20, color: kPrimary),
                     value: _selRetailer,
-                    hint: const Text('Select Customer'),
-                    decoration: const InputDecoration(
-                        prefixIcon: Icon(Icons.store_outlined,
-                            size: 20, color: kPrimary)),
-                    isExpanded: true,
-                    items: _retailers
-                        .map((r) => DropdownMenuItem(
-                        value: r,
-                        child: Text(r['shop_name'] as String,
-                            overflow: TextOverflow.ellipsis)))
-                        .toList(),
                     onChanged: (v) {
-                      setState(() {
-                        _selRetailer = v;
-                      });
+                      setState(() => _selRetailer = v);
                       for (int i = 0; i < _lines.length; i++) _fetchRate(i);
                     },
                     validator: (v) =>

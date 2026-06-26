@@ -82,7 +82,7 @@ class _S extends ConsumerState<ExpensesScreen> {
                 } catch (e) { if (mounted) showError(context, e.toString()); }
               }, child: const Text('Add Expense')),
             ]))));
-    amtCtrl.dispose(); notesCtrl.dispose();
+    // controllers are ephemeral locals — GC handles disposal
   }
 
   @override

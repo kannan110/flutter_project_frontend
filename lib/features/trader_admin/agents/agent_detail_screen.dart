@@ -176,9 +176,7 @@ class _S extends ConsumerState<AgentDetailScreen> {
                       },
                       child: const Text('Save')),
                 ]))));
-    nameCtrl.dispose();
-    phoneCtrl.dispose();
-    vehicleCtrl.dispose();
+    // controllers are ephemeral locals — GC handles disposal
   }
 
   @override

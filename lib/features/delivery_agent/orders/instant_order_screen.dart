@@ -198,19 +198,14 @@ class _S extends ConsumerState<InstantOrderScreen> {
         decoration: BoxDecoration(color: Colors.orange.shade50, borderRadius: BorderRadius.circular(10)),
         child: const Text('No retailers found. Ask admin to add retailers.',
             style: TextStyle(color: Colors.deepOrange)))
-        : DropdownButtonFormField<Map<String,dynamic>>(
-        value: _selRetailer, isExpanded: true,
-        decoration: const InputDecoration(
-            hintText: 'Choose retailer / shop',
-            prefixIcon: Icon(Icons.store_outlined, size: 18, color: kPrimary)),
-        items: _retailers.map((r) => DropdownMenuItem(
-            value: r,
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-              Text(r['shop_name'] as String,
-                  style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
-              if (r['phone'] != null)
-                Text(r['phone'] as String, style: const TextStyle(fontSize: 10, color: kTextHint)),
-            ]))).toList(),
+        : SearchableRetailerPicker(
+        items: _retailers,
+        labelKey: 'shop_name',
+        subKey: 'phone',
+        hint: 'Choose retailer / shop',
+        sheetTitle: 'Select Retailer',
+        prefixIcon: const Icon(Icons.store_outlined, size: 18, color: kPrimary),
+        value: _selRetailer,
         onChanged: (v) => setState(() => _selRetailer = v)),
 
     if (_selRetailer?['address'] != null) Padding(

@@ -13,9 +13,27 @@ class UserManagementScreen extends ConsumerStatefulWidget {
 class _S extends ConsumerState<UserManagementScreen> {
   final _c = Supabase.instance.client;
   List<Map<String,dynamic>> _users = [];
+  List<Map<String,dynamic>> _filtered = [];
   bool _loading = true;
+  final _searchCtrl = TextEditingController();
 
-  @override void initState() { super.initState(); _load(); }
+  void _applySearch(String q) {
+    if (!mounted) return;
+    final lower = q.trim().toLowerCase();
+    setState(() => _filtered = lower.isEmpty
+        ? List.from(_users)
+        : _users.where((u) =>
+            (u['email'] as String? ?? '').toLowerCase().contains(lower) ||
+            (u['role']  as String? ?? '').toLowerCase().contains(lower),
+          ).toList());
+  }
+
+  @override void initState() {
+    super.initState();
+    _load();
+    _searchCtrl.addListener(() => _applySearch(_searchCtrl.text));
+  }
+  @override void dispose() { _searchCtrl.dispose(); super.dispose(); }
 
   Future<void> _load() async {
     final tid = ref.read(appUserProvider).valueOrNull?.traderId;
@@ -27,6 +45,7 @@ class _S extends ConsumerState<UserManagementScreen> {
       setState(() {
         _users   = List<Map<String,dynamic>>.from(res as List? ?? []);
         _loading = false;
+        _applySearch(_searchCtrl.text);
       });
     } catch (e) {
       if (mounted) setState(() => _loading = false);
@@ -132,8 +151,8 @@ class _S extends ConsumerState<UserManagementScreen> {
   }
 
   Widget _buildScaffold(BuildContext context) {
-    final unassigned = _users.where((u) => u['role_exists'] != true).toList();
-    final assigned   = _users.where((u) => u['role_exists'] == true).toList();
+    final unassigned = _filtered.where((u) => u['role_exists'] != true).toList();
+    final assigned   = _filtered.where((u) => u['role_exists'] == true).toList();
 
     return Scaffold(
       backgroundColor: kBgPage,
@@ -142,7 +161,19 @@ class _S extends ConsumerState<UserManagementScreen> {
         title: const Text('User Management'),
         actions: [IconButton(icon: const Icon(Icons.refresh_rounded), onPressed: _load)],
       ),
-      body: _loading
+      body: Column(children: [
+        Container(
+          color: Colors.white,
+          padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+          child: AppSearchBar(
+            controller: _searchCtrl,
+            hint: 'Search by email or role…',
+            onChanged: _applySearch,
+            onClear: () { _searchCtrl.clear(); _applySearch(''); },
+          ),
+        ),
+        const Divider(height: 1),
+        Expanded(child: _loading
           ? const LoadingList()
           : _users.isEmpty
           ? const EmptyState(icon: Icons.people_outline, message: 'No users found')
@@ -199,6 +230,8 @@ class _S extends ConsumerState<UserManagementScreen> {
             ...assigned.map((u) => _userCard(u, unassigned: false)),
             const SizedBox(height: 20),
           ])),
+        ),
+      ]),
     );
   }
 

@@ -258,7 +258,7 @@ class _ZoneRatesTabState extends ConsumerState<_ZoneRatesTab> {
                 ]),
           )),
     );
-    rateCtrl.dispose();
+    // rateCtrl is ephemeral — GC handles disposal
     if (result == null || !mounted) return;
     try {
       await _c.rpc('set_zone_rate', params: {
@@ -829,8 +829,7 @@ class _CustomerRatesTabState extends ConsumerState<_CustomerRatesTab> {
             ),
           )),
     );
-    rateCtrl.dispose();
-    adjCtrl.dispose();
+    // rateCtrl/adjCtrl are ephemeral — GC handles disposal
   }
 
   Widget _dateTile(String label, DateTime? date, {bool optional = false}) =>

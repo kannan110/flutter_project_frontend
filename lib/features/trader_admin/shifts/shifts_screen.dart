@@ -15,8 +15,29 @@ class ShiftsScreen extends ConsumerStatefulWidget {
 class _S extends ConsumerState<ShiftsScreen> {
   final _c = Supabase.instance.client;
   List<Map<String,dynamic>> _shifts = [];
+  List<Map<String,dynamic>> _filtered = [];
   bool _loading = true;
-  @override void initState() { super.initState(); _load(); }
+  final _searchCtrl = TextEditingController();
+
+  void _applySearch(String q) {
+    if (!mounted) return;
+    final lower = q.trim().toLowerCase();
+    setState(() => _filtered = lower.isEmpty
+        ? List.from(_shifts)
+        : _shifts.where((s) {
+            final a = s['delivery_agents'] as Map<String,dynamic>?;
+            return (a?['name'] as String? ?? '').toLowerCase().contains(lower) ||
+                   (a?['vehicle_no'] as String? ?? '').toLowerCase().contains(lower);
+          }).toList());
+  }
+
+  @override void initState() {
+    super.initState();
+    _load();
+    _searchCtrl.addListener(() => _applySearch(_searchCtrl.text));
+  }
+
+  @override void dispose() { _searchCtrl.dispose(); super.dispose(); }
 
   Future<void> _load() async {
     final tid = ref.read(appUserProvider).valueOrNull?.traderId;
@@ -27,7 +48,7 @@ class _S extends ConsumerState<ShiftsScreen> {
           .select('id,status,shift_start_at,shift_end_at,total_cash_collected,total_orders,total_birds_delivered,total_expenses,shift_approval_status,delivery_agents(name,vehicle_no)')
           .eq('trader_id', tid).order('shift_start_at', ascending: false).limit(60);
       if (!mounted) return;
-      if (mounted) setState(() { _shifts = List<Map<String,dynamic>>.from(data); _loading = false; });
+      if (mounted) setState(() { _shifts = List<Map<String,dynamic>>.from(data); _loading = false; _applySearch(_searchCtrl.text); });
     } catch (_) { if (mounted) setState(() => _loading = false); }
   }
 
@@ -46,12 +67,28 @@ class _S extends ConsumerState<ShiftsScreen> {
         ]),
         actions: [IconButton(icon: const Icon(Icons.refresh), onPressed: _load)],
       ),
-      body: _loading ? const LoadingList() : _shifts.isEmpty
+      body: Column(children: [
+        Container(
+          color: Colors.white,
+          padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+          child: AppSearchBar(
+            controller: _searchCtrl,
+            hint: 'Search by agent or vehicle…',
+            onChanged: _applySearch,
+            onClear: () { _searchCtrl.clear(); _applySearch(''); },
+          ),
+        ),
+        const Divider(height: 1),
+        Expanded(child: _loading ? const LoadingList() : _shifts.isEmpty
           ? const EmptyState(icon: Icons.schedule_outlined, message: 'No shifts yet')
-          : ListView.separated(padding: const EdgeInsets.fromLTRB(16, 16, 16, kBottomNavClearance), itemCount: _shifts.length,
-          separatorBuilder: (_, __) => const SizedBox(height: 8),
-          itemBuilder: (_, i) {
-            final s = _shifts[i];
+          : _filtered.isEmpty
+          ? const EmptyState(icon: Icons.search_off_rounded, message: 'No shifts match')
+          : RefreshIndicator(onRefresh: _load, child: ListView.separated(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, kBottomNavClearance),
+            itemCount: _filtered.length,
+            separatorBuilder: (_, __) => const SizedBox(height: 8),
+            itemBuilder: (_, i) {
+              final s = _filtered[i];
             final a = s['delivery_agents'] as Map<String,dynamic>?;
             final shiftStatus = s['status'] as String? ?? 'open';
             final approvalStatus = s['shift_approval_status'] as String? ?? 'pending';
@@ -88,7 +125,8 @@ class _S extends ConsumerState<ShiftsScreen> {
                     const Icon(Icons.chevron_right, color: kTextHint, size: 18),
                   ])),
             );
-          }),
+          }))),
+      ]),
     );
     return ResponsiveLayout(mobile: (_) => _scaffold, desktop: (_) => _scaffold);
   }

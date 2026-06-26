@@ -1761,18 +1761,13 @@ class _InstantOrderSheetState extends ConsumerState<_InstantOrderSheet> {
               const Text('No retailers found.',
                   style: TextStyle(color: kTextHint, fontSize: 12))
             else
-              DropdownButtonFormField<Map<String, dynamic>>(
+              SearchableRetailerPicker(
+                items: _retailers,
+                labelKey: 'shop_name',
+                hint: 'Choose retailer / shop',
+                sheetTitle: 'Select Retailer',
                 value: _selRetailer,
-                decoration: const InputDecoration(
-                    hintText: 'Choose retailer / shop'),
-                items: _retailers
-                    .map((r) => DropdownMenuItem(
-                  value: r,
-                  child: Text(r['shop_name'] as String),
-                ))
-                    .toList(),
-                onChanged: (v) =>
-                    setState(() => _selRetailer = v),
+                onChanged: (v) => setState(() => _selRetailer = v),
               ),
             const SizedBox(height: 12),
 

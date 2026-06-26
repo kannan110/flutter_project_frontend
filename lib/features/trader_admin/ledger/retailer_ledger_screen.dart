@@ -99,7 +99,7 @@ class _S extends ConsumerState<RetailerLedgerScreen> {
                 } catch (e) { if (mounted) showError(context, e.toString()); }
               }, child: const Text('Record Payment')),
             ]))));
-    amtCtrl.dispose(); descCtrl.dispose();
+    // controllers are ephemeral locals — GC handles disposal
   }
 
   Future<void> _pickDateRange() async {

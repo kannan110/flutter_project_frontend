@@ -15,7 +15,22 @@ class ReturnsScreen extends ConsumerStatefulWidget {
 class _S extends ConsumerState<ReturnsScreen> {
   final _c = Supabase.instance.client;
   List<Map<String, dynamic>> _returns = [];
+  List<Map<String, dynamic>> _filtered = [];
   List<Map<String, dynamic>> _deliveries = [];
+  final _searchCtrl = TextEditingController();
+
+  void _applySearch(String q) {
+    if (!mounted) return;
+    final lower = q.trim().toLowerCase();
+    setState(() => _filtered = lower.isEmpty
+        ? List.from(_returns)
+        : _returns.where((r) {
+            final ret = r['retailers'] as Map<String,dynamic>?;
+            final ag  = r['delivery_agents'] as Map<String,dynamic>?;
+            return (ret?['shop_name'] as String? ?? '').toLowerCase().contains(lower) ||
+                   (ag?['name']       as String? ?? '').toLowerCase().contains(lower);
+          }).toList());
+  }
 
   // Stock summary from returns
   int _totalReturnedBirds = 0;
@@ -27,7 +42,9 @@ class _S extends ConsumerState<ReturnsScreen> {
   void initState() {
     super.initState();
     _load();
+    _searchCtrl.addListener(() => _applySearch(_searchCtrl.text));
   }
+  @override void dispose() { _searchCtrl.dispose(); super.dispose(); }
 
   Future<void> _load() async {
     final tid = ref.read(appUserProvider).valueOrNull?.traderId;
@@ -64,6 +81,7 @@ class _S extends ConsumerState<ReturnsScreen> {
         setState(() {
           _returns = List<Map<String, dynamic>>.from(r);
           _deliveries = List<Map<String, dynamic>>.from(d);
+          _applySearch(_searchCtrl.text);
           _totalReturnedBirds = birds;
           _totalReturnedKg = kg;
           _loading = false;
@@ -230,7 +248,7 @@ class _S extends ConsumerState<ReturnsScreen> {
                             }
                           }),
                     ]))));
-    for (final c in [birdsCtrl, wtCtrl, rateCtrl, reasonCtrl]) c.dispose();
+    // controllers are ephemeral locals — GC handles disposal
   }
 
   @override
@@ -252,6 +270,17 @@ class _S extends ConsumerState<ReturnsScreen> {
     body: _loading
         ? const LoadingList()
         : Column(children: [
+          Container(
+            color: Colors.white,
+            padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+            child: AppSearchBar(
+              controller: _searchCtrl,
+              hint: 'Search by shop or agent…',
+              onChanged: _applySearch,
+              onClear: () { _searchCtrl.clear(); _applySearch(''); },
+            ),
+          ),
+          const Divider(height: 1),
       // Stock integration summary
       if (_totalReturnedBirds > 0)
         Container(
@@ -319,11 +348,11 @@ class _S extends ConsumerState<ReturnsScreen> {
               message: 'No returns recorded')
               : ListView.separated(
               padding: const EdgeInsets.fromLTRB(16, 16, 16, kBottomNavClearance),
-              itemCount: _returns.length,
+              itemCount: _filtered.length,
               separatorBuilder: (_, __) =>
               const SizedBox(height: 8),
               itemBuilder: (_, i) {
-                final r = _returns[i];
+                final r = _filtered[i];
                 final retailer =
                 r['retailers'] as Map<String, dynamic>?;
                 final agent =

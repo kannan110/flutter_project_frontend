@@ -36,6 +36,8 @@ class _S extends ConsumerState<AgentMyOrdersScreen> {
   bool _loading = true;
   List<Map<String, dynamic>> _orders = [];
   _Bucket? _filter; // null = show all
+  final _searchCtrl = TextEditingController();
+  String _searchQ = '';
 
   static const _assignedStatuses = {
     'assigned',
@@ -49,7 +51,11 @@ class _S extends ConsumerState<AgentMyOrdersScreen> {
   void initState() {
     super.initState();
     _load();
+    _searchCtrl.addListener(() {
+      if (mounted) setState(() => _searchQ = _searchCtrl.text.trim().toLowerCase());
+    });
   }
+  @override void dispose() { _searchCtrl.dispose(); super.dispose(); }
 
   Future<void> _load() async {
     final agentId = ref.read(appUserProvider).valueOrNull?.agentId;
@@ -105,12 +111,20 @@ class _S extends ConsumerState<AgentMyOrdersScreen> {
     _Bucket.assigned => Icons.local_shipping_outlined,
   };
 
-  List<Map<String, dynamic>> get _filtered => _filter == null
-      ? _orders
-      : _orders
-      .where(
-          (o) => _bucketOf(o['status'] as String? ?? 'pending') == _filter)
-      .toList();
+  List<Map<String, dynamic>> get _filtered {
+    final base = _filter == null
+        ? _orders
+        : _orders.where(
+            (o) => _bucketOf(o['status'] as String? ?? 'pending') == _filter)
+            .toList();
+    if (_searchQ.isEmpty) return base;
+    return base.where((o) {
+      final r = o['retailer'] as Map<String,dynamic>? ??
+                o['retailers'] as Map<String,dynamic>?;
+      return (r?['shop_name'] as String? ?? '').toLowerCase().contains(_searchQ) ||
+             (o['id'] as String? ?? '').toLowerCase().contains(_searchQ);
+    }).toList();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -156,6 +170,17 @@ class _S extends ConsumerState<AgentMyOrdersScreen> {
           ),
         ),
 
+        Container(
+          color: Colors.white,
+          padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+          child: AppSearchBar(
+            controller: _searchCtrl,
+            hint: 'Search by shop name…',
+            onChanged: (_) {},
+            onClear: () { _searchCtrl.clear(); },
+          ),
+        ),
+        const Divider(height: 1),
         Expanded(
           child: _filtered.isEmpty
               ? Center(

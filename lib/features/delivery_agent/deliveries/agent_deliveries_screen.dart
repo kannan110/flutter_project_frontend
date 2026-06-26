@@ -16,10 +16,30 @@ class AgentDeliveriesScreen extends ConsumerStatefulWidget {
 class _S extends ConsumerState<AgentDeliveriesScreen> {
   final _c = Supabase.instance.client;
   List<Map<String,dynamic>> _list = [];
+  List<Map<String,dynamic>> _filtered = [];
   bool _loading = true;
   String _filter = 'active';
+  final _searchCtrl = TextEditingController();
 
-  @override void initState() { super.initState(); _load(); }
+  void _applySearch(String q) {
+    if (!mounted) return;
+    final lower = q.trim().toLowerCase();
+    setState(() => _filtered = lower.isEmpty
+        ? List.from(_list)
+        : _list.where((d) {
+            final o = d['orders'] as Map<String,dynamic>?;
+            final r = o?['retailers'] as Map<String,dynamic>?;
+            return (r?['shop_name'] as String? ?? '').toLowerCase().contains(lower) ||
+                   (r?['address']   as String? ?? '').toLowerCase().contains(lower);
+          }).toList());
+  }
+
+  @override void initState() {
+    super.initState();
+    _load();
+    _searchCtrl.addListener(() => _applySearch(_searchCtrl.text));
+  }
+  @override void dispose() { _searchCtrl.dispose(); super.dispose(); }
 
   Future<void> _load() async {
     final agentId = ref.read(appUserProvider).valueOrNull?.agentId;
@@ -46,6 +66,7 @@ class _S extends ConsumerState<AgentDeliveriesScreen> {
       if (mounted) setState(() {
         _list    = List<Map<String,dynamic>>.from(data);
         _loading = false;
+        _applySearch(_searchCtrl.text);
       });
     } catch (e) {
       if (mounted) setState(() => _loading = false);
@@ -97,6 +118,16 @@ class _S extends ConsumerState<AgentDeliveriesScreen> {
                 ],
                 selected: {_filter},
                 onSelectionChanged: (s) { if (mounted) setState(() => _filter = s.first); _load(); })),
+        Container(
+          color: Colors.white,
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+          child: AppSearchBar(
+            controller: _searchCtrl,
+            hint: 'Search by shop name…',
+            onChanged: _applySearch,
+            onClear: () { _searchCtrl.clear(); _applySearch(''); },
+          ),
+        ),
         const Divider(height: 1),
         Expanded(
             child: _loading
@@ -106,13 +137,15 @@ class _S extends ConsumerState<AgentDeliveriesScreen> {
                 icon: Icons.local_shipping_outlined,
                 message: _filter == 'active' ? 'No active deliveries' : 'No deliveries found',
                 sub: _filter == 'active' ? 'Admin needs to assign a batch to you' : null)
+                : _filtered.isEmpty && _searchCtrl.text.isNotEmpty
+                ? const EmptyState(icon: Icons.search_off_rounded, message: 'No deliveries match')
                 : RefreshIndicator(
                 onRefresh: _load,
                 child: ListView.separated(
                   padding: const EdgeInsets.fromLTRB(16, 16, 16, kBottomNavClearance),
-                  itemCount: _list.length,
+                  itemCount: _filtered.length,
                   separatorBuilder: (_, __) => const SizedBox(height: 10),
-                  itemBuilder: (_, i) => _deliveryCard(_list[i]),
+                  itemBuilder: (_, i) => _deliveryCard(_filtered[i]),
                 ))),
       ]),
     );
@@ -535,7 +568,7 @@ class _S extends ConsumerState<AgentDeliveriesScreen> {
                               '${(d['partial_quantity'] as num?)?.toStringAsFixed(1) ?? '0'} kg remaining',
                           style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.orange))),
                     ]))),
-            Padding(
+             Padding(
                 padding: const EdgeInsets.only(bottom: 6),
                 child: Row(children: [
                   Expanded(child: OutlinedButton.icon(

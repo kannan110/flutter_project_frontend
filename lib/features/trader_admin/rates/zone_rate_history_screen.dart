@@ -49,13 +49,18 @@ class _S extends ConsumerState<ZoneRateHistoryScreen> {
   DateTime? _fromDate;
   DateTime? _toDate;
   String? _activeQuickFilter; // label of the selected quick filter chip, if any
+  final _searchCtrl = TextEditingController();
+  String _searchQ = '';
 
   @override
   void initState() {
     super.initState();
     _loadFilters();
     _load();
+    _searchCtrl.addListener(()
+      { if (mounted) setState(() => _searchQ = _searchCtrl.text.trim().toLowerCase()); });
   }
+  @override void dispose() { _searchCtrl.dispose(); super.dispose(); }
 
   String? get _traderId => ref.read(appUserProvider).valueOrNull?.traderId;
 
@@ -154,6 +159,13 @@ class _S extends ConsumerState<ZoneRateHistoryScreen> {
       color: kSurface,
       padding: const EdgeInsets.fromLTRB(14, 10, 14, 12),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        AppSearchBar(
+          controller: _searchCtrl,
+          hint: 'Search by zone or product…',
+          onChanged: (q) { if (mounted) setState(() => _searchQ = q.trim().toLowerCase()); },
+          onClear: () { _searchCtrl.clear(); if (mounted) setState(() => _searchQ = ''); },
+        ),
+        const SizedBox(height: 10),
         Row(children: [
           Expanded(
               child: _dropdown(
@@ -410,13 +422,19 @@ class _S extends ConsumerState<ZoneRateHistoryScreen> {
               ])));
     }
 
+    final visibleRows = _searchQ.isEmpty ? _rows : _rows.where((r) {
+      final zone    = r['zone_name']    as String? ?? '';
+      final product = r['product_name'] as String? ?? '';
+      return zone.toLowerCase().contains(_searchQ) ||
+             product.toLowerCase().contains(_searchQ);
+    }).toList();
     return RefreshIndicator(
       onRefresh: _load,
       child: ListView.separated(
         padding: const EdgeInsets.fromLTRB(14, 12, 14, kBottomNavClearance),
-        itemCount: _rows.length,
+        itemCount: visibleRows.length,
         separatorBuilder: (_, __) => const SizedBox(height: 8),
-        itemBuilder: (_, i) => _historyCard(_rows[i]),
+        itemBuilder: (_, i) => _historyCard(visibleRows[i]),
       ),
     );
   }

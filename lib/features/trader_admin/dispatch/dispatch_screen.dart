@@ -15,8 +15,24 @@ class DispatchScreen extends ConsumerStatefulWidget {
 class _S extends ConsumerState<DispatchScreen> with SingleTickerProviderStateMixin {
   final _c = Supabase.instance.client;
   List<Map<String,dynamic>> _all = [];
+  String _searchQ = '';
   bool _loading = true;
   late TabController _tab;
+  final _searchCtrl = TextEditingController();
+
+  void _applySearch(String q) {
+    if (!mounted) return;
+    setState(() => _searchQ = q.trim().toLowerCase());
+  }
+
+  List<Map<String,dynamic>> _applyQ(List<Map<String,dynamic>> list) {
+    if (_searchQ.isEmpty) return list;
+    return list.where((b) {
+      final a = b['delivery_agents'] as Map<String,dynamic>?;
+      return (a?['name']       as String? ?? '').toLowerCase().contains(_searchQ) ||
+             (b['vehicle_no'] as String? ?? '').toLowerCase().contains(_searchQ);
+    }).toList();
+  }
   // M5 FIX: Completed/cancelled batches use a rolling date window to avoid
   // loading hundreds of old records. "Load More" extends the window by 7 days.
   int _completedDaysBack = 7; // show last N days of completed/cancelled
@@ -27,10 +43,11 @@ class _S extends ConsumerState<DispatchScreen> with SingleTickerProviderStateMix
 
   @override void initState() {
     super.initState();
-    _tab = TabController(length: _tabs.length, vsync: this, initialIndex: 1);
+    _tab = TabController(length: _tabs.length, vsync: this, initialIndex: 0);
     _load();
+    _searchCtrl.addListener(() => _applySearch(_searchCtrl.text));
   }
-  @override void dispose() { _tab.dispose(); super.dispose(); }
+  @override void dispose() { _tab.dispose(); _searchCtrl.dispose(); super.dispose(); }
 
   Future<void> _load() async {
     final tid = ref.read(appUserProvider).valueOrNull?.traderId;
@@ -93,13 +110,13 @@ class _S extends ConsumerState<DispatchScreen> with SingleTickerProviderStateMix
   List<Map<String,dynamic>> get _completed => _all.where((b) => b['status'] == 'completed').toList();
   List<Map<String,dynamic>> get _cancelled => _all.where((b) => b['status'] == 'cancelled').toList();
 
-  List<Map<String,dynamic>> _listFor(int tab) => switch (tab) {
+  List<Map<String,dynamic>> _listFor(int tab) => _applyQ(switch (tab) {
     0 => _today,
     1 => _live,
     2 => _completed,
     3 => _cancelled,
     _ => _all,
-  };
+  });
 
   // ── Computed per batch ─────────────────────────────────────────────────────
   int    _orders(Map<String,dynamic> b) {
@@ -286,7 +303,19 @@ class _S extends ConsumerState<DispatchScreen> with SingleTickerProviderStateMix
           unselectedLabelColor: kTextHint,
           indicatorColor: kPrimary,
         )),
-    body: _loading ? const LoadingList() : TabBarView(
+    body: Column(children: [
+      Container(
+        color: Colors.white,
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+        child: AppSearchBar(
+          controller: _searchCtrl,
+          hint: 'Search by agent or vehicle…',
+          onChanged: _applySearch,
+          onClear: () { _searchCtrl.clear(); _applySearch(''); },
+        ),
+      ),
+      const Divider(height: 1),
+      Expanded(child: _loading ? const LoadingList() : TabBarView(
         controller: _tab,
         children: List.generate(_tabs.length, (i) {
           final list = _listFor(i);
@@ -353,6 +382,8 @@ class _S extends ConsumerState<DispatchScreen> with SingleTickerProviderStateMix
                     );
                   }));
         })),
+      ),
+    ]),
   );
 }
 

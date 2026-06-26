@@ -21,13 +21,41 @@ class _S extends ConsumerState<StockScreen> {
   List<Map<String, dynamic>> _products = [];
   List<Map<String, dynamic>> _challans = [];
   bool _loading = true;
-  int _tab = 0; // 0=Summary, 1=Movements, 2=DCs
+  int _tab = 0;
+  final _searchCtrl = TextEditingController();
+  String _searchQ = '';
+
+  void _applySearch(String q) {
+    if (!mounted) return;
+    setState(() => _searchQ = q.trim().toLowerCase());
+  }
+
+  List<Map<String,dynamic>> _filterLedger() {
+    if (_searchQ.isEmpty) return _ledger;
+    return _ledger.where((e) {
+      final p = e['master_products'] as Map<String,dynamic>?;
+      return (p?['name'] as String? ?? '').toLowerCase().contains(_searchQ) ||
+             (e['movement_type'] as String? ?? '').toLowerCase().contains(_searchQ) ||
+             (e['notes']         as String? ?? '').toLowerCase().contains(_searchQ);
+    }).toList();
+  }
+
+  List<Map<String,dynamic>> _filterChallans() {
+    if (_searchQ.isEmpty) return _challans;
+    return _challans.where((c) =>
+      (c['farmer_name']   as String? ?? '').toLowerCase().contains(_searchQ) ||
+      (c['dc_number']     as String? ?? '').toLowerCase().contains(_searchQ) ||
+      (c['farm_location'] as String? ?? '').toLowerCase().contains(_searchQ),
+    ).toList();
+  } // 0=Summary, 1=Movements, 2=DCs
 
   @override
   void initState() {
     super.initState();
     _load();
+    _searchCtrl.addListener(() => _applySearch(_searchCtrl.text));
   }
+  @override void dispose() { _searchCtrl.dispose(); super.dispose(); }
 
   Future<void> _load() async {
     final tid = ref.read(appUserProvider).valueOrNull?.traderId;
@@ -167,9 +195,7 @@ class _S extends ConsumerState<StockScreen> {
                       },
                       child: const Text('Save')),
                 ])));
-    birdsCtrl.dispose();
-    kgCtrl.dispose();
-    notesCtrl.dispose();
+    // controllers are ephemeral locals — GC handles disposal
   }
 
   @override
@@ -198,6 +224,16 @@ class _S extends ConsumerState<StockScreen> {
             _tabBtn(1, 'Movements'),
             _tabBtn(2, 'DCs (${_challans.length})'),
           ])),
+      if (_tab != 0) Container(
+        color: Colors.white,
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+        child: AppSearchBar(
+          controller: _searchCtrl,
+          hint: _tab == 1 ? 'Search movements…' : 'Search DCs by farm or DC#…',
+          onChanged: _applySearch,
+          onClear: () { _searchCtrl.clear(); _applySearch(''); },
+        ),
+      ),
       const Divider(height: 1),
       Expanded(
           child:
@@ -429,12 +465,13 @@ class _S extends ConsumerState<StockScreen> {
     // BUG 5 FIX: transferred_in is an INFLOW — must be in isIn list so it shows '+'
     final isIn = (String t) =>
         ['opening', 'purchased', 'returned_in', 'transferred_in'].contains(t);
+    final ledgerList = _filterLedger();
     return ListView.separated(
         padding: const EdgeInsets.fromLTRB(16, 16, 16, kBottomNavClearance),
-        itemCount: _ledger.length,
+        itemCount: ledgerList.length,
         separatorBuilder: (_, __) => const SizedBox(height: 6),
         itemBuilder: (_, i) {
-          final l = _ledger[i];
+          final l = ledgerList[i];
           final prod = l['master_products'] as Map<String, dynamic>?;
           final mt = l['movement_type'] as String? ?? '—';
           final date = DateTime.tryParse(l['entry_date'] as String? ?? '');
@@ -493,12 +530,13 @@ class _S extends ConsumerState<StockScreen> {
           message: 'No DCs recorded',
           sub: 'DCs are created when agents pick up from farms');
     }
+    final challanList = _filterChallans();
     return ListView.separated(
         padding: const EdgeInsets.all(16),
-        itemCount: _challans.length,
+        itemCount: challanList.length,
         separatorBuilder: (_, __) => const SizedBox(height: 10),
         itemBuilder: (_, i) {
-          final ch = _challans[i];
+          final ch = challanList[i];
           final batch = ch['delivery_batches'] as Map<String, dynamic>?;
           final agent = batch?['delivery_agents'] as Map<String, dynamic>?;
           final date = DateTime.tryParse(ch['dc_date'] as String? ?? '');
