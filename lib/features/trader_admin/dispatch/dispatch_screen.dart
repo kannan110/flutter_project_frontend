@@ -182,6 +182,34 @@ class _S extends ConsumerState<DispatchScreen> with SingleTickerProviderStateMix
     } catch (e) { if (mounted) showError(context, e.toString()); }
   }
 
+  // Shown on Live tab when empty — agents may still have an open shift
+  // with all deliveries done but shift not yet closed.
+  Widget _allDoneBanner() => Container(
+    margin: const EdgeInsets.only(top: 16),
+    padding: const EdgeInsets.all(14),
+    decoration: BoxDecoration(
+      color: const Color(0xFF0284C7).withValues(alpha: 0.07),
+      borderRadius: BorderRadius.circular(12),
+      border: Border.all(
+          color: const Color(0xFF0284C7).withValues(alpha: 0.25)),
+    ),
+    child: Row(children: [
+      const Icon(Icons.info_outline,
+          color: Color(0xFF0284C7), size: 18),
+      const SizedBox(width: 10),
+      const Expanded(
+        child: Text(
+          'Agent may have finished all deliveries with shift still open.\n'
+          'To assign new orders → Agent Hub → Assign Order.',
+          style: TextStyle(
+              fontSize: 12,
+              color: Color(0xFF0284C7),
+              height: 1.5),
+        ),
+      ),
+    ]),
+  );
+
   // Phase 4C: inline pending ops banner — scrolls inside the list, never blocks FAB
   Widget _pendingBanner() {
     if (_pendingCount == 0) return const SizedBox.shrink();
@@ -333,12 +361,17 @@ class _S extends ConsumerState<DispatchScreen> with SingleTickerProviderStateMix
                   2 => 'No completed batches in last $_completedDaysBack days',
                   _ => 'No cancelled batches',
                 });
-            // Phase 4C: when Live tab is empty but pending ops exist, show banner above empty state
-            if (i == 1 && _pendingCount > 0) {
-              return ListView(padding: const EdgeInsets.fromLTRB(16, 16, 16, 100), children: [
-                _pendingBanner(),
-                emptyWidget,
-              ]);
+            // When Live tab is empty: show pending ops banner OR
+            // a hint that agents may have open shifts with all deliveries done
+            if (i == 1) {
+              final children = <Widget>[];
+              if (_pendingCount > 0) children.add(_pendingBanner());
+              children.add(emptyWidget);
+              children.add(_allDoneBanner());
+              return ListView(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+                children: children,
+              );
             }
             return emptyWidget;
           }

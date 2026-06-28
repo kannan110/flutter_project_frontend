@@ -336,7 +336,7 @@ class _ZoneRatesTabState extends ConsumerState<_ZoneRatesTab> {
                         border:
                         Border.all(color: isSel ? kNavyMid : kBorderLight)),
                     child: Row(mainAxisSize: MainAxisSize.min, children: [
-                      Text((z['zone_code'] as String? ?? '?').substring(0, 3),
+                      Text((z['zone_code'] as String? ?? '?').padRight(3).substring(0, 3),
                           style: TextStyle(
                               fontSize: 11,
                               fontWeight: FontWeight.w900,
@@ -1761,6 +1761,7 @@ class _ZoneCard extends StatelessWidget {
             child: Center(
                 child: Text(
                     (zone['zone_code'] as String? ?? '?')
+                        .padRight(3)
                         .substring(0, 3)
                         .toUpperCase(),
                     style: TextStyle(

@@ -836,15 +836,22 @@ class _S extends ConsumerState<AgentHomeScreen> {
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
 
             // ── Overall totals row ──────────────────────────────────────────
-            if (hasOrders) ...[
+            // Show In Stock whenever stock exists, regardless of pending orders
+            if (hasOrders || _availBirds > 0) ...[
               Row(children: [
-                _stockCol('Required', _reqBirds, _reqWeight, Colors.blue),
-                _divider(),
+                if (hasOrders)
+                  _stockCol('Required', _reqBirds, _reqWeight, Colors.blue),
+                if (hasOrders)
+                  _divider(),
                 _stockCol('In Stock', _availBirds, _availKg,
-                    shortage ? Colors.red : Colors.green),
+                    shortage ? Colors.red
+                        : _availBirds > 0 ? Colors.green : kTextSub),
               ]),
-              const SizedBox(height: 14),
+              SizedBox(height: hasOrders ? 14 : 0),
+            ],
 
+            if (hasOrders) ...[
+              const SizedBox(height: 14),
               // ── Family-level coverage (the correct shortage display) ───────
               const Text('COVERAGE BY PRODUCT FAMILY',
                   style: TextStyle(fontSize: 9, color: kTextHint,

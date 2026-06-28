@@ -17,13 +17,19 @@ import 'entry_mode_selector.dart';
 // Single workspace for a trader to manage a delivery agent's entire shift.
 // All 10 assisted operations launch from here.
 //
-// Phase 5A covers:
+// Covered operations:
 //   • Dashboard strip (8 KPIs)
 //   • Adoption analytics (30-day self vs trader entry)
 //   • Shift timeline
-//   • Shift Open (bottom sheet)
-//   • DC Upload (bottom sheet → calls pickup_batch / add_batch_dc)
-//   • Instant Order (bottom sheet)
+//   • Shift Open
+//   • DC Upload (pickup_batch / add_batch_dc)
+//   • Assign Order ← standard mid-shift workflow
+//       Hub → Assign Order → Batch Detail → tap + on confirmed order
+//       New delivery immediately appears in agent Pending Deliveries
+//       No new batch or DC required unless additional stock is needed
+//   • Instant Order
+//   • Record Delivery / Reassign Order / Transfer Birds
+//   • Add Expense / Close Shift
 //
 // Entry mode selector is shown on every form:
 //   called | whatsapp | present | estimated
@@ -93,6 +99,10 @@ class _AgentAssistanceHubScreenState
 
   // Batches for DC upload — loaded separately
   List<Map<String, dynamic>> _assignedBatches = [];
+  // Count of confirmed orders available to assign to this agent's batch
+  int _confirmedCount = 0;
+  // Full confirmed order list for inline picker
+  List<Map<String, dynamic>> _confirmedOrders = [];
 
   @override
   void initState() {
@@ -121,6 +131,24 @@ class _AgentAssistanceHubScreenState
         batches = List<Map<String, dynamic>>.from(b as List? ?? []);
       } catch (_) {}
 
+      // Load confirmed orders available to assign to this agent
+      int confirmedCount = 0;
+      List<Map<String, dynamic>> confirmedOrders = [];
+      try {
+        final user = ref.read(appUserProvider).valueOrNull;
+        if (user?.traderId != null) {
+          final co = await _c
+              .from('orders')
+              .select('id,estimated_birds,total_quantity,'
+                  'retailers(shop_name)')
+              .eq('trader_id', user!.traderId!)
+              .eq('status', 'confirmed')
+              .order('created_at', ascending: false);
+          confirmedOrders = List<Map<String, dynamic>>.from(co as List? ?? []);
+          confirmedCount  = confirmedOrders.length;
+        }
+      } catch (_) {}
+
       // Fetch timeline events from shift history
       List<_TimelineEvent> tl = [];
       try {
@@ -132,6 +160,8 @@ class _AgentAssistanceHubScreenState
         _dashboard = Map<String, dynamic>.from(
             (dash as Map<String, dynamic>?) ?? {});
         _assignedBatches = batches;
+        _confirmedCount  = confirmedCount;
+        _confirmedOrders = confirmedOrders;
         _timeline = tl;
         _loading = false;
       });
@@ -297,6 +327,175 @@ class _AgentAssistanceHubScreenState
   // ═══════════════════════════════════════════════════════════════════════════
   // ACTIONS
   // ═══════════════════════════════════════════════════════════════════════════
+
+  // ── Assign Order Sheet ──────────────────────────────────────────────────────
+  // Used when: shift open + no active batch (all deliveries completed).
+  // Auto-creates a new 'assigned' batch for this agent, then adds the chosen order.
+  // No DC required — agent uses existing shift stock for the new delivery.
+  Future<void> _showAssignOrderSheet() async {
+    if (_confirmedOrders.isEmpty) {
+      showError(context, 'No confirmed orders to assign.');
+      return;
+    }
+
+    // Show confirmed order picker
+    Map<String, dynamic>? chosen;
+    await showModalBottomSheet<void>(
+      context: context,
+      useRootNavigator: true,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Container(
+        constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(ctx).size.height * 0.65),
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Handle
+            Center(
+              child: Container(
+                margin: const EdgeInsets.only(top: 10, bottom: 4),
+                width: 38, height: 4,
+                decoration: BoxDecoration(
+                    color: kBorderLight,
+                    borderRadius: BorderRadius.circular(2)),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 10, 20, 4),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Assign Order to ${widget.agentName}',
+                      style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w800,
+                          color: kNavy)),
+                  const SizedBox(height: 2),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.shade50,
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: Colors.orange.shade200),
+                    ),
+                    child: Row(mainAxisSize: MainAxisSize.min, children: [
+                      Icon(Icons.info_outline,
+                          size: 12, color: Colors.orange.shade700),
+                      const SizedBox(width: 4),
+                      Text(
+                        'All deliveries done — a new batch will be '
+                        'created automatically.',
+                        style: TextStyle(
+                            fontSize: 11,
+                            color: Colors.orange.shade700),
+                      ),
+                    ]),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(height: 1),
+            Flexible(
+              child: ListView.separated(
+                shrinkWrap: true,
+                padding: const EdgeInsets.symmetric(
+                    vertical: 8, horizontal: 4),
+                itemCount: _confirmedOrders.length,
+                separatorBuilder: (_, __) =>
+                    const Divider(height: 1, indent: 56),
+                itemBuilder: (ctx, i) {
+                  final o = _confirmedOrders[i];
+                  final r = o['retailers'] as Map<String, dynamic>?;
+                  final shop = r?['shop_name'] as String? ?? '—';
+                  final birds =
+                      (o['estimated_birds'] as num?)?.toInt() ?? 0;
+                  final kg = (o['total_quantity'] as num?)
+                      ?.toStringAsFixed(1) ?? '—';
+                  return ListTile(
+                    leading: CircleAvatar(
+                      backgroundColor:
+                          const Color(0xFF0284C7).withValues(alpha: 0.12),
+                      radius: 20,
+                      child: const Icon(Icons.store_outlined,
+                          size: 18, color: Color(0xFF0284C7)),
+                    ),
+                    title: Text(shop,
+                        style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700)),
+                    subtitle: Text('$birds birds · $kg kg',
+                        style: const TextStyle(
+                            fontSize: 12, color: kTextSub)),
+                    trailing: const Icon(
+                        Icons.add_circle_outline,
+                        color: Color(0xFF0284C7)),
+                    onTap: () {
+                      chosen = o;
+                      Navigator.of(ctx, rootNavigator: true).pop();
+                    },
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (chosen == null || !mounted) return;
+    await _assignOrderWithNewBatch(chosen!);
+  }
+
+  // Auto-creates a new 'assigned' batch and adds the order to it.
+  // No DC needed — uses existing shift stock.
+  Future<void> _assignOrderWithNewBatch(
+      Map<String, dynamic> order) async {
+    final user = ref.read(appUserProvider).valueOrNull;
+    final traderId = user?.traderId;
+    if (traderId == null || !mounted) return;
+
+    try {
+      // Step 1: create a fresh 'assigned' batch for this agent
+      final batchRes = await _c.from('delivery_batches').insert({
+        'trader_id':         traderId,
+        'delivery_agent_id': widget.agentId,
+        'status':            'assigned',
+        'vehicle_no':        (_dashboard['agent']?['vehicle_no']
+                             as String?),
+      }).select('id').single();
+
+      final newBatchId = batchRes['id'] as String;
+
+      // Step 2: assign the confirmed order to this new batch
+      await _c.rpc('add_order_to_batch', params: {
+        'p_batch_id':  newBatchId,
+        'p_order_id':  order['id'] as String,
+        'p_trader_id': traderId,
+      });
+
+      if (!mounted) return;
+      final shop = (order['retailers']
+              as Map<String, dynamic>?)?['shop_name'] as String? ??
+          'order';
+      showSuccess(context,
+          '✓ $shop assigned to ${widget.agentName}.\n'
+          'Appears in Pending Deliveries immediately.');
+      _load(); // refresh everything
+    } catch (e) {
+      if (!mounted) return;
+      showError(context,
+          e.toString()
+              .replaceAll('Exception: ', '')
+              .replaceAll('PostgrestException(message: ', ''));
+    }
+  }
 
   Future<void> _showOpenShiftSheet() async {
     await showModalBottomSheet(
@@ -810,6 +1009,33 @@ class _AgentAssistanceHubScreenState
           _assignedBatches.isEmpty ? null : _assignedBatches.first,
         ),
       ),
+      // Assign Order — two paths:
+      //   A) Active batch exists → navigate to Batch Detail (tap + on order)
+      //   B) No active batch (all done, shift still open) → auto-create batch,
+      //      show inline order picker, add order, agent sees it immediately
+      // Enabled: shift open AND at least one confirmed order to assign
+      _ActionItem(
+        label: 'Assign Order',
+        icon: Icons.playlist_add_rounded,
+        color: const Color(0xFF0284C7),
+        enabled: _hasShift && _confirmedCount > 0,
+        badge: _hasShift ? _confirmedCount : 0,
+        disabledHint: !_hasShift
+            ? 'Open a shift before assigning orders.'
+            : 'No confirmed orders to assign.',
+        onTap: () {
+          if (_assignedBatches.isNotEmpty) {
+            // Path A: active batch exists — go to Batch Detail
+            context.push(
+              R.batchDetailPath(_assignedBatches.first['id'] as String),
+            ).then((_) => _load());
+          } else {
+            // Path B: all deliveries done, shift still open —
+            // show order picker, auto-create batch, assign immediately
+            _showAssignOrderSheet();
+          }
+        },
+      ),
       _ActionItem(
         label: 'Instant Order',
         icon: Icons.flash_on_rounded,
@@ -961,7 +1187,17 @@ class _AgentAssistanceHubScreenState
   Widget _buildActionChip(_ActionItem action) {
     final enabled = action.enabled;
     return GestureDetector(
-      onTap: enabled ? action.onTap : null,
+      onTap: enabled
+          ? action.onTap
+          : action.disabledHint != null
+              ? () => ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(action.disabledHint!),
+                      behavior: SnackBarBehavior.floating,
+                      duration: const Duration(seconds: 3),
+                    ),
+                  )
+              : null,
       child: Stack(
         clipBehavior: Clip.none,
         children: [
@@ -2012,6 +2248,7 @@ class _ActionItem {
     required this.color,
     this.enabled = true,
     this.badge = 0,
+    this.disabledHint,
     required this.onTap,
   });
 
@@ -2020,5 +2257,7 @@ class _ActionItem {
   final Color color;
   final bool enabled;
   final int badge;
+  /// Shown as a snackbar when the chip is tapped while disabled.
+  final String? disabledHint;
   final VoidCallback onTap;
 }

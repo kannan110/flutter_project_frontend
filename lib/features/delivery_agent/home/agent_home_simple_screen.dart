@@ -409,9 +409,15 @@ class _BatchCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final vehicle = batch['vehicle_no'] as String? ?? '—';
     final status = batch['status'] as String? ?? 'assigned';
-    final pct = reqBirds > 0 ? (availBirds / reqBirds).clamp(0.0, 1.0) : 0.0;
-    final pctTxt =
-        '${(pct * 100).toStringAsFixed(0)}% ${t("CAPACITY", "கொள்ளளவு")}';
+    // pct: if no orders, show bar full (stock available, no requirement yet)
+    final pct = reqBirds > 0
+        ? (availBirds / reqBirds).clamp(0.0, 1.0)
+        : availBirds > 0 ? 1.0 : 0.0;
+    final pctTxt = reqBirds > 0
+        ? '${(pct * 100).toStringAsFixed(0)}% ${t("CAPACITY", "கொள்ளளவு")}'
+        : availBirds > 0
+            ? t('STOCK LOADED', 'கையிருப்பு உள்ளது')
+            : t('NO STOCK', 'கையிருப்பு இல்லை');
     final remBirds = (reqBirds - availBirds).clamp(0, 999999);
     final remKg = (reqWeight - availKg).clamp(0.0, 999999.0);
 
@@ -471,7 +477,9 @@ class _BatchCard extends StatelessWidget {
                   color: Colors.white60,
                   fontWeight: FontWeight.w700)),
           Text(
-              '${remBirds > 0 ? "$remBirds birds" : t("FULL", "நிரம்பியது")} ${t("REMAINING", "மீதம்")}',
+              reqBirds > 0
+                  ? '${remBirds > 0 ? "$remBirds birds" : t("FULL", "நிரம்பியது")} ${t("REMAINING", "மீதம்")}'
+                  : '$availBirds birds ${t("available", "கையிருப்பு")}',
               style: TextStyle(
                   fontSize: 10,
                   fontWeight: FontWeight.w700,
