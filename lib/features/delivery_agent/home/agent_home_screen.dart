@@ -215,6 +215,29 @@ class _S extends ConsumerState<AgentHomeScreen> {
     _doReassign(delivery);
   }
 
+  // ── Start Delivery — advances assigned/picked_up → out_for_delivery ─────────
+  // Called when stock was received via transfer (no DC), delivery stays 'assigned'.
+  // fn_validate_delivery_status allows: assigned → out_for_delivery directly.
+  Future<void> _startDelivery(String deliveryId, String shopName) async {
+    final ok = await confirmDialog(context,
+        title: 'Start Delivery',
+        message: 'Start delivery to $shopName?\n\nThis will mark you as out for delivery.',
+        confirmText: 'Start',
+        confirmColor: kPrimary);
+    if (!ok || !mounted) return;
+    try {
+      await _c.from('deliveries')
+          .update({'status': 'out_for_delivery'})
+          .eq('id', deliveryId);
+      if (mounted) {
+        showSuccess(context, 'Delivery started ✓ — tap Mark Delivered when done.');
+        _load();
+      }
+    } catch (e) {
+      if (mounted) showError(context, e.toString().replaceAll('Exception: ', ''));
+    }
+  }
+
   Future<void> _doReassign(Map<String, dynamic> delivery) async {
     if (_otherAgents.isEmpty) {
       showError(context,
@@ -355,7 +378,8 @@ class _S extends ConsumerState<AgentHomeScreen> {
       onGoToTransfers: () {
         if (_activeBatches.isNotEmpty) {
           context
-              .push(R.birdTransferPath(_activeBatches.first['id'] as String));
+              .push(R.birdTransferPath(_activeBatches.first['id'] as String))
+              .then((_) { if (mounted) _load(); });
         } else {
           context.push(R.transferHistory);
         }
@@ -381,7 +405,8 @@ class _S extends ConsumerState<AgentHomeScreen> {
       onGoToAllDeliveries: () => context.go(R.agentDeliveries),
       onDeliveryCompleteItem: (deliveryId) =>
           context.push(R.deliveryDonePath(deliveryId)),
-      onTransferItem: (batchId) => context.push(R.birdTransferPath(batchId)),
+      onTransferItem: (batchId) => context.push(R.birdTransferPath(batchId))
+          .then((_) { if (mounted) _load(); }),
       onReassignItem: (delivery) => _doReassign(delivery),
     );
   }
@@ -1040,7 +1065,8 @@ class _S extends ConsumerState<AgentHomeScreen> {
                   onPressed: () {
                     if (_activeBatches.isNotEmpty) {
                       context.push(R.birdTransferPath(
-                          _activeBatches.first['id'] as String));
+                          _activeBatches.first['id'] as String))
+                          .then((_) { if (mounted) _load(); });
                     } else {
                       showError(context, 'No active batch for transfer.');
                     }
@@ -1088,7 +1114,8 @@ class _S extends ConsumerState<AgentHomeScreen> {
           _qaBtn(Icons.swap_horiz, 'Transfer\nBirds', Colors.purple, () {
             if (_activeBatches.isNotEmpty) {
               context.push(
-                  R.birdTransferPath(_activeBatches.first['id'] as String));
+                  R.birdTransferPath(_activeBatches.first['id'] as String))
+                  .then((_) { if (mounted) _load(); });
             } else {
               context.push(R.transferHistory);
             }
@@ -1218,6 +1245,11 @@ class _S extends ConsumerState<AgentHomeScreen> {
           final st = d['status'] as String? ?? '';
           final isOfd = st == 'out_for_delivery';
           final bid = d['batch_id'] as String?;
+          // FIX: agent can start delivery from 'assigned' or 'picked_up' without DC
+          // when stock was received via transfer. fn_validate_delivery_status allows
+          // assigned → out_for_delivery directly.
+          final isStartable = (st == 'assigned' || st == 'picked_up') && bid != null;
+          final shopName = d['shop_name'] as String? ?? 'Shop';
           // order_items from RPC: full multi-product breakdown per delivery
           final orderItems = (d['order_items'] as List? ?? [])
               .whereType<Map>()
@@ -1289,9 +1321,12 @@ class _S extends ConsumerState<AgentHomeScreen> {
                     ],
                     const SizedBox(height: 10),
 
-                    // Action buttons — 2-row layout when all 3 are present to prevent label wrapping
+                    // Action buttons
+                    // FIX P0: stock source (DC or transfer) must not gate delivery.
+                    // out_for_delivery  → Mark Delivered (primary, full-width)
+                    // assigned/picked_up → Start Delivery (advances to out_for_delivery)
                     if (isOfd && bid != null) ...[
-                      // Row 1: primary action full-width
+                      // Row 1: Mark Delivered full-width
                       SizedBox(
                           width: double.infinity,
                           child: ElevatedButton.icon(
@@ -1307,12 +1342,62 @@ class _S extends ConsumerState<AgentHomeScreen> {
                                   minimumSize: const Size(0, 42),
                                   backgroundColor: kPrimary))),
                       const SizedBox(height: 6),
-                      // Row 2: Transfer + Reassign split
+                      // Row 2: Transfer + Reassign
                       Row(children: [
                         Expanded(
                             child: OutlinedButton.icon(
                                 onPressed: () =>
-                                    context.push(R.birdTransferPath(bid)),
+                                    context.push(R.birdTransferPath(bid))
+                                        .then((_) { if (mounted) _load(); }),
+                                icon: const Icon(Icons.swap_horiz,
+                                    size: 14, color: Colors.purple),
+                                label: const Text('Transfer',
+                                    style: TextStyle(
+                                        fontSize: 12, color: Colors.purple)),
+                                style: OutlinedButton.styleFrom(
+                                    minimumSize: const Size(0, 38),
+                                    side: const BorderSide(
+                                        color: Colors.purple)))),
+                        const SizedBox(width: 6),
+                        Expanded(
+                            child: OutlinedButton.icon(
+                                onPressed: () => _doReassign(d),
+                                icon: const Icon(
+                                    Icons.person_pin_circle_outlined,
+                                    size: 14,
+                                    color: Colors.brown),
+                                label: const Text('Reassign',
+                                    style: TextStyle(
+                                        fontSize: 12, color: Colors.brown)),
+                                style: OutlinedButton.styleFrom(
+                                    minimumSize: const Size(0, 38),
+                                    side: const BorderSide(
+                                        color: Colors.brown)))),
+                      ]),
+                    ] else if (isStartable) ...[
+                      // Start Delivery full-width (stock via transfer, no DC needed)
+                      SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton.icon(
+                              onPressed: () =>
+                                  _startDelivery(d['id'] as String, shopName),
+                              icon: const Icon(Icons.local_shipping_rounded,
+                                  size: 16),
+                              label: const Text('Start Delivery',
+                                  style: TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w700)),
+                              style: ElevatedButton.styleFrom(
+                                  minimumSize: const Size(0, 42),
+                                  backgroundColor: Colors.teal))),
+                      const SizedBox(height: 6),
+                      // Row 2: Transfer + Reassign
+                      Row(children: [
+                        Expanded(
+                            child: OutlinedButton.icon(
+                                onPressed: () =>
+                                    context.push(R.birdTransferPath(bid!))
+                                        .then((_) { if (mounted) _load(); }),
                                 icon: const Icon(Icons.swap_horiz,
                                     size: 14, color: Colors.purple),
                                 label: const Text('Transfer',
@@ -1340,27 +1425,12 @@ class _S extends ConsumerState<AgentHomeScreen> {
                       ]),
                     ] else
                       Row(children: [
-                        if (isOfd) ...[
-                          Expanded(
-                              child: ElevatedButton.icon(
-                                  onPressed: () => context.push(
-                                      R.deliveryDonePath(d['id'] as String)),
-                                  icon: const Icon(Icons.check_circle_outline,
-                                      size: 14),
-                                  label: const Text('Mark Delivered',
-                                      style: TextStyle(
-                                          fontSize: 11,
-                                          fontWeight: FontWeight.w700)),
-                                  style: ElevatedButton.styleFrom(
-                                      minimumSize: const Size(0, 36),
-                                      backgroundColor: kPrimary))),
-                          const SizedBox(width: 6),
-                        ],
                         if (bid != null) ...[
                           Expanded(
                               child: OutlinedButton.icon(
                                   onPressed: () =>
-                                      context.push(R.birdTransferPath(bid)),
+                                      context.push(R.birdTransferPath(bid))
+                                          .then((_) { if (mounted) _load(); }),
                                   icon: const Icon(Icons.swap_horiz,
                                       size: 14, color: Colors.purple),
                                   label: const Text('Transfer',
@@ -1372,16 +1442,17 @@ class _S extends ConsumerState<AgentHomeScreen> {
                                           color: Colors.purple)))),
                           const SizedBox(width: 6),
                         ],
-                        OutlinedButton.icon(
-                            onPressed: () => _doReassign(d),
-                            icon: const Icon(Icons.person_pin_circle_outlined,
-                                size: 14, color: Colors.brown),
-                            label: const Text('Reassign',
-                                style: TextStyle(
-                                    fontSize: 11, color: Colors.brown)),
-                            style: OutlinedButton.styleFrom(
-                                minimumSize: const Size(0, 36),
-                                side: const BorderSide(color: Colors.brown))),
+                        Expanded(
+                            child: OutlinedButton.icon(
+                                onPressed: () => _doReassign(d),
+                                icon: const Icon(Icons.person_pin_circle_outlined,
+                                    size: 14, color: Colors.brown),
+                                label: const Text('Reassign',
+                                    style: TextStyle(
+                                        fontSize: 11, color: Colors.brown)),
+                                style: OutlinedButton.styleFrom(
+                                    minimumSize: const Size(0, 36),
+                                    side: const BorderSide(color: Colors.brown)))),
                       ]),
                   ]));
         }).toList(),
@@ -1617,7 +1688,8 @@ class _S extends ConsumerState<AgentHomeScreen> {
                         Expanded(
                             child: OutlinedButton.icon(
                                 onPressed: () => context.push(
-                                    R.birdTransferPath(b['id'] as String)),
+                                    R.birdTransferPath(b['id'] as String))
+                                    .then((_) { if (mounted) _load(); }),
                                 icon: const Icon(Icons.swap_horiz,
                                     size: 15, color: Colors.purple),
                                 label: const Text('Transfer Birds',

@@ -140,7 +140,7 @@ class _AgentAssistanceHubScreenState
           final co = await _c
               .from('orders')
               .select('id,estimated_birds,total_quantity,'
-                  'retailers(shop_name)')
+              'retailers(shop_name)')
               .eq('trader_id', user!.traderId!)
               .eq('status', 'confirmed')
               .order('created_at', ascending: false);
@@ -391,7 +391,7 @@ class _AgentAssistanceHubScreenState
                       const SizedBox(width: 4),
                       Text(
                         'All deliveries done — a new batch will be '
-                        'created automatically.',
+                            'created automatically.',
                         style: TextStyle(
                             fontSize: 11,
                             color: Colors.orange.shade700),
@@ -409,7 +409,7 @@ class _AgentAssistanceHubScreenState
                     vertical: 8, horizontal: 4),
                 itemCount: _confirmedOrders.length,
                 separatorBuilder: (_, __) =>
-                    const Divider(height: 1, indent: 56),
+                const Divider(height: 1, indent: 56),
                 itemBuilder: (ctx, i) {
                   final o = _confirmedOrders[i];
                   final r = o['retailers'] as Map<String, dynamic>?;
@@ -421,7 +421,7 @@ class _AgentAssistanceHubScreenState
                   return ListTile(
                     leading: CircleAvatar(
                       backgroundColor:
-                          const Color(0xFF0284C7).withValues(alpha: 0.12),
+                      const Color(0xFF0284C7).withValues(alpha: 0.12),
                       radius: 20,
                       child: const Icon(Icons.store_outlined,
                           size: 18, color: Color(0xFF0284C7)),
@@ -468,7 +468,7 @@ class _AgentAssistanceHubScreenState
         'delivery_agent_id': widget.agentId,
         'status':            'assigned',
         'vehicle_no':        (_dashboard['agent']?['vehicle_no']
-                             as String?),
+        as String?),
       }).select('id').single();
 
       final newBatchId = batchRes['id'] as String;
@@ -482,11 +482,11 @@ class _AgentAssistanceHubScreenState
 
       if (!mounted) return;
       final shop = (order['retailers']
-              as Map<String, dynamic>?)?['shop_name'] as String? ??
+      as Map<String, dynamic>?)?['shop_name'] as String? ??
           'order';
       showSuccess(context,
           '✓ $shop assigned to ${widget.agentName}.\n'
-          'Appears in Pending Deliveries immediately.');
+              'Appears in Pending Deliveries immediately.');
       _load(); // refresh everything
     } catch (e) {
       if (!mounted) return;
@@ -1048,19 +1048,21 @@ class _AgentAssistanceHubScreenState
         label: 'Record Delivery',
         icon: Icons.local_shipping_outlined,
         color: kNavy,
+        // FIX P0: include assigned+picked_up — stock via transfer keeps delivery at 'assigned'
         enabled: _pendingList
-            .any((d) => d['status'] == 'out_for_delivery'),
+            .any((d) => ['assigned','picked_up','out_for_delivery']
+            .contains(d['status'] as String?)),
         badge: _pendingList
-            .where((d) => d['status'] == 'out_for_delivery')
+            .where((d) => ['assigned','picked_up','out_for_delivery']
+            .contains(d['status'] as String?))
             .length,
         onTap: () {
-          // Navigate to delivery picker — shows list of out_for_delivery items
           final ready = _pendingList
-              .where((d) => d['status'] == 'out_for_delivery')
+              .where((d) => ['assigned','picked_up','out_for_delivery']
+              .contains(d['status'] as String?))
               .toList();
           if (ready.isEmpty) {
-            showError(context,
-                'No deliveries are out for delivery yet. DC must be completed first.');
+            showError(context, 'No active deliveries to record.');
             return;
           }
           context.push(
@@ -1190,14 +1192,14 @@ class _AgentAssistanceHubScreenState
       onTap: enabled
           ? action.onTap
           : action.disabledHint != null
-              ? () => ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(action.disabledHint!),
-                      behavior: SnackBarBehavior.floating,
-                      duration: const Duration(seconds: 3),
-                    ),
-                  )
-              : null,
+          ? () => ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(action.disabledHint!),
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 3),
+        ),
+      )
+          : null,
       child: Stack(
         clipBehavior: Clip.none,
         children: [

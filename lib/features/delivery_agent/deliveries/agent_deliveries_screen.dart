@@ -27,11 +27,11 @@ class _S extends ConsumerState<AgentDeliveriesScreen> {
     setState(() => _filtered = lower.isEmpty
         ? List.from(_list)
         : _list.where((d) {
-            final o = d['orders'] as Map<String,dynamic>?;
-            final r = o?['retailers'] as Map<String,dynamic>?;
-            return (r?['shop_name'] as String? ?? '').toLowerCase().contains(lower) ||
-                   (r?['address']   as String? ?? '').toLowerCase().contains(lower);
-          }).toList());
+      final o = d['orders'] as Map<String,dynamic>?;
+      final r = o?['retailers'] as Map<String,dynamic>?;
+      return (r?['shop_name'] as String? ?? '').toLowerCase().contains(lower) ||
+          (r?['address']   as String? ?? '').toLowerCase().contains(lower);
+    }).toList());
   }
 
   @override void initState() {
@@ -366,7 +366,9 @@ class _S extends ConsumerState<AgentDeliveriesScreen> {
                 ),
               ),
             )
-          else if (status == 'picked_up')
+          // FIX P0: 'assigned' now also shows Start Delivery (same as picked_up).
+          // Stock via transfer keeps delivery at 'assigned'; no DC required.
+          else if (status == 'picked_up' || status == 'assigned')
             SizedBox(
               height: 44,
               child: ElevatedButton.icon(
@@ -523,7 +525,7 @@ class _S extends ConsumerState<AgentDeliveriesScreen> {
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
               ),
             )
-          else if (status == 'picked_up')
+          else if (status == 'picked_up' || status == 'assigned')
             SizedBox(
               width: double.infinity,
               child: ElevatedButton.icon(
@@ -544,7 +546,7 @@ class _S extends ConsumerState<AgentDeliveriesScreen> {
                 padding: const EdgeInsets.symmetric(vertical: 10),
                 decoration: BoxDecoration(
                     color: Colors.grey.shade100, borderRadius: BorderRadius.circular(10)),
-                child: const Text('Assigned — awaiting pickup',
+                child: const Text('Awaiting action',
                     textAlign: TextAlign.center,
                     style: TextStyle(fontSize: 12, color: kTextSub, fontWeight: FontWeight.w600))),
         ],
@@ -568,7 +570,7 @@ class _S extends ConsumerState<AgentDeliveriesScreen> {
                               '${(d['partial_quantity'] as num?)?.toStringAsFixed(1) ?? '0'} kg remaining',
                           style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.orange))),
                     ]))),
-             Padding(
+            Padding(
                 padding: const EdgeInsets.only(bottom: 6),
                 child: Row(children: [
                   Expanded(child: OutlinedButton.icon(

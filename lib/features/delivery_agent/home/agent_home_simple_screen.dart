@@ -83,9 +83,13 @@ class _SimpleDashboardState extends State<SimpleDashboard> {
 
   int get _mort => (widget.today?['mortality_birds'] as num?)?.toInt() ?? 0;
 
+  // FIX P0: stock source must not gate delivery eligibility.
+  // Include 'assigned' and 'picked_up' so agents with transfer-stock orders
+  // see the delivery card and can tap Start Delivery / Complete.
   List<Map<String, dynamic>> get _actionable => widget.pendingList
       .whereType<Map<String, dynamic>>()
-      .where((d) => d['status'] == 'out_for_delivery')
+      .where((d) => ['assigned', 'picked_up', 'out_for_delivery']
+      .contains(d['status'] as String?))
       .toList();
 
   String t(String en, String ta) => _tamil ? ta : en;
@@ -416,8 +420,8 @@ class _BatchCard extends StatelessWidget {
     final pctTxt = reqBirds > 0
         ? '${(pct * 100).toStringAsFixed(0)}% ${t("CAPACITY", "கொள்ளளவு")}'
         : availBirds > 0
-            ? t('STOCK LOADED', 'கையிருப்பு உள்ளது')
-            : t('NO STOCK', 'கையிருப்பு இல்லை');
+        ? t('STOCK LOADED', 'கையிருப்பு உள்ளது')
+        : t('NO STOCK', 'கையிருப்பு இல்லை');
     final remBirds = (reqBirds - availBirds).clamp(0, 999999);
     final remKg = (reqWeight - availKg).clamp(0.0, 999999.0);
 

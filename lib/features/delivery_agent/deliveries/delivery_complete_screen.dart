@@ -673,9 +673,10 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
       showError(context, 'Enter delivered weight');
       return;
     }
-    if (_deliveryStatus != 'out_for_delivery') {
+    // FIX P0: allow completing from any active status (assigned/picked_up/out_for_delivery)
+    if (!['assigned', 'picked_up', 'out_for_delivery'].contains(_deliveryStatus)) {
       showError(context,
-          'Status is "$_deliveryStatus" — must be "out_for_delivery". Ask admin.');
+          'Status is "$_deliveryStatus" — cannot complete from this state. Ask admin.');
       return;
     }
     if (!_hasOpenShift) {
@@ -825,7 +826,11 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
     final shopName = r?['shop_name'] as String? ?? 'Delivery';
     final partialCount = (o?['partial_count'] as num?)?.toInt() ?? 0;
     final isAlreadyPartial = o?['is_partial_delivery'] == true;
-    final isReady = _deliveryStatus == 'out_for_delivery';
+    // FIX P0: stock source must not gate delivery eligibility.
+    // assigned and picked_up are valid starting states when stock arrived via transfer.
+    // complete_delivery RPC now accepts all active statuses.
+    final isReady = ['assigned', 'picked_up', 'out_for_delivery']
+        .contains(_deliveryStatus);
 
     if (!isReady || !_hasOpenShift) {
       if (isSimple) {
@@ -860,7 +865,7 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
                     const SizedBox(height: 8),
                     Text(
                         !isReady
-                            ? 'Status: "$_deliveryStatus"\nMust be "out_for_delivery". Ask admin.'
+                            ? 'Status: "$_deliveryStatus"\nMust be assigned, picked_up, or out_for_delivery.'
                             : 'Open a shift first, then come back.',
                         textAlign: TextAlign.center,
                         style: const TextStyle(
@@ -1580,7 +1585,7 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
                   isReady
                       ? 'Open a shift first, then come back.'
                       : 'Status: "$_deliveryStatus"'
-                      '\nMust be "out_for_delivery". Ask admin.',
+                      '\nStatus must be assigned, picked_up, or out_for_delivery.',
                   textAlign: TextAlign.center,
                   style: const TextStyle(
                       fontSize: 16, color: kTextSub, height: 1.6)),
@@ -1625,7 +1630,11 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
 
   Widget _buildSimpleView(String shopName, Map<String, dynamic>? r,
       Map<String, dynamic>? mp, bool isAlreadyPartial, int partialCount) {
-    final isReady = _deliveryStatus == 'out_for_delivery';
+    // FIX P0: stock source must not gate delivery eligibility.
+    // assigned and picked_up are valid starting states when stock arrived via transfer.
+    // complete_delivery RPC now accepts all active statuses.
+    final isReady = ['assigned', 'picked_up', 'out_for_delivery']
+        .contains(_deliveryStatus);
     if (!isReady || !_hasOpenShift) {
       return _buildSimpleNotReadyView(shopName, isReady);
     }
