@@ -887,6 +887,10 @@ class _S extends ConsumerState<BatchDetailScreen> {
                                         : double.tryParse(rateCtrl.text),
                                     'p_source_type': sourceType,
                                     'p_product_id': selectedProductId,  // NEW: explicit, mandatory — no more guessing
+                                    'p_dc_photo_url': null,
+                                    // Desktop has no camera capture flow, same as
+                                    // this screen's pickup_batch call above — kept
+                                    // explicit for parity now that the param exists.
                                   });
                                 }
                                 _load();

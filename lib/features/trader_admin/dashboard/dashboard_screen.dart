@@ -59,6 +59,7 @@ class _S extends ConsumerState<DashboardScreen> {
   List<Map<String, dynamic>> _recentOrders = [];
   List<Map<String, dynamic>> _dashboardAging   = [];  // from get_dashboard_aging
   List<Map<String, dynamic>> _topRetailers     = [];  // from get_top_retailers_today
+  List<Map<String, dynamic>> _revenueTrend     = [];  // from get_7day_revenue_trend
   bool _loading = true;
   String? _error;
 
@@ -89,6 +90,9 @@ class _S extends ConsumerState<DashboardScreen> {
         Supabase.instance.client
             .rpc('get_top_retailers_today', params: {'p_trader_id': tid})
             .timeout(const Duration(seconds: 8)),
+        Supabase.instance.client
+            .rpc('get_7day_revenue_trend', params: {'p_trader_id': tid})
+            .timeout(const Duration(seconds: 8)),
       ]);
 
       List<Map<String, dynamic>> recentOrders = [];
@@ -96,7 +100,8 @@ class _S extends ConsumerState<DashboardScreen> {
         final r = await Supabase.instance.client
             .from('orders')
             .select(
-            'id,status,estimated_birds,total_quantity,total_amount,created_at,retailers(shop_name)')
+            'id,status,estimated_birds,total_quantity,total_amount,created_at,'
+                'retailers(shop_name),deliveries(delivery_agents(name))')
             .eq('trader_id', tid)
             .order('created_at', ascending: false)
             .limit(10);
@@ -109,6 +114,7 @@ class _S extends ConsumerState<DashboardScreen> {
       final sl  = results[1] as List?;
       final ag  = results[2] as List?;
       final tr  = results[3] as List?;
+      final rt  = results[4] as List?;
 
       setState(() {
         _data         = dm != null ? DashboardData.fromMap(dm) : const DashboardData();
@@ -116,6 +122,7 @@ class _S extends ConsumerState<DashboardScreen> {
             StockPosition.fromMap(s as Map<String, dynamic>)).toList();
         _dashboardAging = List<Map<String, dynamic>>.from(ag ?? []);
         _topRetailers   = List<Map<String, dynamic>>.from(tr ?? []);
+        _revenueTrend   = List<Map<String, dynamic>>.from(rt ?? []);
         _recentOrders = recentOrders;
         _loading      = false;
       });
@@ -181,7 +188,7 @@ class _S extends ConsumerState<DashboardScreen> {
             const SizedBox(height: 20),
             Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Expanded(flex: 7, child: Column(children: [
-                _RevenueTrendPanel(data: d),
+                _RevenueTrendPanel(data: d, trend: _revenueTrend),
                 const SizedBox(height: 16),
                 _LiveStockPanel(stock: _stock, data: d),
               ])),
@@ -1509,7 +1516,7 @@ class _MetricStrip extends StatelessWidget {
       _MetricDef(
         label: 'Live Birds',
         value: _fmt(totalBirds),
-        sub: '${stock.isEmpty ? 0 : stock.first.availableBirds} Available',
+        sub: '${_fmt(stock.fold(0, (s, p) => s + p.agentBirds))} with agents',
         icon: Icons.egg_alt_outlined,
         grad: [const Color(0xFFDC2626), const Color(0xFFB91C1C)],
         trend: null,
@@ -2074,78 +2081,122 @@ class _OpsBoardCol extends StatelessWidget {
 }
 
 class _RevenueTrendPanel extends StatelessWidget {
-  const _RevenueTrendPanel({required this.data});
+  const _RevenueTrendPanel({required this.data, required this.trend});
 
   final DashboardData data;
+  final List<Map<String, dynamic>> trend;
 
   @override
-  Widget build(BuildContext context) =>
-      Container(
-        decoration: BoxDecoration(
-          color: _kPanel,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: _kBorder),
-          boxShadow: _kShadow,
-        ),
-        padding: const EdgeInsets.all(20),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(children: [
-            const Text('SALES & REVENUE TREND',
-                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800,
-                    color: _kText1, letterSpacing: 0.8)),
-            const Spacer(),
-            _ChipFilter('This Week'),
-          ]),
-          const SizedBox(height: 4),
-          Row(children: [
-            _Legend(color: _kBlue, label: 'Revenue (₹)'),
-            const SizedBox(width: 16),
-            _Legend(color: _kText3, label: 'Sold (kg)'),
-          ]),
-          const SizedBox(height: 16),
+  Widget build(BuildContext context) {
+    // ── Parse live 7-day series (day_date, revenue, kg_delivered) ────────────
+    final revenueList = <double>[];
+    final kgList = <double>[];
+    final dateList = <DateTime?>[];
+    for (final row in trend) {
+      revenueList.add((row['revenue'] as num?)?.toDouble() ?? 0.0);
+      kgList.add((row['kg_delivered'] as num?)?.toDouble() ?? 0.0);
+      dateList.add(DateTime.tryParse(row['day_date'] as String? ?? ''));
+    }
+    final hasData = trend.isNotEmpty &&
+        (revenueList.any((v) => v > 0) || kgList.any((v) => v > 0));
+
+    final maxRev = revenueList.isEmpty
+        ? 0.0
+        : revenueList.reduce((a, b) => a > b ? a : b);
+    final maxKg = kgList.isEmpty ? 0.0 : kgList.reduce((a, b) => a > b ? a : b);
+    final revFractions =
+    revenueList.map((v) => maxRev > 0 ? v / maxRev : 0.0).toList();
+    final kgFractions =
+    kgList.map((v) => maxKg > 0 ? v / maxKg : 0.0).toList();
+
+    // ── Y-axis labels: real amounts, plain rupee formatting (no K/L) ─────────
+    const tickCount = 5;
+    final yAxisLabels = List.generate(tickCount, (i) {
+      final v = maxRev * (tickCount - 1 - i) / (tickCount - 1);
+      return v <= 0 ? '₹0' : Fmt.amount(v);
+    });
+
+    return Container(
+      decoration: BoxDecoration(
+        color: _kPanel,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: _kBorder),
+        boxShadow: _kShadow,
+      ),
+      padding: const EdgeInsets.all(20),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          const Text('SALES & REVENUE TREND',
+              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800,
+                  color: _kText1, letterSpacing: 0.8)),
+          const Spacer(),
+          const _ChipFilter('Last 7 Days'),
+        ]),
+        const SizedBox(height: 4),
+        Row(children: [
+          _Legend(color: _kBlue, label: 'Revenue (₹)'),
+          const SizedBox(width: 16),
+          _Legend(color: _kText3, label: 'Sold (kg)'),
+        ]),
+        const SizedBox(height: 16),
+        if (!hasData)
+          Container(
+            height: 160,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+                color: const Color(0xFFF8FAFC),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: _kBorder)),
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              const Icon(Icons.show_chart_rounded, size: 22, color: _kText3),
+              const SizedBox(height: 6),
+              const Text('No sales recorded in the last 7 days',
+                  style: TextStyle(fontSize: 12, color: _kText3,
+                      fontWeight: FontWeight.w600)),
+            ]),
+          )
+        else ...[
           SizedBox(height: 160, child: CustomPaint(
             size: const Size(double.infinity, 160),
             painter: _AreaChartPainter(
               primaryColor: _kBlue,
               secondaryColor: _kText3,
+              revenueFractions: revFractions,
+              kgFractions: kgFractions,
+              yAxisLabels: yAxisLabels,
             ),
           )),
           const SizedBox(height: 8),
           Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-            for (final d in [
-              '9 May',
-              '10 May',
-              '11 May',
-              '12 May',
-              '13 May',
-              '14 May',
-              '15 May'
-            ])
-              Text(d, style: const TextStyle(fontSize: 9, color: _kText3)),
+            for (final dt in dateList)
+              Text(dt != null ? DateFormat('d MMM').format(dt) : '—',
+                  style: const TextStyle(fontSize: 9, color: _kText3)),
           ]),
-          const SizedBox(height: 16),
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-                color: const Color(0xFFF8FAFC),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: _kBorder)),
-            child: Row(children: [
-              _MiniStat(
-                  'Today\'s Revenue', Fmt.amount(data.todayCollected), _kBlue),
-              _Divider(),
-              _MiniStat('Cash Collected', Fmt.amount(data.todayCashCollected),
-                  _kGreen),
-              _Divider(),
-              _MiniStat('UPI Collected', Fmt.amount(data.todayUpiCollected),
-                  _kIndigo),
-              _Divider(),
-              _MiniStat(
-                  'Outstanding', Fmt.amount(data.totalOutstanding), _kOrange),
-            ]),
-          ),
-        ]),
-      );
+        ],
+        const SizedBox(height: 16),
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+              color: const Color(0xFFF8FAFC),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: _kBorder)),
+          child: Row(children: [
+            _MiniStat(
+                'Today\'s Revenue', Fmt.amount(data.todayCollected), _kBlue),
+            _Divider(),
+            _MiniStat('Cash Collected', Fmt.amount(data.todayCashCollected),
+                _kGreen),
+            _Divider(),
+            _MiniStat('UPI Collected', Fmt.amount(data.todayUpiCollected),
+                _kIndigo),
+            _Divider(),
+            _MiniStat(
+                'Outstanding', Fmt.amount(data.totalOutstanding), _kOrange),
+          ]),
+        ),
+      ]),
+    );
+  }
 }
 
 class _ChipFilter extends StatelessWidget {
@@ -2161,13 +2212,8 @@ class _ChipFilter extends StatelessWidget {
             color: const Color(0xFFF1F5F9),
             borderRadius: BorderRadius.circular(6),
             border: Border.all(color: _kBorder)),
-        child: Row(children: [
-          Text(label, style: const TextStyle(fontSize: 11, color: _kText2,
-              fontWeight: FontWeight.w500)),
-          const SizedBox(width: 4),
-          const Icon(
-              Icons.keyboard_arrow_down_rounded, size: 14, color: _kText3),
-        ]),
+        child: Text(label, style: const TextStyle(fontSize: 11, color: _kText2,
+            fontWeight: FontWeight.w500)),
       );
 }
 
@@ -2214,26 +2260,30 @@ class _Divider extends StatelessWidget {
 }
 
 class _AreaChartPainter extends CustomPainter {
-  const _AreaChartPainter(
-      {required this.primaryColor, required this.secondaryColor});
+  const _AreaChartPainter({
+    required this.primaryColor,
+    required this.secondaryColor,
+    required this.revenueFractions,
+    required this.kgFractions,
+    required this.yAxisLabels,
+  });
 
   final Color primaryColor, secondaryColor;
+  final List<double> revenueFractions;
+  final List<double> kgFractions;
+  final List<String> yAxisLabels;
 
   @override
   void paint(Canvas canvas, Size size) {
-    final rev = [0.3, 0.55, 0.45, 0.72, 0.68, 0.85, 0.78];
-    final sol = [0.2, 0.40, 0.35, 0.58, 0.52, 0.65, 0.60];
+    _drawAreaLine(canvas, size, revenueFractions, primaryColor);
+    _drawLine(canvas, size, kgFractions, secondaryColor);
 
-    _drawAreaLine(canvas, size, rev, primaryColor);
-    _drawLine(canvas, size, sol, secondaryColor);
-
-    final labels = ['₹5L', '₹4L', '₹3L', '₹2L', '₹1L', '₹0'];
     final tp = TextPainter(textDirection: TextDirection.ltr);
-    for (int i = 0; i < labels.length; i++) {
-      tp.text = TextSpan(text: labels[i],
+    for (int i = 0; i < yAxisLabels.length; i++) {
+      tp.text = TextSpan(text: yAxisLabels[i],
           style: const TextStyle(fontSize: 8, color: _kText3));
       tp.layout();
-      tp.paint(canvas, Offset(0, size.height * i / (labels.length - 1) - 6));
+      tp.paint(canvas, Offset(0, size.height * i / (yAxisLabels.length - 1) - 6));
     }
   }
 
@@ -2296,7 +2346,8 @@ class _AreaChartPainter extends CustomPainter {
     canvas.drawPath(path, lp);
   }
 
-  @override bool shouldRepaint(_) => false;
+  @override bool shouldRepaint(_AreaChartPainter o) =>
+      o.revenueFractions != revenueFractions || o.kgFractions != kgFractions;
 }
 
 class _LiveStockPanel extends StatelessWidget {
@@ -2309,7 +2360,7 @@ class _LiveStockPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     final totalBirds = stock.isEmpty ? data.remainingBirds
         : stock.fold(0, (s, p) => s + p.availableBirds);
-    final availBirds = stock.isEmpty ? 0 : stock.first.availableBirds;
+    final availBirds = stock.fold(0, (s, p) => s + p.availableBirds);
     final inTransit  = data.agentStatus.fold(0, (s, a) => s + a.liveStockBirds);
     final soldToday  = data.todayDelivered;
     final mortality  = data.todayMortalityBirdsLedger;
@@ -2863,9 +2914,17 @@ class _AlertsPanel extends StatelessWidget {
         : stock.fold(0, (s, p) => s + p.availableBirds);
 
     final alerts = <(Color, IconData, String, String)>[];
-    if (totalBirds < 500 && totalBirds >= 0)
+    if (totalBirds < 500 && totalBirds >= 0) {
+      final lowStock = stock.isEmpty
+          ? null
+          : stock.reduce(
+              (a, b) => a.availableBirds <= b.availableBirds ? a : b);
+      final stockLabel = lowStock != null
+          ? '${lowStock.productName} stock'
+          : 'Live stock';
       alerts.add((_kOrange, Icons.inventory_outlined,
-      'Low Stock Alert', 'Broiler Live stock is below 1000 birds'));
+      'Low Stock Alert', '$stockLabel is below 500 birds'));
+    }
     if (data.totalOutstanding > 50000)
       alerts.add((_kRed, Icons.account_balance_wallet_outlined,
       'Payment Overdue', 'Outstanding exceeds ₹50,000'));
@@ -2947,6 +3006,8 @@ class _RecentOrdersTable extends StatefulWidget {
 
 class _RecentOrdersTableState extends State<_RecentOrdersTable> {
   String _statusFilter = 'All Status';
+  final TextEditingController _searchCtrl = TextEditingController();
+  String _searchQuery = '';
   final List<String> _statuses = [
     'All Status',
     'pending',
@@ -2955,10 +3016,47 @@ class _RecentOrdersTableState extends State<_RecentOrdersTable> {
     'delivered'
   ];
 
+  @override
+  void initState() {
+    super.initState();
+    _searchCtrl.addListener(() {
+      setState(() => _searchQuery = _searchCtrl.text.trim().toLowerCase());
+    });
+  }
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
+  }
+
   List<Map<String, dynamic>> get _filtered {
-    if (_statusFilter == 'All Status') return widget.orders;
-    return widget.orders.where((o) =>
-    (o['status'] as String? ?? '') == _statusFilter).toList();
+    var rows = widget.orders;
+    if (_statusFilter != 'All Status') {
+      rows = rows.where((o) =>
+      (o['status'] as String? ?? '') == _statusFilter).toList();
+    }
+    if (_searchQuery.isNotEmpty) {
+      rows = rows.where((o) {
+        final shopName = ((o['retailers'] as Map?)?['shop_name']
+        as String? ?? '').toLowerCase();
+        final orderId = (o['id'] as String? ?? '').toLowerCase();
+        return shopName.contains(_searchQuery) ||
+            orderId.contains(_searchQuery);
+      }).toList();
+    }
+    return rows;
+  }
+
+  // ── Extract the delivery agent name for an order, if one is assigned ──────
+  String? _agentFor(Map<String, dynamic> o) {
+    final deliveries = o['deliveries'] as List? ?? [];
+    for (final d in deliveries) {
+      final agent = (d as Map?)?['delivery_agents'];
+      final name = agent is Map ? agent['name'] as String? : null;
+      if (name != null && name.isNotEmpty) return name;
+    }
+    return null;
   }
 
   Color _statusColor(String s) =>
@@ -2995,8 +3093,9 @@ class _RecentOrdersTableState extends State<_RecentOrdersTable> {
                   color: const Color(0xFFF8FAFC),
                   borderRadius: BorderRadius.circular(6),
                   border: Border.all(color: _kBorder)),
-              child: const TextField(
-                decoration: InputDecoration(
+              child: TextField(
+                controller: _searchCtrl,
+                decoration: const InputDecoration(
                   hintText: 'Search orders...',
                   hintStyle: TextStyle(fontSize: 12, color: _kText3),
                   prefixIcon: Icon(
@@ -3006,7 +3105,7 @@ class _RecentOrdersTableState extends State<_RecentOrdersTable> {
                   focusedBorder: InputBorder.none,
                   contentPadding: EdgeInsets.symmetric(vertical: 8),
                 ),
-                style: TextStyle(fontSize: 12, color: _kText1),
+                style: const TextStyle(fontSize: 12, color: _kText1),
               ),
             ),
             const SizedBox(width: 8),
@@ -3080,6 +3179,7 @@ class _RecentOrdersTableState extends State<_RecentOrdersTable> {
               amount: amt,
               status: status,
               statusColor: sc,
+              agent: _agentFor(o) ?? '—',
               time: timeStr,
               onTap: () => widget.onOrder(o['id'] as String? ?? ''),
             );
@@ -3089,26 +3189,8 @@ class _RecentOrdersTableState extends State<_RecentOrdersTable> {
           decoration: const BoxDecoration(
               border: Border(top: BorderSide(color: _kBorder))),
           child: Row(children: [
-            Text(
-                'Showing 1 to ${rows.length} of ${widget.orders.length} orders',
+            Text('Showing latest ${widget.orders.length} orders',
                 style: const TextStyle(fontSize: 11, color: _kText3)),
-            const Spacer(),
-            ...['‹', '1', '2', '3', '…', '26', '›'].map((l) =>
-                Padding(
-                  padding: const EdgeInsets.only(left: 4),
-                  child: Container(
-                    width: 30, height: 30,
-                    decoration: BoxDecoration(
-                      color: l == '1' ? _kNavBg : const Color(0xFFF8FAFC),
-                      borderRadius: BorderRadius.circular(6),
-                      border: Border.all(color: _kBorder),
-                    ),
-                    child: Center(child: Text(l,
-                        style: TextStyle(
-                            fontSize: 12, fontWeight: FontWeight.w600,
-                            color: l == '1' ? Colors.white : _kText2))),
-                  ),
-                )),
           ]),
         ),
       ]),
@@ -3137,10 +3219,10 @@ class _OrderRow extends StatefulWidget {
   const _OrderRow({required this.index, required this.orderId,
     required this.shopName, required this.birds, required this.weight,
     required this.amount, required this.status, required this.statusColor,
-    required this.time, required this.onTap});
+    required this.agent, required this.time, required this.onTap});
 
   final int index;
-  final String orderId, shopName, status, time;
+  final String orderId, shopName, status, agent, time;
   final int birds;
   final double weight, amount;
   final Color statusColor;
@@ -3193,8 +3275,9 @@ class _OrderRowState extends State<_OrderRow> {
                     style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700,
                         color: widget.statusColor)),
               ))),
-              const SizedBox(width: 120, child: Text('—',
-                  style: TextStyle(fontSize: 12, color: _kText3))),
+              SizedBox(width: 120, child: Text(widget.agent,
+                  style: const TextStyle(fontSize: 12, color: _kText2),
+                  maxLines: 1, overflow: TextOverflow.ellipsis)),
               SizedBox(width: 90, child: Text(widget.time,
                   style: const TextStyle(fontSize: 12, color: _kText3))),
               SizedBox(width: 60,

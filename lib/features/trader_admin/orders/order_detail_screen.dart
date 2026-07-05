@@ -18,6 +18,7 @@ class _S extends ConsumerState<OrderDetailScreen> {
   final _c = Supabase.instance.client;
   Map<String,dynamic>? _order;
   Map<String,dynamic>? _invoice;
+  List<Map<String,dynamic>> _invoices = [];
   List<Map<String,dynamic>> _items = [];
   bool _loading = true;
 
@@ -31,9 +32,24 @@ class _S extends ConsumerState<OrderDetailScreen> {
         .eq('id', widget.id).maybeSingle();
     final items = await _c.from('order_items')
         .select('*,master_products(name)').eq('order_id', widget.id);
-    final inv = await _c.from('invoices')
-        .select('*').eq('order_id', widget.id).maybeSingle();
-    if (mounted) setState(() { _order = o; _items = List<Map<String,dynamic>>.from(items); _invoice = inv; _loading = false; });
+    // FIX: an order can now have multiple invoices — one per delivery attempt
+    // (Order 1:N Delivery, Delivery 1:1 Invoice). Fetch all instead of a single
+    // row. Financial totals (total/balance/collected) are read from the order
+    // row itself, which the backend keeps correctly summed across every
+    // invoice for that order. _invoice (latest) is kept only for display
+    // metadata (invoice_number/rate/kg on the summary card).
+    final invRaw = await _c.from('invoices')
+        .select('*')
+        .eq('order_id', widget.id)
+        .order('created_at', ascending: false);
+    final invList = List<Map<String,dynamic>>.from(invRaw as List? ?? []);
+    if (mounted) setState(() {
+      _order = o;
+      _items = List<Map<String,dynamic>>.from(items);
+      _invoices = invList;
+      _invoice = invList.isNotEmpty ? invList.first : null;
+      _loading = false;
+    });
   }
 
   Future<void> _updateStatus(String s) async {
@@ -227,15 +243,15 @@ class _S extends ConsumerState<OrderDetailScreen> {
     final hasInv     = _invoice != null;
     final sc         = SC.order(status);
 
-    final displayAmt = hasInv
-        ? (_invoice!['total_amount']   as num?)?.toDouble() ?? 0
-        : (_order!['total_amount']     as num?)?.toDouble() ?? 0;
-    final balAmt  = hasInv
-        ? (_invoice!['balance_amount'] as num?)?.toDouble() ?? 0
-        : (_order!['balance_amount']   as num?)?.toDouble() ?? 0;
-    final collAmt = hasInv
-        ? (_invoice!['collected_amount'] as num?)?.toDouble() ?? 0
-        : (_order!['collected_amount']   as num?)?.toDouble() ?? 0;
+    // FIX: an order can have multiple invoices (one per delivery attempt).
+    // Financial totals must come from the order row, which the backend keeps
+    // correctly summed across every invoice — reading a single invoice's
+    // amount here would silently understate the order once it has 2+
+    // delivery attempts. _invoice (latest) is used only for display-only
+    // metadata below (rate/kg), never for money totals.
+    final displayAmt = (_order!['total_amount']     as num?)?.toDouble() ?? 0;
+    final balAmt     = (_order!['balance_amount']   as num?)?.toDouble() ?? 0;
+    final collAmt    = (_order!['collected_amount'] as num?)?.toDouble() ?? 0;
     final rateKg  = hasInv
         ? (_invoice!['price_per_kg']   as num?)?.toDouble()
         : (_order!['final_price']      as num?)?.toDouble();
@@ -467,16 +483,33 @@ class _S extends ConsumerState<OrderDetailScreen> {
         ]),
       ),
 
-      // ── Invoice link ───────────────────────────────────────────────
-      if (hasInv)
+      // ── Invoice link(s) ──────────────────────────────────────────────
+      // FIX: an order can now have multiple invoices (one per delivery
+      // attempt). Show one button per invoice instead of assuming a single
+      // invoice exists.
+      if (_invoices.isNotEmpty)
         Container(
           margin: const EdgeInsets.only(bottom: 14),
-          child: OutlinedButton.icon(
-            onPressed: () => context.push(R.invoiceDetailPath(_invoice!['id'])),
-            icon: const Icon(Icons.receipt_long_outlined, size: 18),
-            label: Text('View Invoice ${_invoice!['invoice_number'] ?? ''}'),
-            style: OutlinedButton.styleFrom(
-                minimumSize: const Size(double.infinity, 50)),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              for (final inv in _invoices)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: OutlinedButton.icon(
+                    onPressed: () => context.push(R.invoiceDetailPath(inv['id'])),
+                    icon: const Icon(Icons.receipt_long_outlined, size: 18),
+                    label: Text(
+                      _invoices.length > 1
+                          ? 'View Invoice ${inv['invoice_number'] ?? ''} '
+                          '(${Fmt.amount((inv['total_amount'] as num?)?.toDouble() ?? 0)})'
+                          : 'View Invoice ${inv['invoice_number'] ?? ''}',
+                    ),
+                    style: OutlinedButton.styleFrom(
+                        minimumSize: const Size(double.infinity, 50)),
+                  ),
+                ),
+            ],
           ),
         ),
 
@@ -579,56 +612,56 @@ class _S extends ConsumerState<OrderDetailScreen> {
     ];
 
     if (!isDesktop) {
-    return Scaffold(
-    backgroundColor: kBgPage,
-    appBar: AppBar(
-    backgroundColor: kSurface,
-    title: const Text('Order Detail'),
-    actions: [IconButton(icon: const Icon(Icons.refresh_rounded), onPressed: _load)],
-    ),
-    body: ListView(
-    padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
-    children: contentSections,
-    ),
-    );
+      return Scaffold(
+        backgroundColor: kBgPage,
+        appBar: AppBar(
+          backgroundColor: kSurface,
+          title: const Text('Order Detail'),
+          actions: [IconButton(icon: const Icon(Icons.refresh_rounded), onPressed: _load)],
+        ),
+        body: ListView(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+          children: contentSections,
+        ),
+      );
     }
 
     // ── Desktop 2-column layout ──────────────────────────────────────────
     // Split: first N sections go left, financial + actions go right
     // We put the last 2 whitecard blocks (billing + actions) in the right panel
     final leftSections  = contentSections.length > 3
-    ? contentSections.sublist(0, contentSections.length - 2)
+        ? contentSections.sublist(0, contentSections.length - 2)
         : contentSections;
     final rightSections = contentSections.length > 3
-    ? contentSections.sublist(contentSections.length - 2)
+        ? contentSections.sublist(contentSections.length - 2)
         : <Widget>[];
 
     return Scaffold(
-    backgroundColor: kBgPage,
-    appBar: AppBar(
-    backgroundColor: kSurface,
-    title: const Text('Order Detail'),
-    actions: [IconButton(icon: const Icon(Icons.refresh_rounded), onPressed: _load)],
-    ),
-    body: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-    // ── Left: customer + items ─────────────────────────────────────
-    Expanded(
-    flex: 6,
-    child: ListView(
-    padding: const EdgeInsets.fromLTRB(24, 16, 16, 40),
-    children: leftSections,
-    ),
-    ),
-    Container(width: 1, color: kBorderLight),
-    // ── Right: billing + actions ───────────────────────────────────
-    SizedBox(
-    width: 340,
-    child: ListView(
-    padding: const EdgeInsets.fromLTRB(20, 16, 24, 40),
-    children: rightSections,
-    ),
-    ),
-    ]),
+      backgroundColor: kBgPage,
+      appBar: AppBar(
+        backgroundColor: kSurface,
+        title: const Text('Order Detail'),
+        actions: [IconButton(icon: const Icon(Icons.refresh_rounded), onPressed: _load)],
+      ),
+      body: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        // ── Left: customer + items ─────────────────────────────────────
+        Expanded(
+          flex: 6,
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(24, 16, 16, 40),
+            children: leftSections,
+          ),
+        ),
+        Container(width: 1, color: kBorderLight),
+        // ── Right: billing + actions ───────────────────────────────────
+        SizedBox(
+          width: 340,
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(20, 16, 24, 40),
+            children: rightSections,
+          ),
+        ),
+      ]),
     );
   }
 

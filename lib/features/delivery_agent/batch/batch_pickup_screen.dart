@@ -113,8 +113,8 @@ class _S extends ConsumerState<BatchPickupScreen> {
       final raw = await _c
           .from('delivery_challans')
           .select('id,dc_number,dc_date,farmer_name,farm_location,'
-              'bird_count,gross_weight,empty_weight,net_weight,'
-              'crates_count,farm_rate,source_type')
+          'bird_count,gross_weight,empty_weight,net_weight,'
+          'crates_count,farm_rate,source_type')
           .eq('batch_id', widget.batchId)
           .order('created_at');
       dcs = List<Map<String, dynamic>>.from(raw as List? ?? []);
@@ -125,7 +125,7 @@ class _S extends ConsumerState<BatchPickupScreen> {
       final raw = await _c
           .from('deliveries')
           .select('id,status,orders(id,estimated_birds,total_quantity,'
-              'retailers(shop_name,address,phone))')
+          'retailers(shop_name,address,phone))')
           .eq('batch_id', widget.batchId);
       deliveries = List<Map<String, dynamic>>.from(raw as List? ?? []);
     } catch (_) {}
@@ -190,31 +190,31 @@ class _S extends ConsumerState<BatchPickupScreen> {
   int get _totalDcBirds =>
       _existingDCs.fold(
           0, (s, c) => s + ((c['bird_count'] as num?)?.toInt() ?? 0)) +
-      _birdCount;
+          _birdCount;
 
   double get _totalDcWeight =>
       _existingDCs.fold(
           0.0, (s, c) => s + ((c['net_weight'] as num?)?.toDouble() ?? 0)) +
-      _netWt;
+          _netWt;
 
   int get _expectedBirds =>
       _deliveries.where((d) => d['status'] != 'cancelled').fold(
           0,
-          (s, d) =>
-              s +
+              (s, d) =>
+          s +
               (((d['orders'] as Map?)
-                          ?.cast<String, dynamic>()?['estimated_birds'] as num?)
-                      ?.toInt() ??
+                  ?.cast<String, dynamic>()?['estimated_birds'] as num?)
+                  ?.toInt() ??
                   0));
 
   double get _expectedWeight =>
       _deliveries.where((d) => d['status'] != 'cancelled').fold(
           0.0,
-          (s, d) =>
-              s +
+              (s, d) =>
+          s +
               (((d['orders'] as Map?)
-                          ?.cast<String, dynamic>()?['total_quantity'] as num?)
-                      ?.toDouble() ??
+                  ?.cast<String, dynamic>()?['total_quantity'] as num?)
+                  ?.toDouble() ??
                   0));
 
   Future<void> _takeDcPhoto() async {
@@ -296,16 +296,16 @@ class _S extends ConsumerState<BatchPickupScreen> {
           'p_dc_number': _dcNum.text.trim(),
           'p_dc_date': _dcDate.toIso8601String().split('T')[0],
           'p_farmer_name':
-              _farmer.text.trim().isEmpty && _selectedFarmName != null
-                  ? _selectedFarmName
-                  : _farmer.text.trim(),
+          _farmer.text.trim().isEmpty && _selectedFarmName != null
+              ? _selectedFarmName
+              : _farmer.text.trim(),
           'p_farm_id': _selectedFarmId,
           'p_farm_location':
-              _farmLoc.text.trim().isEmpty ? null : _farmLoc.text.trim(),
+          _farmLoc.text.trim().isEmpty ? null : _farmLoc.text.trim(),
           'p_vehicle_number':
-              _vehicle.text.trim().isEmpty ? null : _vehicle.text.trim(),
+          _vehicle.text.trim().isEmpty ? null : _vehicle.text.trim(),
           'p_driver_name':
-              _driver.text.trim().isEmpty ? null : _driver.text.trim(),
+          _driver.text.trim().isEmpty ? null : _driver.text.trim(),
           'p_supervisor_name': null,
           'p_gross_weight': _grossWtVal,
           'p_empty_weight': emptyWt,
@@ -347,14 +347,14 @@ class _S extends ConsumerState<BatchPickupScreen> {
           'p_dc_number': _dcNum.text.trim(),
           'p_dc_date': _dcDate.toIso8601String().split('T')[0],
           'p_farmer_name':
-              _farmer.text.trim().isEmpty && _selectedFarmName != null
-                  ? _selectedFarmName
-                  : _farmer.text.trim(),
+          _farmer.text.trim().isEmpty && _selectedFarmName != null
+              ? _selectedFarmName
+              : _farmer.text.trim(),
           'p_farm_id': _selectedFarmId,
           'p_farm_location':
-              _farmLoc.text.trim().isEmpty ? null : _farmLoc.text.trim(),
+          _farmLoc.text.trim().isEmpty ? null : _farmLoc.text.trim(),
           'p_vehicle_number':
-              _vehicle.text.trim().isEmpty ? null : _vehicle.text.trim(),
+          _vehicle.text.trim().isEmpty ? null : _vehicle.text.trim(),
           'p_gross_weight': _grossWtVal,
           'p_empty_weight': emptyWt,
           'p_net_weight': _netWt,
@@ -368,6 +368,10 @@ class _S extends ConsumerState<BatchPickupScreen> {
           'p_source_type': _srcType,
           'p_product_id': _selectedProductId,
           // NEW: explicit, mandatory — no more guessing
+          'p_dc_photo_url': _dcImageUrl,
+          // FIX: was missing on add_batch_dc — photo was captured (mandatory,
+          // validated above) but never sent, so 2nd+ DCs always saved with
+          // no photo even though one was taken.
         });
         if (mounted) {
           showSuccess(context, 'DC added ✓');
@@ -422,124 +426,124 @@ class _S extends ConsumerState<BatchPickupScreen> {
             final filtered = query.isEmpty
                 ? _farms
                 : _farms
-                    .where((f) =>
-                        (f['farmer_name'] as String? ?? '')
-                            .toLowerCase()
-                            .contains(query.toLowerCase()) ||
-                        (f['farm_name'] as String? ?? '')
-                            .toLowerCase()
-                            .contains(query.toLowerCase()) ||
-                        (f['location'] as String? ?? '')
-                            .toLowerCase()
-                            .contains(query.toLowerCase()))
-                    .toList();
+                .where((f) =>
+            (f['farmer_name'] as String? ?? '')
+                .toLowerCase()
+                .contains(query.toLowerCase()) ||
+                (f['farm_name'] as String? ?? '')
+                    .toLowerCase()
+                    .contains(query.toLowerCase()) ||
+                (f['location'] as String? ?? '')
+                    .toLowerCase()
+                    .contains(query.toLowerCase()))
+                .toList();
             return DraggableScrollableSheet(
                 expand: false,
                 initialChildSize: 0.6,
                 maxChildSize: 0.9,
                 builder: (_, ctrl) => Column(children: [
-                      // Handle
-                      Padding(
-                          padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
-                          child: Column(children: [
-                            Center(
-                                child: Container(
-                                    width: 40,
-                                    height: 4,
-                                    decoration: BoxDecoration(
-                                        color: Colors.grey.shade300,
-                                        borderRadius:
-                                            BorderRadius.circular(2)))),
-                            const SizedBox(height: 10),
-                            const Text('Select Supplier',
-                                style: TextStyle(
-                                    fontSize: 15, fontWeight: FontWeight.w800)),
-                            const SizedBox(height: 10),
-                            // Search
-                            TextField(
-                                onChanged: (v) => ss(() => query = v),
-                                decoration: const InputDecoration(
-                                    hintText: 'Search supplier...',
-                                    prefixIcon: Icon(Icons.search, size: 18),
-                                    isDense: true)),
-                          ])),
-                      const Divider(height: 1),
-                      // List
-                      Expanded(
-                          child: ListView.separated(
-                              controller: ctrl,
-                              padding: const EdgeInsets.all(12),
-                              itemCount: filtered.length,
-                              separatorBuilder: (_, __) =>
-                                  const SizedBox(height: 4),
-                              itemBuilder: (_, i) {
-                                final f = filtered[i];
-                                final name = f['farmer_name'] as String? ?? '—';
-                                final farm = f['farm_name'] as String?;
-                                final loc = f['location'] as String?;
-                                final phone = f['phone'] as String?;
-                                return InkWell(
-                                    onTap: () {
-                                      Navigator.of(ctx, rootNavigator: true)
-                                          .pop();
-                                      setState(() {
-                                        _selectedFarmId = f['id'] as String;
-                                        _selectedFarmName = farm != null
-                                            ? '$name ($farm)'
-                                            : name;
-                                        // Pre-fill the manual field too
-                                        _farmer.text = name;
-                                        if (loc != null &&
-                                            _farmLoc.text.isEmpty)
-                                          _farmLoc.text = loc;
-                                      });
-                                    },
+                  // Handle
+                  Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
+                      child: Column(children: [
+                        Center(
+                            child: Container(
+                                width: 40,
+                                height: 4,
+                                decoration: BoxDecoration(
+                                    color: Colors.grey.shade300,
                                     borderRadius:
-                                        BorderRadius.circular(kRadiusCard),
-                                    child: Container(
-                                        padding: const EdgeInsets.all(12),
-                                        decoration: BoxDecoration(
-                                            color: _selectedFarmId == f['id']
-                                                ? kPrimary.withValues(
-                                                    alpha: 0.06)
-                                                : Colors.white,
-                                            borderRadius: BorderRadius.circular(
-                                                kRadiusCard),
-                                            border: Border.all(
-                                                color:
-                                                    _selectedFarmId == f['id']
-                                                        ? kPrimary
-                                                        : kBorder,
-                                                width:
-                                                    _selectedFarmId == f['id']
-                                                        ? 1.5
-                                                        : 1)),
-                                        child: Row(children: [
-                                          Container(
-                                              width: 36,
-                                              height: 36,
-                                              decoration: BoxDecoration(
-                                                  color: kPrimary.withValues(
-                                                      alpha: 0.08),
-                                                  shape: BoxShape.circle),
-                                              child: Center(
-                                                  child: Text(
-                                                      name[0].toUpperCase(),
-                                                      style: const TextStyle(
-                                                          fontWeight:
-                                                              FontWeight.w800,
-                                                          color: kPrimary)))),
-                                          const SizedBox(width: 10),
-                                          Expanded(
-                                              child: Column(
-                                                  crossAxisAlignment:
-                                                      CrossAxisAlignment.start,
-                                                  children: [
+                                    BorderRadius.circular(2)))),
+                        const SizedBox(height: 10),
+                        const Text('Select Supplier',
+                            style: TextStyle(
+                                fontSize: 15, fontWeight: FontWeight.w800)),
+                        const SizedBox(height: 10),
+                        // Search
+                        TextField(
+                            onChanged: (v) => ss(() => query = v),
+                            decoration: const InputDecoration(
+                                hintText: 'Search supplier...',
+                                prefixIcon: Icon(Icons.search, size: 18),
+                                isDense: true)),
+                      ])),
+                  const Divider(height: 1),
+                  // List
+                  Expanded(
+                      child: ListView.separated(
+                          controller: ctrl,
+                          padding: const EdgeInsets.all(12),
+                          itemCount: filtered.length,
+                          separatorBuilder: (_, __) =>
+                          const SizedBox(height: 4),
+                          itemBuilder: (_, i) {
+                            final f = filtered[i];
+                            final name = f['farmer_name'] as String? ?? '—';
+                            final farm = f['farm_name'] as String?;
+                            final loc = f['location'] as String?;
+                            final phone = f['phone'] as String?;
+                            return InkWell(
+                                onTap: () {
+                                  Navigator.of(ctx, rootNavigator: true)
+                                      .pop();
+                                  setState(() {
+                                    _selectedFarmId = f['id'] as String;
+                                    _selectedFarmName = farm != null
+                                        ? '$name ($farm)'
+                                        : name;
+                                    // Pre-fill the manual field too
+                                    _farmer.text = name;
+                                    if (loc != null &&
+                                        _farmLoc.text.isEmpty)
+                                      _farmLoc.text = loc;
+                                  });
+                                },
+                                borderRadius:
+                                BorderRadius.circular(kRadiusCard),
+                                child: Container(
+                                    padding: const EdgeInsets.all(12),
+                                    decoration: BoxDecoration(
+                                        color: _selectedFarmId == f['id']
+                                            ? kPrimary.withValues(
+                                            alpha: 0.06)
+                                            : Colors.white,
+                                        borderRadius: BorderRadius.circular(
+                                            kRadiusCard),
+                                        border: Border.all(
+                                            color:
+                                            _selectedFarmId == f['id']
+                                                ? kPrimary
+                                                : kBorder,
+                                            width:
+                                            _selectedFarmId == f['id']
+                                                ? 1.5
+                                                : 1)),
+                                    child: Row(children: [
+                                      Container(
+                                          width: 36,
+                                          height: 36,
+                                          decoration: BoxDecoration(
+                                              color: kPrimary.withValues(
+                                                  alpha: 0.08),
+                                              shape: BoxShape.circle),
+                                          child: Center(
+                                              child: Text(
+                                                  name[0].toUpperCase(),
+                                                  style: const TextStyle(
+                                                      fontWeight:
+                                                      FontWeight.w800,
+                                                      color: kPrimary)))),
+                                      const SizedBox(width: 10),
+                                      Expanded(
+                                          child: Column(
+                                              crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                              children: [
                                                 Text(name,
                                                     style: const TextStyle(
                                                         fontSize: 13,
                                                         fontWeight:
-                                                            FontWeight.w700)),
+                                                        FontWeight.w700)),
                                                 if (farm != null)
                                                   Text(farm,
                                                       style: const TextStyle(
@@ -551,33 +555,33 @@ class _S extends ConsumerState<BatchPickupScreen> {
                                                           fontSize: 10,
                                                           color: kTextHint)),
                                               ])),
-                                          if (phone != null)
-                                            Text(phone,
-                                                style: const TextStyle(
-                                                    fontSize: 10,
-                                                    color: kTextHint)),
-                                          if (_selectedFarmId == f['id'])
-                                            const Icon(Icons.check_circle,
-                                                color: kPrimary, size: 16),
-                                        ])));
-                              })),
-                      // Add new supplier shortcut
-                      SafeArea(
-                          child: Padding(
-                              padding: const EdgeInsets.all(12),
-                              child: OutlinedButton.icon(
-                                  onPressed: () {
-                                    Navigator.of(ctx, rootNavigator: true)
-                                        .pop();
-                                    // Navigate to purchase screen to add supplier
-                                    context.go(R.purchase);
-                                  },
-                                  icon: const Icon(Icons.add, size: 16),
-                                  label: const Text('Add New Supplier'),
-                                  style: OutlinedButton.styleFrom(
-                                      minimumSize:
-                                          const Size(double.infinity, 44))))),
-                    ]));
+                                      if (phone != null)
+                                        Text(phone,
+                                            style: const TextStyle(
+                                                fontSize: 10,
+                                                color: kTextHint)),
+                                      if (_selectedFarmId == f['id'])
+                                        const Icon(Icons.check_circle,
+                                            color: kPrimary, size: 16),
+                                    ])));
+                          })),
+                  // Add new supplier shortcut
+                  SafeArea(
+                      child: Padding(
+                          padding: const EdgeInsets.all(12),
+                          child: OutlinedButton.icon(
+                              onPressed: () {
+                                Navigator.of(ctx, rootNavigator: true)
+                                    .pop();
+                                // Navigate to purchase screen to add supplier
+                                context.go(R.purchase);
+                              },
+                              icon: const Icon(Icons.add, size: 16),
+                              label: const Text('Add New Supplier'),
+                              style: OutlinedButton.styleFrom(
+                                  minimumSize:
+                                  const Size(double.infinity, 44))))),
+                ]));
           });
         });
   }
@@ -606,7 +610,7 @@ class _S extends ConsumerState<BatchPickupScreen> {
               const SizedBox(height: 4),
               Text(
                   'One product per DC. Variant breakdown (Small/Medium/Big) '
-                  'is confirmed separately after loading.',
+                      'is confirmed separately after loading.',
                   textAlign: TextAlign.center,
                   style: TextStyle(fontSize: 12, color: kTextHint)),
               const SizedBox(height: 14),
@@ -647,8 +651,8 @@ class _S extends ConsumerState<BatchPickupScreen> {
                           cat == 'broiler'
                               ? Icons.egg_outlined
                               : cat == 'country'
-                                  ? Icons.pets_outlined
-                                  : Icons.flutter_dash_outlined,
+                              ? Icons.pets_outlined
+                              : Icons.flutter_dash_outlined,
                           size: 24,
                           color: selected ? kPrimary : kTextHint,
                         ),
@@ -659,7 +663,7 @@ class _S extends ConsumerState<BatchPickupScreen> {
                                     fontSize: 16,
                                     fontWeight: FontWeight.w700,
                                     color:
-                                        selected ? kPrimary : Colors.black))),
+                                    selected ? kPrimary : Colors.black))),
                         if (selected)
                           const Icon(Icons.check_circle,
                               color: kPrimary, size: 20),
@@ -721,20 +725,20 @@ class _S extends ConsumerState<BatchPickupScreen> {
                   // ── Batch info card ──────────────────────────────────
                   WhiteCard(
                       child: Row(children: [
-                    Expanded(
-                        child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                          Text(a?['name'] as String? ?? '—',
-                              style: const TextStyle(
-                                  fontWeight: FontWeight.w700, fontSize: 14)),
-                          Text(
-                              'Vehicle: ${_batch?['vehicle_no'] ?? a?['vehicle_no'] ?? '—'}',
-                              style: const TextStyle(
-                                  fontSize: 11, color: kTextSub)),
-                        ])),
-                    StatusBadge(bStatus, SC.order(bStatus)),
-                  ])),
+                        Expanded(
+                            child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(a?['name'] as String? ?? '—',
+                                      style: const TextStyle(
+                                          fontWeight: FontWeight.w700, fontSize: 14)),
+                                  Text(
+                                      'Vehicle: ${_batch?['vehicle_no'] ?? a?['vehicle_no'] ?? '—'}',
+                                      style: const TextStyle(
+                                          fontSize: 11, color: kTextSub)),
+                                ])),
+                        StatusBadge(bStatus, SC.order(bStatus)),
+                      ])),
                   const SizedBox(height: 12),
 
                   // ── Shift status ─────────────────────────────────────
@@ -776,7 +780,7 @@ class _S extends ConsumerState<BatchPickupScreen> {
                               },
                               child: const Text('Open Shift →',
                                   style:
-                                      TextStyle(fontWeight: FontWeight.w700))),
+                                  TextStyle(fontWeight: FontWeight.w700))),
                       ])),
                   const SizedBox(height: 12),
 
@@ -787,48 +791,48 @@ class _S extends ConsumerState<BatchPickupScreen> {
                         child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                          Padding(
-                              padding: const EdgeInsets.only(bottom: 8),
-                              child: Row(children: [
-                                _miniStat('Expected Birds', '$_expectedBirds',
-                                    Colors.blue),
-                                _miniStat(
-                                    'Expected Weight',
-                                    '${_expectedWeight.toStringAsFixed(0)} kg',
-                                    Colors.teal),
-                                _miniStat(
-                                    'Orders',
-                                    '${_deliveries.where((d) => d['status'] != 'cancelled').length}',
-                                    kPrimary),
-                              ])),
-                          ..._deliveries
-                              .where((d) => d['status'] != 'cancelled')
-                              .map((d) {
-                            final o = d['orders'] as Map<String, dynamic>?;
-                            final r = o?['retailers'] as Map<String, dynamic>?;
-                            final birds =
-                                (o?['estimated_birds'] as num?)?.toInt() ?? 0;
-                            final weight =
-                                (o?['total_quantity'] as num?)?.toDouble() ?? 0;
-                            return Padding(
-                                padding: const EdgeInsets.only(bottom: 6),
-                                child: Row(children: [
-                                  const Icon(Icons.store_outlined,
-                                      size: 13, color: kPrimary),
-                                  const SizedBox(width: 6),
-                                  Expanded(
-                                      child: Text(
-                                          r?['shop_name'] as String? ?? '—',
+                              Padding(
+                                  padding: const EdgeInsets.only(bottom: 8),
+                                  child: Row(children: [
+                                    _miniStat('Expected Birds', '$_expectedBirds',
+                                        Colors.blue),
+                                    _miniStat(
+                                        'Expected Weight',
+                                        '${_expectedWeight.toStringAsFixed(0)} kg',
+                                        Colors.teal),
+                                    _miniStat(
+                                        'Orders',
+                                        '${_deliveries.where((d) => d['status'] != 'cancelled').length}',
+                                        kPrimary),
+                                  ])),
+                              ..._deliveries
+                                  .where((d) => d['status'] != 'cancelled')
+                                  .map((d) {
+                                final o = d['orders'] as Map<String, dynamic>?;
+                                final r = o?['retailers'] as Map<String, dynamic>?;
+                                final birds =
+                                    (o?['estimated_birds'] as num?)?.toInt() ?? 0;
+                                final weight =
+                                    (o?['total_quantity'] as num?)?.toDouble() ?? 0;
+                                return Padding(
+                                    padding: const EdgeInsets.only(bottom: 6),
+                                    child: Row(children: [
+                                      const Icon(Icons.store_outlined,
+                                          size: 13, color: kPrimary),
+                                      const SizedBox(width: 6),
+                                      Expanded(
+                                          child: Text(
+                                              r?['shop_name'] as String? ?? '—',
+                                              style: const TextStyle(
+                                                  fontSize: 12,
+                                                  fontWeight: FontWeight.w600))),
+                                      Text(
+                                          '${birds > 0 ? '$birds birds' : ''}${birds > 0 && weight > 0 ? ' · ' : ''}${weight > 0 ? '${weight.toStringAsFixed(0)} kg' : ''}',
                                           style: const TextStyle(
-                                              fontSize: 12,
-                                              fontWeight: FontWeight.w600))),
-                                  Text(
-                                      '${birds > 0 ? '$birds birds' : ''}${birds > 0 && weight > 0 ? ' · ' : ''}${weight > 0 ? '${weight.toStringAsFixed(0)} kg' : ''}',
-                                      style: const TextStyle(
-                                          fontSize: 11, color: kTextSub)),
-                                ]));
-                          }),
-                        ])),
+                                              fontSize: 11, color: kTextSub)),
+                                    ]));
+                              }),
+                            ])),
                     const SizedBox(height: 12),
                   ],
 
@@ -854,18 +858,18 @@ class _S extends ConsumerState<BatchPickupScreen> {
                             Expanded(
                                 child: Column(
                                     crossAxisAlignment:
-                                        CrossAxisAlignment.start,
+                                    CrossAxisAlignment.start,
                                     children: [
-                                  Text(
-                                      '${ch['dc_number'] ?? '—'} — ${ch['farmer_name'] ?? '—'}',
-                                      style: const TextStyle(
-                                          fontWeight: FontWeight.w600,
-                                          fontSize: 12)),
-                                  Text(
-                                      '$birds birds · ${net.toStringAsFixed(1)} kg · $crates crates · $src',
-                                      style: const TextStyle(
-                                          fontSize: 11, color: kTextSub)),
-                                ])),
+                                      Text(
+                                          '${ch['dc_number'] ?? '—'} — ${ch['farmer_name'] ?? '—'}',
+                                          style: const TextStyle(
+                                              fontWeight: FontWeight.w600,
+                                              fontSize: 12)),
+                                      Text(
+                                          '$birds birds · ${net.toStringAsFixed(1)} kg · $crates crates · $src',
+                                          style: const TextStyle(
+                                              fontSize: 11, color: kTextSub)),
+                                    ])),
                           ]));
                     }),
                     Container(
@@ -881,8 +885,8 @@ class _S extends ConsumerState<BatchPickupScreen> {
                           Expanded(
                               child: Text(
                                   'Total picked up: '
-                                  '${_existingDCs.fold(0, (s, c) => s + ((c['bird_count'] as num?)?.toInt() ?? 0))} birds · '
-                                  '${_existingDCs.fold(0.0, (s, c) => s + ((c['net_weight'] as num?)?.toDouble() ?? 0)).toStringAsFixed(1)} kg',
+                                      '${_existingDCs.fold(0, (s, c) => s + ((c['bird_count'] as num?)?.toInt() ?? 0))} birds · '
+                                      '${_existingDCs.fold(0.0, (s, c) => s + ((c['net_weight'] as num?)?.toDouble() ?? 0)).toStringAsFixed(1)} kg',
                                   style: const TextStyle(
                                       fontSize: 12,
                                       color: kPrimary,
@@ -955,7 +959,7 @@ class _S extends ConsumerState<BatchPickupScreen> {
                               SizedBox(height: 4),
                               Text(
                                   'This will move stock FROM trader in-house inventory TO your agent stock.\n'
-                                  'Trader in-house stock will DECREASE. Your stock will INCREASE.',
+                                      'Trader in-house stock will DECREASE. Your stock will INCREASE.',
                                   style: TextStyle(
                                       fontSize: 10,
                                       color: Colors.orange,
@@ -986,7 +990,7 @@ class _S extends ConsumerState<BatchPickupScreen> {
                                       ? kPrimary
                                       : Colors.red.shade300,
                                   width:
-                                      _selectedProductId != null ? 1.5 : 1.5)),
+                                  _selectedProductId != null ? 1.5 : 1.5)),
                           child: Row(children: [
                             Icon(Icons.egg_outlined,
                                 size: 22,
@@ -1039,7 +1043,7 @@ class _S extends ConsumerState<BatchPickupScreen> {
                             if (_dcImage != null)
                               ClipRRect(
                                   borderRadius:
-                                      BorderRadius.circular(kRadiusChip),
+                                  BorderRadius.circular(kRadiusChip),
                                   child: Image.file(_dcImage!,
                                       width: 60, height: 60, fit: BoxFit.cover))
                             else
@@ -1057,37 +1061,37 @@ class _S extends ConsumerState<BatchPickupScreen> {
                             Expanded(
                                 child: Column(
                                     crossAxisAlignment:
-                                        CrossAxisAlignment.start,
+                                    CrossAxisAlignment.start,
                                     children: [
-                                  Text(
-                                      _dcImage != null
-                                          ? 'DC Photo Captured ✓'
-                                          : 'Take DC Photo (Mandatory)',
-                                      style: TextStyle(
-                                          fontSize: 13,
-                                          fontWeight: FontWeight.w800,
-                                          color: _dcImage != null
-                                              ? Colors.green
-                                              : Colors.red)),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                      _uploadingDcImage
-                                          ? 'Uploading...'
-                                          : _dcImageUrl != null
+                                      Text(
+                                          _dcImage != null
+                                              ? 'DC Photo Captured ✓'
+                                              : 'Take DC Photo (Mandatory)',
+                                          style: TextStyle(
+                                              fontSize: 13,
+                                              fontWeight: FontWeight.w800,
+                                              color: _dcImage != null
+                                                  ? Colors.green
+                                                  : Colors.red)),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                          _uploadingDcImage
+                                              ? 'Uploading...'
+                                              : _dcImageUrl != null
                                               ? 'Uploaded & linked to DC ✓'
                                               : 'Take a clear photo of the farm goods / challan',
-                                      style: TextStyle(
-                                          fontSize: 11,
-                                          color: _dcImageUrl != null
-                                              ? Colors.green
-                                              : Colors.red.shade400)),
-                                ])),
+                                          style: TextStyle(
+                                              fontSize: 11,
+                                              color: _dcImageUrl != null
+                                                  ? Colors.green
+                                                  : Colors.red.shade400)),
+                                    ])),
                             if (_uploadingDcImage)
                               const SizedBox(
                                   width: 22,
                                   height: 22,
                                   child:
-                                      CircularProgressIndicator(strokeWidth: 2))
+                                  CircularProgressIndicator(strokeWidth: 2))
                             else if (_dcImageUrl != null)
                               const Icon(Icons.check_circle,
                                   color: Colors.green, size: 26)
@@ -1109,9 +1113,9 @@ class _S extends ConsumerState<BatchPickupScreen> {
                             controller: _dcNum,
                             textCapitalization: TextCapitalization.characters,
                             decoration:
-                                const InputDecoration(labelText: 'DC Number *'),
+                            const InputDecoration(labelText: 'DC Number *'),
                             validator: (v) =>
-                                v!.trim().isEmpty ? 'Required' : null)),
+                            v!.trim().isEmpty ? 'Required' : null)),
                     const SizedBox(width: 10),
                     Expanded(
                         child: InkWell(
@@ -1151,7 +1155,7 @@ class _S extends ConsumerState<BatchPickupScreen> {
                             decoration: BoxDecoration(
                                 color: Colors.white,
                                 borderRadius:
-                                    BorderRadius.circular(kRadiusCard),
+                                BorderRadius.circular(kRadiusCard),
                                 border: Border.all(
                                     color: _selectedFarmId != null
                                         ? kPrimary
@@ -1167,30 +1171,30 @@ class _S extends ConsumerState<BatchPickupScreen> {
                               Expanded(
                                   child: Column(
                                       crossAxisAlignment:
-                                          CrossAxisAlignment.start,
+                                      CrossAxisAlignment.start,
                                       children: [
-                                    Text(
-                                        _selectedFarmId != null
-                                            ? 'Supplier Selected'
-                                            : 'Select from Supplier List',
-                                        style: TextStyle(
-                                            fontSize: 10,
-                                            color: _selectedFarmId != null
-                                                ? kPrimary
-                                                : kTextHint)),
-                                    if (_selectedFarmId != null)
-                                      Text(_selectedFarmName ?? '—',
-                                          style: const TextStyle(
-                                              fontSize: 13,
-                                              fontWeight: FontWeight.w700)),
-                                  ])),
+                                        Text(
+                                            _selectedFarmId != null
+                                                ? 'Supplier Selected'
+                                                : 'Select from Supplier List',
+                                            style: TextStyle(
+                                                fontSize: 10,
+                                                color: _selectedFarmId != null
+                                                    ? kPrimary
+                                                    : kTextHint)),
+                                        if (_selectedFarmId != null)
+                                          Text(_selectedFarmName ?? '—',
+                                              style: const TextStyle(
+                                                  fontSize: 13,
+                                                  fontWeight: FontWeight.w700)),
+                                      ])),
                               if (_selectedFarmId != null)
                                 GestureDetector(
                                     onTap: () => setState(() {
-                                          _selectedFarmId = null;
-                                          _selectedFarmName = null;
-                                          _farmer.clear();
-                                        }),
+                                      _selectedFarmId = null;
+                                      _selectedFarmName = null;
+                                      _farmer.clear();
+                                    }),
                                     child: const Icon(Icons.close,
                                         size: 16, color: kTextHint))
                               else
@@ -1211,14 +1215,14 @@ class _S extends ConsumerState<BatchPickupScreen> {
                           labelText: _srcType == 'shop_collection'
                               ? 'Shop Name *'
                               : _srcType == 'inhouse_stock'
-                                  ? 'Stock Point Name *'
-                                  : 'Farmer Name *',
+                              ? 'Stock Point Name *'
+                              : 'Farmer Name *',
                           prefixIcon: Icon(
                               _srcType == 'farm'
                                   ? Icons.agriculture
                                   : _srcType == 'shop_collection'
-                                      ? Icons.store_outlined
-                                      : Icons.warehouse_outlined,
+                                  ? Icons.store_outlined
+                                  : Icons.warehouse_outlined,
                               size: 18,
                               color: kPrimary)),
                       validator: (v) => v!.trim().isEmpty ? 'Required' : null),
@@ -1229,8 +1233,8 @@ class _S extends ConsumerState<BatchPickupScreen> {
                           labelText: _srcType == 'shop_collection'
                               ? 'Shop Location (optional)'
                               : _srcType == 'inhouse_stock'
-                                  ? 'Storage Location (optional)'
-                                  : 'Farm Location (optional)')),
+                              ? 'Storage Location (optional)'
+                              : 'Farm Location (optional)')),
                   const SizedBox(height: 8),
                   Row(children: [
                     Expanded(
@@ -1323,7 +1327,7 @@ class _S extends ConsumerState<BatchPickupScreen> {
                             controller: _crates,
                             keyboardType: TextInputType.number,
                             decoration:
-                                const InputDecoration(labelText: 'Crates'))),
+                            const InputDecoration(labelText: 'Crates'))),
                     const SizedBox(width: 8),
                     Expanded(
                         child: TextFormField(
@@ -1405,16 +1409,16 @@ class _S extends ConsumerState<BatchPickupScreen> {
                           minimumSize: const Size(double.infinity, 52)),
                       child: _loading
                           ? const SizedBox(
-                              width: 22,
-                              height: 22,
-                              child: CircularProgressIndicator(
-                                  strokeWidth: 2.5, color: Colors.white))
+                          width: 22,
+                          height: 22,
+                          child: CircularProgressIndicator(
+                              strokeWidth: 2.5, color: Colors.white))
                           : Text(
-                              isAdditional
-                                  ? 'Save Additional DC'
-                                  : 'Confirm Pickup & Save DC',
-                              style: const TextStyle(
-                                  fontSize: 15, fontWeight: FontWeight.w700))),
+                          isAdditional
+                              ? 'Save Additional DC'
+                              : 'Confirm Pickup & Save DC',
+                          style: const TextStyle(
+                              fontSize: 15, fontWeight: FontWeight.w700))),
                   const SizedBox(height: 20),
                 ])),
       ),
@@ -1486,7 +1490,7 @@ class _S extends ConsumerState<BatchPickupScreen> {
                       emoji: '🚚',
                       title: a?['name'] as String? ?? '—',
                       subtitle:
-                          'Vehicle: ${_batch?['vehicle_no'] ?? a?['vehicle_no'] ?? '—'}',
+                      'Vehicle: ${_batch?['vehicle_no'] ?? a?['vehicle_no'] ?? '—'}',
                       trailing: bStatus,
                     ),
                     const SizedBox(height: 12),
@@ -1546,7 +1550,7 @@ class _S extends ConsumerState<BatchPickupScreen> {
                           hint: 'DC Number',
                           textCapitalization: TextCapitalization.characters,
                           validator: (v) =>
-                              v!.trim().isEmpty ? 'Required' : null,
+                          v!.trim().isEmpty ? 'Required' : null,
                         ),
                         const SizedBox(height: 8),
                         GestureDetector(
@@ -1599,7 +1603,7 @@ class _S extends ConsumerState<BatchPickupScreen> {
                               : 'Farmer Name',
                           textCapitalization: TextCapitalization.words,
                           validator: (v) =>
-                              v!.trim().isEmpty ? 'Required' : null,
+                          v!.trim().isEmpty ? 'Required' : null,
                         ),
                         const SizedBox(height: 8),
                         _simpleBigInput(
@@ -1649,8 +1653,8 @@ class _S extends ConsumerState<BatchPickupScreen> {
                               hint: 'Gross Weight',
                               suffix: 'kg',
                               keyboardType:
-                                  const TextInputType.numberWithOptions(
-                                      decimal: true),
+                              const TextInputType.numberWithOptions(
+                                  decimal: true),
                               validator: (v) {
                                 final n = double.tryParse(v?.trim() ?? '');
                                 return (n == null || n <= 0)
@@ -1666,8 +1670,8 @@ class _S extends ConsumerState<BatchPickupScreen> {
                               hint: 'Empty',
                               suffix: 'kg',
                               keyboardType:
-                                  const TextInputType.numberWithOptions(
-                                      decimal: true),
+                              const TextInputType.numberWithOptions(
+                                  decimal: true),
                             ),
                           ),
                         ]),
@@ -1741,18 +1745,18 @@ class _S extends ConsumerState<BatchPickupScreen> {
                         ),
                         child: _loading
                             ? const SizedBox(
-                                width: 26,
-                                height: 26,
-                                child: CircularProgressIndicator(
-                                    strokeWidth: 3, color: Colors.white))
+                            width: 26,
+                            height: 26,
+                            child: CircularProgressIndicator(
+                                strokeWidth: 3, color: Colors.white))
                             : Text(
-                                isAdditional
-                                    ? '✅ Save Additional DC'
-                                    : '✅ Start Pickup',
-                                style: const TextStyle(
-                                    fontSize: 20,
-                                    fontWeight: FontWeight.w900,
-                                    color: Colors.white)),
+                            isAdditional
+                                ? '✅ Save Additional DC'
+                                : '✅ Start Pickup',
+                            style: const TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.w900,
+                                color: Colors.white)),
                       ),
                     ),
                     const SizedBox(height: 30),
@@ -1777,7 +1781,7 @@ class _S extends ConsumerState<BatchPickupScreen> {
         const SizedBox(width: 12),
         Expanded(
           child:
-              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(hasShift ? 'Shift Active' : 'No Active Shift',
                 style: TextStyle(
                     fontSize: 18,
@@ -1823,14 +1827,14 @@ class _S extends ConsumerState<BatchPickupScreen> {
         const SizedBox(width: 12),
         Expanded(
             child:
-                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(title,
-              style:
+            Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(title,
+                  style:
                   const TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
-          if (subtitle != null)
-            Text(subtitle,
-                style: const TextStyle(fontSize: 13, color: kTextSub)),
-        ])),
+              if (subtitle != null)
+                Text(subtitle,
+                    style: const TextStyle(fontSize: 13, color: kTextSub)),
+            ])),
         if (trailing != null) StatusBadge(trailing, SC.order(trailing)),
       ]),
     );
@@ -1860,7 +1864,7 @@ class _S extends ConsumerState<BatchPickupScreen> {
           const SizedBox(width: 10),
           Text(title,
               style:
-                  const TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+              const TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
         ]),
         const SizedBox(height: 14),
         ...children,
@@ -1890,7 +1894,7 @@ class _S extends ConsumerState<BatchPickupScreen> {
         filled: true,
         fillColor: Colors.grey.shade50,
         contentPadding:
-            const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(kRadiusCard),
           borderSide: BorderSide(color: kBorder),
@@ -1948,7 +1952,7 @@ class _S extends ConsumerState<BatchPickupScreen> {
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
             color:
-                _dcImage != null ? Colors.green.shade300 : Colors.red.shade300,
+            _dcImage != null ? Colors.green.shade300 : Colors.red.shade300,
             width: _dcImage != null ? 2 : 2,
           ),
         ),
@@ -1974,29 +1978,29 @@ class _S extends ConsumerState<BatchPickupScreen> {
               child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                Text(
-                    _dcImage != null
-                        ? '✅ DC Photo taken'
-                        : '📸 Take DC Photo (Required)',
-                    style: TextStyle(
-                        fontSize: 17,
-                        fontWeight: FontWeight.w800,
-                        color: _dcImage != null
-                            ? Colors.green.shade700
-                            : Colors.red.shade700)),
-                const SizedBox(height: 4),
-                Text(
-                    _uploadingDcImage
-                        ? 'Uploading...'
-                        : _dcImageUrl != null
+                    Text(
+                        _dcImage != null
+                            ? '✅ DC Photo taken'
+                            : '📸 Take DC Photo (Required)',
+                        style: TextStyle(
+                            fontSize: 17,
+                            fontWeight: FontWeight.w800,
+                            color: _dcImage != null
+                                ? Colors.green.shade700
+                                : Colors.red.shade700)),
+                    const SizedBox(height: 4),
+                    Text(
+                        _uploadingDcImage
+                            ? 'Uploading...'
+                            : _dcImageUrl != null
                             ? '✓ Uploaded & linked'
                             : 'Take a clear photo of the challan',
-                    style: TextStyle(
-                        fontSize: 13,
-                        color: _dcImageUrl != null
-                            ? Colors.green.shade600
-                            : Colors.red.shade600)),
-              ])),
+                        style: TextStyle(
+                            fontSize: 13,
+                            color: _dcImageUrl != null
+                                ? Colors.green.shade600
+                                : Colors.red.shade600)),
+                  ])),
           if (_uploadingDcImage)
             const SizedBox(
                 width: 26,
@@ -2010,7 +2014,7 @@ class _S extends ConsumerState<BatchPickupScreen> {
               decoration: const BoxDecoration(
                   color: Colors.red, shape: BoxShape.circle),
               child:
-                  const Icon(Icons.camera_alt, color: Colors.white, size: 22),
+              const Icon(Icons.camera_alt, color: Colors.white, size: 22),
             ),
         ]),
       ),
@@ -2025,7 +2029,7 @@ class _S extends ConsumerState<BatchPickupScreen> {
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color:
-              selected ? kPrimary.withValues(alpha: 0.08) : Colors.red.shade50,
+          selected ? kPrimary.withValues(alpha: 0.08) : Colors.red.shade50,
           borderRadius: BorderRadius.circular(kRadiusCard),
           border: Border.all(
             color: selected ? kPrimary : Colors.red.shade300,
@@ -2040,20 +2044,20 @@ class _S extends ConsumerState<BatchPickupScreen> {
               child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                Text(
-                  selected
-                      ? _selectedProductName!
-                      : '👆 Select Product (Required)',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700,
-                    color: selected ? kPrimary : Colors.red.shade700,
-                  ),
-                ),
-                if (selected)
-                  Text('Tap to change',
-                      style: TextStyle(fontSize: 12, color: kTextHint)),
-              ])),
+                    Text(
+                      selected
+                          ? _selectedProductName!
+                          : '👆 Select Product (Required)',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: selected ? kPrimary : Colors.red.shade700,
+                      ),
+                    ),
+                    if (selected)
+                      Text('Tap to change',
+                          style: TextStyle(fontSize: 12, color: kTextHint)),
+                  ])),
           const Icon(Icons.chevron_right, size: 22, color: kTextHint),
         ]),
       ),
@@ -2069,7 +2073,7 @@ class _S extends ConsumerState<BatchPickupScreen> {
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color:
-              selected ? kPrimary.withValues(alpha: 0.08) : Colors.grey.shade50,
+          selected ? kPrimary.withValues(alpha: 0.08) : Colors.grey.shade50,
           borderRadius: BorderRadius.circular(kRadiusCard),
           border: Border.all(
             color: selected ? kPrimary : kBorder,
@@ -2084,20 +2088,20 @@ class _S extends ConsumerState<BatchPickupScreen> {
               child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                Text(
-                  selected
-                      ? _selectedFarmName!
-                      : '👆 Select from Supplier List',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700,
-                    color: selected ? kPrimary : kTextHint,
-                  ),
-                ),
-                if (selected)
-                  Text('Tap to change',
-                      style: TextStyle(fontSize: 12, color: kTextHint)),
-              ])),
+                    Text(
+                      selected
+                          ? _selectedFarmName!
+                          : '👆 Select from Supplier List',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: selected ? kPrimary : kTextHint,
+                      ),
+                    ),
+                    if (selected)
+                      Text('Tap to change',
+                          style: TextStyle(fontSize: 12, color: kTextHint)),
+                  ])),
           const Icon(Icons.chevron_right, size: 22, color: kTextHint),
         ]),
       ),
@@ -2105,10 +2109,10 @@ class _S extends ConsumerState<BatchPickupScreen> {
   }
 
   Widget _miniStat(String l, String v, Color c) => Expanded(
-          child: Column(children: [
+      child: Column(children: [
         Text(v,
             style:
-                TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: c)),
+            TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: c)),
         Text(l,
             style: const TextStyle(fontSize: 9, color: kTextHint),
             textAlign: TextAlign.center),

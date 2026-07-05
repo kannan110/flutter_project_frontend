@@ -251,15 +251,30 @@ class _TraderShiftCloseScreenState
       final List<String> tNotes = [];
       final Set<String> seen = {};
 
-      for (final row in [...shiftRows, ...transferRows]) {
+      // NOTE: transfers are counted from transferRows only, not shiftRows.
+      // Previously transfer_birds() could leave shift_id NULL, so shiftRows
+      // (filtered by shift_id) never contained transfer rows and this entry_date
+      // fallback was the only source. transfer_birds() now always sets a valid
+      // shift_id, so a transfer row can appear in BOTH shiftRows and
+      // transferRows for the same shift — counting it from shiftRows too would
+      // double it. Keeping transfer totals sourced from transferRows alone
+      // avoids that, and still covers older rows where shift_id is still NULL.
+      for (final row in shiftRows) {
+        final mt = row['movement_type'] as String? ?? '';
+        final b  = (row['quantity_birds'] as num?)?.toInt()    ?? 0;
+        final k  = (row['quantity_kg']    as num?)?.toDouble() ?? 0;
+        switch (mt) {
+          case 'purchased': dcB  += b; dcK  += k;
+          case 'delivered': delB += b; delK += k;
+          case 'mortality': mortB+= b; mortK+= k;
+        }
+      }
+      for (final row in transferRows) {
         final mt   = row['movement_type'] as String? ?? '';
         final b    = (row['quantity_birds'] as num?)?.toInt()    ?? 0;
         final k    = (row['quantity_kg']    as num?)?.toDouble() ?? 0;
         final note = row['notes'] as String? ?? '';
         switch (mt) {
-          case 'purchased':        dcB  += b; dcK  += k;
-          case 'delivered':        delB += b; delK += k;
-          case 'mortality':        mortB+= b; mortK+= k;
           case 'transferred_in':
             tiB += b; tiK += k;
             if (note.isNotEmpty && seen.add(note))
@@ -290,23 +305,23 @@ class _TraderShiftCloseScreenState
 
     if (mounted) {
       setState(() {
-      _shift       = shift;
-      _deliveries  = deliveries;
-      _recon       = recon;
-      _stockBirds  = stockB;
-      _stockKg     = stockK;
-      _stockLoaded = stockOk;
-      _checking    = false;
-      // Pre-fill return fields with current stock
-      if (stockB > 0 && _returnBirdsCtrl.text == '0') {
-        _returnBirdsCtrl.text = '$stockB';
-        _returnWtCtrl.text    = stockK.toStringAsFixed(1);
-      }
-      // Auto-open mortality section if shift has mortality
-      if (((recon['mortality_birds'] as num?)?.toInt() ?? 0) > 0) {
-        _showMortality = true;
-      }
-    });
+        _shift       = shift;
+        _deliveries  = deliveries;
+        _recon       = recon;
+        _stockBirds  = stockB;
+        _stockKg     = stockK;
+        _stockLoaded = stockOk;
+        _checking    = false;
+        // Pre-fill return fields with current stock
+        if (stockB > 0 && _returnBirdsCtrl.text == '0') {
+          _returnBirdsCtrl.text = '$stockB';
+          _returnWtCtrl.text    = stockK.toStringAsFixed(1);
+        }
+        // Auto-open mortality section if shift has mortality
+        if (((recon['mortality_birds'] as num?)?.toInt() ?? 0) > 0) {
+          _showMortality = true;
+        }
+      });
     }
   }
 

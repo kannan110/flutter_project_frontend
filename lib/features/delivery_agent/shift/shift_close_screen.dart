@@ -329,18 +329,21 @@ class _S extends ConsumerState<ShiftCloseScreen> {
             []);
       }
 
-      final allRows = [...shiftRows, ...transferRows];
-
       int dcB = 0, delB = 0, mortB = 0, tiB = 0, toB = 0;
       double dcK = 0, delK = 0, mortK = 0, tiK = 0, toK = 0;
       final List<String> transferNotes = [];
       final Set<String> seenTransferNotes = {};
 
-      for (final row in allRows) {
+      // NOTE: transfers are counted from transferRows only, not allRows.
+      // transfer_birds() now always sets a valid shift_id, so a transfer row
+      // can appear in BOTH shiftRows and transferRows for the same shift —
+      // counting it from shiftRows too would double it. Keeping transfer
+      // totals sourced from transferRows alone avoids that, and still covers
+      // older rows where shift_id is still NULL.
+      for (final row in shiftRows) {
         final mt = row['movement_type'] as String? ?? '';
         final b = (row['quantity_birds'] as num?)?.toInt() ?? 0;
         final k = (row['quantity_kg'] as num?)?.toDouble() ?? 0;
-        final note = row['notes'] as String? ?? '';
         switch (mt) {
           case 'purchased':
             dcB += b;
@@ -351,6 +354,14 @@ class _S extends ConsumerState<ShiftCloseScreen> {
           case 'mortality':
             mortB += b;
             mortK += k;
+        }
+      }
+      for (final row in transferRows) {
+        final mt = row['movement_type'] as String? ?? '';
+        final b = (row['quantity_birds'] as num?)?.toInt() ?? 0;
+        final k = (row['quantity_kg'] as num?)?.toDouble() ?? 0;
+        final note = row['notes'] as String? ?? '';
+        switch (mt) {
           case 'transferred_in':
             tiB += b;
             tiK += k;
