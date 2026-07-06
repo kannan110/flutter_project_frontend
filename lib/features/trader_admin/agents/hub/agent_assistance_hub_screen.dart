@@ -453,8 +453,11 @@ class _AgentAssistanceHubScreenState
     await _assignOrderWithNewBatch(chosen!);
   }
 
-  // Auto-creates a new 'assigned' batch and adds the order to it.
-  // No DC needed — uses existing shift stock.
+  // Reuses the agent's existing open batch, or creates one silently — via
+  // the shared `assign_orders_to_agent` RPC. This is the ONLY batch-creation
+  // path in the app (dispatch_screen.dart's old manual "New Batch" button
+  // has been removed entirely) so a trader can never end up with two
+  // concurrently-open batches for the same agent from two different screens.
   Future<void> _assignOrderWithNewBatch(
       Map<String, dynamic> order) async {
     final user = ref.read(appUserProvider).valueOrNull;
@@ -462,22 +465,10 @@ class _AgentAssistanceHubScreenState
     if (traderId == null || !mounted) return;
 
     try {
-      // Step 1: create a fresh 'assigned' batch for this agent
-      final batchRes = await _c.from('delivery_batches').insert({
-        'trader_id':         traderId,
-        'delivery_agent_id': widget.agentId,
-        'status':            'assigned',
-        'vehicle_no':        (_dashboard['agent']?['vehicle_no']
-        as String?),
-      }).select('id').single();
-
-      final newBatchId = batchRes['id'] as String;
-
-      // Step 2: assign the confirmed order to this new batch
-      await _c.rpc('add_order_to_batch', params: {
-        'p_batch_id':  newBatchId,
-        'p_order_id':  order['id'] as String,
+      await _c.rpc('assign_orders_to_agent', params: {
         'p_trader_id': traderId,
+        'p_agent_id':  widget.agentId,
+        'p_order_ids': [order['id'] as String],
       });
 
       if (!mounted) return;

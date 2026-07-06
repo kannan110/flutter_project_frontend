@@ -154,6 +154,7 @@ class _MoreSheet extends StatelessWidget {
       _MoreItem(Icons.bar_chart_rounded,              'Analytics',     Color(0xFF7C3AED), R.analytics),
       _MoreItem(Icons.storefront_rounded,             'Retailers',     Color(0xFF0284C7), R.retailers),
       _MoreItem(Icons.directions_bike_rounded,        'Agents',        Color(0xFF57534E), R.agents),
+      _MoreItem(Icons.map_rounded,                    'Delivery Areas',Color(0xFFB45309), R.areaManagement),
       _MoreItem(Icons.assignment_return_rounded,      'Returns',       Color(0xFFDC2626), R.returns),
       _MoreItem(Icons.receipt_long_rounded,           'Invoices',      Color(0xFFB45309), R.invoices),
       _MoreItem(Icons.price_change_rounded,           'Rates',         Color(0xFF059669), R.rates),

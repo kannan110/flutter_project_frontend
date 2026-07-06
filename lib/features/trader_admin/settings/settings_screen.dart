@@ -146,6 +146,8 @@ class SettingsScreen extends ConsumerWidget {
             _item(context, Icons.store_outlined, 'Retailers', R.retailers),
             _item(context, Icons.delivery_dining_outlined, 'Delivery Agents',
                 R.agents),
+            _item(context, Icons.map_outlined, 'Delivery Areas',
+                R.areaManagement),
             _item(context, Icons.manage_accounts_outlined, 'User Management',
                 R.userMgmt),
             _item(context, Icons.local_offer_outlined, 'Pricing', R.pricingHub),

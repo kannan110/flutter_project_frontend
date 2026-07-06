@@ -28,6 +28,9 @@ import '../../features/trader_admin/orders/create_order_screen.dart';
 import '../../features/trader_admin/orders/order_detail_screen.dart';
 import '../../features/trader_admin/dispatch/dispatch_screen.dart';
 import '../../features/trader_admin/dispatch/batch_detail_screen.dart';
+import '../../features/trader_admin/dispatch/dispatch_history_screen.dart';
+import '../../features/trader_admin/settings/area_management_screen.dart';
+import '../../features/trader_admin/settings/bulk_area_assignment_screen.dart';
 import '../../features/trader_admin/approvals/approvals_screen.dart';
 import '../../features/trader_admin/approvals/approval_detail_screen.dart';
 import '../../features/trader_admin/invoices/invoices_screen.dart';
@@ -114,6 +117,7 @@ abstract class R {
   static const dispatch = '/t/dispatch';
   static const batchDetail = '/t/dispatch/batch/:id';
   static const pendingOps = '/t/dispatch/pending-ops';
+  static const dispatchHistory = '/t/dispatch/history'; // Completed/Cancelled batches — secondary entry point, not a primary tab
   static const approvals = '/t/approvals';
   static const approvalDetail = '/t/approvals/:id';
   static const invoices = '/t/invoices';
@@ -146,6 +150,8 @@ abstract class R {
   static const pricing      = '/t/pricing';       // legacy — kept for backward compat
   static const pricingHub   = '/t/pricing-hub';   // Phase 1: Product · Zone · Pricing
   static const zoneRateHistory = '/t/pricing-hub/zone-rate-history'; // browsable, filterable Zone Rate history
+  static const areaManagement = '/t/settings/delivery-areas'; // Delivery Area master (dispatch-only, independent of pricing Zone)
+  static const bulkAreaAssign = '/t/settings/delivery-areas/bulk-assign'; // bulk-tag retailers with a Delivery Area
   static const expenseRules = '/t/expense-rules';
   static const cashRecon = '/t/reconciliation';
   static const dayClosure = '/t/day-closure';
@@ -328,12 +334,21 @@ final appRouterProvider = Provider<GoRouter>((ref) => GoRouter(
         GoRoute(
             path: R.dispatch, builder: (_, __) => const DispatchScreen()),
         GoRoute(
+            path: R.areaManagement,
+            builder: (_, __) => const AreaManagementScreen()),
+        GoRoute(
+            path: R.bulkAreaAssign,
+            builder: (_, __) => const BulkAreaAssignmentScreen()),
+        GoRoute(
             path: R.batchDetail,
             builder: (_, s) =>
                 BatchDetailScreen(id: s.pathParameters['id']!)),
         GoRoute(
             path: R.pendingOps,
             builder: (_, __) => const PendingOperationsScreen()), // Phase 4
+        GoRoute(
+            path: R.dispatchHistory,
+            builder: (_, __) => const DispatchHistoryScreen()),
         GoRoute(
             path: R.approvals, builder: (_, __) => const ApprovalsScreen()),
         GoRoute(
