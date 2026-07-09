@@ -52,10 +52,10 @@ class _S extends ConsumerState<DispatchScreen> with SingleTickerProviderStateMix
   // ── Cart / selection state ────────────────────────────────────────────────
   final Set<String> _cart = {};                 // selected order ids
   final Set<String?> _expanded = {};             // expanded area keys (null = Unassigned)
-  Map<String, dynamic>? _pinnedAgent;            // "active" agent for continuous loading
   final _searchCtrl = TextEditingController();
   String _search = '';
   final Map<String?, String> _areaLocalSearch = {}; // per-expanded-area search, keyed by area id
+  final Set<String?> _areaTouched = {}; // areas where the trader has manually edited the selection
 
   @override
   void initState() {
@@ -205,25 +205,139 @@ class _S extends ConsumerState<DispatchScreen> with SingleTickerProviderStateMix
   }
 
   Future<void> _assignArea(_AreaGroup g) async {
-    _cart.addAll(g.orders.map((o) => o['id'] as String));
-    setState(() {});
-    await _confirmAssignment();
+    // If the trader has edited this area's selection (unchecked someone),
+    // respect exactly what's left checked. If untouched, the whole area is
+    // the implicit selection — same behaviour, zero extra taps.
+    final ids = _areaTouched.contains(g.id)
+        ? g.orders.map((o) => o['id'] as String).where(_cart.contains).toList()
+        : g.orders.map((o) => o['id'] as String).toList();
+    if (ids.isEmpty) {
+      showError(context, 'No customers selected in ${g.name}');
+      return;
+    }
+    await _openAssignSheet(ids);
   }
 
   Future<void> _quickAssign(Map<String, dynamic> order) async {
-    final agent = _pinnedAgent ?? await _pickAgent();
-    if (agent == null || !mounted) return;
-    if (_pinnedAgent == null) setState(() => _pinnedAgent = agent);
-    await _runAssign([order['id'] as String], agent);
+    await _openAssignSheet([order['id'] as String]);
   }
 
   Future<void> _confirmAssignment() async {
     if (_cart.isEmpty) return;
-    final agent = _pinnedAgent ?? await _pickAgent();
-    if (agent == null || !mounted) return;
-    if (_pinnedAgent == null) setState(() => _pinnedAgent = agent);
-    await _runAssign(_cart.toList(), agent);
+    await _openAssignSheet(_cart.toList());
   }
+
+  // ── The one consistent assignment pattern, used for every scenario ────────
+  // Whole area, split, mixed-area, single customer (Quick Assign), and the
+  // sticky cart all funnel through this same sheet: summary → tap an agent
+  // → done. No radio state, no separate confirm button, no persistent mode —
+  // tapping a name IS the assignment, every time, identically.
+  Future<void> _openAssignSheet(List<String> orderIds) async {
+    if (orderIds.isEmpty) return;
+    if (_agents.isEmpty) {
+      showError(context, 'No active delivery agents. Add agents first.');
+      return;
+    }
+    final orders = _confirmedOrders.where((o) => orderIds.contains(o['id'])).toList();
+    final birds = orders.fold(0, (s, o) => s + ((o['estimated_birds'] as num?)?.toInt() ?? 0));
+    final weight = orders.fold(0.0, (s, o) => s + ((o['total_quantity'] as num?)?.toDouble() ?? 0));
+    final amount = orders.fold(0.0, (s, o) => s + _amt(o));
+
+    final pickedAgentId = await showModalBottomSheet<String>(
+      context: context,
+      useRootNavigator: true,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Container(
+        constraints: BoxConstraints(maxHeight: MediaQuery.of(ctx).size.height * 0.85),
+        decoration: const BoxDecoration(
+            color: kSurface, borderRadius: BorderRadius.vertical(top: Radius.circular(kRadiusCard))),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Container(
+              margin: const EdgeInsets.only(top: 8, bottom: 8),
+              width: 36, height: 4,
+              decoration: BoxDecoration(color: kBorderLight, borderRadius: BorderRadius.circular(2))),
+          // Summary strip
+          Container(
+            margin: const EdgeInsets.symmetric(horizontal: 14),
+            padding: const EdgeInsets.symmetric(vertical: 10),
+            decoration: BoxDecoration(
+                gradient: LinearGradient(colors: [kNavy.withValues(alpha: 0.06), kGoldLight.withValues(alpha: 0.10)]),
+                borderRadius: BorderRadius.circular(kRadiusInner)),
+            child: Row(children: [
+              Expanded(child: _sheetStat('${orders.length}', 'Orders')),
+              Expanded(child: _sheetStat('$birds', 'Birds')),
+              Expanded(child: _sheetStat('${weight.toStringAsFixed(0)} kg', 'Weight')),
+              Expanded(child: _sheetStat(Fmt.amount(amount), 'Amount')),
+            ]),
+          ),
+          const SizedBox(height: 8),
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 18),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Text('TAP A DELIVERY AGENT TO ASSIGN',
+                  style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: kTextSub, letterSpacing: 0.4)),
+            ),
+          ),
+          const SizedBox(height: 6),
+          Flexible(
+            child: ListView.separated(
+              shrinkWrap: true,
+              padding: EdgeInsets.fromLTRB(14, 0, 14, MediaQuery.of(ctx).padding.bottom + 12),
+              itemCount: _agents.length,
+              separatorBuilder: (_, __) => const SizedBox(height: 6),
+              itemBuilder: (_, i) {
+                final a = _agents[i];
+                final ob = _agentOpenBatch[a['id']];
+                return InkWell(
+                  borderRadius: BorderRadius.circular(kRadiusInner),
+                  onTap: () => Navigator.of(ctx, rootNavigator: true).pop(a['id'] as String),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    decoration: BoxDecoration(
+                        color: kBgPage,
+                        borderRadius: BorderRadius.circular(kRadiusInner),
+                        border: Border.all(color: kBorderLight)),
+                    child: Row(children: [
+                      CircleAvatar(
+                          radius: 19,
+                          backgroundColor: kGoldLight.withValues(alpha: 0.2),
+                          child: Text(_initial(a['name'] as String),
+                              style: const TextStyle(fontWeight: FontWeight.w900, color: kNavyMid, fontSize: 13))),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                          Text(a['name'] as String,
+                              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800)),
+                          Text(
+                              ob == null
+                                  ? (a['vehicle_no'] as String? ?? '—')
+                                  : '${a['vehicle_no'] ?? '—'} · ${ob['orders']} orders loaded',
+                              style: const TextStyle(fontSize: 11, color: kTextSub)),
+                        ]),
+                      ),
+                      const Icon(Icons.chevron_right_rounded, color: kTextHint, size: 20),
+                    ]),
+                  ),
+                );
+              },
+            ),
+          ),
+        ]),
+      ),
+    );
+
+    if (pickedAgentId != null) {
+      final agent = _agents.firstWhere((a) => a['id'] == pickedAgentId);
+      await _runAssign(orderIds, agent);
+    }
+  }
+
+  Widget _sheetStat(String value, String label) => Column(children: [
+    Text(value, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: kNavy)),
+    Text(label, style: const TextStyle(fontSize: 9, color: kTextHint)),
+  ]);
 
   Future<void> _runAssign(List<String> orderIds, Map<String, dynamic> agent) async {
     final tid = ref.read(appUserProvider).valueOrNull?.traderId;
@@ -234,98 +348,53 @@ class _S extends ConsumerState<DispatchScreen> with SingleTickerProviderStateMix
         'p_agent_id': agent['id'],
         'p_order_ids': orderIds,
       });
-      final added = (res as Map?)?['added_count'] ?? orderIds.length;
+      final added = (res as Map?)?['added_count'] as int? ?? orderIds.length;
+      final failed = (res as Map?)?['failed'] as List? ?? const [];
+      final batchId = (res as Map?)?['batch_id'] as String?;
       setState(() => _cart.removeWhere(orderIds.contains));
-      if (mounted) {
-        showSuccess(context, '✓ $added order(s) → ${agent['name']}');
-      }
       _silentRefresh();
+      if (mounted && batchId != null) {
+        final msg = failed.isEmpty
+            ? '$added order(s) assigned to ${agent['name']}'
+            : '$added of ${orderIds.length} assigned to ${agent['name']} — ${failed.length} couldn\'t be added';
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(msg),
+          duration: const Duration(seconds: 5),
+          action: SnackBarAction(
+            label: 'UNDO',
+            onPressed: () => _undoAssignment(batchId, orderIds, agent['name'] as String),
+          ),
+        ));
+      }
     } catch (e) {
       if (mounted) showError(context, e.toString());
     }
   }
 
-  Future<Map<String, dynamic>?> _pickAgent() async {
-    if (_agents.isEmpty) {
-      if (mounted) showError(context, 'No active delivery agents. Add agents first.');
-      return null;
+  // Undo — reuses the existing remove_order_from_batch RPC unchanged, one
+  // call per order. Only works while the batch is still pre-pickup
+  // ('assigned'), same constraint that already governs that RPC; if an order
+  // has moved on (e.g. picked up within the 5-second window), it's reported
+  // rather than silently failing.
+  Future<void> _undoAssignment(String batchId, List<String> orderIds, String agentName) async {
+    int reverted = 0;
+    for (final id in orderIds) {
+      try {
+        await _c.rpc('remove_order_from_batch', params: {'p_batch_id': batchId, 'p_order_id': id});
+        reverted++;
+      } catch (_) {
+        // already progressed past assigned — can't be undone, leave as-is
+      }
     }
-    return showModalBottomSheet<Map<String, dynamic>>(
-      context: context,
-      useRootNavigator: true,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => Container(
-        constraints: BoxConstraints(maxHeight: MediaQuery.of(ctx).size.height * 0.7),
-        decoration: const BoxDecoration(
-            color: kSurface, borderRadius: BorderRadius.vertical(top: Radius.circular(kRadiusCard))),
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Container(
-              margin: const EdgeInsets.only(top: 10, bottom: 6),
-              width: 38, height: 4,
-              decoration: BoxDecoration(color: kBorderLight, borderRadius: BorderRadius.circular(2))),
-          const Padding(
-            padding: EdgeInsets.fromLTRB(20, 4, 20, 8),
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: Text('Who is taking these orders?',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: kNavy)),
-            ),
-          ),
-          const Divider(height: 1),
-          Flexible(
-            child: ListView.separated(
-              shrinkWrap: true,
-              padding: const EdgeInsets.all(12),
-              itemCount: _agents.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 8),
-              itemBuilder: (_, i) {
-                final a = _agents[i];
-                final ob = _agentOpenBatch[a['id']];
-                return InkWell(
-                  borderRadius: BorderRadius.circular(kRadiusCard),
-                  onTap: () => Navigator.of(ctx, rootNavigator: true).pop(a),
-                  child: Container(
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                        color: kBgPage,
-                        borderRadius: BorderRadius.circular(kRadiusCard),
-                        border: Border.all(color: kBorderLight)),
-                    child: Row(children: [
-                      CircleAvatar(
-                          radius: 26,
-                          backgroundColor: kPrimary.withValues(alpha: 0.1),
-                          child: Text(_initial(a['name'] as String),
-                              style: const TextStyle(fontWeight: FontWeight.w800, color: kPrimary, fontSize: 18))),
-                      const SizedBox(width: 14),
-                      Expanded(
-                        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                          Text(a['name'] as String,
-                              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800)),
-                          Text(a['vehicle_no'] as String? ?? '—',
-                              style: const TextStyle(fontSize: 12, color: kTextSub)),
-                          const SizedBox(height: 4),
-                          Text(
-                              ob == null
-                                  ? 'No open batch — a new one starts silently'
-                                  : '${ob['orders']} orders · ${ob['birds']} birds · '
-                                  '${(ob['weight'] as double).toStringAsFixed(0)} kg loaded',
-                              style: TextStyle(
-                                  fontSize: 11,
-                                  color: ob == null ? kTextHint : kPrimary,
-                                  fontWeight: FontWeight.w600)),
-                        ]),
-                      ),
-                      const Icon(Icons.chevron_right, color: kTextHint),
-                    ]),
-                  ),
-                );
-              },
-            ),
-          ),
-        ]),
-      ),
-    );
+    _silentRefresh();
+    if (!mounted) return;
+    if (reverted == orderIds.length) {
+      showSuccess(context, 'Undone — orders back in Pending');
+    } else if (reverted > 0) {
+      showError(context, '$reverted of ${orderIds.length} undone — the rest already moved past $agentName\'s pickup');
+    } else {
+      showError(context, 'Could not undo — already past pickup');
+    }
   }
 
   // Search-filtered view: an order matches if its shop name or area name
@@ -356,31 +425,53 @@ class _S extends ConsumerState<DispatchScreen> with SingleTickerProviderStateMix
   double get _cartWeight => _cartOrders.fold(0.0, (s, o) => s + ((o['total_quantity'] as num?)?.toDouble() ?? 0));
   double get _cartAmount => _cartOrders.fold(0.0, (s, o) => s + _amt(o));
 
+  int get _totalPendingBirds => _confirmedOrders.fold(0, (s, o) => s + ((o['estimated_birds'] as num?)?.toInt() ?? 0));
+  double get _totalPendingWeight => _confirmedOrders.fold(0.0, (s, o) => s + ((o['total_quantity'] as num?)?.toDouble() ?? 0));
+  double get _totalPendingAmount => _confirmedOrders.fold(0.0, (s, o) => s + _amt(o));
+
   @override
   Widget build(BuildContext context) => Scaffold(
     backgroundColor: kBgPage,
     appBar: AppBar(
       backgroundColor: kSurface,
-      title: const Text('Dispatch'),
+      titleSpacing: 16,
+      toolbarHeight: 52,
+      title: Row(children: [
+        const Text('Dispatch', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18)),
+        if (_confirmedOrders.isNotEmpty) ...[
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              '${_confirmedOrders.length} orders · $_totalPendingBirds birds · '
+                  '${_totalPendingWeight.toStringAsFixed(0)}kg · ${Fmt.amount(_totalPendingAmount)}',
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 11, color: kTextSub, fontWeight: FontWeight.w700),
+            ),
+          ),
+        ],
+      ]),
       actions: [
         if (_pendingCount > 0)
           IconButton(
               icon: Badge(
                   label: Text('$_pendingCount'),
                   backgroundColor: Colors.red,
-                  child: const Icon(Icons.warning_amber_outlined)),
+                  child: const Icon(Icons.warning_amber_outlined, size: 22)),
               tooltip: 'Pending Operations',
               onPressed: () => context.push(R.pendingOps)),
         IconButton(
-            icon: const Icon(Icons.history),
+            icon: const Icon(Icons.history, size: 22),
             tooltip: 'Completed / Cancelled History',
             onPressed: () => context.push(R.dispatchHistory)),
-        IconButton(icon: const Icon(Icons.refresh), onPressed: _load),
+        IconButton(icon: const Icon(Icons.refresh, size: 22), onPressed: _load),
       ],
-      bottom: TabBar(controller: _tab, tabs: [
-        Tab(child: _tabLabel('Pending', _confirmedOrders.length)),
-        Tab(child: _tabLabel('Live', _liveBatches.length)),
-      ], labelColor: kPrimary, unselectedLabelColor: kTextHint, indicatorColor: kPrimary),
+      bottom: PreferredSize(
+        preferredSize: const Size.fromHeight(40),
+        child: TabBar(controller: _tab, tabs: [
+          Tab(height: 40, child: _tabLabel('Pending', _confirmedOrders.length)),
+          Tab(height: 40, child: _tabLabel('Live', _liveBatches.length)),
+        ], labelColor: kNavy, unselectedLabelColor: kTextHint, indicatorColor: kNavy, indicatorWeight: 3),
+      ),
     ),
     body: _loading
         ? const LoadingList()
@@ -406,14 +497,14 @@ class _S extends ConsumerState<DispatchScreen> with SingleTickerProviderStateMix
   );
 
   Widget _tabLabel(String label, int count) => Row(mainAxisSize: MainAxisSize.min, children: [
-    Text(label, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
+    Text(label, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800)),
     if (count > 0) ...[
-      const SizedBox(width: 5),
+      const SizedBox(width: 6),
       Container(
-          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-          decoration: BoxDecoration(color: kPrimary, borderRadius: BorderRadius.circular(8)),
+          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 1),
+          decoration: BoxDecoration(color: kGoldLight, borderRadius: BorderRadius.circular(8)),
           child: Text('$count',
-              style: const TextStyle(fontSize: 9, color: Colors.white, fontWeight: FontWeight.w800))),
+              style: const TextStyle(fontSize: 9, color: kNavy, fontWeight: FontWeight.w900))),
     ],
   ]);
 
@@ -423,26 +514,34 @@ class _S extends ConsumerState<DispatchScreen> with SingleTickerProviderStateMix
     return Column(children: [
       Container(
         color: kSurface,
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 10),
+        padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
         child: Column(children: [
           AppSearchBar(
             controller: _searchCtrl,
             hint: 'Search customer or area…',
             onClear: () { _searchCtrl.clear(); setState(() => _search = ''); },
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
           Row(children: [
-            Text('${_cart.length} selected · ${groups.fold(0, (s, g) => s + g.orders.length)} shown',
-                style: const TextStyle(fontSize: 12, color: kTextSub, fontWeight: FontWeight.w600)),
-            const Spacer(),
-            TextButton(onPressed: () => _selectAllVisible(groups), child: const Text('Select all shown')),
-            TextButton(onPressed: _clearCart, child: const Text('Clear')),
+            Expanded(
+              child: Text('${_cart.length} selected · ${groups.fold(0, (s, g) => s + g.orders.length)} shown',
+                  style: const TextStyle(fontSize: 11, color: kTextSub, fontWeight: FontWeight.w700)),
+            ),
+            TextButton(
+              style: _compactTextBtn,
+              onPressed: () => _selectAllVisible(groups),
+              child: const Text('Select all', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800)),
+            ),
+            TextButton(
+              style: _compactTextBtn,
+              onPressed: _clearCart,
+              child: const Text('Clear', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800)),
+            ),
           ]),
         ]),
       ),
-      const Divider(height: 1),
+      Divider(height: 1, color: kBorderLight),
       if (hasUnassigned) _unassignedBanner(),
-      if (_pinnedAgent != null) _pinnedAgentBar(),
       Expanded(
         child: groups.isEmpty
             ? EmptyState(
@@ -454,9 +553,9 @@ class _S extends ConsumerState<DispatchScreen> with SingleTickerProviderStateMix
             : RefreshIndicator(
           onRefresh: _load,
           child: ListView.separated(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 140),
+            padding: const EdgeInsets.fromLTRB(10, 8, 10, 130),
             itemCount: groups.length,
-            separatorBuilder: (_, __) => const SizedBox(height: 10),
+            separatorBuilder: (_, __) => const SizedBox(height: 6),
             itemBuilder: (_, i) => _areaCard(groups[i]),
           ),
         ),
@@ -465,42 +564,30 @@ class _S extends ConsumerState<DispatchScreen> with SingleTickerProviderStateMix
     ]);
   }
 
-  Widget _unassignedBanner() => Container(
-    width: double.infinity,
-    color: Colors.orange.withValues(alpha: 0.08),
-    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-    child: Row(children: [
-      Icon(Icons.help_outline, color: Colors.orange.shade800, size: 18),
-      const SizedBox(width: 8),
-      const Expanded(
-          child: Text('Some retailers have no Delivery Area yet',
-              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: kNavy))),
-      TextButton(
-          onPressed: () => context.push(R.bulkAreaAssign),
-          child: const Text('Tag Areas')),
-    ]),
+  static final ButtonStyle _compactTextBtn = TextButton.styleFrom(
+    minimumSize: Size.zero,
+    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
   );
 
-  Widget _pinnedAgentBar() => Container(
+  Widget _unassignedBanner() => Container(
     width: double.infinity,
-    color: kPrimary.withValues(alpha: 0.06),
-    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+    color: Colors.amber.withValues(alpha: 0.12),
+    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
     child: Row(children: [
-      CircleAvatar(
-          radius: 14,
-          backgroundColor: kPrimary,
-          child: Text(_initial(_pinnedAgent!['name'] as String),
-              style: const TextStyle(fontSize: 12, color: Colors.white, fontWeight: FontWeight.w800))),
-      const SizedBox(width: 8),
-      Expanded(
-          child: Text('Continue with ${_pinnedAgent!['name']}',
-              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: kNavy))),
+      Icon(Icons.priority_high_rounded, color: Colors.amber.shade800, size: 18),
+      const SizedBox(width: 10),
+      const Expanded(
+          child: Text('Some retailers have no Delivery Area yet',
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: kNavy))),
       TextButton(
-          onPressed: () async {
-            final a = await _pickAgent();
-            if (a != null) setState(() => _pinnedAgent = a);
-          },
-          child: const Text('Change Delivery Agent')),
+          style: TextButton.styleFrom(
+              backgroundColor: kNavy, foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              minimumSize: Size.zero, tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kRadiusChip))),
+          onPressed: () => context.push(R.bulkAreaAssign),
+          child: const Text('Tag Areas', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800))),
     ]),
   );
 
@@ -511,53 +598,99 @@ class _S extends ConsumerState<DispatchScreen> with SingleTickerProviderStateMix
     final amount = g.orders.fold(0.0, (s, o) => s + _amt(o));
     final isUnassigned = g.id == null;
 
-    return WhiteCard(
-      padding: const EdgeInsets.all(14),
+    return Container(
+      decoration: BoxDecoration(
+        color: kSurface,
+        borderRadius: BorderRadius.circular(kRadiusCard),
+        border: Border.all(
+            color: expanded ? kNavyMid.withValues(alpha: 0.35) : kBorderLight,
+            width: expanded ? 1.4 : 0.5),
+        boxShadow: kCardShadow,
+      ),
+      padding: const EdgeInsets.all(10),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         InkWell(
-          onTap: () => setState(
-                  () => expanded ? _expanded.remove(g.id) : _expanded.add(g.id)),
+          borderRadius: BorderRadius.circular(kRadiusInner),
+          onTap: () => setState(() {
+            if (expanded) {
+              _expanded.remove(g.id);
+            } else {
+              _expanded.add(g.id);
+              // First time opening this area: seed the cart with everyone in
+              // it, so the checkboxes correctly show "all selected" by
+              // default instead of "none selected" — matches the stated
+              // default-all-selected behaviour exactly.
+              if (!_areaTouched.contains(g.id)) {
+                _cart.addAll(g.orders.map((o) => o['id'] as String));
+              }
+            }
+          }),
           child: Row(children: [
             Container(
-              width: 40, height: 40,
+              width: 36, height: 36,
               decoration: BoxDecoration(
-                  color: (isUnassigned ? Colors.orange : kPrimary).withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(kRadiusInner)),
-              child: Icon(isUnassigned ? Icons.help_outline : Icons.map_outlined,
-                  color: isUnassigned ? Colors.orange.shade700 : kPrimary, size: 20),
+                  color: isUnassigned
+                      ? Colors.amber.withValues(alpha: 0.16)
+                      : kGoldLight.withValues(alpha: 0.22),
+                  borderRadius: BorderRadius.circular(10)),
+              child: Icon(isUnassigned ? Icons.priority_high_rounded : Icons.map_rounded,
+                  color: isUnassigned ? Colors.amber.shade800 : kNavyMid, size: 19),
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: 10),
             Expanded(
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(g.name, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800)),
-                Text('${g.orders.length} orders · $birds birds · ${weight.toStringAsFixed(0)} kg · ${Fmt.amount(amount)}',
-                    style: const TextStyle(fontSize: 12, color: kTextSub)),
+                Text(g.name, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: kNavy)),
+                const SizedBox(height: 2),
+                Wrap(spacing: 8, runSpacing: 1, children: [
+                  _statChip(Icons.receipt_long_rounded, '${g.orders.length}'),
+                  _statChip(Icons.egg_alt_rounded, '$birds'),
+                  _statChip(Icons.scale_rounded, '${weight.toStringAsFixed(0)} kg'),
+                  _statChip(Icons.currency_rupee_rounded, Fmt.amount(amount).replaceFirst('₹', '')),
+                ]),
               ]),
             ),
-            Icon(expanded ? Icons.expand_less : Icons.expand_more, color: kTextHint),
+            const SizedBox(width: 4),
+            Container(
+              padding: const EdgeInsets.all(3),
+              decoration: const BoxDecoration(color: kBgPage, shape: BoxShape.circle),
+              child: Icon(expanded ? Icons.expand_less_rounded : Icons.expand_more_rounded,
+                  color: kNavyMid, size: 18),
+            ),
           ]),
         ),
-        const SizedBox(height: 10),
+        const SizedBox(height: 8),
         SizedBox(
-          height: 40, width: double.infinity,
-          child: OutlinedButton.icon(
+          width: double.infinity,
+          child: ElevatedButton.icon(
             onPressed: () => _assignArea(g),
-            icon: const Icon(Icons.local_shipping_outlined, size: 16),
-            label: Text(_pinnedAgent != null
-                ? 'Assign to ${_pinnedAgent!['name']}'
-                : 'Assign ${g.name}'),
-            style: OutlinedButton.styleFrom(foregroundColor: kPrimary, side: const BorderSide(color: kPrimary)),
+            icon: const Icon(Icons.local_shipping_rounded, size: 16),
+            label: Text('Assign ${g.name}',
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13)),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: kGoldLight,
+              foregroundColor: kNavy,
+              minimumSize: const Size.fromHeight(44),
+              elevation: 0,
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+            ),
           ),
         ),
         if (expanded) ...[
           const SizedBox(height: 10),
-          const Divider(height: 1),
+          Divider(height: 1, color: kBorderLight),
           const SizedBox(height: 8),
           _areaExpandedSection(g),
         ],
       ]),
     );
   }
+
+  Widget _statChip(IconData icon, String value) => Row(mainAxisSize: MainAxisSize.min, children: [
+    Icon(icon, size: 12, color: kTextSub),
+    const SizedBox(width: 2),
+    Text(value, style: const TextStyle(fontSize: 11, color: kTextSub, fontWeight: FontWeight.w700)),
+  ]);
 
   // Local (per-area) search + select-all/deselect-all + bounded scroll list.
   // Built as its own method since areas commonly hold 20+ customers — a flat
@@ -597,9 +730,11 @@ class _S extends ConsumerState<DispatchScreen> with SingleTickerProviderStateMix
             style: const TextStyle(fontSize: 11, color: kTextSub, fontWeight: FontWeight.w600)),
         const Spacer(),
         TextButton(
+          style: _compactTextBtn,
           onPressed: visible.isEmpty
               ? null
               : () => setState(() {
+            _areaTouched.add(g.id);
             if (allVisibleSelected) {
               _cart.removeWhere(visibleIds.contains);
             } else {
@@ -630,18 +765,23 @@ class _S extends ConsumerState<DispatchScreen> with SingleTickerProviderStateMix
               final sel = _cart.contains(id);
               return CheckboxListTile(
                 dense: true,
+                visualDensity: const VisualDensity(horizontal: -4, vertical: -4),
                 controlAffinity: ListTileControlAffinity.leading,
                 contentPadding: EdgeInsets.zero,
                 value: sel,
-                onChanged: (_) => setState(() => sel ? _cart.remove(id) : _cart.add(id)),
+                onChanged: (_) => setState(() {
+                  _areaTouched.add(g.id);
+                  sel ? _cart.remove(id) : _cart.add(id);
+                }),
                 title: Text(r?['shop_name'] as String? ?? '—',
                     style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
                 subtitle: Text(
                     '${o['estimated_birds'] ?? 0} birds · ${((o['total_quantity'] as num?)?.toStringAsFixed(0)) ?? '—'} kg',
                     style: const TextStyle(fontSize: 11, color: kTextHint)),
                 secondary: IconButton(
+                    visualDensity: VisualDensity.compact,
                     tooltip: 'Quick Assign',
-                    icon: const Icon(Icons.bolt, color: kPrimary),
+                    icon: const Icon(Icons.bolt, color: kPrimary, size: 20),
                     onPressed: () => _quickAssign(o)),
               );
             },
@@ -651,18 +791,20 @@ class _S extends ConsumerState<DispatchScreen> with SingleTickerProviderStateMix
   }
 
   Widget _cartBar() => Container(
-    padding: EdgeInsets.fromLTRB(16, 10, 16, MediaQuery.of(context).padding.bottom + 10),
+    padding: EdgeInsets.fromLTRB(18, 14, 18, MediaQuery.of(context).padding.bottom + 14),
     decoration: BoxDecoration(
-      color: kSurface,
-      boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.08), blurRadius: 12, offset: const Offset(0, -3))],
+      color: kNavy,
+      borderRadius: const BorderRadius.vertical(top: Radius.circular(kRadiusHero)),
+      boxShadow: [BoxShadow(color: kNavy.withValues(alpha: 0.35), blurRadius: 16, offset: const Offset(0, -4))],
     ),
     child: Row(children: [
       Expanded(
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text('${_cart.length} orders selected',
-              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800)),
+              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: Colors.white)),
+          const SizedBox(height: 2),
           Text('$_cartBirds birds · ${_cartWeight.toStringAsFixed(0)} kg · ${Fmt.amount(_cartAmount)}',
-              style: const TextStyle(fontSize: 11, color: kTextSub)),
+              style: const TextStyle(fontSize: 11, color: Color(0xFFB4C6F4), fontWeight: FontWeight.w600)),
         ]),
       ),
       const SizedBox(width: 12),
@@ -670,9 +812,12 @@ class _S extends ConsumerState<DispatchScreen> with SingleTickerProviderStateMix
         constraints: const BoxConstraints(minWidth: 0, maxWidth: 200),
         child: ElevatedButton(
           onPressed: _confirmAssignment,
-          child: Text(_pinnedAgent != null ? 'Assign to ${_pinnedAgent!['name']}' : 'Confirm Assignment',
+          style: ElevatedButton.styleFrom(
+              backgroundColor: kGoldLight, foregroundColor: kNavy,
+              minimumSize: const Size(0, 48)),
+          child: Text('Assign (${_cart.length})',
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontWeight: FontWeight.w700)),
+              style: const TextStyle(fontWeight: FontWeight.w800)),
         ),
       ),
     ]),
@@ -752,9 +897,9 @@ class _LiveBatchCard extends StatelessWidget {
     final status = batch['status'] as String? ?? 'assigned';
     final date = DateTime.tryParse(batch['created_at'] as String? ?? '');
     final Color sc = switch (status) {
-      'assigned' => Colors.blue,
-      'picked_up' => Colors.indigo,
-      'out_for_delivery' => kPrimary,
+      'assigned' => const Color(0xFF2563EB),
+      'picked_up' => const Color(0xFF2563EB),
+      'out_for_delivery' => const Color(0xFF16A34A),
       _ => Colors.grey,
     };
     final IconData si = switch (status) {

@@ -1,6 +1,8 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/providers/session_provider.dart';
@@ -324,6 +326,10 @@ class _S extends ConsumerState<BatchDetailScreen> {
     String? selectedProductId;
     String? selectedProductName;
     String? selectedFarmName;
+    File? dcImage;
+    String? dcImageUrl;
+    bool uploadingDcImage = false;
+    final picker = ImagePicker();
 
     await showModalBottomSheet(
         context: context,
@@ -747,6 +753,62 @@ class _S extends ConsumerState<BatchDetailScreen> {
                                     color: kPrimary,
                                     fontWeight: FontWeight.w700))),
                         const SizedBox(height: 8),
+                        // ── DC Photo (optional here — this screen may run on
+                        // desktop without a camera; the agent's mobile pickup
+                        // flow is where the photo is mandatory) ─────────────
+                        const Text('DC Photo',
+                            style: TextStyle(fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                                color: kTextHint)),
+                        const SizedBox(height: 6),
+                        GestureDetector(
+                          onTap: uploadingDcImage ? null : () async {
+                            final picked = await picker.pickImage(
+                                source: ImageSource.gallery,
+                                imageQuality: 70, maxWidth: 1200);
+                            if (picked == null) return;
+                            final file = File(picked.path);
+                            ss(() { dcImage = file; uploadingDcImage = true; });
+                            try {
+                              final path =
+                                  'dc/${DateTime.now().millisecondsSinceEpoch}.jpg';
+                              await Supabase.instance.client.storage
+                                  .from('dc-images').upload(path, file);
+                              final url = Supabase.instance.client.storage
+                                  .from('dc-images').getPublicUrl(path);
+                              ss(() { dcImageUrl = url; uploadingDcImage = false; });
+                            } catch (e) {
+                              ss(() => uploadingDcImage = false);
+                              if (ctx.mounted) showError(ctx,
+                                  'Photo upload failed — check connection');
+                            }
+                          },
+                          child: Container(
+                            height: 80,
+                            clipBehavior: Clip.antiAlias,
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(kRadiusInner),
+                              border: Border.all(color: kBorder),
+                              color: kBgGrey,
+                            ),
+                            child: uploadingDcImage
+                                ? const Center(child: CircularProgressIndicator())
+                                : dcImage != null
+                                ? Image.file(dcImage!, fit: BoxFit.cover,
+                                width: double.infinity)
+                                : Center(child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.add_a_photo_outlined,
+                                      color: kTextHint, size: 20),
+                                  SizedBox(height: 4),
+                                  Text('Tap to attach DC photo (optional)',
+                                      style: TextStyle(
+                                          fontSize: 11, color: kTextHint)),
+                                ])),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
                         Row(children: [
                           Expanded(child: TextField(
                               textInputAction: TextInputAction.next,
@@ -851,7 +913,7 @@ class _S extends ConsumerState<BatchDetailScreen> {
                                         : double.tryParse(rateCtrl.text),
                                     'p_in_time': null,
                                     'p_out_time': null,
-                                    'p_dc_photo_url': null,
+                                    'p_dc_photo_url': dcImageUrl,
                                     'p_source_type': sourceType,
                                     // FIX: was missing
                                     'p_product_id': selectedProductId,  // NEW: explicit, mandatory — no more guessing
@@ -887,10 +949,10 @@ class _S extends ConsumerState<BatchDetailScreen> {
                                         : double.tryParse(rateCtrl.text),
                                     'p_source_type': sourceType,
                                     'p_product_id': selectedProductId,  // NEW: explicit, mandatory — no more guessing
-                                    'p_dc_photo_url': null,
-                                    // Desktop has no camera capture flow, same as
-                                    // this screen's pickup_batch call above — kept
-                                    // explicit for parity now that the param exists.
+                                    'p_dc_photo_url': dcImageUrl,
+                                    // FIX: this screen previously always sent null —
+                                    // now uploads through the same 'dc-images' bucket
+                                    // the agent app uses, and sends the real URL.
                                   });
                                 }
                                 _load();
@@ -931,11 +993,15 @@ class _S extends ConsumerState<BatchDetailScreen> {
     final activeDeliveries = _deliveries.where((d) =>
     d['status'] != 'cancelled').toList();
 
-    // DC totals
+    // DC totals — reconciled: prefer the DC-Verification-confirmed quantity
+    // (dc_adjusted_birds/dc_adjusted_weight) over the original DC figure, so
+    // this matches what approve_shift and Stock Management will use.
     final dcBirds = _challans.fold(
-        0, (s, c) => s + ((c['bird_count'] as num?)?.toInt() ?? 0));
+        0, (s, c) => s + ((c['dc_adjusted_birds'] as num?)?.toInt() ??
+        (c['bird_count'] as num?)?.toInt() ?? 0));
     final dcWeight = _challans.fold(
-        0.0, (s, c) => s + ((c['net_weight'] as num?)?.toDouble() ?? 0));
+        0.0, (s, c) => s + ((c['dc_adjusted_weight'] as num?)?.toDouble() ??
+        (c['net_weight'] as num?)?.toDouble() ?? 0));
 
     return Scaffold(
       backgroundColor: kBgPage,
@@ -1037,7 +1103,7 @@ class _S extends ConsumerState<BatchDetailScreen> {
               .map((entry) {
             final idx = entry.key;
             final ch = entry.value;
-            return _DcCard(challan: ch, index: idx + 1);
+            return _DcCard(key: ValueKey(ch['id']), challan: ch, index: idx + 1);
           }),
         const SizedBox(height: 14),
 
@@ -1213,7 +1279,7 @@ class _S extends ConsumerState<BatchDetailScreen> {
 
 // ── DC Card — expandable with image ─────────────────────────────────────────
 class _DcCard extends StatefulWidget {
-  const _DcCard({required this.challan, required this.index});
+  const _DcCard({super.key, required this.challan, required this.index});
 
   final Map<String, dynamic> challan;
   final int index;
@@ -1232,6 +1298,11 @@ class _DcCardState extends State<_DcCard> {
     final gross = (ch['gross_weight'] as num?)?.toDouble() ?? 0;
     final empty = (ch['empty_crate_weight'] as num?)?.toDouble() ?? 0;
     final birds = (ch['bird_count'] as num?)?.toInt() ?? 0;
+    final confirmedBirds = (ch['dc_adjusted_birds'] as num?)?.toInt();
+    final confirmedWt = (ch['dc_adjusted_weight'] as num?)?.toDouble();
+    final displayBirds = confirmedBirds ?? birds;
+    final displayWt = confirmedWt ?? net;
+    final isReconciled = confirmedBirds != null || confirmedWt != null;
     final crates = (ch['crates_count'] as num?)?.toInt() ?? 0;
     final rate = (ch['farm_rate'] as num?)?.toDouble();
     final photoUrl = ch['dc_photo_url'] as String?;
@@ -1269,6 +1340,16 @@ class _DcCardState extends State<_DcCard> {
                           style: const TextStyle(
                               fontWeight: FontWeight.w800, fontSize: 13)),
                       const SizedBox(width: 8),
+                      if (isReconciled) Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                              color: Colors.blue.shade100,
+                              borderRadius: BorderRadius.circular(4)),
+                          child: const Text('Confirmed', style: TextStyle(
+                              fontSize: 9, color: Colors.blue,
+                              fontWeight: FontWeight.w700))),
+                      const SizedBox(width: 8),
                       if (hasPic) Container(
                           padding: const EdgeInsets.symmetric(
                               horizontal: 6, vertical: 2),
@@ -1286,8 +1367,9 @@ class _DcCardState extends State<_DcCard> {
                           ])),
                     ]),
                     Text(
-                        '${ch['farmer_name'] ?? '—'} · $birds birds · ${net
-                            .toStringAsFixed(1)} kg',
+                        '${ch['farmer_name'] ?? '—'} · $displayBirds birds · ${displayWt
+                            .toStringAsFixed(1)} kg'
+                            '${isReconciled ? ' (DC: $birds · ${net.toStringAsFixed(1)} kg)' : ''}',
                         style: const TextStyle(fontSize: 11, color: kTextSub)),
                   ])),
                   Row(children: [

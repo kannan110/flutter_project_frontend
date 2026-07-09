@@ -66,6 +66,7 @@ class _ShiftVerificationScreenState
 
   // Per-DC form state
   final Map<String, TextEditingController> _dcWt    = {};
+  final Map<String, TextEditingController> _dcBirds = {};
   final Map<String, TextEditingController> _dcNotes = {};
 
   // Submitting state per item
@@ -80,7 +81,7 @@ class _ShiftVerificationScreenState
   @override
   void dispose() {
     for (final c in [..._wt.values, ..._birds.values, ..._notes.values,
-      ..._dcWt.values, ..._dcNotes.values]) {
+      ..._dcWt.values, ..._dcBirds.values, ..._dcNotes.values]) {
       c.dispose();
     }
     super.dispose();
@@ -158,6 +159,9 @@ class _ShiftVerificationScreenState
     _dcWt.putIfAbsent(id, () => TextEditingController(
         text: (dc['dc_adjusted_weight'] as num?)?.toStringAsFixed(1) ??
             (dc['net_weight'] as num?)?.toStringAsFixed(1) ?? ''));
+    _dcBirds.putIfAbsent(id, () => TextEditingController(
+        text: (dc['dc_adjusted_birds'] as num?)?.toString() ??
+            (dc['bird_count'] as num?)?.toString() ?? ''));
     _dcNotes.putIfAbsent(id, () => TextEditingController(
         text: dc['dc_verification_notes'] as String? ?? ''));
   }
@@ -182,9 +186,17 @@ class _ShiftVerificationScreenState
     final adjustedWt   = (adjWt    != null && adjWt    != origWt)    ? adjWt    : null;
     final adjustedBirds= (adjBirds != null && adjBirds != origBirds) ? adjBirds : null;
 
+    // A delivered-count/weight correction becomes the final operational figure
+    // and recalculates agent stock — it needs a reason on record.
+    if ((adjustedWt != null || adjustedBirds != null) &&
+        (notes == null || notes.isEmpty)) {
+      showError(context, 'Please add a note explaining the correction');
+      return;
+    }
+
     setState(() => _submitting.add(deliveryId));
     try {
-      await _c.rpc('verify_delivery', params: {
+      final res = await _c.rpc('verify_delivery', params: {
         'p_delivery_id':      deliveryId,
         'p_verified_by':      user.userId,
         'p_notes':            notes?.isEmpty == true ? null : notes,
@@ -194,9 +206,14 @@ class _ShiftVerificationScreenState
       });
 
       if (mounted) {
-        showSuccess(context, disc
+        final correctionApplied =
+            (res as Map?)?['correction_applied'] == true;
+        final msg = correctionApplied
+            ? '✅ Corrected — stock, returned birds and closing stock updated'
+            : disc
             ? '⚠️ Discrepancy flagged for review'
-            : '✅ Delivery verified');
+            : '✅ Delivery verified';
+        showSuccess(context, msg);
         setState(() => _expandedDeliveryId = null);
         await _load();
       }
@@ -213,26 +230,44 @@ class _ShiftVerificationScreenState
     final user = ref.read(appUserProvider).valueOrNull;
     if (user == null) return;
 
-    final dc       = _challans.firstWhere((c) => c['id'] == challanId,
+    final dc          = _challans.firstWhere((c) => c['id'] == challanId,
         orElse: () => {});
-    final origWt   = (dc['net_weight']  as num?)?.toDouble() ?? 0;
-    final adjWtStr = _dcWt[challanId]?.text.trim() ?? '';
-    final adjWt    = double.tryParse(adjWtStr);
-    final adjusted = (adjWt != null && adjWt != origWt) ? adjWt : null;
-    final notes    = _dcNotes[challanId]?.text.trim();
+    final origWt      = (dc['net_weight']   as num?)?.toDouble() ?? 0;
+    final origBirds   = (dc['bird_count']   as num?)?.toInt()    ?? 0;
+    final adjWtStr     = _dcWt[challanId]?.text.trim() ?? '';
+    final adjBirdsStr  = _dcBirds[challanId]?.text.trim() ?? '';
+    final adjWt        = double.tryParse(adjWtStr);
+    final adjBirds     = int.tryParse(adjBirdsStr);
+    final adjustedWt   = (adjWt    != null && adjWt    != origWt)    ? adjWt    : null;
+    final adjustedBirds= (adjBirds != null && adjBirds != origBirds) ? adjBirds : null;
+    final notes        = _dcNotes[challanId]?.text.trim();
+
+    // A DC reconciliation correction should carry a reason.
+    if ((adjustedWt != null || adjustedBirds != null) &&
+        (notes == null || notes.isEmpty)) {
+      showError(context, 'Please add a note explaining the DC correction');
+      return;
+    }
 
     setState(() => _submitting.add(challanId));
     try {
-      await _c.rpc('verify_dc', params: {
+      final res = await _c.rpc('verify_dc', params: {
         'p_challan_id':      challanId,
         'p_verified_by':     user.userId,
         'p_notes':           notes?.isEmpty == true ? null : notes,
-        'p_adjusted_weight': adjusted,
+        'p_adjusted_weight': adjustedWt,
+        'p_confirmed_birds': adjustedBirds,
       });
 
       if (mounted) {
-        final msg = adjusted != null
-            ? '✅ DC verified — adjusted to ${adjusted.toStringAsFixed(1)} kg'
+        final stockUpdated = (res as Map?)?['stock_updated'] == true;
+        final parts = <String>[];
+        if (adjustedBirds != null) parts.add('$adjustedBirds birds');
+        if (adjustedWt    != null) parts.add('${adjustedWt.toStringAsFixed(1)} kg');
+        final msg = stockUpdated
+            ? '✅ Confirmed ${parts.join(' · ')} — agent stock updated'
+            : parts.isNotEmpty
+            ? '✅ DC verified — confirmed ${parts.join(' · ')}'
             : '✅ DC verified';
         showSuccess(context, msg);
         setState(() => _expandedChallanId = null);
@@ -244,6 +279,41 @@ class _ShiftVerificationScreenState
     } finally {
       if (mounted) setState(() => _submitting.remove(challanId));
     }
+  }
+
+  // ── Full-screen DC photo viewer ─────────────────────────────────────────────
+  void _openDcPhoto(String url) {
+    showDialog(
+      context: context,
+      barrierColor: Colors.black,
+      builder: (ctx) => Scaffold(
+        backgroundColor: Colors.black,
+        appBar: AppBar(
+          backgroundColor: Colors.black,
+          foregroundColor: Colors.white,
+          elevation: 0,
+          title: const Text('DC Photo'),
+        ),
+        body: Center(
+          child: InteractiveViewer(
+            minScale: 0.8,
+            maxScale: 5,
+            child: Image.network(
+              url,
+              fit: BoxFit.contain,
+              loadingBuilder: (ctx, child, progress) => progress == null
+                  ? child
+                  : const CircularProgressIndicator(color: Colors.white),
+              errorBuilder: (ctx, err, st) => const Padding(
+                padding: EdgeInsets.all(24),
+                child: Text('Could not load photo',
+                    style: TextStyle(color: Colors.white)),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -432,6 +502,8 @@ class _ShiftVerificationScreenState
     final netWt       = (dc['net_weight']  as num?)?.toDouble() ?? 0;
     final grossWt     = (dc['gross_weight'] as num?)?.toDouble();
     final adjWt       = (dc['dc_adjusted_weight'] as num?)?.toDouble();
+    final adjBirds    = (dc['dc_adjusted_birds']  as num?)?.toInt();
+    final photoUrl    = dc['dc_photo_url'] as String?;
     final verified    = dc['dc_verified'] as bool? ?? false;
     final expanded    = _expandedChallanId == id;
     final isSubmit    = _submitting.contains(id);
@@ -460,14 +532,34 @@ class _ShiftVerificationScreenState
           child: Padding(
             padding: const EdgeInsets.all(14),
             child: Row(children: [
-              Container(
-                width: 36, height: 36,
-                decoration: BoxDecoration(
-                  color: Colors.blue.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(10),
+              GestureDetector(
+                onTap: (photoUrl != null && photoUrl.isNotEmpty)
+                    ? () => _openDcPhoto(photoUrl)
+                    : null,
+                child: Container(
+                  width: 36, height: 36,
+                  decoration: BoxDecoration(
+                    color: Colors.blue.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(10),
+                    image: (photoUrl != null && photoUrl.isNotEmpty)
+                        ? DecorationImage(
+                        image: NetworkImage(photoUrl), fit: BoxFit.cover)
+                        : null,
+                  ),
+                  child: (photoUrl != null && photoUrl.isNotEmpty)
+                      ? Align(
+                      alignment: Alignment.bottomRight,
+                      child: Container(
+                        margin: const EdgeInsets.all(2),
+                        padding: const EdgeInsets.all(2),
+                        decoration: const BoxDecoration(
+                            color: Colors.black54, shape: BoxShape.circle),
+                        child: const Icon(Icons.zoom_in,
+                            color: Colors.white, size: 10),
+                      ))
+                      : const Icon(Icons.receipt_long_outlined,
+                      color: Colors.blue, size: 18),
                 ),
-                child: const Icon(Icons.receipt_long_outlined,
-                    color: Colors.blue, size: 18),
               ),
               const SizedBox(width: 10),
               Expanded(child: Column(
@@ -476,8 +568,9 @@ class _ShiftVerificationScreenState
                     Text('DC: $dcNum',
                         style: const TextStyle(
                             fontSize: 13, fontWeight: FontWeight.w800)),
-                    Text('$farmerName  ·  $birds birds  ·  '
-                        '${netWt.toStringAsFixed(1)} kg'
+                    Text('$farmerName  ·  $birds birds'
+                        '${adjBirds != null ? ' → $adjBirds birds' : ''}'
+                        '  ·  ${netWt.toStringAsFixed(1)} kg'
                         '${adjWt != null ? ' → ${adjWt.toStringAsFixed(1)} kg' : ''}',
                         style: const TextStyle(fontSize: 11, color: kTextSub)),
                   ])),
@@ -519,16 +612,73 @@ class _ShiftVerificationScreenState
             child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // ── 1. DC Photo ──────────────────────────────────────────
+                  if (photoUrl != null && photoUrl.isNotEmpty) ...[
+                    GestureDetector(
+                      onTap: () => _openDcPhoto(photoUrl),
+                      child: Container(
+                        height: 90,
+                        clipBehavior: Clip.antiAlias,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(kRadiusInner),
+                          border: Border.all(color: kBorderLight),
+                        ),
+                        child: Stack(fit: StackFit.expand, children: [
+                          Image.network(photoUrl, fit: BoxFit.cover,
+                              errorBuilder: (ctx, err, st) => Container(
+                                  color: kBgGrey,
+                                  child: const Icon(Icons.broken_image_outlined,
+                                      color: kTextHint))),
+                          Positioned(
+                              right: 6, bottom: 6,
+                              child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 6, vertical: 3),
+                                  decoration: BoxDecoration(
+                                      color: Colors.black54,
+                                      borderRadius: BorderRadius.circular(6)),
+                                  child: const Row(mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(Icons.zoom_in,
+                                            color: Colors.white, size: 12),
+                                        SizedBox(width: 3),
+                                        Text('View Photo',
+                                            style: TextStyle(
+                                                color: Colors.white, fontSize: 10)),
+                                      ]))),
+                        ]),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                  ],
+
                   // DC details
                   if (grossWt != null)
                     _detailRow('Gross weight', '${grossWt.toStringAsFixed(1)} kg'),
+                  _detailRow('Bird count (recorded)', '$birds birds'),
                   _detailRow('Net weight (recorded)', '${netWt.toStringAsFixed(1)} kg'),
                   if (dc['dc_verification_notes'] != null)
                     _detailRow('Previous notes',
                         dc['dc_verification_notes'] as String),
                   const SizedBox(height: 12),
 
-                  // Adjusted weight
+                  // ── 2. Confirmed Bird Count ──────────────────────────────
+                  TextField(
+                    controller: _dcBirds[id],
+                    keyboardType: TextInputType.number,
+                    decoration: InputDecoration(
+                      labelText: 'Confirmed Bird Count',
+                      hintText: '$birds',
+                      suffixText: 'birds',
+                      helperText: 'Becomes the final loaded count — updates '
+                          'agent stock, batch balance and loss calculation. '
+                          'Does not affect orders, billing or revenue.',
+                      helperMaxLines: 2,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+
+                  // ── 3. Confirmed Net Weight ───────────────────────────────
                   TextField(
                     controller: _dcWt[id],
                     keyboardType: const TextInputType.numberWithOptions(decimal: true),
@@ -541,12 +691,13 @@ class _ShiftVerificationScreenState
                   ),
                   const SizedBox(height: 10),
 
-                  // Notes
+                  // ── 4. Notes ──────────────────────────────────────────────
                   TextField(
                     controller: _dcNotes[id],
                     maxLines: 2,
                     decoration: const InputDecoration(
-                      labelText: 'Verification Notes (optional)',
+                      labelText: 'Verification Notes',
+                      hintText: 'Required if bird count or weight was corrected',
                       alignLabelWithHint: true,
                     ),
                   ),
@@ -757,7 +908,7 @@ class _ShiftVerificationScreenState
                       decoration: const InputDecoration(
                         labelText: 'Confirmed Weight (kg)',
                         suffixText: 'kg',
-                        helperText: 'Edit only if incorrect',
+                        helperText: 'Final figure — recalculates stock',
                       ),
                     )),
                     const SizedBox(width: 10),
@@ -767,10 +918,18 @@ class _ShiftVerificationScreenState
                       decoration: const InputDecoration(
                         labelText: 'Confirmed Birds',
                         suffixText: 'birds',
-                        helperText: 'Edit only if incorrect',
+                        helperText: 'Final figure — recalculates stock',
                       ),
                     )),
                   ]),
+                  const SizedBox(height: 4),
+                  const Text(
+                    'Correcting this becomes the final delivered count and '
+                        'recalculates agent stock, returned birds and closing '
+                        'stock. Orders, invoices and revenue are not affected.',
+                    style: TextStyle(fontSize: 10, color: kTextHint,
+                        fontStyle: FontStyle.italic),
+                  ),
                   const SizedBox(height: 10),
 
                   // Notes
@@ -778,7 +937,8 @@ class _ShiftVerificationScreenState
                     controller: _notes[id],
                     maxLines: 2,
                     decoration: const InputDecoration(
-                      labelText: 'Review Notes (optional)',
+                      labelText: 'Review Notes',
+                      hintText: 'Required if weight or bird count was corrected',
                       alignLabelWithHint: true,
                     ),
                   ),

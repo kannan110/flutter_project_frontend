@@ -410,6 +410,13 @@ class _S extends ConsumerState<BatchPickupScreen> {
         // Farm B → Country). Force a fresh, deliberate choice each time.
         _selectedProductId = null;
         _selectedProductName = null;
+        // FIX: the DC photo must never carry over to the next DC either — a
+        // stale, already-uploaded photo passing the "mandatory" check would
+        // silently attach the PREVIOUS DC's photo to this new one. Every DC
+        // must have its own explicitly re-taken photo.
+        _dcImage = null;
+        _dcImageUrl = null;
+        _uploadingDcImage = false;
       });
   }
 
