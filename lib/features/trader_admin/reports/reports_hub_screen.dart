@@ -45,41 +45,58 @@ class _Rep {
   const _Rep(this.key, this.label, this.icon, this.color);
 }
 
+// One brand system: 4 category colors, matching ReportCategoryX.color in
+// report_inventory.dart exactly (kept as literal consts here since Dart
+// cannot const-evaluate an extension getter call inside a `const` list —
+// report_inventory.dart remains the single source of truth for the actual
+// color values; these must stay in sync with it if it ever changes).
+const _cBusiness   = Color(0xFF1565C0);
+const _cOperations = Color(0xFFE65100);
+const _cSales       = Color(0xFF2E7D32);
+const _cFinancial   = Color(0xFF4527A0);
+
 const _kR = [
-  _Rep('daily_summary',        'Daily Summary',      Icons.today_outlined,             Color(0xFF1565C0)),
-  _Rep('stock_reconciliation', 'Stock Recon.',        Icons.inventory_2_outlined,       Color(0xFF2E7D32)),
-  _Rep('shrinkage',            'Shrinkage',           Icons.compress_outlined,          Color(0xFF6A1B9A)),
-  _Rep('mortality',            'Mortality',           Icons.health_and_safety_outlined, Color(0xFFC62828)),
-  _Rep('delivery_history',     'Deliveries',          Icons.local_shipping_outlined,    Color(0xFF00695C)),
-  _Rep('agent_performance',    'Agent Report',        Icons.person_outlined,            Color(0xFF1565C0)),
-  _Rep('shift_audit',          'Shift Audit',         Icons.assignment_outlined,        Color(0xFF37474F)),
-  _Rep('expense',              'Expenses',            Icons.receipt_long_outlined,      Color(0xFFE65100)),
-  _Rep('collection',           'Collection',          Icons.payments_outlined,          Color(0xFF1B5E20)),
-  _Rep('retailer_purchase',    'Retailer Purchase',   Icons.store_outlined,             Color(0xFF4A148C)),
-  _Rep('profitability',        'Profitability',       Icons.trending_up_outlined,       Color(0xFF004D40)),
+  _Rep('daily_summary',        'Daily Summary',      Icons.today_outlined,             _cBusiness),
+  _Rep('stock_reconciliation', 'Stock Recon.',        Icons.inventory_2_outlined,       _cOperations),
+  _Rep('shrinkage',            'Shrinkage',           Icons.compress_outlined,          _cOperations),
+  _Rep('mortality',            'Mortality',           Icons.health_and_safety_outlined, _cOperations),
+  _Rep('delivery_history',     'Deliveries',          Icons.local_shipping_outlined,    _cOperations),
+  _Rep('agent_performance',    'Agent Report',        Icons.person_outlined,            _cOperations),
+  _Rep('shift_audit',          'Shift Audit',         Icons.assignment_outlined,        _cOperations),
+  _Rep('expense',              'Expenses',            Icons.receipt_long_outlined,      _cBusiness),
+  _Rep('collection',           'Collection',          Icons.payments_outlined,          _cBusiness),
+  _Rep('retailer_purchase',    'Retailer Purchase',   Icons.store_outlined,             _cSales),
+  _Rep('profitability',        'Profitability',       Icons.trending_up_outlined,       _cBusiness),
   // ── Phase 5: Pricing Analytics ──────────────────────────────────────────
-  _Rep('product_sales',        'Product Sales',       Icons.egg_alt_outlined,           Color(0xFF1A237E)),
-  _Rep('zone_sales',           'Zone Sales',          Icons.map_outlined,               Color(0xFF006064)),
-  _Rep('discount_leakage',     'Discount Leakage',    Icons.remove_circle_outline,      Color(0xFFBF360C)),
-  _Rep('rate_source_breakdown','Rate Source',         Icons.auto_fix_high_outlined,     Color(0xFF4527A0)),
-  _Rep('profitability_enhanced','Profit (Full)',      Icons.analytics_outlined,         Color(0xFF1B5E20)),
+  _Rep('product_sales',        'Product Sales',       Icons.egg_alt_outlined,           _cSales),
+  _Rep('zone_sales',           'Zone Sales',          Icons.map_outlined,               _cSales),
+  _Rep('discount_leakage',     'Discount Leakage',    Icons.remove_circle_outline,      _cSales),
+  _Rep('rate_source_breakdown','Pricing Source',       Icons.auto_fix_high_outlined,     _cSales),
+  _Rep('profitability_enhanced','Profit (Full)',      Icons.analytics_outlined,         _cFinancial),
   // ── Phase 4/UI: Profitability Breakdown (by product/variant/retailer/zone/agent/batch) ──
-  // P0 (approved spec §7): relabeled from "Profit by..." to "Margin by Dimension" —
-  // this report uses proportional per-line cost allocation, a different (and
-  // valid, for drill-down purposes) methodology than get_pnl_statement's
-  // official full-batch-cost model. The old label implied it WAS the official
-  // profit figure; it isn't. No data/RPC change — label + banner only.
-  _Rep('profitability_breakdown','Margin by Dimension', Icons.pie_chart_outline,         Color(0xFF004D40)),
+  // Renamed "Profit Breakdown" (plain language) per the zero-learning-curve
+  // spec. Uses proportional per-line cost allocation, a different (and
+  // valid, for drill-down purposes) methodology than the get_pnl_statement
+  // official full-batch-cost model — the P&L Statement remains the source
+  // for the official Profit figure. No data/RPC change — label + banner only.
+  _Rep('profitability_breakdown','Profit Breakdown',    Icons.pie_chart_outline,         _cFinancial),
 ];
 
 // ─────────────────────────────────────────────────────────────────────────────
 class ReportsHubScreen extends ConsumerStatefulWidget {
-  const ReportsHubScreen({super.key, this.initialReportKey});
+  const ReportsHubScreen({super.key, this.initialReportKey, this.showChipPicker = true});
 
-  /// Optional deep-link target — set by ReportListScreen when opening a
-  /// specific report from Reports Home. Defaults to null, which preserves
-  /// the screen's original behavior (opens on the first report in the list).
+  /// Optional deep-link target — set when opening a specific report from
+  /// the Reports screen category list. Defaults to null (opens on the
+  /// first report), preserving the screen original behavior.
   final String? initialReportKey;
+
+  /// When false, hides the top report-chip picker — used for the new
+  /// "focused single report" flow (Reports screen → pick report → this
+  /// screen shows ONLY that report, no chip row, no category nav). When
+  /// true (default), behaves exactly as before — this is what "All Reports"
+  /// still uses, unchanged.
+  final bool showChipPicker;
 
   @override ConsumerState<ReportsHubScreen> createState() => _RHS();
 }
@@ -90,6 +107,12 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
       ? _kR.first
       : _kR.firstWhere((r) => r.key == widget.initialReportKey, orElse: () => _kR.first);
   DatePreset _preset = DatePreset.last7;
+  // P3: shared Card/Table toggle state for the 7 reports that predate the
+  // ReportDataSet architecture and render bespoke widgets (progress bars,
+  // per-shift cards) rather than calling _tbl(). Only one report is visible
+  // at a time, so one shared field is enough — reset to Card (the existing,
+  // richer visualization) whenever the trader switches reports.
+  ReportViewMode _bespokeMode = ReportViewMode.card;
   DateTime   _from   = DateTime.now().subtract(const Duration(days: 6));
   DateTime   _to     = DateTime.now();
   bool       _loading = false;
@@ -97,6 +120,15 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
   String?    _error;
   String?    _agentId;
   String?    _retailerId;
+  // Inline, expandable filters replace the old modal bottom sheet — per the
+  // zero-learning-curve spec ("avoid unnecessary dialogs"). Collapsed by
+  // default; expanding shows Agent/Retailer directly, applying on change.
+  bool       _filtersExpanded = false;
+  // See _buildReport() / _tbl(): disambiguates ReportTableBlock keys when a
+  // single report calls _tbl() more than once (fixes a real duplicate-key
+  // crash — Retailer Purchase and similar reports render 2 tables per build,
+  // and both previously got the identical key report+dateRange).
+  int        _tblCallIndex = 0;
   String     _profitDimension = 'product'; // Phase 4 UI: product|variant|retailer|zone|agent|batch
   List<Map<String,dynamic>> _agents    = [];
   List<Map<String,dynamic>> _retailers = [];
@@ -169,21 +201,26 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
         appBar: AppBar(
             backgroundColor: kSurface, elevation: 0,
             title: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('Reports', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900)),
+              Text(widget.showChipPicker ? 'Reports' : _sel.label,
+                  style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900)),
               Text('${DateFormat("d MMM").format(_from)} – ${DateFormat("d MMM yyyy").format(_to)}',
                   style: const TextStyle(fontSize: 12, color: kTextSub)),
             ]),
             actions: [
-              IconButton(icon: const Icon(Icons.tune_outlined, size: 22), onPressed: _showFilters,
-                  tooltip: 'Filter'),
+              IconButton(
+                  icon: Icon(_filtersExpanded ? Icons.tune : Icons.tune_outlined, size: 22,
+                      color: _filtersExpanded ? kNavy : null),
+                  onPressed: () => setState(() => _filtersExpanded = !_filtersExpanded),
+                  tooltip: 'Filters'),
               IconButton(icon: const Icon(Icons.picture_as_pdf_outlined, size: 22), onPressed: _exportPdf,
                   tooltip: 'Export PDF'),
               IconButton(icon: const Icon(Icons.share_outlined, size: 22), onPressed: _shareReport,
                   tooltip: 'Share'),
             ]),
         body: Column(children: [
-          _buildReportGrid(),
+          if (widget.showChipPicker) _buildReportGrid(),
           _buildDateBar(),
+          if (_filtersExpanded) _buildInlineFilters(),
           if (_sel.key == 'profitability_breakdown') _buildDimensionBar(),
           Expanded(child: _loading ? const LoadingList()
               : _error != null ? _buildError()
@@ -203,7 +240,7 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
           children: _kR.map((r) {
             final sel = r.key == _sel.key;
             return GestureDetector(
-                onTap: () { setState(() { _sel=r; _data=null; }); _load(); },
+                onTap: () { setState(() { _sel=r; _data=null; _bespokeMode=ReportViewMode.card; }); _load(); },
                 child: AnimatedContainer(
                     duration: const Duration(milliseconds: 180),
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
@@ -306,27 +343,34 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
           ]))));
 
   // ─── REPORT ROUTER ────────────────────────────────────────────────────────
-  Widget _buildReport() => switch (_data?['report'] as String? ?? _sel.key) {
-    'daily_summary'        => _rDailySummary(),
-    'stock_reconciliation' => _rStockRecon(),
-    'shrinkage'            => _rShrinkage(),
-    'mortality'            => _rMortality(),
-    'delivery_history'     => _rDeliveryHistory(),
-    'agent_performance'    => _rAgentPerformance(),
-    'shift_audit'          => _rShiftAudit(),
-    'expense'              => _rExpense(),
-    'collection'           => _rCollection(),
-    'retailer_purchase'    => _rRetailerPurchase(),
-    'profitability'        => _rProfitability(),
-  // Phase 5: Pricing Analytics
-    'product_sales'        => _rProductSales(),
-    'zone_sales'           => _rZoneSales(),
-    'discount_leakage'     => _rDiscountLeakage(),
-    'rate_source_breakdown'=> _rRateSource(),
-    'profitability_enhanced'=> _rProfitabilityEnhanced(),
-    'profitability_breakdown'=> _rProfitabilityBreakdown(),
-    _                      => const EmptyState(icon: Icons.bar_chart_outlined, message: 'No data'),
-  };
+  Widget _buildReport() {
+    // Reset once per build pass — _tbl() uses this to make each
+    // the ReportTableBlock key unique even when a single report (e.g.
+    // Retailer Purchase, which calls _tbl() twice) renders more than one
+    // table with the same report key and date range.
+    _tblCallIndex = 0;
+    return switch (_data?['report'] as String? ?? _sel.key) {
+      'daily_summary'        => _rDailySummary(),
+      'stock_reconciliation' => _rStockRecon(),
+      'shrinkage'            => _rShrinkage(),
+      'mortality'            => _rMortality(),
+      'delivery_history'     => _rDeliveryHistory(),
+      'agent_performance'    => _rAgentPerformance(),
+      'shift_audit'          => _rShiftAudit(),
+      'expense'              => _rExpense(),
+      'collection'           => _rCollection(),
+      'retailer_purchase'    => _rRetailerPurchase(),
+      'profitability'        => _rProfitability(),
+    // Phase 5: Pricing Analytics
+      'product_sales'        => _rProductSales(),
+      'zone_sales'           => _rZoneSales(),
+      'discount_leakage'     => _rDiscountLeakage(),
+      'rate_source_breakdown'=> _rRateSource(),
+      'profitability_enhanced'=> _rProfitabilityEnhanced(),
+      'profitability_breakdown'=> _rProfitabilityBreakdown(),
+      _                      => const EmptyState(icon: Icons.bar_chart_outlined, message: 'No data'),
+    };
+  }
 
   // ═══════════════════════════════════════════════════════════════════════════
   // 1. DAILY SUMMARY
@@ -335,10 +379,10 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
     final s = _s(); final rows = _rows('daily');
     return _scroll([
       _kpiGrid([
-        _kpi('Revenue',    Fmt.amount(_d(s,'total_revenue')),   const Color(0xFF1565C0), Icons.currency_rupee),
-        _kpi('Collected',  Fmt.amount(_d(s,'total_collected')), Colors.green,            Icons.check_circle_outline),
-        _kpi('Pending',    Fmt.amount(_d(s,'total_pending')),   Colors.orange,           Icons.pending_outlined),
-        _kpi('Outstanding',Fmt.amount(_d(s,'total_outstanding')),Colors.red,             Icons.warning_amber_outlined),
+        _kpi('Revenue',    Fmt.amount(_d(s,'total_revenue')),   const Color(0xFF1565C0), Icons.currency_rupee, primary: true),
+        _kpi('Collected',  Fmt.amount(_d(s,'total_collected')), Colors.green,            Icons.check_circle_outline, primary: true),
+        _kpi('Pending',    Fmt.amount(_d(s,'total_pending')),   Colors.orange,           Icons.pending_outlined, primary: true),
+        _kpi('Outstanding',Fmt.amount(_d(s,'total_outstanding')),Colors.red,             Icons.warning_amber_outlined, primary: true),
       ]),
       _kpiGrid([
         _kpi2('DC Birds',    '${_i(s,"total_birds_dc")}',                              const Color(0xFF283593), Icons.egg_outlined),
@@ -537,7 +581,7 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
   Widget _rShiftAudit() {
     final shifts = _rows('shifts');
     if (shifts.isEmpty) return const EmptyState(icon: Icons.assignment_outlined, message: 'No closed shifts');
-    return ListView.builder(
+    final cardView = ListView.builder(
         padding: const EdgeInsets.fromLTRB(16,16,16,80),
         itemCount: shifts.length,
         itemBuilder: (_, i) {
@@ -583,6 +627,22 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
                 ]),
               ]));
         });
+
+    final heads = ['Agent','Date','Status','DC kg','Delivered Birds','Delivered kg',
+      'Returned kg','Mortality Birds','Weight Var kg','Loss %','Cash','Expenses','KM'];
+    final rows = shifts.map((s) => [
+      _str(s,'agent_name'), _fd(s['shift_date']),
+      (s['shift_approval_status'] == 'approved') ? 'Approved' : 'Pending',
+      _d(s,'dc_loaded_kg').toStringAsFixed(1),
+      '${_i(s,'delivered_birds')}', _d(s,'delivered_kg').toStringAsFixed(1),
+      _d(s,'returned_weight').toStringAsFixed(1), '${_i(s,'total_mortality')}',
+      _d(s,'shrinkage_kg').toStringAsFixed(2), _d(s,'loss_percent').toStringAsFixed(2),
+      Fmt.amount(_d(s,'total_cash_collected')), Fmt.amount(_d(s,'total_expenses')),
+      _d(s,'distance_km').toStringAsFixed(0),
+    ]).toList();
+    final ds = ReportDataSet(title: _sel.label, headers: heads, rows: rows,
+        fromDate: _from, toDate: _to, warnColumn: 9, warnThreshold: 2);
+    return _bespokeReport(cardView, ds);
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -685,7 +745,7 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
       _banner(
           'This report uses a dc_date-based cost model for margin analysis. '
               'For the official Profit figure, use the P&L Statement.',
-          const Color(0xFF004D40)),
+          _cBusiness),
       const SizedBox(height: 4),
       Container(
           margin: const EdgeInsets.all(12),
@@ -731,9 +791,61 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
   // ReportTableBlock here gives every report Card View, Table View, and a
   // PDF/Share/Print actions bar simultaneously, from one place, with zero
   // changes needed at any call site. This is the fix for the Reports module
-  // audit's duplicate-table-logic finding (previously the on-screen table
+  // audit duplicate-table-logic finding (previously the on-screen table
   // and the PDF generator built two separate representations of the same
   // data — now both read the exact same ReportDataSet).
+  // P3: wraps one of the 7 bespoke (pre-ReportDataSet) reports with the same
+  // Card/Table toggle + export actions the _tbl()-based reports already
+  // have. `cardView` is the report EXISTING widget (progress bars, per-
+  // shift cards, etc.) — never replaced, only supplemented with a Table View
+  // built from the same headers/rows fed into ReportDataSet.
+  Widget _bespokeReport(Widget cardView, ReportDataSet ds) {
+    final user = ref.read(appUserProvider).valueOrNull;
+    final company = user?.companyName ?? 'DSR Chicken';
+    bool busy = false;
+    return StatefulBuilder(builder: (context, setLocal) {
+      Future<void> run(Future<void> Function() action) async {
+        if (busy) return;
+        setLocal(() => busy = true);
+        try {
+          await action();
+        } catch (e) {
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Export failed: ${e.toString().replaceAll("Exception:", "").trim()}')));
+          }
+        } finally {
+          setLocal(() => busy = false);
+        }
+      }
+      return Column(children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(12, 4, 12, 4),
+          child: Row(children: [
+            ReportViewToggle(
+                mode: _bespokeMode,
+                onChanged: (m) => setState(() => _bespokeMode = m)),
+            const Spacer(),
+            ReportActionsBar(
+              busy: busy,
+              onDownload: () => run(() => ReportPdfGenerator.generateFromDataSetAndShow(
+                  context: context, dataSet: ds, companyName: company)),
+              onShare: () => run(() => ReportPdfGenerator.shareFromDataSet(
+                  dataSet: ds, companyName: company)),
+              onPrint: () => run(() => ReportPdfGenerator.generateFromDataSetAndShow(
+                  context: context, dataSet: ds, companyName: company)),
+            ),
+          ]),
+        ),
+        Expanded(
+          child: _bespokeMode == ReportViewMode.card
+              ? cardView
+              : ReportTable(dataSet: ds),
+        ),
+      ]);
+    });
+  }
+
   Widget _tbl(List<String> heads, List<List<String>> rows, {
     List<String>? tots, List<int> hi=const[], int? warnC, double warnT=0,
   }) {
@@ -751,7 +863,7 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
       warnThreshold: warnT,
     );
     return ReportTableBlock(
-      key: ValueKey('${_sel.key}_${_from}_$_to'),
+      key: ValueKey('${_sel.key}_${_from}_${_to}_${_tblCallIndex++}'),
       dataSet: dataSet,
       companyName: company,
       fromDate: _from,
@@ -780,45 +892,51 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
     }
   }
 
-  void _showFilters() => showModalBottomSheet(
-      context: context, useRootNavigator: true, isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (ctx) => StatefulBuilder(builder: (ctx, ss) {
-        String? ta=_agentId; String? tr=_retailerId;
-        return Padding(padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom+20,
-            top: 20, left: 20, right: 20),
-            child: Column(mainAxisSize: MainAxisSize.min, children: [
-              const Text('Filters', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
-              const SizedBox(height: 16),
-              if (_agents.isNotEmpty) DropdownButtonFormField<String>(
-                  value: ta,
-                  decoration: const InputDecoration(labelText: 'Agent', isDense: false),
-                  items: [const DropdownMenuItem(value: null, child: Text('All Agents')),
-                    ..._agents.map((a)=>DropdownMenuItem(value: a['id'] as String,
-                        child: Text(a['name'] as String? ?? '—')))],
-                  onChanged: (v)=>ss(()=>ta=v)),
-              const SizedBox(height: 12),
-              if (_retailers.isNotEmpty) DropdownButtonFormField<String>(
-                  value: tr,
-                  decoration: const InputDecoration(labelText: 'Retailer', isDense: false),
-                  items: [const DropdownMenuItem(value: null, child: Text('All Retailers')),
-                    ..._retailers.map((r)=>DropdownMenuItem(value: r['id'] as String,
-                        child: Text(r['shop_name'] as String? ?? '—')))],
-                  onChanged: (v)=>ss(()=>tr=v)),
-              const SizedBox(height: 20),
-              Row(children: [
-                Expanded(child: OutlinedButton(
-                    onPressed: (){setState((){_agentId=null;_retailerId=null;});Navigator.of(ctx,rootNavigator:true).pop();_load();},
-                    child: const Text('Clear', style: TextStyle(fontSize: 15)))),
-                const SizedBox(width: 12),
-                Expanded(child: ElevatedButton(
-                    onPressed: (){setState((){_agentId=ta;_retailerId=tr;});Navigator.of(ctx,rootNavigator:true).pop();_load();},
-                    child: const Text('Apply', style: TextStyle(fontSize: 15)))),
-              ]),
-              const SizedBox(height: 10),
-            ]));
-      }));
+  // Inline, expandable filters — replaces the old showModalBottomSheet.
+  // Applies on change directly (no Apply/Clear dialog needed), matching
+  // "avoid unnecessary dialogs" from the zero-learning-curve spec.
+  Widget _buildInlineFilters() {
+    if (_agents.isEmpty && _retailers.isEmpty) return const SizedBox.shrink();
+    return Container(
+      color: kSurface,
+      padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
+      child: Row(children: [
+        if (_agents.isNotEmpty)
+          Expanded(
+            child: DropdownButtonFormField<String>(
+              value: _agentId,
+              isDense: true,
+              decoration: const InputDecoration(
+                  labelText: 'Agent', isDense: true,
+                  contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8)),
+              items: [
+                const DropdownMenuItem(value: null, child: Text('All Agents')),
+                ..._agents.map((a) => DropdownMenuItem(
+                    value: a['id'] as String, child: Text(a['name'] as String? ?? '—'))),
+              ],
+              onChanged: (v) { setState(() => _agentId = v); _load(); },
+            ),
+          ),
+        if (_agents.isNotEmpty && _retailers.isNotEmpty) const SizedBox(width: 10),
+        if (_retailers.isNotEmpty)
+          Expanded(
+            child: DropdownButtonFormField<String>(
+              value: _retailerId,
+              isDense: true,
+              decoration: const InputDecoration(
+                  labelText: 'Retailer', isDense: true,
+                  contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8)),
+              items: [
+                const DropdownMenuItem(value: null, child: Text('All Retailers')),
+                ..._retailers.map((r) => DropdownMenuItem(
+                    value: r['id'] as String, child: Text(r['shop_name'] as String? ?? '—'))),
+              ],
+              onChanged: (v) { setState(() => _retailerId = v); _load(); },
+            ),
+          ),
+      ]),
+    );
+  }
 
   Future<void> _shareReport() async {
     if (_data == null) { showError(context, 'No report to share'); return; }
@@ -866,8 +984,9 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
     final daily    = List<Map<String,dynamic>>.from(_data?['daily_trend'] as List? ?? []);
     final totalRev = summary.fold(0.0, (s, r) => s + _d(r, 'total_revenue'));
     final totalKg  = summary.fold(0.0, (s, r) => s + _d(r, 'total_kg'));
+    final totalInv = summary.fold(0, (s, r) => s + _i(r, 'invoice_count'));
 
-    return _scroll([
+    final cardView = _scroll([
       _banner('Sales breakdown by product for the selected period.',
           const Color(0xFF1A237E)),
       const SizedBox(height: 4),
@@ -938,6 +1057,19 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
         _dailyBar(daily, 'revenue', const Color(0xFF1A237E)),
       ],
     ]);
+
+    final heads = ['Product','Revenue','Weight (kg)','Avg Rate','Invoices','% of Total'];
+    final rows = summary.map((p) {
+      final rev = _d(p,'total_revenue');
+      final pct = totalRev > 0 ? rev/totalRev*100 : 0.0;
+      return [_str(p,'product_name'), Fmt.amount(rev), _d(p,'total_kg').toStringAsFixed(1),
+        Fmt.amount(_d(p,'avg_rate')), '${_i(p,'invoice_count')}', '${pct.toStringAsFixed(1)}%'];
+    }).toList();
+    final tots = ['Total', Fmt.amount(totalRev), totalKg.toStringAsFixed(1),
+      Fmt.amount(totalKg>0?totalRev/totalKg:0), '$totalInv', '100%'];
+    final ds = ReportDataSet(title: _sel.label, headers: heads, rows: rows, totals: tots,
+        fromDate: _from, toDate: _to, highlightColumns: const [1]);
+    return _bespokeReport(cardView, ds);
   }
 
   // ── REPORT P2: Zone Sales ─────────────────────────────────────────────────
@@ -945,8 +1077,9 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
     final byZone    = List<Map<String,dynamic>>.from(_data?['by_zone'] as List? ?? []);
     final byZoneProd= List<Map<String,dynamic>>.from(_data?['by_zone_product'] as List? ?? []);
     final totalRev  = byZone.fold(0.0, (s, r) => s + _d(r, 'total_revenue'));
+    final totalKgZ  = byZone.fold(0.0, (s, r) => s + _d(r, 'total_kg'));
 
-    return _scroll([
+    final cardView = _scroll([
       _banner('Revenue breakdown by delivery zone.', const Color(0xFF006064)),
       const SizedBox(height: 4),
       _kpiGrid([
@@ -1018,6 +1151,19 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
         ],
       ],
     ]);
+
+    final heads = ['Zone','Revenue','Weight (kg)','Avg Rate','% of Total'];
+    final rows = byZone.map((z) {
+      final rev = _d(z,'total_revenue');
+      final pct = totalRev > 0 ? rev/totalRev*100 : 0.0;
+      return [_str(z,'zone_name'), Fmt.amount(rev), _d(z,'total_kg').toStringAsFixed(1),
+        Fmt.amount(_d(z,'avg_rate')), '${pct.toStringAsFixed(1)}%'];
+    }).toList();
+    final tots = ['Total', Fmt.amount(totalRev), totalKgZ.toStringAsFixed(1),
+      Fmt.amount(totalKgZ>0?totalRev/totalKgZ:0), '100%'];
+    final ds = ReportDataSet(title: _sel.label, headers: heads, rows: rows, totals: tots,
+        fromDate: _from, toDate: _to, highlightColumns: const [1]);
+    return _bespokeReport(cardView, ds);
   }
 
   // ── REPORT P3: Discount Leakage ───────────────────────────────────────────
@@ -1107,7 +1253,7 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
       const SizedBox(height: 4),
       _kpiGrid([
         _kpi('Total Revenue', Fmt.amount(totalRev), const Color(0xFF4527A0), Icons.currency_rupee),
-        _kpi('Rate Sources',  '${bySource.length}', Colors.deepPurple, Icons.auto_fix_high_outlined),
+        _kpi('Rate Sources',  '${bySource.length}', _cSales, Icons.auto_fix_high_outlined),
       ]),
       const SizedBox(height: 12),
 
@@ -1190,7 +1336,7 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
           'This report uses invoice-date average-cost margin analysis with '
               'discount/premium tracking. For the official Profit figure, use '
               'the P&L Statement.',
-          const Color(0xFF1B5E20)),
+          _cFinancial),
       const SizedBox(height: 4),
       _banner('Full profitability including purchase cost, expenses, discount leakage & premium earned.',
           const Color(0xFF1B5E20)),
@@ -1299,9 +1445,9 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
     }
 
     return _scroll([
-      _banner('Margin by $dimension — uses the same per-kg cost rate as the P&L statement, '
+      _banner('Profit Breakdown by $dimension — uses the same per-kg cost rate as the P&L statement, '
           'allocated proportionally per line. For the official Profit figure, use the P&L Statement.',
-          const Color(0xFF004D40)),
+          _cFinancial),
       _kpiGrid([
         _kpi('Total Revenue', Fmt.amount(totalRevenue), const Color(0xFF004D40), Icons.currency_rupee),
         _kpi('${dimension[0].toUpperCase()}${dimension.substring(1)}s', '${rows.length}',
@@ -1425,43 +1571,78 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
       child: Column(children:[...c, const SizedBox(height: kBottomNavClearance)]));
 
   Widget _sec(String t) => Padding(
-      padding: const EdgeInsets.fromLTRB(12,14,12,6),
-      child: Text(t, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w900,
-          color: kNavy, letterSpacing: 0.6)));
+      padding: const EdgeInsets.fromLTRB(kSpMd, kSpLg, kSpMd, kSpXs),
+      child: Text(t, style: kTypeSectionTitle));
 
-  // KPI card — large text for readability
+  // KPI grid — unchanged row layout (safe, no structural risk to the 17
+  // existing call sites), but every card inside now reads from the shared
+  // type scale and supports the primary/secondary distinction below.
   Widget _kpiGrid(List<Widget> cards) => Padding(
-      padding: const EdgeInsets.fromLTRB(12,10,12,0),
-      child: Row(children: cards.expand((c)=>[c,const SizedBox(width:8)]).toList()..removeLast()));
+      padding: const EdgeInsets.fromLTRB(kSpMd, kSpSm, kSpMd, 0),
+      child: Row(children: cards.expand((c)=>[c,const SizedBox(width: kSpSm)]).toList()..removeLast()));
 
-  Widget _kpi(String label, String value, Color c, IconData icon) =>
-      Expanded(child: Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(color: c.withValues(alpha: 0.08),
-              borderRadius: BorderRadius.circular(kRadiusCard),
-              border: Border.all(color: c.withValues(alpha: 0.25)),
-              boxShadow: kCardShadow),
+  // Primary business KPIs (Revenue, Collection, Pending, Outstanding, ...):
+  // larger number, whitespace-led — a thin left accent bar instead of a
+  // full tinted border+shadow box, so the emphasis comes from typography
+  // and space, not another container competing for attention.
+  // Secondary operational KPIs (Birds, Net/Gross/Tare Weight): unchanged
+  // compact tinted-box treatment, deliberately quieter than primary.
+  //
+  // Both use FittedBox to SHRINK large values to fit rather than truncate
+  // them with an ellipsis — "avoid truncated values" applies to real
+  // numbers (₹12,45,678 etc.), and ellipsis was the previous failure mode.
+  Widget _kpi(String label, String value, Color c, IconData icon, {bool primary = false}) {
+    if (primary) {
+      return Expanded(
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: kSpMd, vertical: kSpSm),
+          decoration: BoxDecoration(
+            border: Border(left: BorderSide(color: c, width: 3)),
+          ),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Icon(icon, size: 16, color: c),
-            const SizedBox(height: 6),
-            Text(value, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: c),
-                maxLines: 1, overflow: TextOverflow.ellipsis),
-            const SizedBox(height: 2),
-            Text(label, style: const TextStyle(fontSize: 10, color: kTextSub), maxLines: 1),
-          ])));
+            Text(label, style: kTypeKpiLabel, maxLines: 1),
+            const SizedBox(height: kSpXs),
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerLeft,
+              child: Text(value, style: kTypeKpiPrimary.copyWith(color: c), maxLines: 1),
+            ),
+          ]),
+        ),
+      );
+    }
+    return Expanded(child: Container(
+        padding: const EdgeInsets.all(kSpMd),
+        decoration: BoxDecoration(color: c.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(kRadiusCard),
+            border: Border.all(color: c.withValues(alpha: 0.25))),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Icon(icon, size: 16, color: c),
+          const SizedBox(height: kSpXs + 2),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(value, style: kTypeKpiSecondary.copyWith(color: c), maxLines: 1),
+          ),
+          const SizedBox(height: kSpXs / 2),
+          Text(label, style: kTypeKpiLabel, maxLines: 1),
+        ])));
+  }
 
   Widget _kpi2(String label, String value, Color c, IconData icon) =>
       Expanded(child: Container(
-          padding: const EdgeInsets.all(10),
+          padding: const EdgeInsets.all(kSpSm + 2),
           decoration: BoxDecoration(color: c.withValues(alpha: 0.07),
-              borderRadius: BorderRadius.circular(kRadiusCard)),
+              borderRadius: BorderRadius.circular(kRadiusInner)),
           child: Column(children: [
             Icon(icon, size: 16, color: c),
-            const SizedBox(height: 4),
-            Text(value, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w900, color: c),
-                maxLines: 1, overflow: TextOverflow.ellipsis, textAlign: TextAlign.center),
-            Text(label, style: const TextStyle(fontSize: 9, color: kTextSub),
-                textAlign: TextAlign.center, maxLines: 1),
+            const SizedBox(height: kSpXs),
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(value, style: kTypeKpiSecondary.copyWith(color: c),
+                  maxLines: 1, textAlign: TextAlign.center),
+            ),
+            Text(label, style: kTypeCaption, textAlign: TextAlign.center, maxLines: 1),
           ])));
 
   Widget _st(String label, String value) => Expanded(child: Column(children: [
@@ -1472,14 +1653,14 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
   ]));
 
   Widget _banner(String text, Color c) => Container(
-      margin: const EdgeInsets.fromLTRB(12,12,12,0),
-      padding: const EdgeInsets.all(12),
+      margin: const EdgeInsets.fromLTRB(kSpMd, kSpMd, kSpMd, 0),
+      padding: const EdgeInsets.all(kSpMd),
       decoration: BoxDecoration(color: c.withValues(alpha: 0.08),
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: BorderRadius.circular(kRadiusInner),
           border: Border.all(color: c.withValues(alpha: 0.3))),
       child: Row(children: [
-        Icon(Icons.info_outline, size: 14, color: c), const SizedBox(width: 8),
-        Expanded(child: Text(text, style: TextStyle(fontSize: 11, color: c, fontWeight: FontWeight.w600))),
+        Icon(Icons.info_outline, size: 14, color: c), const SizedBox(width: kSpSm),
+        Expanded(child: Text(text, style: kTypeCaption.copyWith(color: c, fontWeight: FontWeight.w600))),
       ]));
 
   Widget _hdr(String title, IconData icon, Color c) => Container(

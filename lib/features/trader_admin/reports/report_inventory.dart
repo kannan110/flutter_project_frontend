@@ -79,11 +79,11 @@ const List<ReportInventoryEntry> kReportInventory = [
   ReportInventoryEntry(key: 'product_sales', label: 'Product Sales', category: ReportCategory.sales, frequency: 'Weekly'),
   ReportInventoryEntry(key: 'zone_sales', label: 'Zone Sales', category: ReportCategory.sales, frequency: 'Weekly'),
   ReportInventoryEntry(key: 'discount_leakage', label: 'Discount Leakage', category: ReportCategory.sales, frequency: 'Monthly'),
-  ReportInventoryEntry(key: 'rate_source_breakdown', label: 'Rate Source', category: ReportCategory.sales, frequency: 'Monthly'),
+  ReportInventoryEntry(key: 'rate_source_breakdown', label: 'Pricing Source', category: ReportCategory.sales, frequency: 'Monthly'),
 
   // ── Financial ─────────────────────────────────────────────────────────
   ReportInventoryEntry(key: 'profitability_enhanced', label: 'Profit (Full)', category: ReportCategory.financial, frequency: 'Monthly'),
-  ReportInventoryEntry(key: 'profitability_breakdown', label: 'Margin by Dimension', category: ReportCategory.financial, frequency: 'Monthly'),
+  ReportInventoryEntry(key: 'profitability_breakdown', label: 'Profit Breakdown', category: ReportCategory.financial, frequency: 'Monthly'),
 ];
 
 List<ReportInventoryEntry> reportsInCategory(ReportCategory c) =>

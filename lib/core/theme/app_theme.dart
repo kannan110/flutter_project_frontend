@@ -85,6 +85,34 @@ const kRadiusBtn   = 14.0;   // action buttons
 // or SingleChildScrollView that lives inside either shell.
 const kBottomNavClearance = 100.0;
 
+// ═══════════════════════════════════════════════════════════════════════════
+// REPORTS MODULE — ONE TYPOGRAPHY SYSTEM, ONE SPACING SCALE
+// Additive only — nothing above this is renamed or removed. Introduced to
+// replace the ad hoc per-widget font sizes (11/12/13/14px mixed across
+// dozens of independently-written report methods) with one enforced scale,
+// per the "one typography system, one spacing system" design-consistency
+// requirement. Every report screen should read from these, not literal
+// TextStyle(fontSize: N) calls.
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Type scale — six roles, nothing else. Two weights only (600/800) plus
+// 900 reserved for the single most important number on a given screen.
+const kTypeScreenTitle   = TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: kTextMain);
+const kTypeSectionTitle  = TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: kNavy, letterSpacing: 0.5);
+const kTypeKpiPrimary    = TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: kNavy, height: 1.1);
+const kTypeKpiSecondary  = TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: kTextMain, height: 1.1);
+const kTypeKpiLabel      = TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: kTextHint);
+const kTypeBody          = TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: kTextMain);
+const kTypeCaption       = TextStyle(fontSize: 11, fontWeight: FontWeight.w500, color: kTextHint);
+
+// Spacing scale — 4/8/12/16/24. Nothing in between; if a gap doesn't fit
+// one of these, round to the nearest rather than inventing a new value.
+const kSpXs = 4.0;
+const kSpSm = 8.0;
+const kSpMd = 12.0;
+const kSpLg = 16.0;
+const kSpXl = 24.0;
+
 // ── Status colours helper ─────────────────────────────────────────────────
 class SC {
   static Color order(String s) => switch (s) {
@@ -884,13 +912,13 @@ class _PickerSheetState extends State<_PickerSheet> {
       _filtered = q.isEmpty
           ? List.from(widget.items)
           : widget.items.where((item) {
-              final label =
-                  (item[widget.labelKey] as String? ?? '').toLowerCase();
-              final sub = widget.subKey != null
-                  ? (item[widget.subKey!] as String? ?? '').toLowerCase()
-                  : '';
-              return label.contains(q) || sub.contains(q);
-            }).toList();
+        final label =
+        (item[widget.labelKey] as String? ?? '').toLowerCase();
+        final sub = widget.subKey != null
+            ? (item[widget.subKey!] as String? ?? '').toLowerCase()
+            : '';
+        return label.contains(q) || sub.contains(q);
+      }).toList();
     });
   }
 
