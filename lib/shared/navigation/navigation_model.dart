@@ -255,7 +255,7 @@ class TraderNavigation {
               label:      'Reports',
               icon:       Icons.summarize_outlined,
               activeIcon: Icons.summarize_rounded,
-              route:      R.reportsHub,
+              route:      R.reportsHome,
             ),
             NavItem(
               label:      'Alerts',
@@ -348,7 +348,7 @@ class TraderNavigation {
           label:      'Reports',
           icon:       Icons.summarize_outlined,
           activeIcon: Icons.summarize_rounded,
-          route:      R.reportsHub,
+          route:      R.reportsHome,
         ),
         NavItem(
           label:      'Alerts',

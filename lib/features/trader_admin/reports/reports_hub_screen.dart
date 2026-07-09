@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:rooster_trader/features/trader_admin/reports/report_dataset.dart';
+import 'package:rooster_trader/features/trader_admin/reports/report_table.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/providers/session_provider.dart';
 import '../../../core/theme/app_theme.dart';
@@ -62,18 +64,31 @@ const _kR = [
   _Rep('rate_source_breakdown','Rate Source',         Icons.auto_fix_high_outlined,     Color(0xFF4527A0)),
   _Rep('profitability_enhanced','Profit (Full)',      Icons.analytics_outlined,         Color(0xFF1B5E20)),
   // ── Phase 4/UI: Profitability Breakdown (by product/variant/retailer/zone/agent/batch) ──
-  _Rep('profitability_breakdown','Profit by...',       Icons.pie_chart_outline,           Color(0xFF004D40)),
+  // P0 (approved spec §7): relabeled from "Profit by..." to "Margin by Dimension" —
+  // this report uses proportional per-line cost allocation, a different (and
+  // valid, for drill-down purposes) methodology than get_pnl_statement's
+  // official full-batch-cost model. The old label implied it WAS the official
+  // profit figure; it isn't. No data/RPC change — label + banner only.
+  _Rep('profitability_breakdown','Margin by Dimension', Icons.pie_chart_outline,         Color(0xFF004D40)),
 ];
 
 // ─────────────────────────────────────────────────────────────────────────────
 class ReportsHubScreen extends ConsumerStatefulWidget {
-  const ReportsHubScreen({super.key});
+  const ReportsHubScreen({super.key, this.initialReportKey});
+
+  /// Optional deep-link target — set by ReportListScreen when opening a
+  /// specific report from Reports Home. Defaults to null, which preserves
+  /// the screen's original behavior (opens on the first report in the list).
+  final String? initialReportKey;
+
   @override ConsumerState<ReportsHubScreen> createState() => _RHS();
 }
 
 class _RHS extends ConsumerState<ReportsHubScreen> {
   final _c = Supabase.instance.client;
-  _Rep       _sel    = _kR.first;
+  late _Rep  _sel = widget.initialReportKey == null
+      ? _kR.first
+      : _kR.firstWhere((r) => r.key == widget.initialReportKey, orElse: () => _kR.first);
   DatePreset _preset = DatePreset.last7;
   DateTime   _from   = DateTime.now().subtract(const Duration(days: 6));
   DateTime   _to     = DateTime.now();
@@ -667,6 +682,11 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
     final net = rev-pur-exp-shL-morL;
     final margin = rev>0 ? net/rev*100 : 0.0;
     return _scroll([
+      _banner(
+          'This report uses a dc_date-based cost model for margin analysis. '
+              'For the official Profit figure, use the P&L Statement.',
+          const Color(0xFF004D40)),
+      const SizedBox(height: 4),
       Container(
           margin: const EdgeInsets.all(12),
           decoration: BoxDecoration(color: kSurface, borderRadius: BorderRadius.circular(kRadiusCard), border: Border.all(color: kBorderLight), boxShadow: kCardShadow),
@@ -706,39 +726,38 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
   // ─────────────────────────────────────────────────────────────────────────
   // REUSABLE TABLE — larger text for 40+ readability
   // ─────────────────────────────────────────────────────────────────────────
+  // Every one of the 17 report renderers below calls this ONE function with
+  // its heads/rows/totals — so wiring it to the shared ReportDataSet +
+  // ReportTableBlock here gives every report Card View, Table View, and a
+  // PDF/Share/Print actions bar simultaneously, from one place, with zero
+  // changes needed at any call site. This is the fix for the Reports module
+  // audit's duplicate-table-logic finding (previously the on-screen table
+  // and the PDF generator built two separate representations of the same
+  // data — now both read the exact same ReportDataSet).
   Widget _tbl(List<String> heads, List<List<String>> rows, {
     List<String>? tots, List<int> hi=const[], int? warnC, double warnT=0,
-  }) => Container(
-      margin: const EdgeInsets.fromLTRB(12,0,12,12),
-      decoration: BoxDecoration(color: kSurface,
-          borderRadius: BorderRadius.circular(kRadiusCard), border: Border.all(color: kBorderLight), boxShadow: kCardShadow),
-      child: SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: DataTable(
-              columnSpacing: 18,
-              headingRowHeight: 40,
-              dataRowMinHeight: 38, dataRowMaxHeight: 44,
-              headingRowColor: WidgetStateProperty.all(kNavy),
-              columns: heads.asMap().entries.map((e) => DataColumn(label: Text(e.value,
-                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800,
-                      color: hi.contains(e.key) ? kGoldLight : const Color(0xFFB4C6F4))))).toList(),
-              rows: [
-                ...rows.asMap().entries.map((re) => DataRow(
-                    color: WidgetStateProperty.resolveWith((s)=>re.key.isOdd?Colors.grey.shade50:Colors.white),
-                    cells: re.value.asMap().entries.map((ce) {
-                      final isHi   = hi.contains(ce.key);
-                      final isWarn = warnC!=null && ce.key==warnC &&
-                          (double.tryParse(ce.value.replaceAll('%',''))??0)>=warnT;
-                      return DataCell(Text(ce.value, style: TextStyle(fontSize: 13,
-                          fontWeight: isHi?FontWeight.w800:FontWeight.w500,
-                          color: isWarn?Colors.red:isHi?kNavy:kTextMain)));
-                    }).toList())),
-                if (tots!=null) DataRow(
-                    color: WidgetStateProperty.all(kNavy.withValues(alpha: 0.07)),
-                    cells: tots.asMap().entries.map((e)=>DataCell(Text(e.value,
-                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w900,
-                            color: hi.contains(e.key)?kNavy:kTextMain)))).toList()),
-              ])));
+  }) {
+    final user = ref.read(appUserProvider).valueOrNull;
+    final company = user?.companyName ?? 'DSR Chicken';
+    final dataSet = ReportDataSet(
+      title: _sel.label,
+      headers: heads,
+      rows: rows,
+      fromDate: _from,
+      toDate: _to,
+      totals: tots,
+      highlightColumns: hi,
+      warnColumn: warnC,
+      warnThreshold: warnT,
+    );
+    return ReportTableBlock(
+      key: ValueKey('${_sel.key}_${_from}_$_to'),
+      dataSet: dataSet,
+      companyName: company,
+      fromDate: _from,
+      toDate: _to,
+    );
+  }
 
   // ─────────────────────────────────────────────────────────────────────────
   // HELPERS
@@ -1167,6 +1186,12 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
     final netPricingImpact = _d(s, 'net_pricing_impact');
 
     return _scroll([
+      _banner(
+          'This report uses invoice-date average-cost margin analysis with '
+              'discount/premium tracking. For the official Profit figure, use '
+              'the P&L Statement.',
+          const Color(0xFF1B5E20)),
+      const SizedBox(height: 4),
       _banner('Full profitability including purchase cost, expenses, discount leakage & premium earned.',
           const Color(0xFF1B5E20)),
       const SizedBox(height: 4),
@@ -1274,7 +1299,8 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
     }
 
     return _scroll([
-      _banner('Revenue and cost matched per $dimension, using the same batch costing as the P&L statement.',
+      _banner('Margin by $dimension — uses the same per-kg cost rate as the P&L statement, '
+          'allocated proportionally per line. For the official Profit figure, use the P&L Statement.',
           const Color(0xFF004D40)),
       _kpiGrid([
         _kpi('Total Revenue', Fmt.amount(totalRevenue), const Color(0xFF004D40), Icons.currency_rupee),

@@ -180,7 +180,7 @@ class _S extends ConsumerState<ShiftDetailScreen> {
                           Colors.orange, false, prefix: '\u2212'),
                     if (liveRetBirds > 0 || liveRetKg > 0)
                       _approvalReconRow('Live Return (Stock Added)',
-                          liveRetBirds, liveRetKg, Colors.indigo, false, prefix: '\u2212'),
+                          liveRetBirds, liveRetKg, Colors.indigo, false, prefix: '+'),
                     if (hasDelMort && hasRetMort) ...[
                       _approvalReconRow('Delivery Mortality',
                           delMortBirds, delMortKg, Colors.red, false, prefix: '\u2212'),
@@ -279,9 +279,12 @@ class _S extends ConsumerState<ShiftDetailScreen> {
         String? prefix,
         String? suffix,
       }) {
-    final String birdsStr = birds != null ? '${prefix ?? ""}$birds birds' : '';
+    // Always show the magnitude — the prefix alone carries the sign.
+    // (Previously a negative `birds`/`kg` value combined with a hardcoded
+    // prefix could render a confusing double sign like "+-10".)
+    final String birdsStr = birds != null ? '${prefix ?? ""}${birds.abs()} birds' : '';
     final String kgStr    =
-        '${prefix ?? ""}${kg.toStringAsFixed(2)} kg${suffix ?? ""}';
+        '${prefix ?? ""}${kg.abs().toStringAsFixed(2)} kg${suffix ?? ""}';
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 3),
       child: Row(children: [
@@ -725,7 +728,7 @@ class _S extends ConsumerState<ShiftDetailScreen> {
                             if (toBirds > 0 || toKg > 0)
                               _productMoveRow('Transfer Out', toBirds, toKg, Colors.orange, prefix: '−'),
                             if (rBirds > 0 || rKg > 0)
-                              _productMoveRow('Live Return', rBirds, rKg, Colors.indigo, prefix: '−'),
+                              _productMoveRow('Live Return', rBirds, rKg, Colors.indigo, prefix: '+'),
                             if (mBirds > 0 || mKg > 0)
                               _productMoveRow('Mortality', mBirds, mKg, Colors.red, prefix: '−'),
                           ]),
@@ -1525,7 +1528,7 @@ class _S extends ConsumerState<ShiftDetailScreen> {
                           'Transfer Out', toBirds, toKg, Colors.orange, '−'),
                     if (rBirds > 0 || rKg > 0)
                       _desktopMoveStat(
-                          'Live Return', rBirds, rKg, Colors.indigo, '−'),
+                          'Live Return', rBirds, rKg, Colors.indigo, '+'),
                     if (mBirds > 0 || mKg > 0)
                       _desktopMoveStat(
                           'Mortality', mBirds, mKg, Colors.red, '−'),
@@ -1546,10 +1549,10 @@ class _S extends ConsumerState<ShiftDetailScreen> {
               style: const TextStyle(
                   fontSize: 11, color: kTextHint, fontWeight: FontWeight.w600)),
           const SizedBox(height: 3),
-          Text('$prefix$birds b',
+          Text('$prefix${birds.abs()} b',
               style:
               TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: c)),
-          Text('$prefix${kg.toStringAsFixed(1)} kg',
+          Text('$prefix${kg.abs().toStringAsFixed(1)} kg',
               style: TextStyle(fontSize: 12, color: c.withValues(alpha: 0.8))),
         ]),
       );
@@ -2744,7 +2747,7 @@ class _S extends ConsumerState<ShiftDetailScreen> {
                       Colors.orange, false, prefix: '−'),
                 if (liveRetBirds > 0 || liveRetKg > 0)
                   _approvalReconRow('Live Return (Stock Added)',
-                      liveRetBirds, liveRetKg, Colors.indigo, false, prefix: '−'),
+                      liveRetBirds, liveRetKg, Colors.indigo, false, prefix: '+'),
                 if (hasDelMort && hasRetMort) ...[
                   _approvalReconRow('Delivery Mortality',
                       delMortBirds, delMortKg, Colors.red, false, prefix: '−'),
@@ -2861,7 +2864,7 @@ class _S extends ConsumerState<ShiftDetailScreen> {
                         if (bTransferOutBirds > 0 || bTransferOutKg > 0)
                           _approvalReconRow('Transfer Out', bTransferOutBirds, bTransferOutKg, Colors.orange, false, prefix: '−'),
                         if (bLiveRet > 0 || bLiveRetKg > 0)
-                          _approvalReconRow('Live Return', bLiveRet, bLiveRetKg, Colors.indigo, false, prefix: '−'),
+                          _approvalReconRow('Live Return', bLiveRet, bLiveRetKg, Colors.indigo, false, prefix: '+'),
                         if (bRetMBirds > 0)
                           _approvalReconRow('Dead Return', bRetMBirds, bRetMKg, Colors.deepOrange, false, prefix: '−')
                         else if (bMortBirds > 0)
@@ -2901,11 +2904,11 @@ class _S extends ConsumerState<ShiftDetailScreen> {
           Expanded(child: Text(label,
               style: const TextStyle(fontSize: 11, color: kTextSub))),
           SizedBox(width: 68,
-              child: Text('$prefix$birds b',
+              child: Text('$prefix${birds.abs()} b',
                   textAlign: TextAlign.right,
                   style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: c))),
           SizedBox(width: 72,
-              child: Text('$prefix${kg.toStringAsFixed(1)} kg',
+              child: Text('$prefix${kg.abs().toStringAsFixed(1)} kg',
                   textAlign: TextAlign.right,
                   style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: c))),
         ]),

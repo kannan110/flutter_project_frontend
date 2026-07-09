@@ -15,6 +15,7 @@ import 'package:rooster_trader/features/trader_admin/stock/stock_detail_screen.d
     show StockDetailScreen;
 import '../../features/delivery_agent/orders/agent_myorder_screen.dart' show AgentMyOrdersScreen;
 import '../../features/trader_admin/reports/cashflow_screen.dart' show CashFlowScreen;
+import '../../features/trader_admin/reports/report_home_screen.dart';
 import '../../features/trader_admin/reports/supplier_statement_screen.dart' show SupplierStatementScreen;
 import '../models/app_user.dart';
 import '../providers/session_provider.dart';
@@ -162,6 +163,7 @@ abstract class R {
   static const dailyReport  = '/t/reports/daily';
   static const dailyStock   = '/t/reports/stock';  // ← ADD THIS
   static const reportsHub   = '/t/reports';
+  static const reportsHome  = '/t/reports-home';
   static const purchase = '/t/purchase';
   static const retailerHome = '/r/home';
   static const retailerLink = '/r/link'; // invite code claim screen
@@ -510,6 +512,9 @@ final appRouterProvider = Provider<GoRouter>((ref) => GoRouter(
         GoRoute(
             path: R.reportsHub,
             builder: (_, __) => const ReportsHubScreen()),
+        GoRoute(
+            path: R.reportsHome,
+            builder: (_, __) => const ReportsHomeScreen()),
         GoRoute(
             path: R.dailyStock,
             builder: (_, __) => const DailyStockScreen()),

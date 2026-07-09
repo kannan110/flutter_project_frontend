@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
+import 'package:rooster_trader/features/trader_admin/reports/report_dataset.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // REPORT PDF GENERATOR
@@ -23,7 +24,82 @@ class ReportPdfGenerator {
   static const _purple   = PdfColor.fromInt(0xFF6A1B9A);
   static const _red      = PdfColor.fromInt(0xFFC62828);
 
-  // ─── Main entry: build and show PDF preview ──────────────────────────────
+  // ─── Generic entry: build a PDF from a ReportDataSet ─────────────────────
+  // This is the NEW canonical path — every report's Card View, Table View,
+  // and PDF now come from the exact same ReportDataSet, so they can never
+  // disagree. Reuses the existing branded _header/_footer/_secTitle/_table/
+  // _kpiRow helpers below rather than duplicating layout logic.
+  static Future<pw.Document> _buildDataSetDoc({
+    required ReportDataSet dataSet,
+    required String companyName,
+  }) async {
+    final font = await PdfGoogleFonts.notoSansRegular();
+    final bold = await PdfGoogleFonts.notoSansBold();
+    final doc  = pw.Document(theme: pw.ThemeData.withFont(base: font, bold: bold));
+    final from = dataSet.fromDate ?? DateTime.now();
+    final to   = dataSet.toDate   ?? DateTime.now();
+
+    doc.addPage(pw.MultiPage(
+        pageFormat: PdfPageFormat.a4,
+        margin: const pw.EdgeInsets.all(28),
+        header: (_) => _header(companyName, dataSet.title, from, to),
+        footer: (_) => _footer(),
+        build: (_) => [
+          if (dataSet.summary.isNotEmpty) ...[
+            _secTitle('SUMMARY'),
+            _kpiRow(dataSet.summary
+                .map((s) => _KpiCell(s.label, s.value, _primary))
+                .toList()),
+            pw.SizedBox(height: 6),
+          ],
+          _secTitle('DETAILS (${dataSet.rowCount} rows)'),
+          if (dataSet.isEmpty)
+            pw.Text('No data for the selected range.',
+                style: pw.TextStyle(fontSize: 9, color: _subText))
+          else
+            _table(
+              headers: dataSet.headers,
+              rows: dataSet.rows,
+              totals: dataSet.totals,
+              bold: dataSet.highlightColumns,
+            ),
+        ]));
+    return doc;
+  }
+
+  /// Download / Print entry point — opens the native print/share/save
+  /// preview sheet (covers "Download PDF" and "Print" from the same,
+  /// well-supported cross-platform API).
+  static Future<void> generateFromDataSetAndShow({
+    required BuildContext context,
+    required ReportDataSet dataSet,
+    required String companyName,
+  }) async {
+    final doc = await _buildDataSetDoc(dataSet: dataSet, companyName: companyName);
+    final from = dataSet.fromDate ?? DateTime.now();
+    await Printing.layoutPdf(
+      onLayout: (fmt) async => doc.save(),
+      name: '${companyName}_${dataSet.title.replaceAll(' ', '_')}_'
+          '${DateFormat('yyyyMMdd').format(from)}.pdf',
+    );
+  }
+
+  /// Explicit share-sheet entry point (mobile — WhatsApp, email, etc.).
+  static Future<void> shareFromDataSet({
+    required ReportDataSet dataSet,
+    required String companyName,
+  }) async {
+    final doc = await _buildDataSetDoc(dataSet: dataSet, companyName: companyName);
+    final bytes = await doc.save();
+    final from = dataSet.fromDate ?? DateTime.now();
+    await Printing.sharePdf(
+      bytes: bytes,
+      filename: '${companyName}_${dataSet.title.replaceAll(' ', '_')}_'
+          '${DateFormat('yyyyMMdd').format(from)}.pdf',
+    );
+  }
+
+  // ─── Main entry: build and show PDF preview (legacy, per-report-type) ────
   static Future<void> generateAndShow({
     required BuildContext context,
     required Map<String,dynamic> reportData,
