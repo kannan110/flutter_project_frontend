@@ -11,7 +11,6 @@
 import 'package:flutter/material.dart';
 import 'package:rooster_trader/features/trader_admin/reports/report_dataset.dart';
 import 'package:rooster_trader/features/trader_admin/reports/report_pdf_generator.dart';
-
 import '../../../core/theme/app_theme.dart';
 
 enum ReportViewMode { card, table }
@@ -55,6 +54,7 @@ class _ReportTableBlockState extends State<ReportTableBlock> {
       warnColumn: widget.dataSet.warnColumn,
       warnThreshold: widget.dataSet.warnThreshold,
       summary: widget.dataSet.summary,
+      cardPrimaryColumns: widget.dataSet.cardPrimaryColumns,
     );
     if (_sortCol == null) return base;
     return base.sortedBy(_sortCol!, _sortAsc);
@@ -68,7 +68,9 @@ class _ReportTableBlockState extends State<ReportTableBlock> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Export failed: ${e.toString().replaceAll("Exception:", "").trim()}')),
+          SnackBar(
+              content: Text(
+                  'Export failed: ${e.toString().replaceAll("Exception:", "").trim()}')),
         );
       }
     } finally {
@@ -98,20 +100,22 @@ class _ReportTableBlockState extends State<ReportTableBlock> {
             const Spacer(),
             ReportActionsBar(
               busy: _busy,
-              onDownload: () => _run(() => ReportPdfGenerator.generateFromDataSetAndShow(
-                context: context,
-                dataSet: ds,
-                companyName: widget.companyName,
-              )),
+              onDownload: () =>
+                  _run(() => ReportPdfGenerator.generateFromDataSetAndShow(
+                        context: context,
+                        dataSet: ds,
+                        companyName: widget.companyName,
+                      )),
               onShare: () => _run(() => ReportPdfGenerator.shareFromDataSet(
-                dataSet: ds,
-                companyName: widget.companyName,
-              )),
-              onPrint: () => _run(() => ReportPdfGenerator.generateFromDataSetAndShow(
-                context: context,
-                dataSet: ds,
-                companyName: widget.companyName,
-              )),
+                    dataSet: ds,
+                    companyName: widget.companyName,
+                  )),
+              onPrint: () =>
+                  _run(() => ReportPdfGenerator.generateFromDataSetAndShow(
+                        context: context,
+                        dataSet: ds,
+                        companyName: widget.companyName,
+                      )),
             ),
           ]),
         ),
@@ -140,7 +144,9 @@ class _ReportTableBlockState extends State<ReportTableBlock> {
 
 // ── View toggle — Card / Table segmented control ────────────────────────────
 class ReportViewToggle extends StatelessWidget {
-  const ReportViewToggle({super.key, required this.mode, required this.onChanged});
+  const ReportViewToggle(
+      {super.key, required this.mode, required this.onChanged});
+
   final ReportViewMode mode;
   final ValueChanged<ReportViewMode> onChanged;
 
@@ -209,7 +215,9 @@ class ReportActionsBar extends StatelessWidget {
       return const Padding(
         padding: EdgeInsets.symmetric(horizontal: 8),
         child: SizedBox(
-            width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
+            width: 16,
+            height: 16,
+            child: CircularProgressIndicator(strokeWidth: 2)),
       );
     }
     Widget action(IconData icon, String label, VoidCallback onTap) {
@@ -221,11 +229,16 @@ class ReportActionsBar extends StatelessWidget {
           child: Column(mainAxisSize: MainAxisSize.min, children: [
             Icon(icon, size: 18, color: kTextSub),
             const SizedBox(height: 2),
-            Text(label, style: const TextStyle(fontSize: 9, color: kTextHint, fontWeight: FontWeight.w600)),
+            Text(label,
+                style: const TextStyle(
+                    fontSize: 9,
+                    color: kTextHint,
+                    fontWeight: FontWeight.w600)),
           ]),
         ),
       );
     }
+
     return Row(mainAxisSize: MainAxisSize.min, children: [
       action(Icons.download_outlined, 'PDF', onDownload),
       action(Icons.grid_on_outlined, 'Excel', () {
@@ -239,121 +252,211 @@ class ReportActionsBar extends StatelessWidget {
   }
 }
 
-// ── Card View — one row per record, redesigned for fast scanning ───────────
-// Visual redesign pass (no business logic changed — presentation only):
-//   - Hierarchy inverted: the primary business value (whichever column is
-//     marked highlightColumns, e.g. Revenue/Amount) is now the largest,
-//     boldest element — previously the row label (date/name) was bolder
-//     than the actual number, backwards for a "business first" scan.
-//   - Borders removed; a plain divider between rows (like a bank statement
-//     or ledger) replaces the boxed-card-per-row look — no per-row
-//     background tint, no border, no rounded container.
-//   - Secondary fields collapsed into a single muted line instead of a
-//     wrapping multi-line block — roughly 25% shorter per row.
-//   - No icons — nothing here to remove, and nothing added.
+// ── Card View — vertical "business summary" layout, nothing truncated ──────
+// Second redesign pass: the previous version still squeezed a curated set
+// of metrics into one row plus an overflow line, which is still
+// compressing a table into a card. This version is genuinely vertical: a
+// header line, the hero metric as its own prominent block, then EVERY
+// remaining column in a wrapping grid where each cell gets the width its
+// content actually needs. Nothing is capped to one line or given an
+// ellipsis; items wrap to the next row instead of shrinking or hiding.
+// Card height grows to fit the data on purpose, reversing the earlier
+// "reduce height" direction because it is now in direct conflict with
+// "never truncate."
 class ReportCardList extends StatelessWidget {
   const ReportCardList({super.key, required this.dataSet});
+
   final ReportDataSet dataSet;
+
+  // Matches the _fd() "d MMM" format (e.g. "10 Jul") used by every
+  // date-titled report. Only reformats the title into a day/month block
+  // when it actually looks like this -- ReportCardList is shared by
+  // reports whose first column is a name (Agent, Retailer), not a date.
+  static final _dateLikeRe = RegExp(r'^(\d{1,2})\s+([A-Za-z]{3,})$');
 
   @override
   Widget build(BuildContext context) {
-    // The primary business value: the first highlighted column if the
-    // report designates one (e.g. Revenue, Total), else the first column
-    // after the label — matches how a trader scans for "the number that
-    // matters" first.
     final heroCol = dataSet.highlightColumns.isNotEmpty
         ? dataSet.highlightColumns.first
         : (dataSet.headers.length > 1 ? 1 : null);
 
     return Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 14),
-        child: Column(children: [
-          ...dataSet.rows.map((row) {
-            final label = row.isNotEmpty ? row.first : '';
-            final heroValue = heroCol != null && heroCol < row.length ? row[heroCol] : null;
-            final isWarnHero = dataSet.warnColumn == heroCol &&
-                heroValue != null &&
-                (double.tryParse(heroValue.replaceAll('%', '')) ?? 0) >= dataSet.warnThreshold;
+      padding: const EdgeInsets.symmetric(horizontal: 14),
+      child: Column(children: [
+        ...dataSet.rows.map((row) {
+          final title = row.isNotEmpty ? row.first : '';
+          final dateMatch = _dateLikeRe.firstMatch(title);
 
-            // Everything else, one compact scannable line — excludes the label
-            // (already shown) and the hero value (already prominent above).
-            final secondary = <String>[];
-            for (var i = 0; i < row.length; i++) {
-              if (i == 0 || i == heroCol) continue;
-              if (row[i].isEmpty) continue;
-              secondary.add('${dataSet.headers[i]}: ${row[i]}');
-            }
+          final heroValue =
+              heroCol != null && heroCol < row.length ? row[heroCol] : null;
+          final heroNum = heroValue == null
+              ? null
+              : num.tryParse(heroValue.replaceAll(RegExp(r'[₹,%\s]'), ''));
+          final isWarnHero = dataSet.warnColumn == heroCol &&
+              heroValue != null &&
+              (double.tryParse(heroValue.replaceAll('%', '')) ?? 0) >=
+                  dataSet.warnThreshold;
+          final noActivity = heroNum != null && heroNum == 0;
 
-            return Container(
-              padding: const EdgeInsets.symmetric(vertical: 9),
-              decoration: const BoxDecoration(
-                border: Border(bottom: BorderSide(color: kBorderLight, width: 0.5)),
-              ),
-              child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+          // Every remaining column -- nothing curated out, nothing hidden.
+          final gridItems = <MapEntry<String, String>>[];
+          for (var i = 1; i < row.length; i++) {
+            if (i == heroCol) continue;
+            if (row[i].isEmpty) continue;
+            gridItems.add(MapEntry(dataSet.headers[i], row[i]));
+          }
+
+          return Container(
+            width: double.infinity,
+            margin: const EdgeInsets.only(bottom: kSpMd),
+            padding: const EdgeInsets.all(kSpLg),
+            decoration: BoxDecoration(
+              color: kSurface,
+              borderRadius: BorderRadius.circular(kRadiusInner),
+              border: Border.all(color: kBorderLight),
+            ),
+            child:
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              // -- Header line: title/date + status badge --
+              Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Expanded(
-                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text(label,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w500, color: kTextSub)),
-                    if (secondary.isNotEmpty) ...[
-                      const SizedBox(height: 2),
-                      Text(secondary.join('   ·   '),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(fontSize: 11, color: kTextHint)),
-                    ],
-                  ]),
+                  child: dateMatch != null
+                      ? Row(
+                          crossAxisAlignment: CrossAxisAlignment.baseline,
+                          textBaseline: TextBaseline.alphabetic,
+                          children: [
+                              Text(dateMatch.group(1)!,
+                                  style: const TextStyle(
+                                      fontSize: 24,
+                                      fontWeight: FontWeight.w800,
+                                      color: kNavy)),
+                              const SizedBox(width: kSpXs),
+                              Text(dateMatch.group(2)!,
+                                  style: kTypeBody.copyWith(
+                                      fontWeight: FontWeight.w700,
+                                      color: kTextSub)),
+                            ])
+                      : Text(title,
+                          style: kTypeBody.copyWith(
+                              fontWeight: FontWeight.w800, fontSize: 15)),
                 ),
-                if (heroValue != null) ...[
-                  const SizedBox(width: 10),
-                  Text(heroValue,
-                      style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
-                          color: isWarnHero ? Colors.red : kNavy)),
-                ],
+                if (heroValue != null)
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: kSpSm, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: noActivity
+                          ? kBgGrey
+                          : const Color(0xFF1565C0).withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(kRadiusChip),
+                    ),
+                    child: Text(noActivity ? 'No Activity' : 'Active',
+                        style: kTypeCaption.copyWith(
+                            fontWeight: FontWeight.w700,
+                            color: noActivity
+                                ? kTextHint
+                                : const Color(0xFF1565C0))),
+                  ),
               ]),
-            );
-          }),
-          if (dataSet.totals != null)
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 10),
-              decoration: const BoxDecoration(
-                border: Border(top: BorderSide(color: kNavy, width: 1.5)),
-              ),
-              child: Wrap(spacing: 16, runSpacing: 4, children: [
+
+              // -- Hero metric: its own full-width block, never squeezed --
+              if (heroValue != null) ...[
+                const SizedBox(height: kSpMd),
+                Text(dataSet.headers[heroCol!], style: kTypeKpiLabel),
+                const SizedBox(height: 2),
+                Text(heroValue,
+                    style: TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.w800,
+                        color: isWarnHero ? Colors.red : kNavy)),
+              ],
+
+              // -- Everything else: a wrapping grid, full label + full
+              //    value, every item, none of it capped to a single line
+              //    or shortened with an ellipsis --
+              if (gridItems.isNotEmpty) ...[
+                const SizedBox(height: kSpMd),
+                Container(height: 1, color: kBorderLight),
+                const SizedBox(height: kSpMd),
+                Wrap(
+                  spacing: kSpXl,
+                  runSpacing: kSpMd,
+                  children: [
+                    for (final item in gridItems)
+                      ConstrainedBox(
+                        constraints: const BoxConstraints(minWidth: 88),
+                        child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(item.key, style: kTypeKpiLabel),
+                              const SizedBox(height: 2),
+                              Text(item.value, style: kTypeKpiSecondary),
+                            ]),
+                      ),
+                  ],
+                ),
+              ],
+            ]),
+          );
+        }),
+        if (dataSet.totals != null)
+          Container(
+            width: double.infinity,
+            margin: const EdgeInsets.only(bottom: kSpMd),
+            padding: const EdgeInsets.all(kSpLg),
+            decoration: BoxDecoration(
+              color: kNavy.withValues(alpha: 0.05),
+              borderRadius: BorderRadius.circular(kRadiusInner),
+              border: Border.all(color: kNavy.withValues(alpha: 0.15)),
+            ),
+            child: Wrap(
+              spacing: kSpXl,
+              runSpacing: kSpMd,
+              children: [
                 for (var i = 0; i < dataSet.totals!.length; i++)
                   if (dataSet.totals![i].isNotEmpty)
-                    Text('${dataSet.headers[i]}: ${dataSet.totals![i]}',
-                        style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800, color: kNavy)),
-              ]),
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(minWidth: 88),
+                      child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(dataSet.headers[i], style: kTypeKpiLabel),
+                            const SizedBox(height: 2),
+                            Text(dataSet.totals![i],
+                                style: kTypeKpiSecondary.copyWith(
+                                    fontWeight: FontWeight.w800, color: kNavy)),
+                          ]),
+                    ),
+              ],
             ),
-        ]));
+          ),
+      ]),
+    );
   }
 }
 
-// ── Table View — professional business table ───────────────────────────────
-// Sortable columns (tap header), sticky header (fixed row above a scrollable
-// body, both synced to the same horizontal ScrollController), totals footer,
-// ListView.builder body so large datasets do not build every row up front.
+// -- Table View -- professional business table, fully responsive --------
+// Sortable columns (tap header), sticky header (fixed row above a
+// scrollable body), sticky totals footer, ListView.builder body so large
+// datasets do not build every row up front.
 //
-// Visual redesign pass (no business logic changed — presentation only):
-//   - Per-column alignment is now DETECTED from the data (numeric-looking
-//     columns right-align, text columns left-align) instead of a blanket
-//     "column 0 left, everything else right" assumption.
-//   - Header/body/footer all use the same fixed-height + centered-alignment
-//     technique (previously the header used padding, the body used a fixed
-//     height — inconsistent vertical rhythm between the two).
-//   - Row height reduced (44→34) for a denser, spreadsheet-like feel.
-//   - Column widths are still fully fixed (deterministic, no per-row
-//     reflow) but sized per column from its header length, not one
-//     blanket width for every non-first column.
-//   - Subtle vertical gridlines between columns — the one concretely
-//     "Excel" cue that was missing.
-//   - Totals row uses a firmer top border (the classic Excel double-line
-//     total cue) and tighter corner radius, matching enterprise software
-//     rather than a consumer-app rounded card.
+// Responsive strategy (three distinct modes, not one layout reused
+// everywhere):
+//   - Mobile (< 600 px): fixed, content-sized column widths inside a
+//     horizontally-scrolling row. Horizontal scroll is expected here.
+//   - Tablet (600-1023 px): same fixed-width scrolling approach, but with
+//     roomier minimum column widths ("better spacing", not just mobile
+//     stretched out).
+//   - Desktop (>= 1024 px): if the table natural content width fits the
+//     available space, columns render with Expanded/flex instead of fixed
+//     pixel widths, so the grid fills exactly 100% of the available width
+//     with no dead space and no horizontal scrollbar -- while still
+//     respecting each column relative proportions (Date stays a fixed
+//     narrow width always; Revenue/Collected/Pending-style highlighted
+//     columns get a wider flex share). If there are enough columns that
+//     the natural width would exceed the viewport even on desktop, it
+//     falls back to the scrollable fixed-width mode rather than squeezing
+//     everything illegibly thin.
 class ReportTable extends StatefulWidget {
   const ReportTable({
     super.key,
@@ -361,9 +464,9 @@ class ReportTable extends StatefulWidget {
     this.sortColumn,
     this.sortAscending = true,
     this.onSort,
-    this.rowHeight = 34,
-    this.headerHeight = 34,
-    this.maxBodyHeight = 420,
+    this.rowHeight = 52,
+    this.headerHeight = 52,
+    this.maxBodyHeight = 460,
   });
 
   final ReportDataSet dataSet;
@@ -380,11 +483,19 @@ class ReportTable extends StatefulWidget {
 
 class _ReportTableState extends State<ReportTable> {
   final _hCtrl = ScrollController();
+  int? _hoveredRow;
 
-  static const double _minColWidth = 92;
-  static const double _maxColWidth = 150;
-  static const double _firstColWidth = 100;
-  static const double _charWidth = 7.2; // rough monospaced-ish estimate for width sizing
+  static const double _mobileBreakpoint = 600;
+  static const double _desktopBreakpoint = 1024;
+
+  static const double _minColWidthMobile = 92;
+  static const double _minColWidthTablet = 116;
+  static const double _maxColWidth = 170;
+  static const double _firstColWidth = 110; // Date -- always fixed, never grows
+  static const double _highlightMinWidth =
+      130; // Revenue/Collected/Pending-style columns
+  static const double _charWidth = 7.4;
+  static const double _cellPadding = 14;
 
   @override
   void dispose() {
@@ -392,27 +503,31 @@ class _ReportTableState extends State<ReportTable> {
     super.dispose();
   }
 
-  // Fixed width per column — sized from the header label (bounded), not one
-  // blanket value for every column after the first. Still fully fixed/
-  // deterministic once computed, no reflow while scrolling.
-  double _widthFor(int col, List<String> headers) {
+  // Per-column base (natural) width -- used directly on mobile/tablet, and
+  // as the proportional basis for flex ratios on desktop fill mode.
+  double _widthFor(
+      int col, List<String> headers, ReportDataSet ds, double minColWidth) {
     if (col == 0) return _firstColWidth;
-    final estimated = headers[col].length * _charWidth + 32;
-    return estimated.clamp(_minColWidth, _maxColWidth);
+    final base = headers[col].length * _charWidth + (_cellPadding * 2) + 14;
+    final floor =
+        ds.highlightColumns.contains(col) ? _highlightMinWidth : minColWidth;
+    return base.clamp(floor, _maxColWidth);
   }
 
-  List<double> _colWidths(ReportDataSet ds) =>
-      List.generate(ds.headers.length, (c) => _widthFor(c, ds.headers));
+  List<double> _colWidths(ReportDataSet ds, double minColWidth) =>
+      List.generate(
+          ds.headers.length, (c) => _widthFor(c, ds.headers, ds, minColWidth));
 
-  double _tableWidthOf(List<double> widths) => widths.fold(0.0, (a, b) => a + b);
+  double _tableWidthOf(List<double> widths) =>
+      widths.fold(0.0, (a, b) => a + b);
 
   // Right-align a column when its values look numeric (after stripping
-  // currency symbols, %, commas, units) — detected from the data itself
+  // currency symbols, %, commas, units) -- detected from the data itself
   // rather than assumed from position, so a text column that is not first
   // (e.g. "Status", "Agent") still reads left-aligned.
   bool _isNumericColumn(int c, ReportDataSet ds) {
     if (c == 0) return false;
-    if (ds.rows.isEmpty) return true; // no data to check — default numeric-right, matches prior behavior
+    if (ds.rows.isEmpty) return true;
     var numericCount = 0;
     final sample = ds.rows.length > 20 ? ds.rows.sublist(0, 20) : ds.rows;
     for (final row in sample) {
@@ -426,56 +541,82 @@ class _ReportTableState extends State<ReportTable> {
   @override
   Widget build(BuildContext context) {
     final ds = widget.dataSet;
-    final colWidths = _colWidths(ds);
     return Padding(
       padding: const EdgeInsets.fromLTRB(14, 0, 14, 12),
       child: LayoutBuilder(builder: (ctx, constraints) {
-        final naturalWidth = _tableWidthOf(colWidths);
-        final tableWidth = naturalWidth < constraints.maxWidth ? constraints.maxWidth : naturalWidth;
-        // If the table is being stretched to fill a wider viewport, grow the
-        // LAST column only, so earlier columns keep their sized widths.
-        final widths = List<double>.from(colWidths);
-        if (tableWidth > naturalWidth && widths.isNotEmpty) {
-          widths[widths.length - 1] += (tableWidth - naturalWidth);
+        final isMobile = constraints.maxWidth < _mobileBreakpoint;
+        final isDesktop = constraints.maxWidth >= _desktopBreakpoint;
+        final minColWidth = isMobile ? _minColWidthMobile : _minColWidthTablet;
+        final widths = _colWidths(ds, minColWidth);
+        final naturalWidth = _tableWidthOf(widths);
+
+        // Desktop fill mode only when the content genuinely fits -- never
+        // force-fit a wide table into a narrow desktop window.
+        final useFillMode = isDesktop && naturalWidth <= constraints.maxWidth;
+
+        if (useFillMode) {
+          final flexWidths = List<double>.from(widths);
+          return _buildGrid(ds, flexWidths,
+              useFlex: true, totalWidth: constraints.maxWidth);
         }
+
         return SingleChildScrollView(
           controller: _hCtrl,
           scrollDirection: Axis.horizontal,
           child: SizedBox(
-            width: tableWidth,
-            child: Column(children: [
-              // ── Sticky header ──────────────────────────────────────────
-              Container(
-                height: widget.headerHeight,
-                decoration: const BoxDecoration(
-                  color: kNavy,
-                  borderRadius: BorderRadius.vertical(top: Radius.circular(6)),
-                ),
-                child: Row(children: [
-                  for (var c = 0; c < ds.headers.length; c++)
-                    _headerCell(c, widths[c], ds),
-                ]),
-              ),
-              // ── Scrollable body — ListView.builder for large datasets ──
-              ConstrainedBox(
-                constraints: BoxConstraints(maxHeight: widget.maxBodyHeight),
-                child: ListView.builder(
-                  shrinkWrap: true,
-                  physics: const ClampingScrollPhysics(),
-                  itemCount: ds.rows.length,
-                  itemBuilder: (ctx, i) => _dataRow(ds.rows[i], i, widths, ds),
-                ),
-              ),
-              // ── Totals / footer row ─────────────────────────────────────
-              if (ds.totals != null) _footerRow(ds.totals!, widths, ds),
-            ]),
+            width: naturalWidth,
+            child: _buildGrid(ds, widths,
+                useFlex: false, totalWidth: naturalWidth),
           ),
         );
       }),
     );
   }
 
-  Widget _headerCell(int c, double width, ReportDataSet ds) {
+  Widget _buildGrid(ReportDataSet ds, List<double> widths,
+      {required bool useFlex, required double totalWidth}) {
+    return Column(children: [
+      // -- Sticky header --
+      Container(
+        height: widget.headerHeight,
+        width: useFlex ? totalWidth : null,
+        decoration: const BoxDecoration(
+          color: kNavy,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(6)),
+        ),
+        child: Row(children: [
+          for (var c = 0; c < ds.headers.length; c++)
+            _wrapCell(c, widths[c], useFlex, _headerCellContent(c, ds)),
+        ]),
+      ),
+      // -- Scrollable body --
+      ConstrainedBox(
+        constraints: BoxConstraints(maxHeight: widget.maxBodyHeight),
+        child: ListView.builder(
+          shrinkWrap: true,
+          physics: const ClampingScrollPhysics(),
+          itemCount: ds.rows.length,
+          itemBuilder: (ctx, i) =>
+              _dataRow(ds.rows[i], i, widths, ds, useFlex, totalWidth),
+        ),
+      ),
+      // -- Sticky totals footer --
+      if (ds.totals != null)
+        _footerRow(ds.totals!, widths, ds, useFlex, totalWidth),
+    ]);
+  }
+
+  // Wraps cell content in either a fixed SizedBox (mobile/tablet, scrolling
+  // mode) or an Expanded/flex slot (desktop fill mode) -- same inner
+  // content either way, only the outer sizing strategy differs.
+  Widget _wrapCell(int c, double width, bool useFlex, Widget content) {
+    if (useFlex) {
+      return Expanded(flex: width.round(), child: content);
+    }
+    return SizedBox(width: width, child: content);
+  }
+
+  Widget _headerCellContent(int c, ReportDataSet ds) {
     final isSorted = widget.sortColumn == c;
     final rightAlign = _isNumericColumn(c, ds);
     return InkWell(
@@ -483,77 +624,106 @@ class _ReportTableState extends State<ReportTable> {
           ? null
           : () => widget.onSort!(c, isSorted ? !widget.sortAscending : true),
       child: Container(
-        width: width,
         height: widget.headerHeight,
-        padding: const EdgeInsets.symmetric(horizontal: 10),
+        padding: const EdgeInsets.symmetric(horizontal: _cellPadding),
         decoration: c < ds.headers.length - 1
             ? const BoxDecoration(
-            border: Border(right: BorderSide(color: Color(0x22FFFFFF), width: 1)))
+                border: Border(
+                    right: BorderSide(color: Color(0x22FFFFFF), width: 1)))
             : null,
         alignment: Alignment.center,
         child: Row(
-          mainAxisAlignment: rightAlign ? MainAxisAlignment.end : MainAxisAlignment.start,
+          mainAxisAlignment:
+              rightAlign ? MainAxisAlignment.end : MainAxisAlignment.start,
           children: [
             if (rightAlign && widget.onSort != null)
-              Icon(isSorted ? (widget.sortAscending ? Icons.arrow_upward : Icons.arrow_downward) : Icons.unfold_more,
-                  size: 11, color: isSorted ? kGoldLight : const Color(0xFF6B7BA8)),
-            if (rightAlign && widget.onSort != null) const SizedBox(width: 3),
+              Icon(
+                  isSorted
+                      ? (widget.sortAscending
+                          ? Icons.arrow_upward
+                          : Icons.arrow_downward)
+                      : Icons.unfold_more,
+                  size: 12,
+                  color: isSorted ? kGoldLight : const Color(0xFF6B7BA8)),
+            if (rightAlign && widget.onSort != null) const SizedBox(width: 4),
             Flexible(
               child: Text(ds.headers[c],
                   overflow: TextOverflow.ellipsis,
                   textAlign: rightAlign ? TextAlign.right : TextAlign.left,
                   style: TextStyle(
-                      fontSize: 11,
+                      fontSize: 12,
                       fontWeight: FontWeight.w700,
-                      color: ds.highlightColumns.contains(c) ? kGoldLight : const Color(0xFFB4C6F4))),
+                      color: ds.highlightColumns.contains(c)
+                          ? kGoldLight
+                          : const Color(0xFFB4C6F4))),
             ),
-            if (!rightAlign && widget.onSort != null) const SizedBox(width: 3),
+            if (!rightAlign && widget.onSort != null) const SizedBox(width: 4),
             if (!rightAlign && widget.onSort != null)
-              Icon(isSorted ? (widget.sortAscending ? Icons.arrow_upward : Icons.arrow_downward) : Icons.unfold_more,
-                  size: 11, color: isSorted ? kGoldLight : const Color(0xFF6B7BA8)),
+              Icon(
+                  isSorted
+                      ? (widget.sortAscending
+                          ? Icons.arrow_upward
+                          : Icons.arrow_downward)
+                      : Icons.unfold_more,
+                  size: 12,
+                  color: isSorted ? kGoldLight : const Color(0xFF6B7BA8)),
           ],
         ),
       ),
     );
   }
 
-  Widget _dataRow(List<String> row, int index, List<double> widths, ReportDataSet ds) {
-    return Container(
-      height: widget.rowHeight,
-      color: index.isOdd ? kBgGrey.withValues(alpha: 0.4) : Colors.white,
-      child: Row(children: [
-        for (var c = 0; c < row.length; c++) _dataCell(row[c], c, widths[c], ds, isLast: c == row.length - 1),
-      ]),
+  Widget _dataRow(List<String> row, int index, List<double> widths,
+      ReportDataSet ds, bool useFlex, double totalWidth) {
+    final isHovered = _hoveredRow == index;
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hoveredRow = index),
+      onExit: (_) => setState(() => _hoveredRow = null),
+      child: Container(
+        height: widget.rowHeight,
+        width: useFlex ? totalWidth : null,
+        color: isHovered
+            ? const Color(0xFF1565C0).withValues(alpha: 0.06)
+            : (index.isOdd ? kBgGrey.withValues(alpha: 0.4) : Colors.white),
+        child: Row(children: [
+          for (var c = 0; c < row.length; c++)
+            _wrapCell(c, widths[c], useFlex,
+                _dataCellContent(row[c], c, ds, isLast: c == row.length - 1)),
+        ]),
+      ),
     );
   }
 
-  Widget _dataCell(String value, int c, double width, ReportDataSet ds, {required bool isLast}) {
+  Widget _dataCellContent(String value, int c, ReportDataSet ds,
+      {required bool isLast}) {
     final isHi = ds.highlightColumns.contains(c);
     final isWarn = ds.warnColumn != null &&
         c == ds.warnColumn &&
         (double.tryParse(value.replaceAll('%', '')) ?? 0) >= ds.warnThreshold;
     final rightAlign = _isNumericColumn(c, ds);
     return Container(
-      width: width,
       alignment: rightAlign ? Alignment.centerRight : Alignment.centerLeft,
-      padding: const EdgeInsets.symmetric(horizontal: 10),
+      padding: const EdgeInsets.symmetric(horizontal: _cellPadding),
       decoration: !isLast
           ? const BoxDecoration(
-          border: Border(right: BorderSide(color: kBorderLight, width: 0.5)))
+              border:
+                  Border(right: BorderSide(color: kBorderLight, width: 0.5)))
           : null,
       child: Text(value,
           overflow: TextOverflow.ellipsis,
           textAlign: rightAlign ? TextAlign.right : TextAlign.left,
           style: TextStyle(
-              fontSize: 12,
+              fontSize: 13,
               fontWeight: isHi ? FontWeight.w700 : FontWeight.w500,
               color: isWarn ? Colors.red : (isHi ? kNavy : kTextMain))),
     );
   }
 
-  Widget _footerRow(List<String> totals, List<double> widths, ReportDataSet ds) {
+  Widget _footerRow(List<String> totals, List<double> widths, ReportDataSet ds,
+      bool useFlex, double totalWidth) {
     return Container(
       height: widget.rowHeight + 4,
+      width: useFlex ? totalWidth : null,
       decoration: BoxDecoration(
         color: kBgGrey,
         borderRadius: const BorderRadius.vertical(bottom: Radius.circular(6)),
@@ -561,21 +731,32 @@ class _ReportTableState extends State<ReportTable> {
       ),
       child: Row(children: [
         for (var c = 0; c < totals.length; c++)
-          Container(
-            width: widths[c],
-            alignment: (_isNumericColumn(c, ds) || c > 0) ? Alignment.centerRight : Alignment.centerLeft,
-            padding: const EdgeInsets.symmetric(horizontal: 10),
-            decoration: c < totals.length - 1
-                ? const BoxDecoration(border: Border(right: BorderSide(color: kBorderLight, width: 0.5)))
-                : null,
-            child: Text(totals[c],
-                overflow: TextOverflow.ellipsis,
-                textAlign: (_isNumericColumn(c, ds) || c > 0) ? TextAlign.right : TextAlign.left,
-                style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w800,
-                    color: ds.highlightColumns.contains(c) ? kNavy : kTextMain)),
-          ),
+          _wrapCell(
+              c,
+              widths[c],
+              useFlex,
+              Container(
+                alignment: (_isNumericColumn(c, ds) || c > 0)
+                    ? Alignment.centerRight
+                    : Alignment.centerLeft,
+                padding: const EdgeInsets.symmetric(horizontal: _cellPadding),
+                decoration: c < totals.length - 1
+                    ? const BoxDecoration(
+                        border: Border(
+                            right: BorderSide(color: kBorderLight, width: 0.5)))
+                    : null,
+                child: Text(totals[c],
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: (_isNumericColumn(c, ds) || c > 0)
+                        ? TextAlign.right
+                        : TextAlign.left,
+                    style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w800,
+                        color: ds.highlightColumns.contains(c)
+                            ? kNavy
+                            : kTextMain)),
+              )),
       ]),
     );
   }

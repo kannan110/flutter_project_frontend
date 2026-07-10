@@ -402,7 +402,10 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
           tots:['TOTAL','${_i(s,"total_birds_dc")}',
             _kg(s,'total_gross_wt'), _kg(s,'total_tare_wt'), _kg(s,'total_net_wt'),
             Fmt.amount(_d(s,'total_revenue')), Fmt.amount(_d(s,'total_collected')), Fmt.amount(_d(s,'total_pending'))],
-          hi:[5,6,7]),
+          hi:[5,6,7],
+          // Card View: DC Birds + Net Del Wt alongside the Revenue hero,
+          // matching the approved reference layout for this report.
+          cardPrimary: [1, 4]),
     ]);
   }
 
@@ -848,9 +851,10 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
 
   Widget _tbl(List<String> heads, List<List<String>> rows, {
     List<String>? tots, List<int> hi=const[], int? warnC, double warnT=0,
+    List<int>? cardPrimary,
   }) {
     final user = ref.read(appUserProvider).valueOrNull;
-    final company = user?.companyName ?? 'DSR Chicken';
+    final company = user?.companyName ?? 'Rooster';
     final dataSet = ReportDataSet(
       title: _sel.label,
       headers: heads,
@@ -861,6 +865,7 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
       highlightColumns: hi,
       warnColumn: warnC,
       warnThreshold: warnT,
+      cardPrimaryColumns: cardPrimary,
     );
     return ReportTableBlock(
       key: ValueKey('${_sel.key}_${_from}_${_to}_${_tblCallIndex++}'),
