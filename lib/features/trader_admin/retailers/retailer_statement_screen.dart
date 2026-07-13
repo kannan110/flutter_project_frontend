@@ -1,15 +1,12 @@
-import 'dart:convert';
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:share_plus/share_plus.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/providers/session_provider.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_theme.dart';
+import '../reports/report_pdf_generator.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // RETAILER ACCOUNT STATEMENT
@@ -182,47 +179,27 @@ class _RetailerStatementScreenState
     }
   }
 
-  // ── PDF helpers ────────────────────────────────────────────────────────────
-  Future<Map<String, dynamic>> _fetchStatementHtml() async {
-    final response = await _c.functions.invoke(
-      'generate-retailer-statement-pdf',
-      body: {
-        'retailer_id': widget.retailerId,
-        'from_date':   DateFormat('yyyy-MM-dd').format(_from),
-        'to_date':     DateFormat('yyyy-MM-dd').format(_to),
-        'statement':   _data,
-      },
-    );
-    if (response.data == null) throw Exception('No data from statement service');
-    return (response.data as Map).cast<String, dynamic>();
-  }
+  // ── PDF ────────────────────────────────────────────────────────────────────
+  // Generates a genuine PDF directly from the already-loaded `_data` (the
+  // same structured data the on-screen statement renders from) — no server
+  // round-trip needed. This replaces the old "generate-retailer-statement-pdf"
+  // Edge Function entirely: that function only ever produced base64-encoded
+  // HTML (mimeType text/html), never a real PDF, regardless of its name.
 
-  Future<File> _saveHtmlFile(String b64, String filename) async {
-    final dir   = await getTemporaryDirectory();
-    final file  = File('${dir.path}/$filename');
-    await file.writeAsBytes(base64Decode(b64));
-    return file;
-  }
-
-  // Download — saves to Downloads / Files
+  // Download — opens the native print/save preview with a real .pdf file
   Future<void> _download() async {
     if (_data.isEmpty) { _snack('Load statement first.', error: true); return; }
     setState(() => _pdfBusy = true);
     try {
-      final resp     = await _fetchStatementHtml();
-      final b64      = resp['pdf'] as String;
-      final filename = resp['filename'] as String? ??
-          'Statement_${DateFormat('ddMMMyyyy').format(_from)}_'
-              '${DateFormat('ddMMMyyyy').format(_to)}.html';
-
-      final file = await _saveHtmlFile(b64, filename);
-
-      if (!mounted) return;
-
-      // Share sheet with "Save to Files" / "Download" option shown
-      await Share.shareXFiles(
-        [XFile(file.path, mimeType: 'text/html', name: filename)],
-        subject: 'Statement — ${_header['retailer_name'] ?? ''}',
+      final company = ref.read(appUserProvider).valueOrNull?.companyName ?? 'DSR Chicken';
+      final retailerName = _header['retailer_name'] as String? ?? 'Statement';
+      await ReportPdfGenerator.generateRetailerStatementAndShow(
+        context: context,
+        data: _data,
+        companyName: company,
+        fromDate: _from,
+        toDate: _to,
+        retailerName: retailerName,
       );
     } catch (e) {
       if (mounted) _snack(e.toString().replaceAll('Exception: ', ''), error: true);
@@ -231,29 +208,19 @@ class _RetailerStatementScreenState
     }
   }
 
-  // Share — share sheet for WhatsApp, email, etc.
+  // Share — share sheet for WhatsApp, email, etc. — real .pdf bytes
   Future<void> _share() async {
     if (_data.isEmpty) { _snack('Load statement first.', error: true); return; }
     setState(() => _pdfBusy = true);
     try {
-      final resp     = await _fetchStatementHtml();
-      final b64      = resp['pdf'] as String;
-      final filename = resp['filename'] as String? ??
-          'Statement_${DateFormat('ddMMMyyyy').format(_from)}_'
-              '${DateFormat('ddMMMyyyy').format(_to)}.html';
-
-      final file = await _saveHtmlFile(b64, filename);
-
-      if (!mounted) return;
-
-      final retailerName = _header['retailer_name'] as String? ?? '';
-      await Share.shareXFiles(
-        [XFile(file.path, mimeType: 'text/html', name: filename)],
-        subject: 'Account Statement — $retailerName',
-        text: 'Please find the account statement from '
-            '${DateFormat('d MMM yyyy').format(_from)} to '
-            '${DateFormat('d MMM yyyy').format(_to)} '
-            'attached. Open the file in any browser.',
+      final company = ref.read(appUserProvider).valueOrNull?.companyName ?? 'DSR Chicken';
+      final retailerName = _header['retailer_name'] as String? ?? 'Statement';
+      await ReportPdfGenerator.shareRetailerStatement(
+        data: _data,
+        companyName: company,
+        fromDate: _from,
+        toDate: _to,
+        retailerName: retailerName,
       );
     } catch (e) {
       if (mounted) _snack(e.toString().replaceAll('Exception: ', ''), error: true);

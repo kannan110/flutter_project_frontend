@@ -9,8 +9,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../core/providers/session_provider.dart';
 import '../../../../core/router/app_router.dart';
 import '../../../../core/theme/app_theme.dart';
+import 'agent_quick_entry.dart';
 import 'entry_mode_selector.dart';
-
 // ─────────────────────────────────────────────────────────────────────────────
 // AGENT ASSISTANCE HUB
 //
@@ -532,6 +532,33 @@ class _AgentAssistanceHubScreenState
     );
   }
 
+  Future<void> _showQuickEntrySheet() async {
+    if (!_hasShift) {
+      showError(context, 'Agent has no open shift. Open a shift first.');
+      return;
+    }
+    await showModalBottomSheet(
+      context: context,
+      useRootNavigator: true,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => AgentQuickEntrySheet(
+        agentId: widget.agentId,
+        agentName: widget.agentName,
+        onDone: _load,
+        onRecoveryNeeded: (deliveryId) {
+          // Called after the sheet has already popped itself — safe to use
+          // this Hub screen's own (still-mounted) context to navigate.
+          if (!mounted) return;
+          context.push(
+            R.agentAssistDeliveryPath(widget.agentId, deliveryId),
+            extra: {'agentName': widget.agentName},
+          ).then((_) => _load());
+        },
+      ),
+    );
+  }
+
   // ═══════════════════════════════════════════════════════════════════════════
   // BUILD
   // ═══════════════════════════════════════════════════════════════════════════
@@ -1033,6 +1060,15 @@ class _AgentAssistanceHubScreenState
         color: const Color(0xFFD97706),
         enabled: _hasShift,
         onTap: _showInstantOrderSheet,
+      ),
+      // Quick Entry — multi-product proxy entry (order + delivery in one pass)
+      _ActionItem(
+        label: 'Quick Entry',
+        icon: Icons.bolt_rounded,
+        color: kNavy,
+        enabled: _hasShift,
+        disabledHint: 'Open a shift before using Quick Entry.',
+        onTap: _showQuickEntrySheet,
       ),
       // Phase 5B
       _ActionItem(

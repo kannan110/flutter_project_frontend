@@ -25,7 +25,7 @@ class ReportPdfGenerator {
   static const _red      = PdfColor.fromInt(0xFFC62828);
 
   // ─── Generic entry: build a PDF from a ReportDataSet ─────────────────────
-  // This is the NEW canonical path — every report's Card View, Table View,
+  // This is the NEW canonical path — every report Card View, Table View,
   // and PDF now come from the exact same ReportDataSet, so they can never
   // disagree. Reuses the existing branded _header/_footer/_secTitle/_table/
   // _kpiRow helpers below rather than duplicating layout logic.
@@ -96,6 +96,123 @@ class ReportPdfGenerator {
       bytes: bytes,
       filename: '${companyName}_${dataSet.title.replaceAll(' ', '_')}_'
           '${DateFormat('yyyyMMdd').format(from)}.pdf',
+    );
+  }
+
+  // ─── Retailer Account Statement — genuine PDF, not HTML ──────────────────
+  // Takes the same structured data (`_data`) the on-screen statement already
+  // renders from — header/opening_balance/closing_balance/summary/rows —
+  // and builds a real pw.Document directly. This replaces the previous
+  // path through the "generate-retailer-statement-pdf" Edge Function, which
+  // actually returned base64-encoded HTML (mimeType text/html), not a PDF,
+  // despite its name — that mismatch is what this fixes, not just the
+  // earlier web-crash from path_provider.
+  static Future<pw.Document> _buildRetailerStatementDoc({
+    required Map<String, dynamic> data,
+    required String companyName,
+    required DateTime fromDate,
+    required DateTime toDate,
+  }) async {
+    final header  = (data['header'] as Map?)?.cast<String, dynamic>() ?? {};
+    final summary = (data['summary'] as Map?)?.cast<String, dynamic>() ?? {};
+    final rows    = List<Map<String, dynamic>>.from(
+        (data['rows'] as List?)?.map((e) => (e as Map).cast<String, dynamic>()) ?? []);
+    final opening = (data['opening_balance'] as num?)?.toDouble() ?? 0;
+    final closing = (data['closing_balance'] as num?)?.toDouble() ?? 0;
+
+    final retailerName = header['retailer_name'] as String? ?? '—';
+    final retailerOwner = header['retailer_owner'] as String?;
+    final retailerPhone = header['retailer_phone'] as String?;
+
+    final invoiced  = (summary['total_invoiced']     as num?)?.toDouble() ?? 0;
+    final collected = (summary['total_collections']  as num?)?.toDouble() ?? 0;
+
+    final font = await PdfGoogleFonts.notoSansRegular();
+    final bold = await PdfGoogleFonts.notoSansBold();
+    final doc  = pw.Document(theme: pw.ThemeData.withFont(base: font, bold: bold));
+
+    final tableHeaders = ['Date', 'Type', 'Ref / Invoice', 'Debit', 'Credit', 'Balance'];
+    final tableRows = rows.map((r) {
+      final isDebit = r['entry_type'] == 'debit';
+      final amount  = (r['amount'] as num?)?.toDouble() ?? 0;
+      final balance = (r['running_balance'] as num?)?.toDouble() ?? 0;
+      final ref     = (r['ref_number'] as String?) ?? (r['invoice_id'] as String?) ?? '—';
+      final dateStr = r['entry_date'] as String? ?? '';
+      final dt      = DateTime.tryParse(dateStr);
+      return [
+        dt != null ? DateFormat('d MMM yyyy').format(dt) : dateStr,
+        (r['source_type'] as String? ?? '').replaceAll('_', ' '),
+        ref,
+        isDebit ? '₹${_fmtAmt(amount)}' : '',
+        !isDebit ? '₹${_fmtAmt(amount)}' : '',
+        '₹${_fmtAmt(balance)}',
+      ];
+    }).toList();
+
+    doc.addPage(pw.MultiPage(
+        pageFormat: PdfPageFormat.a4,
+        margin: const pw.EdgeInsets.all(28),
+        header: (_) => _header(companyName, 'Account Statement', fromDate, toDate),
+        footer: (_) => _footer(),
+        build: (_) => [
+          pw.Text(retailerName,
+              style: pw.TextStyle(fontSize: 13, fontWeight: pw.FontWeight.bold, color: _dark)),
+          if (retailerOwner != null || retailerPhone != null)
+            pw.Text([retailerOwner, retailerPhone].where((s) => s != null && s.isNotEmpty).join('  ·  '),
+                style: pw.TextStyle(fontSize: 9, color: _subText)),
+          pw.SizedBox(height: 10),
+          _kpiRow([
+            _KpiCell('Opening Balance', '₹${_fmtAmt(opening)}', _primary),
+            _KpiCell('Invoiced',        '₹${_fmtAmt(invoiced)}', _primary),
+            _KpiCell('Collected',       '₹${_fmtAmt(collected)}', _primary),
+            _KpiCell('Closing Balance', '₹${_fmtAmt(closing)}', _primary),
+          ]),
+          pw.SizedBox(height: 10),
+          _secTitle('TRANSACTIONS (${tableRows.length})'),
+          if (tableRows.isEmpty)
+            pw.Text('No transactions for the selected period.',
+                style: pw.TextStyle(fontSize: 9, color: _subText))
+          else
+            _table(headers: tableHeaders, rows: tableRows, bold: const [5]),
+        ]));
+    return doc;
+  }
+
+  /// Download / Print entry point for the Retailer Statement — real PDF,
+  /// .pdf extension, application/pdf — via the same native print/share/save
+  /// preview used by every other report export in this app.
+  static Future<void> generateRetailerStatementAndShow({
+    required BuildContext context,
+    required Map<String, dynamic> data,
+    required String companyName,
+    required DateTime fromDate,
+    required DateTime toDate,
+    required String retailerName,
+  }) async {
+    final doc = await _buildRetailerStatementDoc(
+        data: data, companyName: companyName, fromDate: fromDate, toDate: toDate);
+    await Printing.layoutPdf(
+      onLayout: (fmt) async => doc.save(),
+      name: 'Statement_${retailerName.replaceAll(RegExp(r'\s+'), '_')}_'
+          '${DateFormat('yyyyMMdd').format(fromDate)}.pdf',
+    );
+  }
+
+  /// Explicit share-sheet entry point — real PDF bytes, .pdf filename.
+  static Future<void> shareRetailerStatement({
+    required Map<String, dynamic> data,
+    required String companyName,
+    required DateTime fromDate,
+    required DateTime toDate,
+    required String retailerName,
+  }) async {
+    final doc = await _buildRetailerStatementDoc(
+        data: data, companyName: companyName, fromDate: fromDate, toDate: toDate);
+    final bytes = await doc.save();
+    await Printing.sharePdf(
+      bytes: bytes,
+      filename: 'Statement_${retailerName.replaceAll(RegExp(r'\s+'), '_')}_'
+          '${DateFormat('yyyyMMdd').format(fromDate)}.pdf',
     );
   }
 
