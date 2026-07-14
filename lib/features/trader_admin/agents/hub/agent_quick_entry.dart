@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../core/providers/session_provider.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../../../shared/widgets/common/horizontalscroll_wheel.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // AGENT QUICK ENTRY (multi-product)  — formerly "Simple Entry"
@@ -93,6 +94,9 @@ class _AgentQuickEntrySheetState extends ConsumerState<AgentQuickEntrySheet> {
   bool _submitting = false;
   String? _err;
 
+  final _customerScrollCtrl = ScrollController();
+  final _productScrollCtrl = ScrollController();
+
   static const _entryModes = {
     'called': '📞 Called',
     'whatsapp': '💬 WhatsApp',
@@ -114,6 +118,8 @@ class _AgentQuickEntrySheetState extends ConsumerState<AgentQuickEntrySheet> {
   @override
   void dispose() {
     for (final l in _lines) l.dispose();
+    _customerScrollCtrl.dispose();
+    _productScrollCtrl.dispose();
     super.dispose();
   }
 
@@ -630,12 +636,16 @@ class _AgentQuickEntrySheetState extends ConsumerState<AgentQuickEntrySheet> {
         else
           SizedBox(
             height: 82,
-            child: ListView(
-              scrollDirection: Axis.horizontal,
-              children: [
-                ...chips.map(_customerChip),
-                _searchChip(),
-              ],
+            child: HorizontalScrollWheel(
+              controller: _customerScrollCtrl,
+              child: ListView(
+                controller: _customerScrollCtrl,
+                scrollDirection: Axis.horizontal,
+                children: [
+                  ...chips.map(_customerChip),
+                  _searchChip(),
+                ],
+              ),
             ),
           ),
         if (_selRetailer != null)
@@ -718,9 +728,13 @@ class _AgentQuickEntrySheetState extends ConsumerState<AgentQuickEntrySheet> {
       else
         SizedBox(
           height: 88,
-          child: ListView(
-            scrollDirection: Axis.horizontal,
-            children: _products.map(_productChip).toList(),
+          child: HorizontalScrollWheel(
+            controller: _productScrollCtrl,
+            child: ListView(
+              controller: _productScrollCtrl,
+              scrollDirection: Axis.horizontal,
+              children: _products.map(_productChip).toList(),
+            ),
           ),
         ),
     ],

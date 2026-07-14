@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -25,6 +27,7 @@ class _S extends ConsumerState<ApprovalsScreen> {
   List<Map<String, dynamic>> _items    = [];
   List<Map<String, dynamic>> _filtered = [];
   bool    _loading = true;
+  bool    _approvingAll = false;
   String? _error;
 
   @override
@@ -81,6 +84,157 @@ class _S extends ConsumerState<ApprovalsScreen> {
     }
   }
 
+  // ── Approve All ───────────────────────────────────────────────────────────
+  // Reuses the EXISTING single-order lifecycle: every order is approved via
+  // the same `approve_delivery_and_order` RPC used by ApprovalDetailScreen,
+  // called once per eligible pending delivery, sequentially. No new approval
+  // logic, no new validations, no rate resolution logic — same automatic
+  // rate resolution the RPC already falls back to when no manual per-item
+  // rate override is supplied (i.e. exactly what happens today for any order
+  // approved without editing the rate fields).
+  //
+  // Sequential, not a single wrapping transaction: each order commits (or
+  // fails) independently, so one bad order cannot roll back others already
+  // approved, and progress can be reported incrementally. See chat for the
+  // full audit of why this is preferred over parallel/batched execution.
+  Future<void> _approveAll() async {
+    if (_items.isEmpty || _approvingAll) return;
+
+    final ok = await confirmDialog(
+      context,
+      title: 'Approve All Orders',
+      message: 'Approve all pending orders?\n\n'
+          'Pending: ${_items.length} orders\n\n'
+          'This will approve all eligible pending orders using the same '
+          'process as approving one at a time. Orders needing a custom rate '
+          'will use automatic rate resolution.',
+      confirmText: 'Approve All',
+      confirmColor: kPrimary,
+    );
+    if (!ok || !mounted) return;
+
+    // Snapshot the current list so the run operates on a fixed, known set —
+    // re-fetching the "pending" query mid-run could otherwise pick up orders
+    // that arrived after the user confirmed.
+    final toApprove = List<Map<String, dynamic>>.from(_items);
+    final userId = ref.read(appUserProvider).valueOrNull?.userId;
+
+    int approved = 0;
+    int failed = 0;
+    final failures = <Map<String, String>>[]; // {retailer, error}
+    final invoiceDate = DateTime.now().toIso8601String().split('T')[0];
+
+    setState(() => _approvingAll = true);
+
+    // Non-dismissible progress dialog, updated in place as each order settles.
+    late StateSetter progressSetState;
+    unawaited(showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => StatefulBuilder(builder: (ctx, setDialogState) {
+        progressSetState = setDialogState;
+        final total = toApprove.length;
+        final done = approved + failed;
+        return AlertDialog(
+          title: const Text('Approving Orders…'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              LinearProgressIndicator(value: total == 0 ? 0 : done / total),
+              const SizedBox(height: 12),
+              Text('Approved: $approved   ·   Failed: $failed   ·   $done / $total'),
+            ],
+          ),
+        );
+      }),
+    ));
+
+    for (final delivery in toApprove) {
+      final deliveryId = delivery['id'] as String;
+      final order = delivery['orders'] as Map<String, dynamic>?;
+      final retailer = order?['retailers'] as Map<String, dynamic>?;
+      final shopName = retailer?['shop_name'] as String? ?? 'Unknown retailer';
+
+      try {
+        // Same RPC, same shape as ApprovalDetailScreen._approve(), with no
+        // manual rate override — matches the RPC's own automatic-resolution
+        // default path (identical to a single-/multi-product order approved
+        // without touching the rate fields).
+        await _c.rpc('approve_delivery_and_order', params: {
+          'p_delivery_id': deliveryId,
+          'p_final_rate': null,
+          'p_final_amount': null,
+          'p_approved_by': userId,
+          'p_approval_notes': 'Bulk approved via Approve All',
+          'p_invoice_date': invoiceDate,
+        });
+        approved++;
+      } catch (e) {
+        failed++;
+        failures.add({
+          'retailer': shopName,
+          'error': e
+              .toString()
+              .replaceAll('Exception: ', '')
+              .replaceAll('PostgrestException(message: ', ''),
+        });
+      }
+      if (mounted) progressSetState(() {});
+    }
+
+    if (mounted) Navigator.of(context, rootNavigator: true).pop(); // close progress dialog
+    setState(() => _approvingAll = false);
+    await _load(); // refresh the pending list
+
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Approve All — Complete'),
+        content: SizedBox(
+          width: 360,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Approved: $approved', style: const TextStyle(fontWeight: FontWeight.w700)),
+              Text('Failed: $failed',
+                  style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      color: failed > 0 ? kError : null)),
+              if (failures.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                const Text('Failed orders (review individually):',
+                    style: TextStyle(fontSize: 12, color: kTextHint)),
+                const SizedBox(height: 6),
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxHeight: 200),
+                  child: ListView(
+                    shrinkWrap: true,
+                    children: failures
+                        .map((f) => Padding(
+                      padding: const EdgeInsets.only(bottom: 6),
+                      child: Text('• ${f['retailer']}: ${f['error']}',
+                          style: const TextStyle(fontSize: 12)),
+                    ))
+                        .toList(),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Done'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDesktop = context.isDesktop;
@@ -120,6 +274,19 @@ class _S extends ConsumerState<ApprovalsScreen> {
               child: Text('${_items.length} pending',
                   style: const TextStyle(
                       color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700)),
+            ),
+          if (_items.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(left: 8),
+              child: OutlinedButton.icon(
+                onPressed: _approvingAll ? null : _approveAll,
+                icon: const Icon(Icons.done_all_rounded, size: 16),
+                label: const Text('Approve All'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: kPrimary,
+                  side: BorderSide(color: kPrimary),
+                ),
+              ),
             ),
           if (isDesktop)
             IconButton(

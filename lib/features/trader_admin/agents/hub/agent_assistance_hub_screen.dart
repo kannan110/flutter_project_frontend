@@ -11,6 +11,7 @@ import '../../../../core/router/app_router.dart';
 import '../../../../core/theme/app_theme.dart';
 import 'agent_quick_entry.dart';
 import 'entry_mode_selector.dart';
+
 // ─────────────────────────────────────────────────────────────────────────────
 // AGENT ASSISTANCE HUB
 //
@@ -55,6 +56,7 @@ class _AgentAssistanceHubScreenState
   final _c = Supabase.instance.client;
 
   bool _loading = true;
+  bool _creatingBatch = false; // guards DC Upload's "Create Batch" against double-tap
   Map<String, dynamic> _dashboard = {};
 
   // Derived state from dashboard
@@ -503,15 +505,50 @@ class _AgentAssistanceHubScreenState
   }
 
   Future<void> _showDCUploadSheet(Map<String, dynamic>? batch) async {
-    // If we have a batch, go to agent's own pickup screen (trader context)
-    // For Phase 5A we navigate to the existing batch pickup screen
-    // with the trader acting on behalf of the agent.
-    // Full trader DC upload screen is deferred to Phase 5B design review.
-    if (batch == null) {
-      showError(context, 'No assigned batch found. Create a batch first via Dispatch.');
+    if (batch != null) {
+      context.push(R.batchDetailPath(batch['id'] as String));
       return;
     }
-    context.push(R.batchDetailPath(batch['id'] as String));
+
+    // No active batch — offer to create one via the SAME shared function
+    // Dispatch already uses (ensure_active_batch_for_agent, reached today
+    // through assign_orders_to_agent). This is the only batch-creation path
+    // in the app; nothing new is introduced here.
+    final ok = await confirmDialog(
+      context,
+      title: 'No Active Batch',
+      message: 'No active batch found for this agent.\nCreate an active batch now?',
+      confirmText: 'Create Batch',
+      confirmColor: kNavy,
+    );
+    if (!ok || !mounted) return;
+
+    final user = ref.read(appUserProvider).valueOrNull;
+    final traderId = user?.traderId;
+    if (traderId == null) return;
+
+    setState(() => _creatingBatch = true);
+    try {
+      final batchId = await _c.rpc('ensure_active_batch_for_agent', params: {
+        'p_trader_id': traderId,
+        'p_agent_id': widget.agentId,
+      }) as String;
+
+      if (!mounted) return;
+      await _load(); // refresh Hub state (assigned batches, counts, etc.)
+      if (!mounted) return;
+      setState(() => _creatingBatch = false);
+      context.push(R.batchDetailPath(batchId)).then((_) => _load());
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _creatingBatch = false);
+      showError(
+          context,
+          e
+              .toString()
+              .replaceAll('Exception: ', '')
+              .replaceAll('PostgrestException(message: ', ''));
+    }
   }
 
   Future<void> _showInstantOrderSheet() async {
@@ -1022,7 +1059,7 @@ class _AgentAssistanceHubScreenState
         label: 'DC Upload',
         icon: Icons.receipt_long_outlined,
         color: Colors.blue,
-        enabled: _hasShift || _assignedBatches.isNotEmpty,
+        enabled: (_hasShift || _assignedBatches.isNotEmpty) && !_creatingBatch,
         onTap: () => _showDCUploadSheet(
           _assignedBatches.isEmpty ? null : _assignedBatches.first,
         ),

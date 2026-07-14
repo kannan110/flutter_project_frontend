@@ -7,6 +7,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/providers/session_provider.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../shared/widgets/common/horizontalscroll_wheel.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Create Order — v2 (UX redesign only)
@@ -94,6 +95,8 @@ class _S extends ConsumerState<CreateOrderScreen> {
   final _notesCtrl = TextEditingController();
   final _scrollCtrl = ScrollController();
   final _localMessengerKey = GlobalKey<ScaffoldMessengerState>();
+  final _customerScrollCtrl = ScrollController();
+  final _productScrollCtrl = ScrollController();
 
   List<Map<String, dynamic>> _retailers = [], _products = [];
   List<Map<String, dynamic>> _recentRetailers = [];
@@ -122,6 +125,8 @@ class _S extends ConsumerState<CreateOrderScreen> {
     _localMessengerKey.currentState?.clearSnackBars();
     _notesCtrl.dispose();
     _scrollCtrl.dispose();
+    _customerScrollCtrl.dispose();
+    _productScrollCtrl.dispose();
     for (final l in _lines) l.dispose();
     super.dispose();
   }
@@ -717,12 +722,15 @@ class _S extends ConsumerState<CreateOrderScreen> {
               style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: const Size(0, 32)))),
       SizedBox(
           height: 82,
-          child: ListView(
-              scrollDirection: Axis.horizontal,
-              children: [
-                ...chips.map((r) => _customerChip(r)),
-                _searchChip(),
-              ]))
+          child: HorizontalScrollWheel(
+              controller: _customerScrollCtrl,
+              child: ListView(
+                  controller: _customerScrollCtrl,
+                  scrollDirection: Axis.horizontal,
+                  children: [
+                    ...chips.map((r) => _customerChip(r)),
+                    _searchChip(),
+                  ])))
     ]);
   }
 
@@ -951,9 +959,12 @@ class _S extends ConsumerState<CreateOrderScreen> {
             style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: const Size(0, 32)))),
     SizedBox(
         height: 88,
-        child: ListView(
-            scrollDirection: Axis.horizontal,
-            children: _products.map((p) => _productChip(p)).toList())),
+        child: HorizontalScrollWheel(
+            controller: _productScrollCtrl,
+            child: ListView(
+                controller: _productScrollCtrl,
+                scrollDirection: Axis.horizontal,
+                children: _products.map((p) => _productChip(p)).toList()))),
     if (_products.length > 5)
       const Padding(
           padding: EdgeInsets.only(top: 2),
