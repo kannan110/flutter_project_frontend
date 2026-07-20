@@ -134,11 +134,12 @@ class _AgentQuickEntrySheetState extends ConsumerState<AgentQuickEntrySheet> {
             .eq('trader_id', tid)
             .eq('is_active', true)
             .order('shop_name'),
-        _c
-            .from('master_products')
-            .select('id,name,unit,parent_product_id')
-            .eq('is_active', true)
-            .order('name'),
+        // Trader-enabled products only — SAME RPC CreateOrderScreen uses,
+        // same ordering (category, sort_order, name). No shared-function
+        // changes: this RPC doesn't return parent_product_id (Create Order
+        // never needed it), so it's fetched separately below and merged
+        // client-side, scoped only to Quick Entry.
+        _c.rpc('get_trader_enabled_products', params: {'p_trader_id': tid}),
         // Read-only, used purely to compute "recent" and "favourite" chips —
         // identical approach to CreateOrderScreen.
         _c
@@ -158,9 +159,32 @@ class _AgentQuickEntrySheetState extends ConsumerState<AgentQuickEntrySheet> {
       if (!mounted) return;
 
       final retailers = List<Map<String, dynamic>>.from(results[0] as List);
-      final products = List<Map<String, dynamic>>.from(results[1] as List? ?? []);
+      final enabledProducts =
+      List<Map<String, dynamic>>.from(results[1] as List? ?? []);
       final history = List<Map<String, dynamic>>.from(results[2] as List? ?? []);
       final stockRows = List<Map<String, dynamic>>.from(results[3] as List? ?? []);
+
+      // Quick-Entry-only supplement: parent_product_id for family-pooled
+      // stock grouping, scoped strictly to the trader-enabled product IDs
+      // just returned — not the whole catalog, and not a change to the
+      // shared RPC or to Create Order's data shape.
+      Map<String, String?> parentByProductId = {};
+      final enabledIds = enabledProducts.map((p) => p['id'] as String).toList();
+      if (enabledIds.isNotEmpty) {
+        final parentRows = await _c
+            .from('master_products')
+            .select('id,parent_product_id')
+            .inFilter('id', enabledIds);
+        parentByProductId = {
+          for (final row in List<Map<String, dynamic>>.from(parentRows as List))
+            row['id'] as String: row['parent_product_id'] as String?,
+        };
+      }
+      final products = enabledProducts
+          .map((p) => {...p, 'parent_product_id': parentByProductId[p['id']]})
+          .toList();
+
+      if (!mounted) return;
 
       final byId = {for (final r in retailers) r['id'] as String: r};
       final seenOrder = <String>[];
@@ -193,6 +217,15 @@ class _AgentQuickEntrySheetState extends ConsumerState<AgentQuickEntrySheet> {
         _stockByProduct = stockMap;
         _loading = false;
       });
+
+      // Default product selection — only on the initial load, before the
+      // user has tapped anything. Never overrides a manual selection: this
+      // only fires once, right after data loads, while _lines is still empty.
+      if (_lines.isEmpty && products.isNotEmpty) {
+        final broiler = products.where(
+                (p) => (p['name'] as String? ?? '').trim().toLowerCase() == 'broiler');
+        _tapProduct(broiler.isNotEmpty ? broiler.first : products.first);
+      }
     } catch (_) {
       if (mounted) setState(() => _loading = false);
     }
@@ -339,6 +372,18 @@ class _AgentQuickEntrySheetState extends ConsumerState<AgentQuickEntrySheet> {
         setState(() => _err = 'Enter delivered weight for ${l.product!['name']}');
         return;
       }
+    }
+
+    // Defensive re-check: every selected product must still be trader-
+    // enabled at submit time. Chips only ever come from the trader-enabled
+    // list, so this only matters if the trader disabled a product mid-
+    // session (long-open sheet) — cheap, in-memory check, no extra RPC.
+    final enabledIds = _products.map((p) => p['id']).toSet();
+    final disabled = activeLines.where((l) => !enabledIds.contains(l.product!['id'])).toList();
+    if (disabled.isNotEmpty) {
+      setState(() => _err =
+      '${disabled.first.product!['name']} is no longer enabled for this trader. Remove it and retry.');
+      return;
     }
 
     final user = ref.read(appUserProvider).valueOrNull;
@@ -631,6 +676,26 @@ class _AgentQuickEntrySheetState extends ConsumerState<AgentQuickEntrySheet> {
       children: [
         const SectionHeader('CUSTOMER'),
         const SizedBox(height: 6),
+        // Search moved to the top — tap opens the same search sheet as
+        // before; recent/favourite chips sit below for one-tap selection.
+        GestureDetector(
+          onTap: _openSearchSheet,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              color: kBgPage,
+              borderRadius: BorderRadius.circular(kRadiusInner),
+              border: Border.all(color: kBorderLight),
+            ),
+            child: const Row(children: [
+              Icon(Icons.search, size: 18, color: kTextHint),
+              SizedBox(width: 8),
+              Text('Search customer…',
+                  style: TextStyle(fontSize: 13, color: kTextHint)),
+            ]),
+          ),
+        ),
+        const SizedBox(height: 10),
         if (_retailers.isEmpty)
           const Text('No customers found.', style: TextStyle(color: kTextHint, fontSize: 12))
         else
@@ -641,10 +706,7 @@ class _AgentQuickEntrySheetState extends ConsumerState<AgentQuickEntrySheet> {
               child: ListView(
                 controller: _customerScrollCtrl,
                 scrollDirection: Axis.horizontal,
-                children: [
-                  ...chips.map(_customerChip),
-                  _searchChip(),
-                ],
+                children: chips.map(_customerChip).toList(),
               ),
             ),
           ),
@@ -697,26 +759,6 @@ class _AgentQuickEntrySheetState extends ConsumerState<AgentQuickEntrySheet> {
     );
   }
 
-  Widget _searchChip() => GestureDetector(
-    onTap: _openSearchSheet,
-    child: Container(
-      width: 66,
-      margin: const EdgeInsets.only(right: 8),
-      child: Column(children: [
-        Container(
-          width: 44,
-          height: 44,
-          decoration: BoxDecoration(
-              shape: BoxShape.circle, border: Border.all(color: kBorderLight), color: kSurface),
-          alignment: Alignment.center,
-          child: const Icon(Icons.search, size: 20, color: kTextHint),
-        ),
-        const SizedBox(height: 4),
-        const Text('Search', style: TextStyle(fontSize: 10, color: kTextHint)),
-      ]),
-    ),
-  );
-
   // ── Products: chips ARE the add action; active card + collapsed rows ────
   Widget _productSection() => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
@@ -736,6 +778,12 @@ class _AgentQuickEntrySheetState extends ConsumerState<AgentQuickEntrySheet> {
               children: _products.map(_productChip).toList(),
             ),
           ),
+        ),
+      if (_products.length > 5)
+        const Padding(
+          padding: EdgeInsets.only(top: 2),
+          child: Text('Swipe to see more →',
+              style: TextStyle(fontSize: 10, color: kTextHint)),
         ),
     ],
   );

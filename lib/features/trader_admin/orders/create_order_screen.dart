@@ -186,6 +186,16 @@ class _S extends ConsumerState<CreateOrderScreen> {
         _zoneNameById = zoneNameById;
         _dataLoading = false;
       });
+
+      // Default product selection — only on the initial load, before the
+      // user has touched anything. Fills the existing blank starter line via
+      // the same _tapProduct used for a manual tap, so it never duplicates a
+      // line and never overrides anything the user has already picked.
+      if (_lines.length == 1 && _lines.first.product == null && products.isNotEmpty) {
+        final broiler = products.where(
+                (p) => (p['name'] as String? ?? '').trim().toLowerCase() == 'broiler');
+        _tapProduct(broiler.isNotEmpty ? broiler.first : products.first);
+      }
     } catch (e) {
       if (mounted) setState(() => _dataLoading = false);
     }
@@ -720,6 +730,26 @@ class _S extends ConsumerState<CreateOrderScreen> {
               icon: const Icon(Icons.add, size: 16),
               label: const Text('Add New', style: TextStyle(fontSize: 12)),
               style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: const Size(0, 32)))),
+      // Search moved to the top — recent/favourite chips sit below for
+      // one-tap selection. Same layout and search-sheet behavior as Quick
+      // Entry, for UX consistency across both screens.
+      GestureDetector(
+        onTap: _openSearchSheet,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          decoration: BoxDecoration(
+            color: kBgPage,
+            borderRadius: BorderRadius.circular(kRadiusInner),
+            border: Border.all(color: kBorderLight),
+          ),
+          child: const Row(children: [
+            Icon(Icons.search, size: 18, color: kTextHint),
+            SizedBox(width: 8),
+            Text('Search customer…', style: TextStyle(fontSize: 13, color: kTextHint)),
+          ]),
+        ),
+      ),
+      const SizedBox(height: 10),
       SizedBox(
           height: 82,
           child: HorizontalScrollWheel(
@@ -727,10 +757,7 @@ class _S extends ConsumerState<CreateOrderScreen> {
               child: ListView(
                   controller: _customerScrollCtrl,
                   scrollDirection: Axis.horizontal,
-                  children: [
-                    ...chips.map((r) => _customerChip(r)),
-                    _searchChip(),
-                  ])))
+                  children: chips.map((r) => _customerChip(r)).toList())))
     ]);
   }
 
@@ -773,25 +800,6 @@ class _S extends ConsumerState<CreateOrderScreen> {
                   style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600)),
             ])));
   }
-
-  Widget _searchChip() => GestureDetector(
-      onTap: _openSearchSheet,
-      child: Container(
-          width: 66,
-          margin: const EdgeInsets.only(right: 8),
-          child: Column(children: [
-            Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    border: Border.all(color: kBorderLight),
-                    color: kSurface),
-                alignment: Alignment.center,
-                child: const Icon(Icons.search, size: 20, color: kTextSub)),
-            const SizedBox(height: 4),
-            const Text('Search', style: TextStyle(fontSize: 10, color: kTextSub)),
-          ])));
 
   Future<void> _openSearchSheet() async {
     final ctrl = TextEditingController();

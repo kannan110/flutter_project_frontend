@@ -97,6 +97,46 @@ class _S extends ConsumerState<ApprovalsScreen> {
   // fails) independently, so one bad order cannot roll back others already
   // approved, and progress can be reported incrementally. See chat for the
   // full audit of why this is preferred over parallel/batched execution.
+  // Single shared button — filled/primary on Desktop (the primary CTA per
+  // spec), outlined elsewhere (Mobile/Tablet). Same handler everywhere;
+  // only the visual weight changes with screen size.
+  // Same-content button, styled for a compact inline toolbar slot rather
+  // than the app's global full-width CTA default. The global
+  // ElevatedButtonTheme/OutlinedButtonTheme (app_theme.dart) sets
+  // minimumSize: Size.fromHeight(52) — i.e. infinite width — intended for
+  // full-width buttons like "Complete Delivery". Left un-overridden here,
+  // that forced an infinite-width constraint inside this Row, which Flutter
+  // cannot satisfy, causing a layout exception and the button never
+  // painting. Overriding minimumSize locally fixes this without touching
+  // the shared theme or any other screen's buttons.
+  Widget _approveAllButton({required bool primary}) {
+    final label = Text('Approve All (${_items.length})');
+    const icon = Icon(Icons.done_all_rounded, size: 16);
+    const compactSize = Size(64, 40);
+    if (primary) {
+      return ElevatedButton.icon(
+        onPressed: _approvingAll ? null : _approveAll,
+        icon: icon,
+        label: label,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: kPrimary,
+          foregroundColor: Colors.white,
+          minimumSize: compactSize,
+        ),
+      );
+    }
+    return OutlinedButton.icon(
+      onPressed: _approvingAll ? null : _approveAll,
+      icon: icon,
+      label: label,
+      style: OutlinedButton.styleFrom(
+        foregroundColor: kPrimary,
+        side: BorderSide(color: kPrimary),
+        minimumSize: compactSize,
+      ),
+    );
+  }
+
   Future<void> _approveAll() async {
     if (_items.isEmpty || _approvingAll) return;
 
@@ -238,13 +278,15 @@ class _S extends ConsumerState<ApprovalsScreen> {
   @override
   Widget build(BuildContext context) {
     final isDesktop = context.isDesktop;
+    final isMobile  = context.isMobile;
+    final hasPending = _items.isNotEmpty;
 
     return ListScreenScaffold(
       appBar: isDesktop ? null : AppBar(
         backgroundColor: kSurface,
         title: Row(children: [
           const Text('Pending Approvals'),
-          if (_items.isNotEmpty) ...[
+          if (hasPending) ...[
             const SizedBox(width: 8),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
@@ -256,43 +298,37 @@ class _S extends ConsumerState<ApprovalsScreen> {
             ),
           ],
         ]),
+        // Refresh only — Approve All lives in the toolbar row below (visible
+        // on every breakpoint), kept out of the AppBar to avoid a second,
+        // redundant control.
         actions: [IconButton(icon: const Icon(Icons.refresh), onPressed: _load)],
       ),
 
+      // Responsive toolbar row:
+      //   Mobile  — Search + "Approve All (N)" only (Refresh stays in the
+      //             AppBar above, to keep this row from crowding).
+      //   Tablet  — Search left, "Approve All (N)" + Refresh right.
+      //   Desktop — Search left, "Approve All (N)" as a filled primary CTA
+      //             + Refresh, top-right.
       toolbar: ListToolbar(
         searchController: _searchCtrl,
         searchHint:       'Search by retailer or agent…',
         onSearch:         _applySearch,
         onClearSearch:    () { _searchCtrl.clear(); _applySearch(''); },
         secondaryActions: [
-          if (_items.isNotEmpty)
-            Container(
-              margin:  const EdgeInsets.only(left: 8),
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              decoration: BoxDecoration(
-                  color: Colors.orange, borderRadius: BorderRadius.circular(8)),
-              child: Text('${_items.length} pending',
-                  style: const TextStyle(
-                      color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700)),
-            ),
-          if (_items.isNotEmpty)
+          if (hasPending)
             Padding(
               padding: const EdgeInsets.only(left: 8),
-              child: OutlinedButton.icon(
-                onPressed: _approvingAll ? null : _approveAll,
-                icon: const Icon(Icons.done_all_rounded, size: 16),
-                label: const Text('Approve All'),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: kPrimary,
-                  side: BorderSide(color: kPrimary),
-                ),
-              ),
+              child: _approveAllButton(primary: isDesktop),
             ),
-          if (isDesktop)
-            IconButton(
-                icon: const Icon(Icons.refresh_outlined),
-                onPressed: _load,
-                tooltip: 'Refresh'),
+          if (!isMobile)
+            Padding(
+              padding: const EdgeInsets.only(left: 8),
+              child: IconButton(
+                  icon: const Icon(Icons.refresh_outlined),
+                  onPressed: _load,
+                  tooltip: 'Refresh'),
+            ),
         ],
       ),
 
