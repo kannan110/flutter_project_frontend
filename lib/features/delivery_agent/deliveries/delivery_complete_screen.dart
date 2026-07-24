@@ -52,6 +52,10 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
   String? _selectedOrderItemId;     // null = single-product (backward compat)
   List<Map<String, dynamic>> _orderItems = [];  // from order_items join
   bool _hasOpenShift = false;
+  // ★ NEW: current open shift id, captured from the same query that already
+  // determines _hasOpenShift, so Available Stock can be scoped to the
+  // current batch/shift instead of the agent's lifetime stock_ledger.
+  String? _currentShiftId;
 
   int _dcBirds = 0;
   double _dcWeight = 0;
@@ -172,6 +176,7 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
 
       final dStatus = d['status'] as String? ?? '';
       bool openShift = false;
+      String? openShiftId;
       try {
         final agentId = user?.agentId;
         if (agentId != null) {
@@ -183,6 +188,7 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
               .maybeSingle()
               .timeout(const Duration(seconds: 8));
           openShift = s != null;
+          openShiftId = s?['id'] as String?;
         }
       } catch (_) {}
 
@@ -204,6 +210,7 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
           _delivery = d;
           _deliveryStatus = dStatus;
           _hasOpenShift = openShift;
+          _currentShiftId = openShiftId;
           _loaded = true;
           _orderItems = rawItems;
           // Auto-select the only item for single-product orders
@@ -237,6 +244,7 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
             'p_trader_id': user!.traderId,
             'p_product_id': productId,
             'p_agent_id': user.agentId,
+            'p_shift_id': _currentShiftId,
           });
           final list = (res as List? ?? []);
           if (list.isNotEmpty && mounted) {
@@ -339,6 +347,16 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
 
   // ── Computed values ────────────────────────────────────────────────────
   int get _deliveryBirds => int.tryParse(_birdsCtrl.text) ?? 0;
+
+  // Scenario 1 fix: preserves a blank Bird Count as NULL instead of silently
+  // becoming 0. Used ONLY for the value actually persisted via complete_delivery
+  // (p_birds_delivered) so the database can distinguish "not entered" from
+  // "confirmed zero." Every other use of _deliveryBirds above (stock checks,
+  // remaining-birds math, on-screen text) is untouched and still defaults to 0,
+  // since those need a concrete number for display/validation purposes only —
+  // this does not make Bird Count mandatory; the agent can still submit with
+  // the field blank.
+  int? get _deliveryBirdsToRecord => int.tryParse(_birdsCtrl.text);
 
   double get _deliveryWeight => double.tryParse(_weightCtrl.text) ?? 0;
 
@@ -652,6 +670,7 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
         'p_trader_id': user!.traderId,
         'p_product_id': productId,
         'p_agent_id': user.agentId,
+        'p_shift_id': _currentShiftId,
       });
       final list = (res as List? ?? []);
       if (list.isNotEmpty && mounted) {
@@ -733,7 +752,7 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
         'p_delivery_id': widget.deliveryId,
         'p_actor_type': 'agent',
         'p_entry_mode': 'self',
-        'p_birds_delivered': _deliveryBirds,
+        'p_birds_delivered': _deliveryBirdsToRecord,
         'p_delivered_total_weight': weight,
         'p_received_bird_count': int.tryParse(_rcvBirdsCtrl.text),
         'p_received_total_weight': double.tryParse(_rcvWeightCtrl.text),

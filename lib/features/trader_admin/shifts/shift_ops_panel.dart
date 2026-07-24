@@ -564,6 +564,10 @@ class _MiniResolveFormState
     super.dispose();
   }
 
+  // Scenario 1 fix: preserves a blank Bird Count as NULL instead of silently
+  // becoming 0, used only for the value persisted via complete_delivery.
+  int? get _birdsToRecord => int.tryParse(_birdsCtrl.text.trim());
+
   Future<void> _submit() async {
     final user = ref.read(appUserProvider).valueOrNull;
     if (user == null) return;
@@ -572,7 +576,7 @@ class _MiniResolveFormState
       await _c.rpc('complete_delivery', params: {
         'p_delivery_id': widget.delivery['id'] as String,
         'p_birds_delivered':
-        int.tryParse(_birdsCtrl.text.trim()) ?? 0,
+        _birdsToRecord,
         'p_delivered_total_weight':
         double.tryParse(_weightCtrl.text.trim()) ?? 0.0,
         'p_collected_amount':

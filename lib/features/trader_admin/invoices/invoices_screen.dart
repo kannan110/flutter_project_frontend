@@ -70,6 +70,9 @@ class _S extends ConsumerState<InvoicesScreen> {
       final list = List<Map<String, dynamic>>.from(data);
       double rev = 0, out = 0;
       for (final inv in list) {
+        // Cancelled invoices must not contribute to revenue/outstanding —
+        // matches "Reports should use only the active (approved) invoice."
+        if (inv['status'] == 'cancelled') continue;
         rev += (inv['total_amount']   as num?)?.toDouble() ?? 0;
         out += (inv['balance_amount'] as num?)?.toDouble() ?? 0;
       }
@@ -216,6 +219,9 @@ class _S extends ConsumerState<InvoicesScreen> {
           width:     110,
           alignment: Alignment.centerRight,
           cellBuilder: (inv) {
+            if (inv['status'] == 'cancelled') {
+              return const Text('—', style: TextStyle(fontSize: 13, color: kTextHint));
+            }
             final bal = (inv['balance_amount'] as num?)?.toDouble() ?? 0;
             return Text(
               bal > 0 ? Fmt.amount(bal) : '—',
@@ -231,9 +237,18 @@ class _S extends ConsumerState<InvoicesScreen> {
           label:     'Status',
           width:     100,
           alignment: Alignment.center,
-          cellBuilder: (inv) =>
-              StatusChip.order(inv['status'] as String? ?? 'draft',
-                  size: StatusChipSize.small),
+          cellBuilder: (inv) {
+            final status = inv['status'] as String? ?? 'draft';
+            // Cancelled invoices get neutral grey styling rather than the
+            // shared SC.order() red (used trader-wide for order cancellation,
+            // a different, alarming context) — a cancelled-and-corrected
+            // invoice is an expected, benign state, not an error.
+            if (status == 'cancelled') {
+              return const StatusChip(
+                  label: 'cancelled', color: kTextHint, size: StatusChipSize.small);
+            }
+            return StatusChip.order(status, size: StatusChipSize.small);
+          },
         ),
         AppTableColumn(
           label:     '',
@@ -247,6 +262,13 @@ class _S extends ConsumerState<InvoicesScreen> {
       desktopPadding: const EdgeInsets.symmetric(horizontal: 16),
       rowDecoration: (inv) {
         final bal = (inv['balance_amount'] as num?)?.toDouble() ?? 0;
+        final isCancelled = inv['status'] == 'cancelled';
+        if (isCancelled) {
+          return const BoxDecoration(
+            color: Color(0xFFF5F5F5),
+            border: Border(bottom: BorderSide(color: kBorder, width: 0.5)),
+          );
+        }
         return BoxDecoration(
           color:  bal > 0
               ? Colors.orange.withValues(alpha: 0.02)
@@ -274,7 +296,7 @@ class _S extends ConsumerState<InvoicesScreen> {
           separatorBuilder: (_, __) => const SizedBox(height: 8),
           itemBuilder:      (_, i)  => _InvoiceCard(invoice: _filtered[i]),
         ));
-    }
+  }
 }
 
 // ── Mobile invoice card ───────────────────────────────────────────────────────
@@ -288,8 +310,9 @@ class _InvoiceCard extends StatelessWidget {
     final r       = invoice['retailers'] as Map<String, dynamic>?;
     final date    = DateTime.tryParse(invoice['invoice_date'] as String? ?? '');
     final status  = invoice['status']        as String? ?? 'draft';
+    final isCancelled = status == 'cancelled';
     final total   = (invoice['total_amount']   as num?)?.toDouble() ?? 0;
-    final balance = (invoice['balance_amount'] as num?)?.toDouble() ?? 0;
+    final balance = isCancelled ? 0.0 : (invoice['balance_amount'] as num?)?.toDouble() ?? 0;
 
     return InkWell(
       onTap:        () => context.push(R.invoiceDetailPath(invoice['id'])),
@@ -297,21 +320,24 @@ class _InvoiceCard extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color:        kSurface,
+          color: isCancelled ? const Color(0xFFF5F5F5) : kSurface,
           borderRadius: BorderRadius.circular(kRadiusCard),
           border: Border.all(
-              color: balance > 0
+              color: isCancelled
+                  ? kBorderLight
+                  : balance > 0
                   ? Colors.orange.withValues(alpha: 0.35)
                   : kBorderLight,
-              width: balance > 0 ? 1.5 : 0.8),
-          boxShadow: kCardShadow,
+              width: balance > 0 && !isCancelled ? 1.5 : 0.8),
+          boxShadow: isCancelled ? null : kCardShadow,
         ),
         child: Row(children: [
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(invoice['invoice_number'] as String? ?? '—',
                 style: const TextStyle(fontSize: 11, color: kTextHint, fontWeight: FontWeight.w600)),
             Text(r?['shop_name'] as String? ?? '—',
-                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: kNavy)),
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900,
+                    color: isCancelled ? kTextHint : kNavy)),
             if (date != null)
               Text(DateFormat('d MMM y').format(date),
                   style: const TextStyle(fontSize: 11, color: kTextHint)),
@@ -323,13 +349,17 @@ class _InvoiceCard extends StatelessWidget {
           ])),
           Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
             Text(Fmt.amount(total),
-                style: const TextStyle(
-                    fontSize: 17, fontWeight: FontWeight.w900, color: kNavy)),
+                style: TextStyle(
+                    fontSize: 17, fontWeight: FontWeight.w900,
+                    color: isCancelled ? kTextHint : kNavy,
+                    decoration: isCancelled ? TextDecoration.lineThrough : null)),
             if (balance > 0)
               Text('Due: ${Fmt.amount(balance)}',
                   style: const TextStyle(
                       fontSize: 11, color: Colors.orange, fontWeight: FontWeight.w600)),
-            StatusChip.order(status, size: StatusChipSize.small),
+            isCancelled
+                ? const StatusChip(label: 'cancelled', color: kTextHint, size: StatusChipSize.small)
+                : StatusChip.order(status, size: StatusChipSize.small),
           ]),
           const SizedBox(width: 4),
           const Icon(Icons.chevron_right_rounded, color: kTextHint, size: 18),

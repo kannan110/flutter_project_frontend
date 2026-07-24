@@ -64,6 +64,10 @@ class _QuickLine {
   final weightCtrl = TextEditingController();
 
   int get birds => int.tryParse(birdsCtrl.text.trim()) ?? 0;
+  // Scenario 1 fix: preserves a blank Bird Count field as NULL (distinct
+  // from a typed 0) so the sheet-level total can tell "no lines had a count
+  // entered" apart from "some lines summed to zero."
+  int? get birdsToRecord => int.tryParse(birdsCtrl.text.trim());
   double get weight => double.tryParse(weightCtrl.text.trim()) ?? 0;
 
   void dispose() {
@@ -127,6 +131,20 @@ class _AgentQuickEntrySheetState extends ConsumerState<AgentQuickEntrySheet> {
     final tid = ref.read(appUserProvider).valueOrNull?.traderId;
     if (tid == null) return;
     try {
+      // ★ NEW: current open shift id, so Available Stock reflects the
+      // current batch/shift rather than the agent's lifetime stock_ledger.
+      String? currentShiftId;
+      try {
+        final s = await _c
+            .from('delivery_shifts')
+            .select('id')
+            .eq('delivery_agent_id', widget.agentId)
+            .eq('status', 'open')
+            .maybeSingle()
+            .timeout(const Duration(seconds: 8));
+        currentShiftId = s?['id'] as String?;
+      } catch (_) {}
+
       final results = await Future.wait<dynamic>([
         _c
             .from('retailers')
@@ -153,6 +171,7 @@ class _AgentQuickEntrySheetState extends ConsumerState<AgentQuickEntrySheet> {
         _c.rpc('get_available_stock', params: {
           'p_trader_id': tid,
           'p_agent_id': widget.agentId,
+          'p_shift_id': currentShiftId,
         }),
       ]);
 
@@ -354,6 +373,13 @@ class _AgentQuickEntrySheetState extends ConsumerState<AgentQuickEntrySheet> {
 
   double get _totalWeight => _lines.fold(0.0, (s, l) => s + l.weight);
   int get _totalBirds => _lines.fold(0, (s, l) => s + l.birds);
+  // Scenario 1 fix: null only when every line's Bird Count is blank; if at
+  // least one line has a value, sum with blank lines treated as 0 — same
+  // rule as the single-delivery screens, applied across lines.
+  int? get _totalBirdsToRecord {
+    final anyEntered = _lines.any((l) => l.birdsCtrl.text.trim().isNotEmpty);
+    return anyEntered ? _totalBirds : null;
+  }
 
   Future<void> _submit() async {
     setState(() => _err = null);
@@ -437,7 +463,7 @@ class _AgentQuickEntrySheetState extends ConsumerState<AgentQuickEntrySheet> {
     }
 
     final deliveryId = createRes['delivery_id'] as String;
-    final totalBirds = (createRes['total_birds'] as num?)?.toInt() ?? _totalBirds;
+    final totalBirds = (createRes['total_birds'] as num?)?.toInt() ?? _totalBirdsToRecord;
     final totalWeight = (createRes['total_weight'] as num?)?.toDouble() ?? _totalWeight;
 
     // ── Step 2: complete the delivery (stock deduction, status=delivered) ──

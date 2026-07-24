@@ -36,6 +36,7 @@ import '../../features/trader_admin/approvals/approvals_screen.dart';
 import '../../features/trader_admin/approvals/approval_detail_screen.dart';
 import '../../features/trader_admin/invoices/invoices_screen.dart';
 import '../../features/trader_admin/invoices/invoice_detail_screen.dart';
+import '../../features/trader_admin/invoices/invoice_correction_screen.dart';
 import '../../features/trader_admin/ledger/ledger_screen.dart';
 import '../../features/trader_admin/ledger/retailer_ledger_screen.dart';
 import '../../features/trader_admin/retailers/retailer_statement_screen.dart';
@@ -123,6 +124,7 @@ abstract class R {
   static const approvalDetail = '/t/approvals/:id';
   static const invoices = '/t/invoices';
   static const invoiceDetail = '/t/invoices/:id';
+  static const invoiceCorrection = '/t/invoices/:id/correct';
   static const ledger = '/t/ledger';
   static const retailerLedger = '/t/ledger/:rid';
   static const retailerStatement = '/t/statement/:rid';
@@ -190,6 +192,7 @@ abstract class R {
   static String approvalDetailPath(String id) => '/t/approvals/$id';
 
   static String invoiceDetailPath(String id) => '/t/invoices/$id';
+  static String invoiceCorrectionPath(String id) => '/t/invoices/$id/correct';
 
   static String retailerLedgerPath(String id) => '/t/ledger/$id';
   static String retailerStatementPath(String id) => '/t/statement/$id';
@@ -363,6 +366,10 @@ final appRouterProvider = Provider<GoRouter>((ref) => GoRouter(
             path: R.invoiceDetail,
             builder: (_, s) =>
                 InvoiceDetailScreen(id: s.pathParameters['id']!)),
+        GoRoute(
+            path: R.invoiceCorrection,
+            builder: (_, s) =>
+                InvoiceCorrectionScreen(invoiceId: s.pathParameters['id']!)),
         GoRoute(path: R.ledger, builder: (_, __) => const LedgerScreen()),
         GoRoute(
             path: R.retailerLedger,

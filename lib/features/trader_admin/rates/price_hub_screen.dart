@@ -196,8 +196,13 @@ class _ZoneRatesTabState extends ConsumerState<_ZoneRatesTab> {
                       final p = await showDatePicker(
                           context: ctx,
                           initialDate: selectedDate,
+                          // Widened from 1 day to 7 days back — must match
+                          // set_zone_rate's server-side "CURRENT_DATE - 7"
+                          // guard. Historical changes are for correcting
+                          // missed/wrong rates only, not for modifying
+                          // completed business.
                           firstDate: DateTime.now()
-                              .subtract(const Duration(days: 1)),
+                              .subtract(const Duration(days: 7)),
                           lastDate:
                           DateTime.now().add(const Duration(days: 30)));
                       if (p != null) ss(() => selectedDate = p);

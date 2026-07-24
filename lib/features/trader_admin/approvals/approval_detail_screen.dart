@@ -37,6 +37,7 @@ class _S extends ConsumerState<ApprovalDetailScreen> {
   List<Map<String, dynamic>> _ratePreview = []; // Phase 3: v4 resolved rates
   bool _loading = true, _submitting = false;
   DateTime _invoiceDate = DateTime.now();
+  String? _orderId; // kept to re-fetch the rate preview if Invoice Date changes
 
   @override
   void initState() {
@@ -131,13 +132,20 @@ class _S extends ConsumerState<ApprovalDetailScreen> {
         if (p != null && mounted) _invoiceDate = p;
       }
 
-      // Phase 3: Load v4 rate preview (what will be charged at approval)
+      // Phase 3: Load v4 rate preview (what will be charged at approval).
+      // p_date must match the Invoice Date, not "today" — otherwise a
+      // trader who has just corrected a missed/wrong Product Zone Price
+      // for a past day (up to 7 days back) would still see and submit
+      // today's rate for a multi-product order dated that past day.
       List<Map<String, dynamic>> preview = [];
       try {
         final orderId = d['orders']?['id'] as String?;
+        _orderId = orderId;
         if (orderId != null) {
-          final res = await _c
-              .rpc('get_order_rate_preview', params: {'p_order_id': orderId});
+          final res = await _c.rpc('get_order_rate_preview', params: {
+            'p_order_id': orderId,
+            'p_date': DateFormat('yyyy-MM-dd').format(_invoiceDate),
+          });
           preview = List<Map<String, dynamic>>.from(res as List? ?? []);
           // Pre-fill rate controllers from v4 resolved rates
           for (final item in preview) {
@@ -170,6 +178,41 @@ class _S extends ConsumerState<ApprovalDetailScreen> {
     } catch (e) {
       if (mounted) setState(() => _loading = false);
     }
+  }
+
+  // Re-resolves the v4 rate preview for the *current* Invoice Date and
+  // refreshes the rate boxes. Called whenever the trader changes Invoice
+  // Date, so the per-item rates that get submitted to
+  // approve_delivery_and_order (as p_item_rates, for multi-product orders)
+  // always reflect the latest applicable Product Zone Price for that date —
+  // required so back-dated rate corrections (now up to 7 days) actually
+  // flow through to Pending Approval instead of silently billing today's
+  // rate. Single-product orders already re-resolve server-side regardless,
+  // but refreshing here keeps what the trader sees on screen honest too.
+  Future<void> _refreshRatePreview() async {
+    if (_orderId == null) return;
+    try {
+      final res = await _c.rpc('get_order_rate_preview', params: {
+        'p_order_id': _orderId,
+        'p_date': DateFormat('yyyy-MM-dd').format(_invoiceDate),
+      });
+      final preview = List<Map<String, dynamic>>.from(res as List? ?? []);
+      for (final item in preview) {
+        final oid = item['order_item_id'] as String?;
+        final rate = (item['rate'] as num?)?.toDouble() ?? 0;
+        if (oid != null && _itemRateCtrls.containsKey(oid) && rate > 0) {
+          _itemRateCtrls[oid]!.text =
+              rate.toStringAsFixed(2).replaceAll('.00', '');
+        }
+      }
+      if (preview.isNotEmpty) {
+        final firstRate = (preview.first['rate'] as num?)?.toDouble() ?? 0;
+        if (firstRate > 0) {
+          _rateCtrl.text = firstRate.toStringAsFixed(2).replaceAll('.00', '');
+        }
+      }
+      if (mounted) setState(() => _ratePreview = preview);
+    } catch (_) {}
   }
 
   // ── Core values ──────────────────────────────────────────────────
@@ -817,7 +860,12 @@ class _S extends ConsumerState<ApprovalDetailScreen> {
                       initialDate: _invoiceDate,
                       firstDate: DateTime.now().subtract(const Duration(days: 90)),
                       lastDate: DateTime.now());
-                  if (d != null && mounted) setState(() => _invoiceDate = d);
+                  if (d != null && mounted) {
+                    setState(() => _invoiceDate = d);
+                    // Re-resolve rates for the new date — see
+                    // _refreshRatePreview for why this matters.
+                    await _refreshRatePreview();
+                  }
                 },
                 child: Container(
                     padding:

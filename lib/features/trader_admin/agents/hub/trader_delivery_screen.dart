@@ -200,6 +200,7 @@ class _TraderDeliveryScreenState
 
       // Stock check
       final productId = o?['product_id'] as String?;
+      final currentShiftId = d['delivery_shift_id'] as String?;
       if (user?.traderId != null && productId != null) {
         try {
           final res = await Supabase.instance.client
@@ -207,6 +208,7 @@ class _TraderDeliveryScreenState
             'p_trader_id': user!.traderId,
             'p_product_id': productId,
             'p_agent_id': widget.agentId,
+            'p_shift_id': currentShiftId,
           });
           final list = (res as List? ?? []);
           if (list.isNotEmpty && mounted) {
@@ -265,6 +267,10 @@ class _TraderDeliveryScreenState
 
   // ── Computed values (identical formulas to agent screen) ─────────────────────
   int    get _deliveryBirds  => int.tryParse(_birdsCtrl.text)  ?? 0;
+  // Scenario 1 fix: preserves a blank Bird Count as NULL instead of silently
+  // becoming 0. Used ONLY for the value persisted via complete_delivery
+  // (p_birds_delivered); every other use of _deliveryBirds is untouched.
+  int?   get _deliveryBirdsToRecord => int.tryParse(_birdsCtrl.text);
   double get _deliveryWeight => double.tryParse(_weightCtrl.text) ?? 0;
   int    get _mortalityBirds => int.tryParse(_mortCtrl.text)   ?? 0;
   double get _mortalityWtKg  => _avgBirdWeightG > 0
@@ -291,6 +297,7 @@ class _TraderDeliveryScreenState
         'p_trader_id': user!.traderId,
         'p_product_id': productId,
         'p_agent_id': widget.agentId,
+        'p_shift_id': _delivery?['delivery_shift_id'] as String?,
       });
       final list = (res as List? ?? []);
       if (list.isNotEmpty && mounted) {
@@ -501,7 +508,7 @@ class _TraderDeliveryScreenState
       final res = await Supabase.instance.client
           .rpc('complete_delivery', params: {
         'p_delivery_id':           widget.deliveryId,
-        'p_birds_delivered':       _deliveryBirds,
+        'p_birds_delivered':       _deliveryBirdsToRecord,
         'p_delivered_total_weight': weight,
         'p_received_bird_count':   int.tryParse(_rcvBirdsCtrl.text),
         'p_received_total_weight': double.tryParse(_rcvWtCtrl.text),

@@ -130,6 +130,13 @@ class _S extends ConsumerState<ShiftDetailScreen> {
     final transferOutKg    = (totals?['total_transferred_out_kg']    as num?)?.toDouble() ?? 0;
     final lossKg       = (totals?['unaccounted_loss_kg']      as num?)?.toDouble() ?? 0;
     final totalLossKg  = (totals?['total_loss_kg']            as num?)?.toDouble() ?? 0;
+    // ★ NEW (Scenario 1): existing backend-calculated bird variance + the
+    // data-quality caveat, both already computed by get_batch_loss_summary.
+    // No new calculation performed here — just reading and displaying values
+    // the RPC already returns.
+    final unaccountedBirds  = (totals?['unaccounted_loss_birds']       as num?)?.toInt()    ?? 0;
+    final unconfirmedCount  = (totals?['unconfirmed_delivery_count']   as num?)?.toInt()    ?? 0;
+    final unconfirmedKg     = (totals?['unconfirmed_delivered_kg']     as num?)?.toDouble() ?? 0;
     final lossPct      = (dcKg + transferInKg) > 0 ? (lossKg / (dcKg + transferInKg) * 100) : 0.0;
     final hasDelMort   = delMortBirds > 0;
     final hasRetMort   = retMortBirds > 0;
@@ -195,6 +202,21 @@ class _S extends ConsumerState<ShiftDetailScreen> {
                     _approvalReconRow('Weight Variance', null, lossKg,
                         lossKg > 0 ? Colors.orange : Colors.green, lossKg > 0,
                         suffix: lossKg > 0 ? '  (${lossPct.toStringAsFixed(1)}%)' : null),
+                    _approvalReconRow('Unaccounted Birds', unaccountedBirds, null,
+                        unaccountedBirds > 0 ? Colors.orange : Colors.green,
+                        unaccountedBirds > 0),
+                    if (unconfirmedCount > 0)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 2, bottom: 2),
+                        child: Text(
+                            '\u26a0 $unconfirmedCount deliver${unconfirmedCount == 1 ? 'y' : 'ies'} '
+                                '(${unconfirmedKg.toStringAsFixed(1)} kg) had no Bird Count entered '
+                                '\u2014 the birds figure above may be overstated by up to that many birds.',
+                            style: const TextStyle(
+                                fontSize: 10,
+                                fontStyle: FontStyle.italic,
+                                color: kTextHint)),
+                      ),
                     const Divider(height: 16, thickness: 1),
                     _approvalReconRow('Total Loss', null, totalLossKg,
                         totalLossKg > 0 ? Colors.red : Colors.green, totalLossKg > 0),
@@ -272,8 +294,8 @@ class _S extends ConsumerState<ShiftDetailScreen> {
   // Used in both the approval dialog and _buildBatchLossPanel.
   static Widget _approvalReconRow(
       String label,
-      int?   birds,
-      double kg,
+      int?    birds,
+      double? kg,
       Color  c,
       bool   highlight, {
         String? prefix,
@@ -283,8 +305,9 @@ class _S extends ConsumerState<ShiftDetailScreen> {
     // (Previously a negative `birds`/`kg` value combined with a hardcoded
     // prefix could render a confusing double sign like "+-10".)
     final String birdsStr = birds != null ? '${prefix ?? ""}${birds.abs()} birds' : '';
-    final String kgStr    =
-        '${prefix ?? ""}${kg.abs().toStringAsFixed(2)} kg${suffix ?? ""}';
+    final String kgStr    = kg != null
+        ? '${prefix ?? ""}${kg.abs().toStringAsFixed(2)} kg${suffix ?? ""}'
+        : '';
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 3),
       child: Row(children: [
@@ -2677,6 +2700,12 @@ class _S extends ConsumerState<ShiftDetailScreen> {
     final transferOutKg    = (totals?['total_transferred_out_kg']    as num?)?.toDouble() ?? 0;
     final lossKg       = (totals?['unaccounted_loss_kg']      as num?)?.toDouble() ?? 0;
     final totalLossKg  = (totals?['total_loss_kg']            as num?)?.toDouble() ?? 0;
+    // ★ NEW (Scenario 1): same existing backend-calculated values used in the
+    // approval confirmation dialog — kept consistent so the always-visible
+    // panel and the popup show the same figures. No new calculation here.
+    final unaccountedBirds  = (totals?['unaccounted_loss_birds']       as num?)?.toInt()    ?? 0;
+    final unconfirmedCount  = (totals?['unconfirmed_delivery_count']   as num?)?.toInt()    ?? 0;
+    final unconfirmedKg     = (totals?['unconfirmed_delivered_kg']     as num?)?.toDouble() ?? 0;
     final lossPct      = (dcKg + transferInKg) > 0 ? (lossKg / (dcKg + transferInKg) * 100) : 0.0;
     final isHighLoss   = lossPct >= 2;
     final hasDelMort   = delMortBirds > 0;
@@ -2762,6 +2791,21 @@ class _S extends ConsumerState<ShiftDetailScreen> {
                 _approvalReconRow('Weight Variance', null, lossKg,
                     lossKg > 0 ? Colors.orange : Colors.green, lossKg > 0,
                     suffix: lossKg > 0 ? '  (${lossPct.toStringAsFixed(1)}%)' : null),
+                _approvalReconRow('Unaccounted Birds', unaccountedBirds, null,
+                    unaccountedBirds > 0 ? Colors.orange : Colors.green,
+                    unaccountedBirds > 0),
+                if (unconfirmedCount > 0)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 2, bottom: 2),
+                    child: Text(
+                        '\u26a0 $unconfirmedCount deliver${unconfirmedCount == 1 ? 'y' : 'ies'} '
+                            '(${unconfirmedKg.toStringAsFixed(1)} kg) had no Bird Count entered '
+                            '\u2014 the birds figure above may be overstated by up to that many birds.',
+                        style: const TextStyle(
+                            fontSize: 10,
+                            fontStyle: FontStyle.italic,
+                            color: kTextHint)),
+                  ),
                 const Divider(height: 16, thickness: 1),
                 _approvalReconRow('Total Loss', null, totalLossKg,
                     totalLossKg > 0 ? Colors.red : Colors.green,

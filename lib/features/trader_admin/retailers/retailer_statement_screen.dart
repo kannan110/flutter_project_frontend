@@ -59,6 +59,13 @@ _TxConfig _txConfig(String sourceType, String paymentMode) {
       return const _TxConfig('Credit Note',
           Icons.discount_outlined,
           Color(0xFFF3E5F5), Color(0xFF6A1B9A));
+    case 'invoice_cancellation':
+    // From cancel_and_reissue_invoice's compensating ledger entry —
+    // distinct from the generic 'Adjustment' fallback so a trader can
+    // immediately see why an invoice's effect was reversed.
+      return const _TxConfig('Invoice Cancelled',
+          Icons.cancel_outlined,
+          Color(0xFFEEEEEE), Color(0xFF616161));
     case 'opening_balance':
       return const _TxConfig('Opening Balance',
           Icons.account_balance_outlined,

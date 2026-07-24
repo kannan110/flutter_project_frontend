@@ -57,6 +57,9 @@ class _SimpleLine {
   bool checkingStock = false;
 
   int get birds => int.tryParse(birdsCtrl.text.trim()) ?? 0;
+  // Scenario 1 fix: preserves a blank Bird Count field as NULL (distinct
+  // from a typed 0), same as agent_quick_entry.dart's per-line pattern.
+  int? get birdsToRecord => int.tryParse(birdsCtrl.text.trim());
   double get weight => double.tryParse(weightCtrl.text.trim()) ?? 0;
 
   void dispose() {
@@ -78,6 +81,10 @@ class _AgentSimpleEntrySheetState extends ConsumerState<AgentSimpleEntrySheet> {
   bool _loading = true;
   bool _submitting = false;
   String? _err;
+  // ★ NEW: current open shift id, fetched once in _loadData and reused by
+  // _checkStock, so Available Stock reflects the current batch/shift
+  // rather than the agent's lifetime stock_ledger.
+  String? _currentShiftId;
 
   @override
   void initState() {
@@ -109,6 +116,18 @@ class _AgentSimpleEntrySheetState extends ConsumerState<AgentSimpleEntrySheet> {
             .order('name'),
       ]);
       if (!mounted) return;
+      // ★ NEW: fetch current open shift id (best-effort; a lookup failure
+      // just leaves stock checks lifetime-scoped, same as before this fix).
+      try {
+        final s = await _c
+            .from('delivery_shifts')
+            .select('id')
+            .eq('delivery_agent_id', widget.agentId)
+            .eq('status', 'open')
+            .maybeSingle()
+            .timeout(const Duration(seconds: 8));
+        _currentShiftId = s?['id'] as String?;
+      } catch (_) {}
       setState(() {
         _retailers = List<Map<String, dynamic>>.from(results[0] as List? ?? []);
         _products = List<Map<String, dynamic>>.from(results[1] as List? ?? []);
@@ -130,6 +149,7 @@ class _AgentSimpleEntrySheetState extends ConsumerState<AgentSimpleEntrySheet> {
         'p_trader_id': tid,
         'p_product_id': line.product!['id'],
         'p_agent_id': widget.agentId,
+        'p_shift_id': _currentShiftId,
       });
       final rows = res as List?;
       final avail = (rows != null && rows.isNotEmpty)
@@ -161,6 +181,12 @@ class _AgentSimpleEntrySheetState extends ConsumerState<AgentSimpleEntrySheet> {
 
   double get _totalWeight => _lines.fold(0.0, (s, l) => s + l.weight);
   int get _totalBirds => _lines.fold(0, (s, l) => s + l.birds);
+  // Scenario 1 fix: null only when every line's Bird Count is blank; if at
+  // least one line has a value, sum with blank lines treated as 0.
+  int? get _totalBirdsToRecord {
+    final anyEntered = _lines.any((l) => l.birdsCtrl.text.trim().isNotEmpty);
+    return anyEntered ? _totalBirds : null;
+  }
 
   Future<void> _submit() async {
     setState(() => _err = null);
@@ -238,7 +264,7 @@ class _AgentSimpleEntrySheetState extends ConsumerState<AgentSimpleEntrySheet> {
     }
 
     final deliveryId = createRes['delivery_id'] as String;
-    final totalBirds = (createRes['total_birds'] as num?)?.toInt() ?? _totalBirds;
+    final totalBirds = (createRes['total_birds'] as num?)?.toInt() ?? _totalBirdsToRecord;
     final totalWeight = (createRes['total_weight'] as num?)?.toDouble() ?? _totalWeight;
 
     // ── Step 2: complete the delivery (stock deduction, status=delivered) ──
