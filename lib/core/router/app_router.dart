@@ -14,6 +14,7 @@ import 'package:rooster_trader/features/trader_admin/stock/daily_stock_screen.da
 import 'package:rooster_trader/features/trader_admin/stock/stock_detail_screen.dart'
     show StockDetailScreen;
 import '../../features/delivery_agent/orders/agent_myorder_screen.dart' show AgentMyOrdersScreen;
+import '../../features/trader_admin/ledger/creditnote_detailed_screen.dart';
 import '../../features/trader_admin/reports/cashflow_screen.dart' show CashFlowScreen;
 import '../../features/trader_admin/reports/report_home_screen.dart';
 import '../../features/trader_admin/reports/supplier_statement_screen.dart' show SupplierStatementScreen;
@@ -125,6 +126,7 @@ abstract class R {
   static const invoices = '/t/invoices';
   static const invoiceDetail = '/t/invoices/:id';
   static const invoiceCorrection = '/t/invoices/:id/correct';
+  static const creditNoteDetail = '/t/credit-notes/:id';
   static const ledger = '/t/ledger';
   static const retailerLedger = '/t/ledger/:rid';
   static const retailerStatement = '/t/statement/:rid';
@@ -193,6 +195,7 @@ abstract class R {
 
   static String invoiceDetailPath(String id) => '/t/invoices/$id';
   static String invoiceCorrectionPath(String id) => '/t/invoices/$id/correct';
+  static String creditNoteDetailPath(String id) => '/t/credit-notes/$id';
 
   static String retailerLedgerPath(String id) => '/t/ledger/$id';
   static String retailerStatementPath(String id) => '/t/statement/$id';
@@ -370,6 +373,10 @@ final appRouterProvider = Provider<GoRouter>((ref) => GoRouter(
             path: R.invoiceCorrection,
             builder: (_, s) =>
                 InvoiceCorrectionScreen(invoiceId: s.pathParameters['id']!)),
+        GoRoute(
+            path: R.creditNoteDetail,
+            builder: (_, s) =>
+                CreditNoteDetailScreen(id: s.pathParameters['id']!)),
         GoRoute(path: R.ledger, builder: (_, __) => const LedgerScreen()),
         GoRoute(
             path: R.retailerLedger,

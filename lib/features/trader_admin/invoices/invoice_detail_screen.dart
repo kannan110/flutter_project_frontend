@@ -38,6 +38,11 @@ class _S extends State<InvoiceDetailScreen> {
   Map<String, dynamic>? _supersededBy; // {id, invoice_number} — set only if this invoice was cancelled-and-replaced
   Map<String, dynamic>? _correctedFrom; // {id, invoice_number} — set only if this invoice IS a replacement
 
+  // ★ NEW: Returns section — reuses the existing credit_notes table
+  // (already correctly linked to invoice_id after the process_return_v2
+  // fix), read-only here, no new calculation.
+  List<Map<String, dynamic>> _creditNotesForInvoice = [];
+
   @override
   void initState() {
     super.initState();
@@ -127,6 +132,25 @@ class _S extends State<InvoiceDetailScreen> {
             }
           } catch (_) {}
         }
+
+        // ★ NEW: Returns section — credit notes issued against this
+        // invoice (process_return_v2 links credit_notes.invoice_id to the
+        // latest approved invoice; read-only here, no new calculation).
+        try {
+          final rows = await _c
+              .from('credit_notes')
+              .select('id,credit_number,credit_date,quantity_kg,bird_count,'
+              'rate_per_kg,total_amount,status,'
+              'return_entries(reason,return_type)')
+              .eq('invoice_id', widget.id)
+              .order('credit_date', ascending: false);
+          if (mounted) {
+            setState(() {
+              _creditNotesForInvoice =
+              List<Map<String, dynamic>>.from(rows as List? ?? []);
+            });
+          }
+        } catch (_) {}
       }
     } catch (e) {
       if (mounted) setState(() => _loading = false);
@@ -784,6 +808,66 @@ class _S extends State<InvoiceDetailScreen> {
         ])),
         const SizedBox(height: 14),
 
+        // ── Returns section ─────────────────────────────────────────────
+        // Reuses credit_notes read-only — no new calculation, totals are
+        // simple client-side sums of what's already fetched.
+        if (_creditNotesForInvoice.isNotEmpty)
+          WhiteCard(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              const SectionHeader('RETURNS'),
+              const SizedBox(height: 10),
+              Builder(builder: (_) {
+                final totalReturnedKg = _creditNotesForInvoice.fold<double>(
+                    0, (s, cn) => s + ((cn['quantity_kg'] as num?)?.toDouble() ?? 0));
+                final totalReturnedBirds = _creditNotesForInvoice.fold<int>(
+                    0, (s, cn) => s + ((cn['bird_count'] as num?)?.toInt() ?? 0));
+                final totalCredit = _creditNotesForInvoice.fold<double>(
+                    0, (s, cn) => s + ((cn['total_amount'] as num?)?.toDouble() ?? 0));
+                final grossKg = (inv['quantity_kg'] as num?)?.toDouble() ?? 0;
+                final netKg = (grossKg - totalReturnedKg).clamp(0, double.infinity);
+                return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Row(children: [
+                    Expanded(
+                      child: _returnStat('Total Returned',
+                          '${totalReturnedBirds > 0 ? '$totalReturnedBirds birds · ' : ''}${totalReturnedKg.toStringAsFixed(1)} kg',
+                          Colors.orange),
+                    ),
+                    Expanded(
+                      child: _returnStat('Total Credit',
+                          Fmt.amount(totalCredit), const Color(0xFF6A1B9A)),
+                    ),
+                  ]),
+                  const SizedBox(height: 8),
+                  _returnStat('Net Delivered Quantity', '${netKg.toStringAsFixed(1)} kg', kSuccess),
+                  const Divider(height: 18),
+                  ..._creditNotesForInvoice.map((cn) {
+                    final ret = cn['return_entries'] as Map<String, dynamic>?;
+                    final date = DateTime.tryParse(cn['credit_date'] as String? ?? '');
+                    return ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      dense: true,
+                      leading: const Icon(Icons.assignment_return_outlined,
+                          color: Color(0xFF6A1B9A)),
+                      title: Text(cn['credit_number'] as String? ?? '—',
+                          style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+                      subtitle: Text(
+                          '${date != null ? DateFormat('d MMM y').format(date) : '—'}'
+                              '${ret?['reason'] != null ? ' · ${ret!['reason']}' : ''}',
+                          style: const TextStyle(fontSize: 11, color: kTextHint)),
+                      trailing: TextButton(
+                        onPressed: () => context.push(R.creditNoteDetailPath(cn['id'] as String)),
+                        child: Text(Fmt.amount((cn['total_amount'] as num?)?.toDouble() ?? 0),
+                            style: const TextStyle(fontWeight: FontWeight.w800, color: Color(0xFF6A1B9A))),
+                      ),
+                      onTap: () => context.push(R.creditNoteDetailPath(cn['id'] as String)),
+                    );
+                  }),
+                ]);
+              }),
+            ]),
+          ),
+        if (_creditNotesForInvoice.isNotEmpty) const SizedBox(height: 14),
+
         // ── WhatsApp share ─────────────────────────────────────────────
         ElevatedButton.icon(
             onPressed: _shareWhatsApp,
@@ -801,6 +885,12 @@ class _S extends State<InvoiceDetailScreen> {
       ]),
     );
   }
+
+  Widget _returnStat(String label, String value, Color color) =>
+      Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(label, style: const TextStyle(fontSize: 10, color: kTextHint)),
+        Text(value, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: color)),
+      ]);
 
   Widget _itemCol(String label, String value, Color color) =>
       Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [

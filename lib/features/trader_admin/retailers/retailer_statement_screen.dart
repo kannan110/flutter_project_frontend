@@ -59,6 +59,15 @@ _TxConfig _txConfig(String sourceType, String paymentMode) {
       return const _TxConfig('Credit Note',
           Icons.discount_outlined,
           Color(0xFFF3E5F5), Color(0xFF6A1B9A));
+    case 'return':
+    // process_return_v2 writes source_type='return' — this is the case
+    // that actually matches real return-driven ledger credits (the
+    // 'credit_note' case above never receives real data from any
+    // current write path, but is left in place in case a future direct
+    // credit-note mechanism uses that value).
+      return const _TxConfig('Return / Credit Note',
+          Icons.assignment_return_outlined,
+          Color(0xFFF3E5F5), Color(0xFF6A1B9A));
     case 'invoice_cancellation':
     // From cancel_and_reissue_invoice's compensating ledger entry —
     // distinct from the generic 'Adjustment' fallback so a trader can

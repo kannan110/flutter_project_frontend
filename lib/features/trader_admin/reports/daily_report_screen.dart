@@ -142,6 +142,16 @@ class _S extends ConsumerState<DailyReportScreen> {
     return map.values.toList()..sort((a, b) => (b['total_loss'] as double).compareTo(a['total_loss'] as double));
   }
 
+  // ★ FIXED: daily_report_summary never returns a 'net_profit' key (only
+  // gross_revenue/returns_amount/net_revenue/farm_cost/total_expenses) — the
+  // three read sites below were always pulling null → showing ₹0. Computed
+  // here per this screen's own stated formula: Gross Revenue − Farm Cost −
+  // Delivery Expenses.
+  double _netProfit(Map<String,dynamic> d) =>
+      ((d['gross_revenue'] as num?)?.toDouble() ?? 0)
+          - ((d['farm_cost'] as num?)?.toDouble() ?? 0)
+          - ((d['total_expenses'] as num?)?.toDouble() ?? 0);
+
   String _buildShareText() {
     if (_d == null) return '';
     final d = _d!;
@@ -152,7 +162,7 @@ class _S extends ConsumerState<DailyReportScreen> {
     buf.writeln('Cash Collected: ₹${(d['cash_collected'] as num?)?.toStringAsFixed(0) ?? 0}');
     buf.writeln('Farm Cost:      ₹${(d['farm_cost'] as num?)?.toStringAsFixed(0) ?? 0}');
     buf.writeln('Expenses:       ₹${(d['total_expenses'] as num?)?.toStringAsFixed(0) ?? 0}');
-    buf.writeln('Net Profit:     ₹${(d['net_profit'] as num?)?.toStringAsFixed(0) ?? 0}\n');
+    buf.writeln('Net Profit:     ₹${_netProfit(d).toStringAsFixed(0)}\n');
     buf.writeln('📦 *STOCK*');
     buf.writeln('Purchased: ${d['birds_purchased'] ?? 0} birds · ${(d['kg_purchased'] as num?)?.toStringAsFixed(0) ?? 0} kg');
     buf.writeln('Delivered: ${d['birds_delivered'] ?? 0} birds · ${(d['kg_delivered'] as num?)?.toStringAsFixed(0) ?? 0} kg');
@@ -285,8 +295,8 @@ class _S extends ConsumerState<DailyReportScreen> {
             Fmt.amount((d['total_expenses']  as num?)?.toDouble() ?? 0), Colors.red),
         const Divider(height: 14),
         _rowInfo('Net Profit', 'Gross Revenue − Farm Cost − Delivery Expenses',
-            Fmt.amount((d['net_profit']      as num?)?.toDouble() ?? 0),
-            ((d['net_profit'] as num?)?.toDouble() ?? 0) >= 0 ? kPrimary : Colors.red),
+            Fmt.amount(_netProfit(d)),
+            _netProfit(d) >= 0 ? kPrimary : Colors.red),
         _rowInfo('Total Outstanding', 'All unpaid retailer balances (ledger)',
             Fmt.amount((d['total_outstanding'] as num?)?.toDouble() ?? 0), Colors.orange),
       ])),

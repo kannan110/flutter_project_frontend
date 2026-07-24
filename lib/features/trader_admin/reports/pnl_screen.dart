@@ -276,6 +276,8 @@ class _PnLScreenState extends ConsumerState<PnLScreen> {
     final costPending = pendingCount > 0;
 
     final revenue = _d(s, 'revenue');
+    final grossSales = _d(s, 'gross_sales');
+    final returnsAmount = _d(s, 'returns_amount');
     final cogs = _dn(s, 'cogs');
     final grossProfit = _dn(s, 'gross_profit');
     final netProfit = _dn(s, 'net_profit');
@@ -351,6 +353,22 @@ class _PnLScreenState extends ConsumerState<PnLScreen> {
                                   : Colors.red)),
                     ])),
               ])),
+          if (returnsAmount > 0)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                    color: Colors.orange.withValues(alpha: 0.06),
+                    borderRadius: BorderRadius.circular(kRadiusCard)),
+                child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                  Text('Gross Sales: ${Fmt.amount(grossSales)}',
+                      style: const TextStyle(fontSize: 12, color: kTextSub)),
+                  Text('Returns: −${Fmt.amount(returnsAmount)}',
+                      style: const TextStyle(fontSize: 12, color: Colors.orange, fontWeight: FontWeight.w700)),
+                ]),
+              ),
+            ),
           _kpiGrid([
             _kpi('Revenue', Fmt.amount(revenue), const Color(0xFF1565C0), Icons.currency_rupee),
             _kpi('Gross Profit', grossProfit == null ? 'Pending' : Fmt.amount(grossProfit),

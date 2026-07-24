@@ -10,6 +10,7 @@ import '../../../../core/providers/session_provider.dart';
 import '../../../../core/router/app_router.dart';
 import '../../../../core/theme/app_theme.dart';
 import 'agent_quick_entry.dart';
+import 'current_batch_active_screen.dart';
 import 'entry_mode_selector.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -596,6 +597,20 @@ class _AgentAssistanceHubScreenState
     );
   }
 
+  Future<void> _showCurrentBatchActivities() async {
+    if (!_hasShift) {
+      showError(context, 'Agent has no open shift.');
+      return;
+    }
+    await Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => CurrentBatchActivitiesScreen(
+        agentId: widget.agentId,
+        agentName: widget.agentName,
+      ),
+    ));
+    if (mounted) _load();
+  }
+
   // ═══════════════════════════════════════════════════════════════════════════
   // BUILD
   // ═══════════════════════════════════════════════════════════════════════════
@@ -1106,6 +1121,16 @@ class _AgentAssistanceHubScreenState
         enabled: _hasShift,
         disabledHint: 'Open a shift before using Quick Entry.',
         onTap: _showQuickEntrySheet,
+      ),
+      // Current Batch Activities — undo a mistaken Quick Entry delivery
+      // while the batch/shift is still open and before approval/invoice.
+      _ActionItem(
+        label: 'Current Batch Activities',
+        icon: Icons.history_rounded,
+        color: Colors.deepOrange,
+        enabled: _hasShift,
+        disabledHint: 'Open a shift to view current batch activities.',
+        onTap: _showCurrentBatchActivities,
       ),
       // Phase 5B
       _ActionItem(

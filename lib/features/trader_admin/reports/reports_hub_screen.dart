@@ -954,7 +954,7 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
       buf.writeln('BY ${(_data?['dimension'] as String? ?? _profitDimension).toUpperCase()}');
       for (final r in rows) {
         final cost = r['total_cost'] as num?;
-        buf.writeln('${_str(r,"group_label")}: ${Fmt.amount(_d(r,"total_revenue"))} revenue, '
+        buf.writeln('${_str(r,"group_label")}: ${Fmt.amount(_d(r,"net_revenue"))} revenue, '
             '${cost == null ? "cost pending" : Fmt.amount(cost.toDouble())} cost');
       }
     } else {
@@ -1438,7 +1438,13 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
   Widget _rProfitabilityBreakdown() {
     final rows = List<Map<String,dynamic>>.from(_data?['rows'] as List? ?? []);
     final dimension = _data?['dimension'] as String? ?? _profitDimension;
-    final totalRevenue = rows.fold(0.0, (s,r) => s + _d(r,'total_revenue'));
+    // ★ FIXED: get_profitability_breakdown renamed total_revenue → gross_sales
+    // and added net_revenue (post-credit-note) — this screen must read
+    // net_revenue so returns actually reduce what's shown here, matching
+    // every other fixed report.
+    final totalRevenue = rows.fold(0.0, (s,r) => s + _d(r,'net_revenue'));
+    final totalGrossSales = rows.fold(0.0, (s,r) => s + _d(r,'gross_sales'));
+    final totalReturns = rows.fold(0.0, (s,r) => s + _d(r,'total_returns'));
     final pendingRows = rows.where((r) => _i(r,'lines_cost_pending') > 0).length;
 
     if (rows.isEmpty) {
@@ -1454,17 +1460,22 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
           'allocated proportionally per line. For the official Profit figure, use the P&L Statement.',
           _cFinancial),
       _kpiGrid([
-        _kpi('Total Revenue', Fmt.amount(totalRevenue), const Color(0xFF004D40), Icons.currency_rupee),
+        _kpi('Net Revenue', Fmt.amount(totalRevenue), const Color(0xFF004D40), Icons.currency_rupee),
         _kpi('${dimension[0].toUpperCase()}${dimension.substring(1)}s', '${rows.length}',
             const Color(0xFF00695C), Icons.list_alt_outlined),
       ]),
+      if (totalReturns > 0)
+        _kpiGrid([
+          _kpi('Gross Sales', Fmt.amount(totalGrossSales), const Color(0xFF37474F), Icons.point_of_sale_outlined),
+          _kpi('Returns', Fmt.amount(totalReturns), Colors.deepOrange, Icons.assignment_return_outlined),
+        ]),
       if (pendingRows > 0)
         _banner('$pendingRows row${pendingRows == 1 ? '' : 's'} have batches not yet costed — '
             'their Cost/Profit/Margin show as "Pending".', Colors.orange),
       const SizedBox(height: 4),
       _sec('BY ${dimension.toUpperCase()}'),
       ...rows.map((r) {
-        final rev = _d(r, 'total_revenue');
+        final rev = _d(r, 'net_revenue');
         final kg = _d(r, 'total_kg');
         final cost = r['total_cost'] as num?;
         final gp = r['gross_profit'] as num?;

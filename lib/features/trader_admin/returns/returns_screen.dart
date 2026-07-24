@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/providers/session_provider.dart';
+import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_theme.dart';
+import 'return_create_screen.dart';
 
 class ReturnsScreen extends ConsumerStatefulWidget {
   const ReturnsScreen({super.key});
@@ -16,7 +19,6 @@ class _S extends ConsumerState<ReturnsScreen> {
   final _c = Supabase.instance.client;
   List<Map<String, dynamic>> _returns = [];
   List<Map<String, dynamic>> _filtered = [];
-  List<Map<String, dynamic>> _deliveries = [];
   final _searchCtrl = TextEditingController();
 
   void _applySearch(String q) {
@@ -25,11 +27,11 @@ class _S extends ConsumerState<ReturnsScreen> {
     setState(() => _filtered = lower.isEmpty
         ? List.from(_returns)
         : _returns.where((r) {
-            final ret = r['retailers'] as Map<String,dynamic>?;
-            final ag  = r['delivery_agents'] as Map<String,dynamic>?;
-            return (ret?['shop_name'] as String? ?? '').toLowerCase().contains(lower) ||
-                   (ag?['name']       as String? ?? '').toLowerCase().contains(lower);
-          }).toList());
+      final ret = r['retailers'] as Map<String,dynamic>?;
+      final ag  = r['delivery_agents'] as Map<String,dynamic>?;
+      return (ret?['shop_name'] as String? ?? '').toLowerCase().contains(lower) ||
+          (ag?['name']       as String? ?? '').toLowerCase().contains(lower);
+    }).toList());
   }
 
   // Stock summary from returns
@@ -54,16 +56,12 @@ class _S extends ConsumerState<ReturnsScreen> {
       var q = _c
           .from('return_entries')
           .select(
-          'id,return_type,return_date,bird_count,weight_kg,reason,status,stock_credited,created_at,retailers(shop_name),delivery_agents(name)')
+          'id,return_type,return_date,bird_count,weight_kg,reason,status,stock_credited,created_at,'
+              'retailers(shop_name),delivery_agents(name),master_products(name),'
+              'credit_notes(id,credit_number,total_amount)')
           .eq('trader_id', tid);
       if (_filter != 'all') q = q.eq('status', _filter);
       final r = await q.order('created_at', ascending: false).limit(100);
-      // Delivered orders for processing returns against
-      final d = await _c
-          .from('deliveries')
-          .select('id,orders(retailers(shop_name,id)),delivery_agents(id,name)')
-          .eq('trader_id', tid)
-          .eq('status', 'delivered');
       // Return stock summary from stock_ledger
       final sl = await _c
           .from('stock_ledger')
@@ -80,7 +78,6 @@ class _S extends ConsumerState<ReturnsScreen> {
       if (mounted)
         setState(() {
           _returns = List<Map<String, dynamic>>.from(r);
-          _deliveries = List<Map<String, dynamic>>.from(d);
           _applySearch(_searchCtrl.text);
           _totalReturnedBirds = birds;
           _totalReturnedKg = kg;
@@ -92,163 +89,10 @@ class _S extends ConsumerState<ReturnsScreen> {
     }
   }
 
-  Future<void> _processReturn() async {
-    final tid = ref.read(appUserProvider).valueOrNull?.traderId;
-    final uid = ref.read(appUserProvider).valueOrNull?.userId;
-    if (_deliveries.isEmpty && !mounted) {
-      showError(context, 'No delivered orders to return against');
-      return;
-    }
-    Map<String, dynamic>? selDel;
-    String returnType = 'same_batch';
-    final birdsCtrl = TextEditingController(text: '0');
-    final wtCtrl = TextEditingController(text: '0');
-    final rateCtrl = TextEditingController();
-    final reasonCtrl = TextEditingController();
-
-    await showModalBottomSheet(
-        context: context,
-        isScrollControlled: true,
-        useRootNavigator: true,
-        shape: const RoundedRectangleBorder(
-            borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-        builder: (ctx) => Padding(
-            padding: EdgeInsets.fromLTRB(
-                20, 20, 20, MediaQuery.of(ctx).viewInsets.bottom + 20),
-            child: StatefulBuilder(
-                builder: (_, ss) => Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      const Text('Process Return',
-                          style: TextStyle(
-                              fontSize: 16, fontWeight: FontWeight.w800)),
-                      const SizedBox(height: 4),
-                      Container(
-                          padding: const EdgeInsets.all(10),
-                          decoration: BoxDecoration(
-                              color: Colors.purple.shade50,
-                              borderRadius: BorderRadius.circular(8)),
-                          child: const Text(
-                              'Returns are added back to available stock automatically.',
-                              style: TextStyle(
-                                  fontSize: 11, color: Colors.purple))),
-                      const SizedBox(height: 12),
-                      DropdownButtonFormField<Map<String, dynamic>>(
-                          hint: const Text('Select Delivery *'),
-                          items: _deliveries.map((d) {
-                            final o = d['orders'] as Map<String, dynamic>?;
-                            final r =
-                            o?['retailers'] as Map<String, dynamic>?;
-                            final a = d['delivery_agents']
-                            as Map<String, dynamic>?;
-                            return DropdownMenuItem(
-                                value: d,
-                                child: Text(
-                                    '${r?['shop_name'] ?? '—'} · ${a?['name'] ?? '—'}',
-                                    overflow: TextOverflow.ellipsis));
-                          }).toList(),
-                          onChanged: (v) => ss(() => selDel = v)),
-                      const SizedBox(height: 10),
-                      SegmentedButton<String>(
-                          segments: const [
-                            ButtonSegment(
-                                value: 'same_batch',
-                                label: Text('Same Batch')),
-                            ButtonSegment(
-                                value: 'old_stock',
-                                label: Text('Old Stock'))
-                          ],
-                          selected: {
-                            returnType
-                          },
-                          onSelectionChanged: (s) =>
-                              ss(() => returnType = s.first)),
-                      const SizedBox(height: 10),
-                      Row(children: [
-                        Expanded(
-                            child: TextField(
-                                textInputAction: TextInputAction.next,
-                                onSubmitted: (_) =>
-                                    FocusScope.of(context).nextFocus(),
-                                controller: birdsCtrl,
-                                keyboardType: TextInputType.number,
-                                decoration: const InputDecoration(
-                                    labelText: 'Birds *'))),
-                        const SizedBox(width: 10),
-                        Expanded(
-                            child: TextField(
-                                textInputAction: TextInputAction.next,
-                                onSubmitted: (_) =>
-                                    FocusScope.of(context).nextFocus(),
-                                controller: wtCtrl,
-                                keyboardType:
-                                const TextInputType.numberWithOptions(
-                                    decimal: true),
-                                decoration: const InputDecoration(
-                                    labelText: 'Weight (kg) *'))),
-                        const SizedBox(width: 10),
-                        Expanded(
-                            child: TextField(
-                                textInputAction: TextInputAction.next,
-                                onSubmitted: (_) =>
-                                    FocusScope.of(context).nextFocus(),
-                                controller: rateCtrl,
-                                keyboardType:
-                                const TextInputType.numberWithOptions(
-                                    decimal: true),
-                                decoration: const InputDecoration(
-                                    labelText: '₹/kg', prefixText: '₹'))),
-                      ]),
-                      const SizedBox(height: 10),
-                      TextField(
-                          textInputAction: TextInputAction.done,
-                          onSubmitted: (_) =>
-                              FocusScope.of(context).unfocus(),
-                          controller: reasonCtrl,
-                          decoration:
-                          const InputDecoration(labelText: 'Reason *')),
-                      const SizedBox(height: 16),
-                      ElevatedButton.icon(
-                          icon: const Icon(Icons.assignment_return_outlined,
-                              size: 18),
-                          label: const Text('Process Return'),
-                          onPressed: () async {
-                            if (selDel == null ||
-                                reasonCtrl.text.trim().isEmpty) return;
-                            final birds = int.tryParse(birdsCtrl.text) ?? 0;
-                            final wt = double.tryParse(wtCtrl.text) ?? 0;
-                            if (birds <= 0 || wt <= 0) return;
-                            final o =
-                            selDel!['orders'] as Map<String, dynamic>?;
-                            final a = selDel!['delivery_agents']
-                            as Map<String, dynamic>?;
-                            Navigator.of(ctx, rootNavigator: true).pop();
-                            try {
-                              await _c.rpc('process_return_v2', params: {
-                                'p_trader_id': tid,
-                                'p_delivery_id': selDel!['id'],
-                                'p_retailer_id': o?['retailers']?['id'],
-                                'p_agent_id': a?['id'],
-                                'p_return_type': returnType,
-                                'p_bird_count': birds,
-                                'p_weight_kg': wt,
-                                'p_rate_per_kg': rateCtrl.text.isEmpty
-                                    ? null
-                                    : double.tryParse(rateCtrl.text),
-                                'p_reason': reasonCtrl.text.trim(),
-                                'p_processed_by': uid,
-                              });
-                              _load();
-                              if (mounted)
-                                showSuccess(context,
-                                    'Return processed — stock updated ✓');
-                            } catch (e) {
-                              if (mounted) showError(context, e.toString());
-                            }
-                          }),
-                    ]))));
-    // controllers are ephemeral locals — GC handles disposal
+  Future<void> _openCreateReturn() async {
+    final result = await Navigator.of(context).push<bool>(
+        MaterialPageRoute(builder: (_) => const ReturnCreateScreen()));
+    if (result == true) _load();
   }
 
   @override
@@ -264,23 +108,23 @@ class _S extends ConsumerState<ReturnsScreen> {
     // Reserve space so FAB clears the parent TraderShell glass bottom nav
     bottomNavigationBar: const SizedBox(height: kBottomNavClearance),
     floatingActionButton: FloatingActionButton.extended(
-        onPressed: _processReturn,
+        onPressed: _openCreateReturn,
         icon: const Icon(Icons.assignment_return_outlined),
         label: const Text('Process Return')),
     body: _loading
         ? const LoadingList()
         : Column(children: [
-          Container(
-            color: Colors.white,
-            padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
-            child: AppSearchBar(
-              controller: _searchCtrl,
-              hint: 'Search by shop or agent…',
-              onChanged: _applySearch,
-              onClear: () { _searchCtrl.clear(); _applySearch(''); },
-            ),
-          ),
-          const Divider(height: 1),
+      Container(
+        color: Colors.white,
+        padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+        child: AppSearchBar(
+          controller: _searchCtrl,
+          hint: 'Search by shop or agent…',
+          onChanged: _applySearch,
+          onClear: () { _searchCtrl.clear(); _applySearch(''); },
+        ),
+      ),
+      const Divider(height: 1),
       // Stock integration summary
       if (_totalReturnedBirds > 0)
         Container(
@@ -357,12 +201,20 @@ class _S extends ConsumerState<ReturnsScreen> {
                 r['retailers'] as Map<String, dynamic>?;
                 final agent =
                 r['delivery_agents'] as Map<String, dynamic>?;
+                final product =
+                r['master_products'] as Map<String, dynamic>?;
                 final date = DateTime.tryParse(
                     r['return_date'] as String? ?? '');
                 final status =
                     r['status'] as String? ?? 'pending';
                 final credited =
                     r['stock_credited'] as bool? ?? false;
+                // ★ NEW: reverse-embedded credit note (nested relationship
+                // returns a List even though return_id is unique per note).
+                final creditNotesRaw = r['credit_notes'];
+                final creditNote = creditNotesRaw is List && creditNotesRaw.isNotEmpty
+                    ? Map<String, dynamic>.from(creditNotesRaw.first as Map)
+                    : (creditNotesRaw is Map ? Map<String, dynamic>.from(creditNotesRaw) : null);
                 return Container(
                   padding: const EdgeInsets.all(14),
                   decoration: BoxDecoration(
@@ -412,6 +264,15 @@ class _S extends ConsumerState<ReturnsScreen> {
                               small: true),
                         ]),
                         const SizedBox(height: 6),
+                        if (product?['name'] != null) ...[
+                          const SizedBox(height: 4),
+                          Text(product!['name'] as String,
+                              style: const TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                  color: kNavy)),
+                        ],
+                        const SizedBox(height: 2),
                         Row(children: [
                           Text(
                               '${r['bird_count'] ?? 0} birds · ${(r['weight_kg'] as num?)?.toStringAsFixed(1) ?? 0} kg',
@@ -452,6 +313,24 @@ class _S extends ConsumerState<ReturnsScreen> {
                                   maxLines: 2,
                                   overflow:
                                   TextOverflow.ellipsis)),
+                        if (creditNote != null) ...[
+                          const Divider(height: 14),
+                          Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                            Text(
+                                'Credit: ${Fmt.amount((creditNote['total_amount'] as num?)?.toDouble() ?? 0)}',
+                                style: const TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700,
+                                    color: Color(0xFF6A1B9A))),
+                            TextButton.icon(
+                              onPressed: () => context.push(
+                                  R.creditNoteDetailPath(creditNote['id'] as String)),
+                              icon: const Icon(Icons.receipt_outlined, size: 14),
+                              label: Text(creditNote['credit_number'] as String? ?? 'View Credit Note',
+                                  style: const TextStyle(fontSize: 11)),
+                            ),
+                          ]),
+                        ],
                       ]),
                 );
               })),
