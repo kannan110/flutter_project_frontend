@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/models/dashboard_models.dart';
@@ -205,14 +206,23 @@ class _S extends ConsumerState<StockScreen> {
         backgroundColor: kSurface,
         title: const Text('Stock Management'),
         actions: [
+          TextButton.icon(
+              onPressed: () => context.push(R.stockAdjustment),
+              icon: const Icon(Icons.balance, color: Colors.deepOrangeAccent),
+              label: const Text('Adjust', style: TextStyle(color: Colors.deepOrangeAccent, fontWeight: FontWeight.w700))),
           IconButton(icon: const Icon(Icons.refresh), onPressed: _load)
         ]),
     // Reserve space so FAB clears the parent TraderShell glass bottom nav
     bottomNavigationBar: const SizedBox(height: kBottomNavClearance),
-    floatingActionButton: FloatingActionButton.extended(
-        onPressed: _recordOpening,
-        icon: const Icon(Icons.add),
-        label: const Text('Opening Stock')),
+    // ★ HIDDEN (UI-only change): Opening Stock FAB hidden per request —
+    // _recordOpening() is kept intact and unused for now; opening stock may
+    // be folded into the Adjust flow later if required. Set back to the
+    // FloatingActionButton.extended(...) below to restore it.
+    floatingActionButton: null,
+    // floatingActionButton: FloatingActionButton.extended(
+    //     onPressed: _recordOpening,
+    //     icon: const Icon(Icons.add),
+    //     label: const Text('Opening Stock')),
     body: _loading
         ? const LoadingList()
         : Column(children: [

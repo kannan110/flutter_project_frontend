@@ -1254,6 +1254,13 @@ class _S extends ConsumerState<DashboardScreen> {
         _QA(Icons.add_circle, t('new_order'), Colors.orange,
             const Color(0xFFFFF7ED), () => context.go(R.orderCreate),
             wide: true),
+        // ★ NEW: Stock Point Sale — direct counter/POS sale from in-house
+        // stock. Distinct storefront icon (Icons.store_outlined is already
+        // used by 'customers' above) and a dedicated green so it reads
+        // immediately differently from the orange delivery-workflow tile
+        // right beside it.
+        _QA(Icons.storefront, t('stock_point_sale'), const Color(0xFF16A34A),
+            const Color(0xFFF0FDF4), () => context.push(R.inHouseSale)),
         _QA(Icons.list_alt_outlined, t('orders'), Colors.blue,
             const Color(0xFFEFF6FF), () => context.go(R.orders)),
         _QA(Icons.fact_check_rounded, t('approve'), kSuccess,
@@ -3362,6 +3369,7 @@ class _L {
     'en': {
       'today': 'Today Overview',
       'new_order': 'New Order',
+      'stock_point_sale': 'Stock Point Sale',
       'orders': 'Orders',
       'approve': 'Approve',
       'dispatch': 'Dispatch',
@@ -3389,6 +3397,7 @@ class _L {
     'ta': {
       'today': 'இன்றைய நிலை',
       'new_order': 'புது ஆர்டர்',
+      'stock_point_sale': 'கடை விற்பனை',
       'orders': 'ஆர்டர்',
       'approve': 'அனுமதி',
       'dispatch': 'அனுப்பு',

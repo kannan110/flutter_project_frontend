@@ -28,6 +28,7 @@ import '../../features/trader_admin/dashboard/dashboard_screen.dart';
 import '../../features/trader_admin/orders/orders_screen.dart';
 import '../../features/trader_admin/orders/create_order_screen.dart';
 import '../../features/trader_admin/orders/order_detail_screen.dart';
+import '../../features/trader_admin/orders/in_house_sale_screen.dart';
 import '../../features/trader_admin/dispatch/dispatch_screen.dart';
 import '../../features/trader_admin/dispatch/batch_detail_screen.dart';
 import '../../features/trader_admin/dispatch/dispatch_history_screen.dart';
@@ -63,6 +64,7 @@ import '../../features/trader_admin/settings/settings_screen.dart';
 import '../../features/trader_admin/settings/user_management_screen.dart';
 import '../../features/trader_admin/returns/returns_screen.dart';
 import '../../features/trader_admin/stock/stock_screen.dart';
+import '../../features/trader_admin/stock/stock_adjustment_screen.dart';
 import '../../features/trader_admin/pricing/pricing_rules_screen.dart';
 import '../../features/trader_admin/reconciliation/cash_reconciliation_screen.dart';
 import '../../features/trader_admin/day_closure/day_closure_screen.dart';
@@ -116,6 +118,7 @@ abstract class R {
   static const dashboard = '/t/dashboard';
   static const orders = '/t/orders';
   static const orderCreate = '/t/orders/create';
+  static const inHouseSale = '/t/orders/in-house-sale'; // Phase 2: In-House Stock Point Sale
   static const orderDetail = '/t/orders/:id';
   static const dispatch = '/t/dispatch';
   static const batchDetail = '/t/dispatch/batch/:id';
@@ -172,6 +175,7 @@ abstract class R {
   static const retailerHome = '/r/home';
   static const retailerLink = '/r/link'; // invite code claim screen
   static const stockDetail = '/t/stock/detail';
+  static const stockAdjustment = '/t/stock/adjust'; // Phase 1: In-House Stock Adjustment
   static const agentHome = '/a/home';
   static const shiftOpen = '/a/shift/open';
   static const shiftClose = '/a/shift/close';
@@ -332,6 +336,7 @@ final appRouterProvider = Provider<GoRouter>((ref) => GoRouter(
         GoRoute(
             path: R.dashboard, builder: (_, __) => const DashboardScreen()),
         GoRoute(path: R.orders, builder: (_, __) => const OrdersScreen()),
+        GoRoute(path: R.inHouseSale, builder: (_, __) => const InHouseSaleScreen()),
         GoRoute(
             path: R.orderCreate,
             builder: (_, __) => const CreateOrderScreen()),
@@ -494,6 +499,7 @@ final appRouterProvider = Provider<GoRouter>((ref) => GoRouter(
             path: R.settings, builder: (_, __) => const SettingsScreen()),
         GoRoute(path: R.returns, builder: (_, __) => const ReturnsScreen()),
         GoRoute(path: R.stock, builder: (_, __) => const StockScreen()),
+        GoRoute(path: R.stockAdjustment, builder: (_, __) => const StockAdjustmentScreen()),
         GoRoute(
             path: R.pricing,
             builder: (_, __) => const PricingRulesScreen()),

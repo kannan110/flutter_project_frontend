@@ -71,6 +71,12 @@ class _S extends ConsumerState<ApprovalsScreen> {
           .eq('trader_id', tid)
           .eq('status', 'delivered')
           .eq('approval_status', 'pending')
+          // ★ NEW (Undo Delivery bug fix, Issue 2): an undone delivery's
+          // stock/cash effects were already reversed by Undo Delivery — it
+          // must never appear here, or approving it would create a real
+          // invoice against stock that no longer exists. is_undone stays
+          // false for every normal delivery, so this is a no-op for them.
+          .eq('is_undone', false)
           .order('delivered_at', ascending: false);
       if (!mounted) return;
       setState(() {

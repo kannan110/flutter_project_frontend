@@ -123,6 +123,10 @@ class _S extends ConsumerState<OrdersScreen> {
         title: const Text('Orders'),
         actions: [
           IconButton(
+              icon: const Icon(Icons.storefront_outlined),
+              tooltip: 'In-House Sale',
+              onPressed: () => context.push(R.inHouseSale)),
+          IconButton(
               icon: const Icon(Icons.refresh_outlined), onPressed: _load)
         ],
       ),
@@ -141,6 +145,10 @@ class _S extends ConsumerState<OrdersScreen> {
         onPrimary: () => context.push(R.orderCreate),
         secondaryActions: isDesktop
             ? [
+          IconButton(
+              icon: const Icon(Icons.storefront_outlined),
+              onPressed: () => context.push(R.inHouseSale),
+              tooltip: 'In-House Sale'),
           IconButton(
               icon: const Icon(Icons.refresh_outlined),
               onPressed: _load,
