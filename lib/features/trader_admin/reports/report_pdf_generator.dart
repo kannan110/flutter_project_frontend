@@ -4,6 +4,7 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import 'package:rooster_trader/features/trader_admin/reports/report_dataset.dart';
+import 'package:rooster_trader/core/theme/app_theme.dart' show Fmt;
 
 import 'customer_ledger_row_builder.dart';
 
@@ -45,18 +46,18 @@ class ReportPdfGenerator {
         pageFormat: PdfPageFormat.a4,
         margin: const pw.EdgeInsets.all(28),
         header: (_) => _header(companyName, dataSet.title, from, to),
-        footer: (ctx) => dataSet.customerName != null ? _footer(ctx) : _footer(),
+        footer: (ctx) => dataSet.useBrandedFooter ? _footer(ctx) : _footer(),
         build: (_) => [
-          if (dataSet.customerName != null)
-            _customerInfoLine(dataSet.customerName!, dataSet.customerMobile),
-          if (dataSet.summary.isNotEmpty) ...[
+          if (dataSet.customerIdentity != null)
+            _customerIdentityBlock(dataSet.customerIdentity!),
+          if (dataSet.customerIdentity == null && dataSet.summary.isNotEmpty) ...[
             _secTitle('SUMMARY'),
             _kpiRow(dataSet.summary
                 .map((s) => _KpiCell(s.label, s.value, _primary))
                 .toList()),
             pw.SizedBox(height: 6),
           ],
-          _secTitle('DETAILS (${dataSet.rowCount} rows)'),
+          if (dataSet.customerIdentity == null) _secTitle('DETAILS (${dataSet.rowCount} rows)'),
           if (dataSet.isEmpty)
             pw.Text('No data for the selected range.',
                 style: pw.TextStyle(fontSize: 9, color: _subText))
@@ -71,22 +72,44 @@ class ReportPdfGenerator {
     return doc;
   }
 
-  // Compact customer identity line — Customer Ledger only (any ReportDataSet
-  // with customerName set gets this; every other report leaves it null and
-  // is unaffected). Deliberately plain text, not a colored card, to match
-  // "compact" and to keep the rest of this shared PDF's look untouched.
-  static pw.Widget _customerInfoLine(String name, String? mobile) => pw.Padding(
-    padding: const pw.EdgeInsets.only(bottom: 8),
-    child: pw.Row(children: [
-      pw.Text(name, style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold, color: _dark)),
-      if (mobile != null && mobile.isNotEmpty) ...[
-        pw.SizedBox(width: 10),
-        pw.Text('|', style: pw.TextStyle(fontSize: 10, color: _border)),
-        pw.SizedBox(width: 10),
-        pw.Text('Mobile: $mobile', style: pw.TextStyle(fontSize: 9, color: _subText)),
-      ],
-    ]),
-  );
+  // ─────────────────────────────────────────────────────────────────────────
+  // CUSTOMER REPORT IDENTITY — the ONE reusable compact header used by every
+  // customer-specific PDF (Customer Ledger's Header PDF, its Table PDF, and
+  // any future customer-specific report). Exactly 3 lines, no more:
+  //
+  //   Customer : <name>
+  //   Area : <area>
+  //   <period> | Opening : <opening>     (only the parts that apply)
+  //
+  // No mobile, no address, no delivery agent, no KPI cards, no extra
+  // spacing — this is deliberately the only place this block is built, so
+  // a trader batch-printing 20-100 customer reports sees an identical,
+  // predictable identity line on every single one.
+  // ─────────────────────────────────────────────────────────────────────────
+  static pw.Widget _customerIdentityBlock(CustomerReportIdentity id) {
+    pw.Widget line(String text, {bool bold = false}) => pw.Padding(
+      padding: const pw.EdgeInsets.only(bottom: 1),
+      child: pw.Text(text,
+          style: pw.TextStyle(
+              fontSize: 9,
+              fontWeight: bold ? pw.FontWeight.bold : pw.FontWeight.normal,
+              color: _dark)),
+    );
+
+    final periodAndOpening = <String>[
+      if (id.periodLabel != null) id.periodLabel!,
+      if (id.openingLabel != null) 'Opening : ${id.openingLabel}',
+    ].join('  |  ');
+
+    return pw.Padding(
+      padding: const pw.EdgeInsets.only(bottom: 6),
+      child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
+        line('Customer : ${id.customerName}', bold: true),
+        line('Area : ${id.area ?? '—'}'),
+        if (periodAndOpening.isNotEmpty) line(periodAndOpening),
+      ]),
+    );
+  }
 
   /// Download / Print entry point — opens the native print/share/save
   /// preview sheet (covers "Download PDF" and "Print" from the same,
@@ -246,14 +269,15 @@ class ReportPdfGenerator {
   // table, its own per-table PDF/Share buttons, and these global entry
   // points must all produce the identical table styling — columns, colors,
   // spacing, fonts, borders — with the only report-specific additions being
-  // the compact customer-info line and branded footer (see
-  // _buildDataSetDoc's customerName handling above).
+  // the standard customer-identity block and branded footer (see
+  // _buildDataSetDoc's customerIdentity handling above).
   static ReportDataSet _customerLedgerDataSet(
       Map<String, dynamic> data, {
         required DateTime fromDate,
         required DateTime toDate,
       }) {
     final header = (data['header'] as Map?)?.cast<String, dynamic>() ?? {};
+    final opening = (data['opening_balance'] as num?)?.toDouble() ?? 0;
     final t = CustomerLedgerTableData.from(data);
     return ReportDataSet(
       title: 'Customer Ledger Statement',
@@ -263,8 +287,13 @@ class ReportPdfGenerator {
       highlightColumns: const [8],
       fromDate: fromDate,
       toDate: toDate,
-      customerName: header['retailer_name'] as String? ?? 'Customer',
-      customerMobile: header['retailer_phone'] as String?,
+      customerIdentity: CustomerReportIdentity(
+        customerName: header['retailer_name'] as String? ?? 'Customer',
+        area: header['retailer_area'] as String?,
+        periodLabel: '${DateFormat("d MMM yyyy").format(fromDate)} - ${DateFormat("d MMM yyyy").format(toDate)}',
+        openingLabel: Fmt.amount(opening),
+      ),
+      useBrandedFooter: true,
     );
   }
 
@@ -441,23 +470,28 @@ class ReportPdfGenerator {
     pw.TableRow buildRow(List<String> cells, {bool isHeader=false, bool isTotals=false}) {
       return pw.TableRow(
           decoration: pw.BoxDecoration(
-              color: isHeader  ? _primary
-                  : isTotals  ? const PdfColor.fromInt(0xFFBF1B2C).shade(0.85)
-                  : null),
+            // Totals row now uses the SAME solid red + white text combo
+            // as the header row above (not a lighter tint of red text on
+            // red background, which was nearly unreadable — see fix
+            // below). This is still "existing colors" — no new palette,
+            // just the one already used for the header row.
+              color: (isHeader || isTotals) ? _primary : null),
           children: cells.asMap().map((i, cell) => MapEntry(i,
               pw.Container(
                   padding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 5),
+                  // A bold top rule is the "stronger separator" for the
+                  // totals row — visually distinct without changing the
+                  // row's own height.
                   decoration: isTotals
                       ? const pw.BoxDecoration(
-                      border: pw.Border(top: pw.BorderSide(color: _primary, width: 1.3)))
+                      border: pw.Border(top: pw.BorderSide(color: _dark, width: 1.2)))
                       : null,
                   child: pw.Text(cell,
                       style: pw.TextStyle(
-                          fontSize: isHeader ? 8 : isTotals ? 10 : 9,
+                          fontSize: isHeader ? 8 : 9,
                           fontWeight: (isHeader || isTotals || bold.contains(i))
                               ? pw.FontWeight.bold : pw.FontWeight.normal,
-                          color: isHeader ? PdfColors.white
-                              : isTotals ? _primary
+                          color: (isHeader || isTotals) ? PdfColors.white
                               : bold.contains(i) ? _dark : _dark))))).values.toList());
     }
 

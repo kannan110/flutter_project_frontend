@@ -1261,6 +1261,10 @@ class _S extends ConsumerState<DashboardScreen> {
         // right beside it.
         _QA(Icons.storefront, t('stock_point_sale'), const Color(0xFF16A34A),
             const Color(0xFFF0FDF4), () => context.push(R.inHouseSale)),
+        // Stock Point Management Phase 2 — separate gold accent so it
+        // doesn't blend with the green Stock Point Sale tile right above it.
+        _QA(Icons.dashboard_outlined, t('inventory_dashboard'), const Color(0xFF8D6E00),
+            const Color(0xFFFFF8E1), () => context.push(R.inventoryDashboard)),
         _QA(Icons.list_alt_outlined, t('orders'), Colors.blue,
             const Color(0xFFEFF6FF), () => context.go(R.orders)),
         _QA(Icons.fact_check_rounded, t('approve'), kSuccess,
@@ -3370,6 +3374,7 @@ class _L {
       'today': 'Today Overview',
       'new_order': 'New Order',
       'stock_point_sale': 'Stock Point Sale',
+      'inventory_dashboard': 'Inventory Dashboard',
       'orders': 'Orders',
       'approve': 'Approve',
       'dispatch': 'Dispatch',

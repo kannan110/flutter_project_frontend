@@ -13,6 +13,33 @@
 // a report columns only needs to happen once, here.
 // ─────────────────────────────────────────────────────────────────────────────
 
+// ─────────────────────────────────────────────────────────────────────────────
+// CustomerReportIdentity — THE standard compact identity block for every
+// customer-specific PDF (Customer Ledger's Header PDF, its Table PDF, and
+// any future customer-specific report). One shared model, one shared
+// renderer (ReportPdfGenerator._customerIdentityBlock) — a trader printing
+// 20-100 of these at once sees the exact same 3-line format on every one:
+//
+//   Customer : <name>
+//   Area : <area>
+//   <date range> | Opening : <opening>   (only the parts that apply)
+//
+// Deliberately excludes mobile, address, delivery agent, and any KPI/
+// summary content — see report_pdf_generator.dart's _customerIdentityBlock.
+// ─────────────────────────────────────────────────────────────────────────────
+class CustomerReportIdentity {
+  final String customerName;
+  final String? area;
+  final String? periodLabel;   // pre-formatted, e.g. "2 Jul 2026 - 31 Jul 2026"
+  final String? openingLabel;  // pre-formatted, e.g. "₹1,29,176" — omitted if null
+  const CustomerReportIdentity({
+    required this.customerName,
+    this.area,
+    this.periodLabel,
+    this.openingLabel,
+  });
+}
+
 class ReportSummaryItem {
   final String label;
   final String value;
@@ -58,12 +85,27 @@ class ReportDataSet {
   /// hint, never affects Table View, PDF, or any calculation.
   final List<int>? cardPrimaryColumns;
 
-  /// Optional compact customer identity line, rendered by the PDF between
-  /// the report header and the table (e.g. Customer Ledger's "Customer /
-  /// Mobile"). Null for every report except Customer Ledger — no visual
-  /// change for any other report.
-  final String? customerName;
-  final String? customerMobile;
+  /// The ONE standard customer-identity block for customer-specific PDFs
+  /// (see CustomerReportIdentity above). Null for every non-customer-
+  /// specific report — no visual change for them. When set, the PDF
+  /// renders this compact block and skips straight to the table (no
+  /// SUMMARY section, no "DETAILS (n rows)" title, no extra spacing).
+  final CustomerReportIdentity? customerIdentity;
+
+  /// Whether this PDF uses the branded footer (RoosterHub Trader OS +
+  /// generation timestamp) instead of the plain default footer every other
+  /// report gets. Kept independent of [customerIdentity] specifically so
+  /// the Header PDF and Table PDF — which both carry a customerIdentity —
+  /// can still differ on this one aspect, as required.
+  final bool useBrandedFooter;
+
+  /// Raw get_retailer_statement() response, carried alongside
+  /// [customerIdentity] so CustomerLedgerPrintBuilder (Full/Half Sheet
+  /// Print) can call CustomerLedgerTableData.from() itself — reusing the
+  /// same row-building logic as every other Customer Ledger PDF path
+  /// rather than a fourth copy of it. Null for every report except
+  /// Customer Ledger.
+  final Map<String, dynamic>? customerLedgerData;
 
   const ReportDataSet({
     required this.title,
@@ -77,8 +119,9 @@ class ReportDataSet {
     this.warnThreshold = 0,
     this.summary = const [],
     this.cardPrimaryColumns,
-    this.customerName,
-    this.customerMobile,
+    this.customerIdentity,
+    this.useBrandedFooter = false,
+    this.customerLedgerData,
   });
 
   int get columnCount => headers.length;
@@ -114,8 +157,9 @@ class ReportDataSet {
       warnThreshold: warnThreshold,
       summary: summary,
       cardPrimaryColumns: cardPrimaryColumns,
-      customerName: customerName,
-      customerMobile: customerMobile,
+      customerIdentity: customerIdentity,
+      useBrandedFooter: useBrandedFooter,
+      customerLedgerData: customerLedgerData,
     );
   }
 

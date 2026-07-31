@@ -21,6 +21,11 @@ class _S extends ConsumerState<StockScreen> {
   List<Map<String, dynamic>> _ledger = [];
   List<Map<String, dynamic>> _products = [];
   List<Map<String, dynamic>> _challans = [];
+  // ★ Stock Point Management Phase 2 — valuation lookups, keyed by product_id.
+  // Fetched alongside everything else in _load(); additive only, no
+  // existing query or model above is touched.
+  Map<String, Map<String, dynamic>> _valuation = {};
+  Map<String, double> _marketRates = {};
   bool _loading = true;
   int _tab = 0;
   final _searchCtrl = TextEditingController();
@@ -36,17 +41,17 @@ class _S extends ConsumerState<StockScreen> {
     return _ledger.where((e) {
       final p = e['master_products'] as Map<String,dynamic>?;
       return (p?['name'] as String? ?? '').toLowerCase().contains(_searchQ) ||
-             (e['movement_type'] as String? ?? '').toLowerCase().contains(_searchQ) ||
-             (e['notes']         as String? ?? '').toLowerCase().contains(_searchQ);
+          (e['movement_type'] as String? ?? '').toLowerCase().contains(_searchQ) ||
+          (e['notes']         as String? ?? '').toLowerCase().contains(_searchQ);
     }).toList();
   }
 
   List<Map<String,dynamic>> _filterChallans() {
     if (_searchQ.isEmpty) return _challans;
     return _challans.where((c) =>
-      (c['farmer_name']   as String? ?? '').toLowerCase().contains(_searchQ) ||
-      (c['dc_number']     as String? ?? '').toLowerCase().contains(_searchQ) ||
-      (c['farm_location'] as String? ?? '').toLowerCase().contains(_searchQ),
+    (c['farmer_name']   as String? ?? '').toLowerCase().contains(_searchQ) ||
+        (c['dc_number']     as String? ?? '').toLowerCase().contains(_searchQ) ||
+        (c['farm_location'] as String? ?? '').toLowerCase().contains(_searchQ),
     ).toList();
   } // 0=Summary, 1=Movements, 2=DCs
 
@@ -87,6 +92,22 @@ class _S extends ConsumerState<StockScreen> {
           .order('created_at', ascending: false)
           .limit(50);
 
+      // ★ Stock Point Management Phase 2 — additive reads only, no existing
+      // query above is touched. stock_point_valuation is the Phase 1 table
+      // holding MWAC + last cost basis; zone_rates is averaged client-side
+      // per product for Market Value (same source get_stock_point_dashboard_v1
+      // and the Reports use, via fn_market_rate_for_product).
+      final r4 = await _c
+          .from('stock_point_valuation')
+          .select('product_id,mwac_per_kg,last_cost_basis')
+          .eq('trader_id', tid);
+      final r5 = await _c
+          .from('zone_rates')
+          .select('product_id,rate_per_kg,effective_date,expiry_date')
+          .eq('trader_id', tid)
+          .eq('is_active', true)
+          .lte('effective_date', DateTime.now().toIso8601String().substring(0, 10));
+
       if (!mounted) return;
       setState(() {
         _positions = ((r0 as List?) ?? [])
@@ -95,6 +116,23 @@ class _S extends ConsumerState<StockScreen> {
         _ledger = List<Map<String, dynamic>>.from((r1 as List?) ?? []);
         _products = List<Map<String, dynamic>>.from((r2 as List?) ?? []);
         _challans = List<Map<String, dynamic>>.from((r3 as List?) ?? []);
+        _valuation = {
+          for (final row in ((r4 as List?) ?? []))
+            (row as Map<String, dynamic>)['product_id'] as String: row,
+        };
+        final today = DateTime.now();
+        final ratesByProduct = <String, List<double>>{};
+        for (final row in ((r5 as List?) ?? [])) {
+          final m = row as Map<String, dynamic>;
+          final expiry = m['expiry_date'] as String?;
+          if (expiry != null && DateTime.parse(expiry).isBefore(today)) continue;
+          ratesByProduct.putIfAbsent(m['product_id'] as String, () => [])
+              .add((m['rate_per_kg'] as num).toDouble());
+        }
+        _marketRates = {
+          for (final e in ratesByProduct.entries)
+            e.key: e.value.reduce((a, b) => a + b) / e.value.length,
+        };
         _loading = false;
       });
     } catch (e) {
@@ -454,8 +492,70 @@ class _S extends ConsumerState<StockScreen> {
                               style: const TextStyle(
                                   fontSize: 10, color: Colors.teal)),
                         ]))),
+              // ★ Stock Point Management Phase 2 — Valuation row. Additive
+              // only, does not touch any existing calculation above.
+              if (p.inHouseKg > 0) _valuationRow(p),
             ])),
       ]));
+
+  // Stock Point valuation (MWAC / Inventory Value / Market Value), scoped
+  // to In-House stock only — matches Stock Point Management's definition
+  // exactly (never blended with the With-Agents figures above). Pending
+  // Cost always renders distinctly (orange, hourglass icon) so it never
+  // reads as a confirmed ₹0 value.
+  Widget _valuationRow(StockPosition p) {
+    final v = _valuation[p.productId];
+    final mwac = (v?['mwac_per_kg'] as num?)?.toDouble();
+    final costBasis = v?['last_cost_basis'] as String?;
+    final marketRate = _marketRates[p.productId];
+    final isPending = mwac == null || mwac <= 0 || costBasis == 'pending_cost' || costBasis == null;
+    final inventoryValue = isPending ? null : mwac * p.inHouseKg;
+    final marketValue = marketRate == null ? null : marketRate * p.inHouseKg;
+    final sourceLabel = switch (costBasis) {
+      'traced_purchase_entry' => 'Traced Purchase Cost',
+      'existing_average_cost' || 'rollout_seed_average_cost' => 'Existing Average Cost',
+      'current_mwac' => 'MWAC',
+      _ => 'Pending Cost',
+    };
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Container(
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: isPending ? Colors.orange.shade50 : kBgGrey,
+          borderRadius: BorderRadius.circular(8),
+          border: isPending ? Border.all(color: Colors.orange.shade200) : null,
+        ),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            const Text('STOCK POINT VALUATION',
+                style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: kTextHint, letterSpacing: 0.6)),
+            const Spacer(),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+              decoration: BoxDecoration(
+                color: (isPending ? Colors.orange : kPrimary).withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                Icon(isPending ? Icons.hourglass_empty : Icons.verified_outlined,
+                    size: 10, color: isPending ? Colors.orange.shade800 : kPrimary),
+                const SizedBox(width: 3),
+                Text(sourceLabel, style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w700,
+                    color: isPending ? Colors.orange.shade800 : kPrimary)),
+              ]),
+            ),
+          ]),
+          const SizedBox(height: 6),
+          Row(children: [
+            _stockStat('Avg Cost', isPending ? 'Pending' : '₹${mwac.toStringAsFixed(2)}/kg', '', isPending ? Colors.orange : kTextMain),
+            _stockStat('Inventory Value', inventoryValue == null ? '—' : Fmt.amount(inventoryValue), '', kTextMain),
+            _stockStat('Market Value', marketValue == null ? '—' : Fmt.amount(marketValue), '', kTextMain),
+          ]),
+        ]),
+      ),
+    );
+  }
 
   Widget _stockStat(String l, String v, String sub, Color c) => Expanded(
       child: Column(children: [

@@ -12,6 +12,7 @@ import 'package:flutter/material.dart';
 import 'package:rooster_trader/features/trader_admin/reports/report_dataset.dart';
 import 'package:rooster_trader/features/trader_admin/reports/report_pdf_generator.dart';
 import '../../../core/theme/app_theme.dart';
+import 'customer_ledger_print_builder.dart';
 
 enum ReportViewMode { card, table }
 
@@ -55,6 +56,13 @@ class _ReportTableBlockState extends State<ReportTableBlock> {
       warnThreshold: widget.dataSet.warnThreshold,
       summary: widget.dataSet.summary,
       cardPrimaryColumns: widget.dataSet.cardPrimaryColumns,
+      // BUG FIX: these two were previously dropped here, which meant the
+      // Customer Ledger's compact identity block and branded-footer flag
+      // never survived this rebuild — every Table PDF fell back to the
+      // generic "DETAILS (n rows)" path regardless of what _tbl() set.
+      customerIdentity: widget.dataSet.customerIdentity,
+      useBrandedFooter: widget.dataSet.useBrandedFooter,
+      customerLedgerData: widget.dataSet.customerLedgerData,
     );
     if (_sortCol == null) return base;
     return base.sortedBy(_sortCol!, _sortAsc);
@@ -76,6 +84,53 @@ class _ReportTableBlockState extends State<ReportTableBlock> {
     } finally {
       if (mounted) setState(() => _busy = false);
     }
+  }
+
+  // Full Sheet / Half Sheet menu — shown only when ds.customerLedgerData is
+  // set (currently: Customer Ledger only). Every other report's Print
+  // button is untouched and keeps calling generateFromDataSetAndShow
+  // directly, exactly as before.
+  Future<void> _showPrintSheetMenu(BuildContext context, ReportDataSet ds) async {
+    final data = ds.customerLedgerData!;
+    final from = ds.fromDate ?? widget.fromDate ?? DateTime.now();
+    final to = ds.toDate ?? widget.toDate ?? DateTime.now();
+
+    Widget option(IconData icon, String label, String sub, PrintSheetSize size) => ListTile(
+      leading: Icon(icon, color: kNavy),
+      title: Text(label, style: const TextStyle(fontWeight: FontWeight.w700)),
+      subtitle: Text(sub),
+      onTap: () {
+        Navigator.of(context, rootNavigator: true).pop();
+        _run(() => CustomerLedgerPrintBuilder.printAndShow(
+          context: context,
+          data: data,
+          companyName: widget.companyName,
+          fromDate: from,
+          toDate: to,
+          size: size,
+        ));
+      },
+    );
+
+    await showModalBottomSheet(
+      context: context,
+      useRootNavigator: true,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (ctx) => SafeArea(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          const Padding(
+            padding: EdgeInsets.fromLTRB(16, 16, 16, 4),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Text('Print Customer Ledger', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800)),
+            ),
+          ),
+          option(Icons.description_outlined, 'Full Sheet Print', 'A4 — one full page per customer', PrintSheetSize.full),
+          option(Icons.crop_7_5_outlined, 'Half Sheet Print', 'A5 — compact, saves paper for batch printing', PrintSheetSize.half),
+          const SizedBox(height: 8),
+        ]),
+      ),
+    );
   }
 
   @override
@@ -102,20 +157,21 @@ class _ReportTableBlockState extends State<ReportTableBlock> {
               busy: _busy,
               onDownload: () =>
                   _run(() => ReportPdfGenerator.generateFromDataSetAndShow(
-                        context: context,
-                        dataSet: ds,
-                        companyName: widget.companyName,
-                      )),
-              onShare: () => _run(() => ReportPdfGenerator.shareFromDataSet(
+                    context: context,
                     dataSet: ds,
                     companyName: widget.companyName,
                   )),
-              onPrint: () =>
-                  _run(() => ReportPdfGenerator.generateFromDataSetAndShow(
-                        context: context,
-                        dataSet: ds,
-                        companyName: widget.companyName,
-                      )),
+              onShare: () => _run(() => ReportPdfGenerator.shareFromDataSet(
+                dataSet: ds,
+                companyName: widget.companyName,
+              )),
+              onPrint: () => ds.customerLedgerData != null
+                  ? _showPrintSheetMenu(context, ds)
+                  : _run(() => ReportPdfGenerator.generateFromDataSetAndShow(
+                context: context,
+                dataSet: ds,
+                companyName: widget.companyName,
+              )),
             ),
           ]),
         ),
@@ -288,7 +344,7 @@ class ReportCardList extends StatelessWidget {
           final dateMatch = _dateLikeRe.firstMatch(title);
 
           final heroValue =
-              heroCol != null && heroCol < row.length ? row[heroCol] : null;
+          heroCol != null && heroCol < row.length ? row[heroCol] : null;
           final heroNum = heroValue == null
               ? null
               : num.tryParse(heroValue.replaceAll(RegExp(r'[₹,%\s]'), ''));
@@ -316,29 +372,29 @@ class ReportCardList extends StatelessWidget {
               border: Border.all(color: kBorderLight),
             ),
             child:
-                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               // -- Header line: title/date + status badge --
               Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Expanded(
                   child: dateMatch != null
                       ? Row(
-                          crossAxisAlignment: CrossAxisAlignment.baseline,
-                          textBaseline: TextBaseline.alphabetic,
-                          children: [
-                              Text(dateMatch.group(1)!,
-                                  style: const TextStyle(
-                                      fontSize: 24,
-                                      fontWeight: FontWeight.w800,
-                                      color: kNavy)),
-                              const SizedBox(width: kSpXs),
-                              Text(dateMatch.group(2)!,
-                                  style: kTypeBody.copyWith(
-                                      fontWeight: FontWeight.w700,
-                                      color: kTextSub)),
-                            ])
+                      crossAxisAlignment: CrossAxisAlignment.baseline,
+                      textBaseline: TextBaseline.alphabetic,
+                      children: [
+                        Text(dateMatch.group(1)!,
+                            style: const TextStyle(
+                                fontSize: 24,
+                                fontWeight: FontWeight.w800,
+                                color: kNavy)),
+                        const SizedBox(width: kSpXs),
+                        Text(dateMatch.group(2)!,
+                            style: kTypeBody.copyWith(
+                                fontWeight: FontWeight.w700,
+                                color: kTextSub)),
+                      ])
                       : Text(title,
-                          style: kTypeBody.copyWith(
-                              fontWeight: FontWeight.w800, fontSize: 15)),
+                      style: kTypeBody.copyWith(
+                          fontWeight: FontWeight.w800, fontSize: 15)),
                 ),
                 if (heroValue != null)
                   Container(
@@ -493,7 +549,7 @@ class _ReportTableState extends State<ReportTable> {
   static const double _maxColWidth = 170;
   static const double _firstColWidth = 110; // Date -- always fixed, never grows
   static const double _highlightMinWidth =
-      130; // Revenue/Collected/Pending-style columns
+  130; // Revenue/Collected/Pending-style columns
   static const double _charWidth = 7.4;
   static const double _cellPadding = 14;
 
@@ -510,7 +566,7 @@ class _ReportTableState extends State<ReportTable> {
     if (col == 0) return _firstColWidth;
     final base = headers[col].length * _charWidth + (_cellPadding * 2) + 14;
     final floor =
-        ds.highlightColumns.contains(col) ? _highlightMinWidth : minColWidth;
+    ds.highlightColumns.contains(col) ? _highlightMinWidth : minColWidth;
     return base.clamp(floor, _maxColWidth);
   }
 
@@ -628,20 +684,20 @@ class _ReportTableState extends State<ReportTable> {
         padding: const EdgeInsets.symmetric(horizontal: _cellPadding),
         decoration: c < ds.headers.length - 1
             ? const BoxDecoration(
-                border: Border(
-                    right: BorderSide(color: Color(0x22FFFFFF), width: 1)))
+            border: Border(
+                right: BorderSide(color: Color(0x22FFFFFF), width: 1)))
             : null,
         alignment: Alignment.center,
         child: Row(
           mainAxisAlignment:
-              rightAlign ? MainAxisAlignment.end : MainAxisAlignment.start,
+          rightAlign ? MainAxisAlignment.end : MainAxisAlignment.start,
           children: [
             if (rightAlign && widget.onSort != null)
               Icon(
                   isSorted
                       ? (widget.sortAscending
-                          ? Icons.arrow_upward
-                          : Icons.arrow_downward)
+                      ? Icons.arrow_upward
+                      : Icons.arrow_downward)
                       : Icons.unfold_more,
                   size: 12,
                   color: isSorted ? kGoldLight : const Color(0xFF6B7BA8)),
@@ -662,8 +718,8 @@ class _ReportTableState extends State<ReportTable> {
               Icon(
                   isSorted
                       ? (widget.sortAscending
-                          ? Icons.arrow_upward
-                          : Icons.arrow_downward)
+                      ? Icons.arrow_upward
+                      : Icons.arrow_downward)
                       : Icons.unfold_more,
                   size: 12,
                   color: isSorted ? kGoldLight : const Color(0xFF6B7BA8)),
@@ -706,8 +762,8 @@ class _ReportTableState extends State<ReportTable> {
       padding: const EdgeInsets.symmetric(horizontal: _cellPadding),
       decoration: !isLast
           ? const BoxDecoration(
-              border:
-                  Border(right: BorderSide(color: kBorderLight, width: 0.5)))
+          border:
+          Border(right: BorderSide(color: kBorderLight, width: 0.5)))
           : null,
       child: Text(value,
           overflow: TextOverflow.ellipsis,
@@ -742,8 +798,8 @@ class _ReportTableState extends State<ReportTable> {
                 padding: const EdgeInsets.symmetric(horizontal: _cellPadding),
                 decoration: c < totals.length - 1
                     ? const BoxDecoration(
-                        border: Border(
-                            right: BorderSide(color: kBorderLight, width: 0.5)))
+                    border: Border(
+                        right: BorderSide(color: kBorderLight, width: 0.5)))
                     : null,
                 child: Text(totals[c],
                     overflow: TextOverflow.ellipsis,

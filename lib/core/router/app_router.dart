@@ -65,6 +65,7 @@ import '../../features/trader_admin/settings/user_management_screen.dart';
 import '../../features/trader_admin/returns/returns_screen.dart';
 import '../../features/trader_admin/stock/stock_screen.dart';
 import '../../features/trader_admin/stock/stock_adjustment_screen.dart';
+import '../../features/trader_admin/stock/inventory_dashboard_screen.dart';
 import '../../features/trader_admin/pricing/pricing_rules_screen.dart';
 import '../../features/trader_admin/reconciliation/cash_reconciliation_screen.dart';
 import '../../features/trader_admin/day_closure/day_closure_screen.dart';
@@ -176,6 +177,7 @@ abstract class R {
   static const retailerLink = '/r/link'; // invite code claim screen
   static const stockDetail = '/t/stock/detail';
   static const stockAdjustment = '/t/stock/adjust'; // Phase 1: In-House Stock Adjustment
+  static const inventoryDashboard = '/t/stock/dashboard'; // Phase 2: Stock Point Management — Inventory Dashboard
   static const agentHome = '/a/home';
   static const shiftOpen = '/a/shift/open';
   static const shiftClose = '/a/shift/close';
@@ -500,6 +502,7 @@ final appRouterProvider = Provider<GoRouter>((ref) => GoRouter(
         GoRoute(path: R.returns, builder: (_, __) => const ReturnsScreen()),
         GoRoute(path: R.stock, builder: (_, __) => const StockScreen()),
         GoRoute(path: R.stockAdjustment, builder: (_, __) => const StockAdjustmentScreen()),
+        GoRoute(path: R.inventoryDashboard, builder: (_, __) => const InventoryDashboardScreen()),
         GoRoute(
             path: R.pricing,
             builder: (_, __) => const PricingRulesScreen()),

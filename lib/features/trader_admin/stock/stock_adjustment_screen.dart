@@ -18,6 +18,10 @@ import '../../../core/theme/app_theme.dart';
 const _kAdjustmentTypes = [
   (value: 'weight_loss', label: 'Weight Loss', icon: Icons.trending_down, hint: 'Natural weight loss over time — birds unchanged, weight reduced'),
   (value: 'mortality', label: 'Mortality', icon: Icons.warning_amber_rounded, hint: 'Birds died while in-house'),
+  // ★ Stock Point Management Phase 2 — Theft, decrease-only (same
+  // restriction as Weight Loss/Mortality), backed by record_stock_adjustment_v1's
+  // 'theft' type added in Phase 1.
+  (value: 'theft', label: 'Theft', icon: Icons.report_gmailerrorred_outlined, hint: 'Birds or weight lost to theft while in-house'),
   (value: 'physical_count', label: 'Physical Count', icon: Icons.fact_check_outlined, hint: 'Correct to match an actual physical count — can increase or decrease'),
   (value: 'manual', label: 'Manual Adjustment', icon: Icons.edit_note, hint: 'Any other correction, with a reason'),
 ];
@@ -48,6 +52,11 @@ class _S extends ConsumerState<StockAdjustmentScreen> {
   Map<String, dynamic>? _selectedProduct;
   int _currentBirds = 0;
   double _currentKg = 0;
+  // ★ Stock Point Management Phase 2 — current MWAC + cost basis for the
+  // selected product, so this screen shows what value any Weight Loss/
+  // Mortality/Theft/Manual/Physical Count adjustment will be recorded at.
+  double? _currentMwac;
+  String? _currentCostBasis;
   bool _loadingBalance = false;
 
   String _adjustmentType = _kAdjustmentTypes.first.value;
@@ -86,8 +95,8 @@ class _S extends ConsumerState<StockAdjustmentScreen> {
       final history = await _c
           .from('stock_adjustments')
           .select('id,adjustment_type,adjustment_date,birds_before,kg_before,'
-              'birds_after,kg_after,birds_delta,kg_delta,reason_code,remarks,'
-              'created_at,master_products(name)')
+          'birds_after,kg_after,birds_delta,kg_delta,reason_code,remarks,'
+          'created_at,master_products(name)')
           .eq('trader_id', tid)
           .order('created_at', ascending: false)
           .limit(30);
@@ -119,10 +128,21 @@ class _S extends ConsumerState<StockAdjustmentScreen> {
         'p_product_id': product['id'],
       });
       final row = ((res as List?) ?? []).isNotEmpty ? (res as List).first as Map<String, dynamic> : null;
+      // ★ Stock Point Management Phase 2 — additive read, does not affect
+      // the balance query/logic above in any way.
+      final valRes = await _c
+          .from('stock_point_valuation')
+          .select('mwac_per_kg,last_cost_basis')
+          .eq('trader_id', tid)
+          .eq('product_id', product['id'])
+          .maybeSingle()
+          .timeout(const Duration(seconds: 10));
       if (!mounted) return;
       setState(() {
         _currentBirds = (row?['in_house_birds'] as num?)?.toInt() ?? 0;
         _currentKg = (row?['in_house_kg'] as num?)?.toDouble() ?? 0;
+        _currentMwac = (valRes?['mwac_per_kg'] as num?)?.toDouble();
+        _currentCostBasis = valRes?['last_cost_basis'] as String?;
         _loadingBalance = false;
         // Pre-fill "after" fields with the current balance so the trader
         // only edits the number(s) that actually changed.
@@ -173,7 +193,7 @@ class _S extends ConsumerState<StockAdjustmentScreen> {
       showSuccess(
         context,
         'Adjustment recorded ✓  (${birdsDelta >= 0 ? '+' : ''}$birdsDelta birds, '
-        '${kgDelta >= 0 ? '+' : ''}${kgDelta.toStringAsFixed(1)} kg)',
+            '${kgDelta >= 0 ? '+' : ''}${kgDelta.toStringAsFixed(1)} kg)',
       );
       await _load();
       if (_selectedProduct != null) await _selectProduct(_selectedProduct!);
@@ -196,24 +216,24 @@ class _S extends ConsumerState<StockAdjustmentScreen> {
       body: _loading
           ? const LoadingList()
           : ListView(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-              children: [
-                _buildProductPicker(),
-                const SizedBox(height: 14),
-                if (_selectedProduct != null) _buildBalanceCard(),
-                const SizedBox(height: 14),
-                if (_selectedProduct != null) _buildAdjustmentForm(),
-                const SizedBox(height: 24),
-                const Text('Recent Adjustments', style: kTypeSectionTitle),
-                const SizedBox(height: 10),
-                ..._history.map(_buildHistoryTile),
-                if (_history.isEmpty)
-                  const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 24),
-                    child: Center(child: Text('No adjustments recorded yet.')),
-                  ),
-              ],
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+        children: [
+          _buildProductPicker(),
+          const SizedBox(height: 14),
+          if (_selectedProduct != null) _buildBalanceCard(),
+          const SizedBox(height: 14),
+          if (_selectedProduct != null) _buildAdjustmentForm(),
+          const SizedBox(height: 24),
+          const Text('Recent Adjustments', style: kTypeSectionTitle),
+          const SizedBox(height: 10),
+          ..._history.map(_buildHistoryTile),
+          if (_history.isEmpty)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 24),
+              child: Center(child: Text('No adjustments recorded yet.')),
             ),
+        ],
+      ),
     );
   }
 
@@ -252,17 +272,59 @@ class _S extends ConsumerState<StockAdjustmentScreen> {
       ),
       child: _loadingBalance
           ? const SizedBox(
-              height: 48,
-              child: Center(child: CircularProgressIndicator(color: kGoldLight)),
-            )
-          : Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                _balanceStat('Birds (In-House)', _currentBirds.toString()),
-                Container(width: 1, height: 36, color: Colors.white24),
-                _balanceStat('Weight (In-House)', '${_currentKg.toStringAsFixed(1)} kg'),
-              ],
-            ),
+        height: 48,
+        child: Center(child: CircularProgressIndicator(color: kGoldLight)),
+      )
+          : Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              _balanceStat('Birds (In-House)', _currentBirds.toString()),
+              Container(width: 1, height: 36, color: Colors.white24),
+              _balanceStat('Weight (In-House)', '${_currentKg.toStringAsFixed(1)} kg'),
+            ],
+          ),
+          const SizedBox(height: 10),
+          _valuationSourceRow(),
+        ],
+      ),
+    );
+  }
+
+  // ★ Stock Point Management Phase 2 — this adjustment will be valued at
+  // the current MWAC (never recalculating it — only Return Stock does
+  // that). Pending Cost always renders distinctly so it's never mistaken
+  // for a confirmed ₹0.
+  Widget _valuationSourceRow() {
+    final isPending = _currentMwac == null || _currentMwac! <= 0 || _currentCostBasis == 'pending_cost' || _currentCostBasis == null;
+    final sourceLabel = switch (_currentCostBasis) {
+      'traced_purchase_entry' => 'Traced Purchase Cost',
+      'existing_average_cost' || 'rollout_seed_average_cost' => 'Existing Average Cost',
+      'current_mwac' => 'MWAC',
+      _ => 'Pending Cost',
+    };
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(children: [
+        Icon(isPending ? Icons.hourglass_empty : Icons.verified_outlined,
+            size: 14, color: isPending ? Colors.orange.shade300 : kGoldLight),
+        const SizedBox(width: 6),
+        Expanded(
+          child: Text(
+            isPending
+                ? 'This adjustment will be recorded as Pending Cost — no confirmed valuation yet'
+                : 'Will be valued at $sourceLabel: ₹${_currentMwac!.toStringAsFixed(2)}/kg',
+            style: TextStyle(fontSize: 11.5, color: isPending ? Colors.orange.shade200 : Colors.white70,
+                fontWeight: isPending ? FontWeight.w700 : FontWeight.w500),
+          ),
+        ),
+      ]),
     );
   }
 
@@ -357,9 +419,9 @@ class _S extends ConsumerState<StockAdjustmentScreen> {
               onPressed: _submitting ? null : _submit,
               child: _submitting
                   ? const SizedBox(
-                      height: 18, width: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: kSurface),
-                    )
+                height: 18, width: 18,
+                child: CircularProgressIndicator(strokeWidth: 2, color: kSurface),
+              )
                   : const Text('Save Adjustment'),
             ),
           ),

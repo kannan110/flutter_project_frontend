@@ -11,7 +11,7 @@
 
 import 'package:flutter/material.dart';
 
-enum ReportCategory { business, operations, sales, financial, ledger }
+enum ReportCategory { business, operations, sales, financial, ledger, stockPoint }
 
 extension ReportCategoryX on ReportCategory {
   String get label => switch (this) {
@@ -20,6 +20,7 @@ extension ReportCategoryX on ReportCategory {
     ReportCategory.sales => 'Sales',
     ReportCategory.financial => 'Financial',
     ReportCategory.ledger => 'Ledger',
+    ReportCategory.stockPoint => 'Stock Point',
   };
   String get description => switch (this) {
     ReportCategory.business => 'Daily summary, collection, profitability, expenses',
@@ -27,6 +28,7 @@ extension ReportCategoryX on ReportCategory {
     ReportCategory.sales => 'Retailer purchase, product sales, zone sales',
     ReportCategory.financial => 'P&L, cash flow, margin analysis, supplier statement',
     ReportCategory.ledger => 'Customer ledger statements with running balance',
+    ReportCategory.stockPoint => 'Daily closing, inventory history, returns, vehicle & loss analysis',
   };
   IconData get icon => switch (this) {
     ReportCategory.business => Icons.trending_up_outlined,
@@ -34,6 +36,7 @@ extension ReportCategoryX on ReportCategory {
     ReportCategory.sales => Icons.storefront_outlined,
     ReportCategory.financial => Icons.account_balance_outlined,
     ReportCategory.ledger => Icons.receipt_long_outlined,
+    ReportCategory.stockPoint => Icons.warehouse_outlined,
   };
   Color get color => switch (this) {
     ReportCategory.business => const Color(0xFF1565C0),
@@ -41,6 +44,7 @@ extension ReportCategoryX on ReportCategory {
     ReportCategory.sales => const Color(0xFF2E7D32),
     ReportCategory.financial => const Color(0xFF4527A0),
     ReportCategory.ledger => const Color(0xFF00695C),
+    ReportCategory.stockPoint => const Color(0xFF8D6E00),
   };
 }
 
@@ -97,6 +101,14 @@ const List<ReportInventoryEntry> kReportInventory = [
   // Share toolbar) as every other report, e.g. Retailer Purchase. Only its
   // summary cards and table columns differ.
   ReportInventoryEntry(key: 'customer_ledger', label: 'Customer Ledger', category: ReportCategory.ledger, frequency: 'Ad hoc'),
+
+  // ── Stock Point (new — Stock Point Management Phase 2) ──────────────────
+  ReportInventoryEntry(key: 'daily_closing_report', label: 'Daily Closing', category: ReportCategory.stockPoint, frequency: 'Daily'),
+  ReportInventoryEntry(key: 'inventory_history', label: 'Inventory History', category: ReportCategory.stockPoint, frequency: 'Ad hoc'),
+  ReportInventoryEntry(key: 'return_stock_ledger', label: 'Return Stock Ledger', category: ReportCategory.stockPoint, frequency: 'Weekly'),
+  ReportInventoryEntry(key: 'vehicle_report', label: 'Vehicle Report', category: ReportCategory.stockPoint, frequency: 'Weekly'),
+  ReportInventoryEntry(key: 'inventory_ledger', label: 'Inventory Ledger', category: ReportCategory.stockPoint, frequency: 'Ad hoc'),
+  ReportInventoryEntry(key: 'loss_analysis', label: 'Loss Analysis', category: ReportCategory.stockPoint, frequency: 'Weekly'),
 ];
 
 List<ReportInventoryEntry> reportsInCategory(ReportCategory c) =>

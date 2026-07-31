@@ -56,6 +56,7 @@ const _cOperations = Color(0xFFE65100);
 const _cSales       = Color(0xFF2E7D32);
 const _cFinancial   = Color(0xFF4527A0);
 const _cLedger      = Color(0xFF00695C); // matches ReportCategory.ledger in report_inventory.dart
+const _cStockPoint  = Color(0xFF8D6E00); // matches ReportCategory.stockPoint in report_inventory.dart
 
 const _kR = [
   _Rep('daily_summary',        'Daily Summary',      Icons.today_outlined,             _cBusiness),
@@ -84,6 +85,13 @@ const _kR = [
   _Rep('profitability_breakdown','Profit Breakdown',    Icons.pie_chart_outline,         _cFinancial),
   // ── Ledger (new) ────────────────────────────────────────────────────────
   _Rep('customer_ledger',       'Customer Ledger',      Icons.receipt_long_outlined,     _cLedger),
+  // ── Stock Point (new — Stock Point Management Phase 2) ──────────────────
+  _Rep('daily_closing_report',  'Daily Closing',        Icons.today_outlined,             _cStockPoint),
+  _Rep('inventory_history',     'Inventory History',    Icons.history_outlined,           _cStockPoint),
+  _Rep('return_stock_ledger',   'Return Stock Ledger',  Icons.assignment_return_outlined, _cStockPoint),
+  _Rep('vehicle_report',        'Vehicle Report',       Icons.local_shipping_outlined,    _cStockPoint),
+  _Rep('inventory_ledger',      'Inventory Ledger',     Icons.menu_book_outlined,         _cStockPoint),
+  _Rep('loss_analysis',         'Loss Analysis',        Icons.trending_down_outlined,     _cStockPoint),
 ];
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -136,6 +144,25 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
   String     _profitDimension = 'product'; // Phase 4 UI: product|variant|retailer|zone|agent|batch
   List<Map<String,dynamic>> _agents    = [];
   List<Map<String,dynamic>> _retailers = [];
+  // ★ Inventory Ledger filters (Product / Movement Type / Valuation Source).
+  // Product & Movement Type are round-tripped to the RPC (server-side,
+  // reusing its existing p_product_id/p_movement_type params). Valuation
+  // Source is filtered client-side on the already-fetched rows — it's a
+  // small derived enum, not worth a further RPC signature change.
+  List<Map<String,dynamic>> _ledgerProducts = [];
+  String? _ledgerProductId;
+  String? _ledgerMovementType;
+  String? _ledgerValuationSource;
+  String _ledgerSearch = '';
+
+  static const _kLedgerMovementTypes = [
+    'returned_in','shift_close_return','transferred_out','theft',
+    'mortality_house','weight_loss','physical_count_increase',
+    'physical_count_decrease','manual_adjustment_increase','manual_adjustment_decrease',
+  ];
+  static const _kValuationSources = [
+    'Traced Purchase Cost','Existing Average Cost','MWAC','Pending Cost','Not Valued',
+  ];
 
   @override
   void initState() { super.initState(); _loadFilters(); _load(); }
@@ -148,9 +175,12 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
     final rt = await _c.from('retailers')
         .select('id,shop_name').eq('trader_id',tid).eq('is_active',true)
         .order('shop_name').limit(50);
+    final pr = await _c.from('master_products')
+        .select('id,name').eq('is_active', true).order('name');
     if (mounted) setState(() {
       _agents    = List<Map<String,dynamic>>.from(ag as List? ?? []);
       _retailers = List<Map<String,dynamic>>.from(rt as List? ?? []);
+      _ledgerProducts = List<Map<String,dynamic>>.from(pr as List? ?? []);
     });
   }
 
@@ -175,8 +205,46 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
       'rate_source_breakdown', 'profitability_enhanced',
     }.contains(_sel.key);
     final isProfitBreakdown = _sel.key == 'profitability_breakdown';
+    // ── Stock Point Management (Phase 2) ────────────────────────────────
+    // Each of these six is its own standalone RPC rather than a new branch
+    // inside get_report_data — same dispatch-by-key pattern already used
+    // above for Customer Ledger / Profit Breakdown / Pricing Analytics,
+    // chosen specifically to avoid hand-editing get_report_data's existing
+    // 300+ line body. get_daily_closing_report_v1 takes a single date
+    // (p_date) rather than a range — it uses _to as "the date", so picking
+    // any preset or a custom single day both work with the existing date
+    // bar unchanged.
+    const stockPointRpcByKey = {
+      'daily_closing_report':  'get_daily_closing_report_v1',
+      'inventory_history':     'get_inventory_history_v1',
+      'return_stock_ledger':   'get_return_stock_ledger_v1',
+      'vehicle_report':        'get_vehicle_report_v1',
+      'inventory_ledger':      'get_inventory_ledger_v1',
+      'loss_analysis':         'get_loss_analysis_v1',
+    };
+    final stockPointRpc = stockPointRpcByKey[_sel.key];
 
     try {
+      if (stockPointRpc != null) {
+        final params = stockPointRpc == 'get_daily_closing_report_v1'
+            ? <String,dynamic>{'p_trader_id': tid, 'p_date': DateFormat('yyyy-MM-dd').format(_to)}
+            : <String,dynamic>{
+          'p_trader_id': tid,
+          'p_from_date': DateFormat('yyyy-MM-dd').format(_from),
+          'p_to_date':   DateFormat('yyyy-MM-dd').format(_to),
+          // Inventory Ledger supports Product/Movement Type filtering
+          // server-side already — no picker UI wired for them yet in
+          // this pass (see Phase report), so always unfiltered for now.
+          if (_sel.key == 'inventory_ledger') ...{
+            'p_product_id': _ledgerProductId,
+            'p_movement_type': _ledgerMovementType,
+          },
+        };
+        final res = await _c.rpc(stockPointRpc, params: params)
+            .timeout(const Duration(seconds: 20));
+        if (mounted) setState(() => _data = res as Map<String,dynamic>?);
+        return;
+      }
       if (isCustomerLedger) {
         // Same RPC the Retailer Statement screen uses — no duplicated
         // balance/ledger logic. p_agent_id reuses the exact filter already
@@ -254,7 +322,7 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
           // is retailer-scoped), so its filters are always visible for
           // this report regardless of the collapsed/expanded toggle state
           // — same inline filter row every other report already has.
-          if (_filtersExpanded || _sel.key == 'customer_ledger') _buildInlineFilters(),
+          if (_filtersExpanded || _sel.key == 'customer_ledger' || _sel.key == 'inventory_ledger') _buildInlineFilters(),
           if (_sel.key == 'profitability_breakdown') _buildDimensionBar(),
           Expanded(child: _loading ? const LoadingList()
               : _error != null ? _buildError()
@@ -408,8 +476,341 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
       'profitability_enhanced'=> _rProfitabilityEnhanced(),
       'profitability_breakdown'=> _rProfitabilityBreakdown(),
       'customer_ledger'       => _rCustomerLedger(),
+    // ── Stock Point (new — Stock Point Management Phase 2) ──────────────
+      'daily_closing_report'   => _rDailyClosingReport(),
+      'inventory_history'      => _rInventoryHistory(),
+      'return_stock_ledger'    => _rReturnStockLedger(),
+      'vehicle_report'         => _rVehicleReport(),
+      'inventory_ledger'       => _rInventoryLedger(),
+      'loss_analysis'          => _rLossAnalysis(),
       _                      => const EmptyState(icon: Icons.bar_chart_outlined, message: 'No data'),
     };
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // VALUATION SOURCE BADGE — shared by every Stock Point report below.
+  // 'Pending Cost' always renders in the warning color so it reads as
+  // provisional at a glance, never blending in as just another value.
+  // ─────────────────────────────────────────────────────────────────────────
+  // (Valuation Source is now shown as a plain table column via _tbl() across
+  // every Stock Point report, rather than a badge widget — the badge helper
+  // that used to back the custom card layouts was removed as dead code once
+  // all four reports were converted to the shared _tbl() pipeline.)
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // STOCK POINT: DAILY CLOSING REPORT
+  // ═══════════════════════════════════════════════════════════════════════════
+  Widget _rDailyClosingReport() {
+    final s = _s(); final rows = _rows('rows');
+    return _scroll([
+      _banner('Closing Stock is read directly from the Stock Point ledger — never a separately hand-calculated total.', _cStockPoint),
+      _kpiGrid([
+        _kpi('Closing Stock', '${_d(s,"total_closing_kg").toStringAsFixed(0)} kg', _cStockPoint, Icons.inventory_2_outlined, primary: true),
+        _kpi('Inventory Value', Fmt.amount(_d(s,'total_inventory_value')), Colors.indigo, Icons.currency_rupee, primary: true),
+        _kpi('Market Value', Fmt.amount(_d(s,'total_market_value')), Colors.teal, Icons.storefront_outlined, primary: true),
+        _kpi('Inventory Loss', Fmt.amount(_d(s,'total_inventory_loss')), Colors.red, Icons.trending_down_outlined, primary: true),
+      ]),
+      if (_i(s,'pending_cost_product_count') > 0)
+        _banner('${_i(s,"pending_cost_product_count")} product(s) have no confirmed cost yet — shown as Pending Cost below, never valued at ₹0.', Colors.orange),
+      _sec('PER-PRODUCT BREAKDOWN'),
+      _tbl(
+        ['Product','Opening kg','Loaded kg','Return kg','Mortality kg','Shrinkage kg','Closing kg',
+          'Avg Cost','Inventory Value','Market Value','Potential Gain','Valuation Source','Day Closed','Stock Verified'],
+        rows.map((r) => [
+          _str(r,'product_name'),
+          _d(r,'opening_kg').toStringAsFixed(1), _d(r,'loaded_kg').toStringAsFixed(1),
+          _d(r,'return_kg').toStringAsFixed(1), _d(r,'mortality_kg').toStringAsFixed(1),
+          _d(r,'shrinkage_kg').toStringAsFixed(1), _d(r,'closing_kg').toStringAsFixed(1),
+          r['mwac_per_kg'] == null ? '—' : '₹${_d(r,"mwac_per_kg").toStringAsFixed(2)}',
+          r['inventory_value'] == null ? '—' : Fmt.amount(_d(r,'inventory_value')),
+          r['market_value'] == null ? '—' : Fmt.amount(_d(r,'market_value')),
+          r['potential_gain'] == null ? '—' : Fmt.amount(_d(r,'potential_gain')),
+          _str(r,'valuation_source'),
+          r['day_closed'] == true ? 'Yes' : 'No',
+          r['stock_verified'] == true ? 'Yes' : 'No',
+        ]).toList(),
+        hi: [8, 9], cardPrimary: [6, 8, 9],
+        summary: [
+          ReportSummaryItem('Total Loaded', '${_d(s,"total_loaded_kg").toStringAsFixed(1)} kg'),
+          ReportSummaryItem('Total Return', '${_d(s,"total_return_kg").toStringAsFixed(1)} kg'),
+          ReportSummaryItem('Total Mortality', '${_d(s,"total_mortality_kg").toStringAsFixed(1)} kg'),
+          ReportSummaryItem('Total Shrinkage', '${_d(s,"total_shrinkage_kg").toStringAsFixed(1)} kg'),
+          ReportSummaryItem('Total Theft', '${_d(s,"total_theft_kg").toStringAsFixed(1)} kg'),
+          ReportSummaryItem('Closing Stock', '${_d(s,"total_closing_kg").toStringAsFixed(1)} kg'),
+          ReportSummaryItem('Inventory Value', Fmt.amount(_d(s,'total_inventory_value'))),
+          ReportSummaryItem('Market Value', Fmt.amount(_d(s,'total_market_value'))),
+          ReportSummaryItem('Inventory Loss', Fmt.amount(_d(s,'total_inventory_loss'))),
+          ReportSummaryItem('Market Loss', Fmt.amount(_d(s,'total_market_loss'))),
+        ],
+      ),
+    ]);
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // STOCK POINT: INVENTORY HISTORY
+  // ═══════════════════════════════════════════════════════════════════════════
+  Widget _rInventoryHistory() {
+    final s = _s(); final rows = _rows('daily');
+    return _scroll([
+      _kpiGrid([
+        _kpi('Opening', '${_d(s,"opening_stock_kg").toStringAsFixed(0)} kg', Colors.grey.shade700, Icons.login_outlined, primary: true),
+        _kpi('Closing',  '${_d(s,"closing_stock_kg").toStringAsFixed(0)} kg', _cStockPoint, Icons.inventory_2_outlined, primary: true),
+        _kpi('Inventory Value', Fmt.amount(_d(s,'inventory_value')), Colors.indigo, Icons.currency_rupee, primary: true),
+        _kpi('Market Value', Fmt.amount(_d(s,'market_value')), Colors.teal, Icons.storefront_outlined, primary: true),
+      ]),
+      _banner('Tap any row (Card View) or use the date bar to drill into a single day\'s Daily Closing Report.', _cStockPoint),
+      _sec('DAILY HISTORY'),
+      _tbl(
+        ['Date','Closing kg','Purchases kg','Returns kg','Loaded kg','Sold kg','Shrinkage kg','Mortality kg','Inventory Value','Status'],
+        rows.map((d) => [
+          _fd(d['dt']), _d(d,'closing_kg').toStringAsFixed(1),
+          _d(d,'purchased_kg').toStringAsFixed(1), _d(d,'returned_kg').toStringAsFixed(1),
+          _d(d,'loaded_kg').toStringAsFixed(1), _d(d,'sold_kg').toStringAsFixed(1),
+          _d(d,'shrinkage_kg').toStringAsFixed(1), _d(d,'mortality_kg').toStringAsFixed(1),
+          d['is_estimated'] == true ? 'Not closed yet' : Fmt.amount(_d(d,'inventory_value')),
+          d['is_estimated'] == true ? 'Open' : 'Closed',
+        ]).toList(),
+        hi: [8], cardPrimary: [1, 8],
+        summary: [
+          ReportSummaryItem('Total Purchases', '${_d(s,"total_purchases_kg").toStringAsFixed(1)} kg'),
+          ReportSummaryItem('Total Returns', '${_d(s,"total_returns_kg").toStringAsFixed(1)} kg'),
+          ReportSummaryItem('Total Loaded', '${_d(s,"total_loaded_kg").toStringAsFixed(1)} kg'),
+          ReportSummaryItem('Total Sales', '${_d(s,"total_sales_kg").toStringAsFixed(1)} kg'),
+          ReportSummaryItem('Total Shrinkage', '${_d(s,"total_shrinkage_kg").toStringAsFixed(1)} kg'),
+          ReportSummaryItem('Total Mortality', '${_d(s,"total_mortality_kg").toStringAsFixed(1)} kg'),
+          ReportSummaryItem('Total Inventory Loss', Fmt.amount(_d(s,'total_inventory_loss'))),
+          ReportSummaryItem('Total Market Loss', Fmt.amount(_d(s,'total_market_loss'))),
+        ],
+      ),
+    ]);
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // STOCK POINT: RETURN STOCK LEDGER
+  // ═══════════════════════════════════════════════════════════════════════════
+  Widget _rReturnStockLedger() {
+    final s = _s(); final rows = _rows('rows');
+    return _scroll([
+      _kpiGrid([
+        _kpi('Return Birds', '${_i(s,"total_return_birds")}', Colors.teal, Icons.egg_outlined, primary: true),
+        _kpi('Return kg',    '${_d(s,"total_return_kg").toStringAsFixed(0)} kg', Colors.teal.shade700, Icons.scale_outlined, primary: true),
+        _kpi('Total Value',  Fmt.amount(_d(s,'total_value')), Colors.indigo, Icons.currency_rupee, primary: true),
+      ]),
+      if (_i(s,'pending_cost_count') > 0)
+        _banner('${_i(s,"pending_cost_count")} return(s) below have no confirmed cost yet — shown as Pending Cost, never valued at ₹0.', Colors.orange),
+      _sec('RETURN RECORDS'),
+      _tbl(
+        ['Date','Product','Birds','Weight kg','Cost/kg','Value','Valuation Source','Movement Type','Remarks'],
+        rows.map((r) => [
+          _fd(r['entry_date']), _str(r,'product_name'),
+          '${_i(r,"quantity_birds")}', _d(r,'quantity_kg').toStringAsFixed(1),
+          r['cost_per_kg'] == null ? '—' : '₹${_d(r,"cost_per_kg").toStringAsFixed(2)}',
+          r['value'] == null ? '—' : Fmt.amount(_d(r,'value')),
+          _str(r,'valuation_source'), _label(_str(r,'movement_type')), _str(r,'notes'),
+        ]).toList(),
+        hi: [5], cardPrimary: [1, 3, 5],
+        summary: [
+          ReportSummaryItem('Total Return Birds', '${_i(s,"total_return_birds")}'),
+          ReportSummaryItem('Total Return KG', '${_d(s,"total_return_kg").toStringAsFixed(1)} kg'),
+          ReportSummaryItem('Total Value', Fmt.amount(_d(s,'total_value'))),
+          ReportSummaryItem('Pending Cost Count', '${_i(s,"pending_cost_count")}'),
+        ],
+      ),
+    ]);
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // STOCK POINT: VEHICLE REPORT
+  // ═══════════════════════════════════════════════════════════════════════════
+  Widget _rVehicleReport() {
+    final s = _s(); final rows = _rows('rows');
+    return _scroll([
+      _kpiGrid([
+        _kpi('Trips',    '${_i(s,"total_trips")}',   Colors.blue, Icons.local_shipping_outlined, primary: true),
+        _kpi('Vehicles', '${_i(s,"vehicle_count")}',  Colors.blueGrey, Icons.directions_car_outlined, primary: true),
+        _kpi('Unaccounted Loss', '${_d(s,"total_unaccounted_loss_kg").toStringAsFixed(1)} kg', const Color(0xFF6A1B9A), Icons.compress_outlined, primary: true),
+        _kpi('Mortality Loss',   '${_d(s,"total_mortality_loss_kg").toStringAsFixed(1)} kg', Colors.red, Icons.health_and_safety_outlined, primary: true),
+      ]),
+      _sec('BY VEHICLE'),
+      _tbl(['Vehicle','Trips','DC kg','Delivered kg','Unacc. Loss kg','Mortality Loss kg','Avg Loss%'],
+          rows.map((r) => [
+            _str(r,'vehicle_no'), '${_i(r,"trips")}',
+            _d(r,'total_dc_kg').toStringAsFixed(0), _d(r,'total_delivered_kg').toStringAsFixed(0),
+            _d(r,'total_unaccounted_loss_kg').toStringAsFixed(1), _d(r,'total_mortality_loss_kg').toStringAsFixed(1),
+            '${_d(r,"avg_loss_percent").toStringAsFixed(2)}%',
+          ]).toList(),
+          hi: [4,5,6], warnC: 6, warnT: 2.0),
+    ]);
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // STOCK POINT: INVENTORY LEDGER (Stock Register) — PRINT-READY
+  // On _tbl() (Card/Table/PDF pipeline, same as every other report — no new
+  // printing engine). Sorting is built into ReportTableBlock already
+  // (tap any header). Pagination is NOT added — the table scrolls like
+  // every other report in the app; a real pager would be a shared-component
+  // change affecting 20+ reports, out of scope for this stabilization pass.
+  // ═══════════════════════════════════════════════════════════════════════════
+  Widget _rInventoryLedger() {
+    final s = _s();
+    var rows = _rows('rows');
+    final stockPoint = _data?['stock_point'] as String? ?? 'Main Stock Point';
+
+    // Client-side filters (Valuation Source + free-text search) — applied
+    // to the already-fetched, server-filtered (Product/Movement Type) rows.
+    if (_ledgerValuationSource != null) {
+      rows = rows.where((r) => r['valuation_source'] == _ledgerValuationSource).toList();
+    }
+    if (_ledgerSearch.isNotEmpty) {
+      final q = _ledgerSearch.toLowerCase();
+      rows = rows.where((r) =>
+      _str(r,'product_name').toLowerCase().contains(q) ||
+          _str(r,'movement_type').toLowerCase().contains(q) ||
+          _str(r,'reference_no').toLowerCase().contains(q) ||
+          _str(r,'notes').toLowerCase().contains(q)
+      ).toList();
+    }
+
+    List<String> _rowOf(Map r) => [
+      '${_fd(r['entry_date'])} ${_time(r['created_at'])}',
+      _str(r,'reference_no'),
+      _label(_str(r,'movement_type')),
+      _str(r,'stock_point'),
+      _str(r,'product_name'),
+      _i(r,'birds_in') > 0 ? '${_i(r,"birds_in")}' : '—',
+      _i(r,'birds_out') > 0 ? '${_i(r,"birds_out")}' : '—',
+      _d(r,'kg_in') > 0 ? _d(r,'kg_in').toStringAsFixed(1) : '—',
+      _d(r,'kg_out') > 0 ? _d(r,'kg_out').toStringAsFixed(1) : '—',
+      '${_i(r,"running_balance_birds")}',
+      _d(r,'running_balance_kg').toStringAsFixed(1),
+      r['cost_per_kg'] == null ? '—' : '₹${_d(r,"cost_per_kg").toStringAsFixed(2)}',
+      r['value'] == null ? '—' : Fmt.amount(_d(r,'value')),
+      _str(r,'valuation_source'),
+      _str(r,'notes'),
+    ];
+
+    // Opening row (first) and Closing row (last) — synthetic, not database
+    // rows, styled distinctly via the movement-type column text itself so
+    // they read clearly in both Table View and the PDF without changing
+    // ReportDataSet's shape.
+    final openingRow = [
+      _fd(_from), '—', '— OPENING BALANCE —', stockPoint, '(all products)',
+      '—','—','—','—', '${_i(s,"opening_birds")}', _d(s,'opening_kg').toStringAsFixed(1),
+      '—','—','—','Brought forward',
+    ];
+    final closingRow = [
+      _fd(_to), '—', '— CLOSING BALANCE —', stockPoint, '(all products)',
+      '—','—','—','—', '${_i(s,"closing_birds")}', _d(s,'closing_kg').toStringAsFixed(1),
+      s['avg_cost_per_kg'] == null ? '—' : '₹${_d(s,"avg_cost_per_kg").toStringAsFixed(2)}',
+      Fmt.amount(_d(s,'closing_inventory_value')), '—', 'Carried forward',
+    ];
+
+    final tableRows = [openingRow, ...rows.map(_rowOf), closingRow];
+
+    return _scroll([
+      _banner('Stock Point: $stockPoint  ·  Chronological, opening balance first / closing balance last.', _cStockPoint),
+      TextField(
+        decoration: InputDecoration(
+          hintText: 'Search product, movement type, reference, remarks…',
+          prefixIcon: const Icon(Icons.search, size: 20),
+          isDense: true,
+          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+        ),
+        onChanged: (v) => setState(() => _ledgerSearch = v),
+      ),
+      const SizedBox(height: 8),
+      Wrap(spacing: 6, children: _kValuationSources.map((v) => ChoiceChip(
+        label: Text(v, style: const TextStyle(fontSize: 11)),
+        selected: _ledgerValuationSource == v,
+        onSelected: (sel) => setState(() => _ledgerValuationSource = sel ? v : null),
+      )).toList()),
+      const SizedBox(height: 8),
+      _kpiGrid([
+        _kpi2('Total In',   '${_d(s,"total_in_kg").toStringAsFixed(0)} kg',  Colors.green, Icons.arrow_downward),
+        _kpi2('Total Out',  '${_d(s,"total_out_kg").toStringAsFixed(0)} kg', Colors.red,   Icons.arrow_upward),
+        _kpi2('Theft',      '${_d(s,"total_theft_kg").toStringAsFixed(1)} kg', Colors.deepOrange, Icons.report_gmailerrorred_outlined),
+        _kpi2('Mortality',  '${_d(s,"total_mortality_kg").toStringAsFixed(1)} kg', Colors.red.shade700, Icons.health_and_safety_outlined),
+      ]),
+      _sec('STOCK LEDGER'),
+      _tbl(
+        ['Date & Time','Ref No','Movement Type','Stock Point','Product',
+          'Birds In','Birds Out','Wt In kg','Wt Out kg','Bal. Birds','Bal. kg',
+          'Cost/kg','Inventory Value','Valuation Source','Remarks'],
+        tableRows,
+        hi: [12],
+        cardPrimary: [4, 9, 10],
+        summary: [
+          ReportSummaryItem('Opening Stock', '${_i(s,"opening_birds")} birds / ${_d(s,"opening_kg").toStringAsFixed(1)} kg'),
+          ReportSummaryItem('Total Inward Birds', '${_i(s,"total_in_birds")}'),
+          ReportSummaryItem('Total Outward Birds', '${_i(s,"total_out_birds")}'),
+          ReportSummaryItem('Total Inward KG', '${_d(s,"total_in_kg").toStringAsFixed(1)} kg'),
+          ReportSummaryItem('Total Outward KG', '${_d(s,"total_out_kg").toStringAsFixed(1)} kg'),
+          ReportSummaryItem('Total Theft', '${_d(s,"total_theft_kg").toStringAsFixed(1)} kg'),
+          ReportSummaryItem('Total Mortality', '${_d(s,"total_mortality_kg").toStringAsFixed(1)} kg'),
+          ReportSummaryItem('Total Shrinkage', '${_d(s,"total_shrinkage_kg").toStringAsFixed(1)} kg'),
+          ReportSummaryItem('Total Manual Adjustment', '${_d(s,"total_manual_adjustment_kg").toStringAsFixed(1)} kg'),
+          ReportSummaryItem('Closing Birds', '${_i(s,"closing_birds")}'),
+          ReportSummaryItem('Closing KG', '${_d(s,"closing_kg").toStringAsFixed(1)} kg'),
+          ReportSummaryItem('Average Cost', s['avg_cost_per_kg'] == null ? 'Pending' : '₹${_d(s,"avg_cost_per_kg").toStringAsFixed(2)}/kg'),
+          ReportSummaryItem('Closing Inventory Value', Fmt.amount(_d(s,'closing_inventory_value'))),
+          ReportSummaryItem('Closing Market Value', Fmt.amount(_d(s,'closing_market_value'))),
+        ],
+      ),
+    ]);
+  }
+
+  String _time(dynamic ts) {
+    final dt = DateTime.tryParse(ts?.toString() ?? '');
+    if (dt == null) return '';
+    final local = dt.toLocal();
+    final h = local.hour % 12 == 0 ? 12 : local.hour % 12;
+    final ampm = local.hour >= 12 ? 'PM' : 'AM';
+    return '$h:${local.minute.toString().padLeft(2,'0')} $ampm';
+  }
+
+  String _label(String movementType) => movementType
+      .split('_').map((w) => w.isEmpty ? w : w[0].toUpperCase() + w.substring(1)).join(' ');
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // STOCK POINT: LOSS ANALYSIS
+  // ═══════════════════════════════════════════════════════════════════════════
+  Widget _rLossAnalysis() {
+    final s = _s(); final byType = _rows('by_type'); final rows = _rows('rows');
+    return _scroll([
+      _banner('Sourced entirely from the Stock Point valuation ledger — kept separate from Batch/Shift loss figures shown elsewhere, which answer a different question (per-batch and per-shift, not per-Stock-Point).', _cStockPoint),
+      _kpiGrid([
+        _kpi('Total Loss', '${_d(s,"total_loss_kg").toStringAsFixed(1)} kg', const Color(0xFF6A1B9A), Icons.compress_outlined, primary: true),
+        _kpi('Inventory Loss', Fmt.amount(_d(s,'total_inventory_loss')), Colors.red, Icons.currency_rupee, primary: true),
+        _kpi('Market Loss', Fmt.amount(_d(s,'total_market_loss')), Colors.deepOrange, Icons.storefront_outlined, primary: true),
+      ]),
+      if (_d(s,'pending_valuation_kg') > 0)
+        _banner('${_d(s,"pending_valuation_kg").toStringAsFixed(1)} kg of loss above has no confirmed cost yet — excluded from Inventory Loss until a cost is available.', Colors.orange),
+      _sec('BY LOSS TYPE'),
+      _tbl(['Type','Quantity kg','Inventory Loss','Market Loss'],
+          byType.map((t) => [
+            _str(t,'loss_type'), _d(t,'quantity_kg').toStringAsFixed(1),
+            t['inventory_loss'] == null ? '—' : Fmt.amount(_d(t,'inventory_loss')),
+            Fmt.amount(_d(t,'market_loss')),
+          ]).toList(), hi: [2,3]),
+      _sec('DETAIL'),
+      _tbl(
+        ['Date','Product','Loss Type','Quantity kg','Inventory Loss','Market Loss'],
+        rows.map((r) => [
+          _fd(r['entry_date']), _str(r,'product_name'), _str(r,'loss_type'),
+          _d(r,'quantity_kg').toStringAsFixed(1),
+          r['inventory_loss'] == null ? 'Pending' : Fmt.amount(_d(r,'inventory_loss')),
+          Fmt.amount(_d(r,'market_loss')),
+        ]).toList(),
+        hi: [4,5], cardPrimary: [1, 2, 4],
+        summary: [
+          ReportSummaryItem('Total Loss', '${_d(s,"total_loss_kg").toStringAsFixed(1)} kg'),
+          ReportSummaryItem('Total Inventory Loss', Fmt.amount(_d(s,'total_inventory_loss'))),
+          ReportSummaryItem('Total Market Loss', Fmt.amount(_d(s,'total_market_loss'))),
+          ReportSummaryItem('Pending Valuation', '${_d(s,"pending_valuation_kg").toStringAsFixed(1)} kg'),
+        ],
+      ),
+    ]);
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -822,8 +1223,13 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
           t.rows,
           tots: t.totals,
           hi: const [8],
-          customerName: header['retailer_name'] as String? ?? 'Customer',
-          customerMobile: header['retailer_phone'] as String?),
+          customerIdentity: CustomerReportIdentity(
+            customerName: header['retailer_name'] as String? ?? 'Customer',
+            area: header['retailer_area'] as String?,
+            periodLabel: '${DateFormat("d MMM yyyy").format(_from)} - ${DateFormat("d MMM yyyy").format(_to)}',
+            openingLabel: Fmt.amount(opening),
+          ),
+          customerLedgerData: _data),
     ]);
   }
 
@@ -943,7 +1349,12 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
 
   Widget _tbl(List<String> heads, List<List<String>> rows, {
     List<String>? tots, List<int> hi=const[], int? warnC, double warnT=0,
-    List<int>? cardPrimary, String? customerName, String? customerMobile,
+    List<int>? cardPrimary, CustomerReportIdentity? customerIdentity,
+    Map<String, dynamic>? customerLedgerData,
+    // ★ Stock Point Management — optional footer/KPI summary shown above
+    // the table in Card View AND in the PDF's summary section. Default
+    // empty list — every existing call site is completely unaffected.
+    List<ReportSummaryItem> summary = const [],
   }) {
     final user = ref.read(appUserProvider).valueOrNull;
     final company = user?.companyName ?? 'Rooster';
@@ -958,8 +1369,13 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
       warnColumn: warnC,
       warnThreshold: warnT,
       cardPrimaryColumns: cardPrimary,
-      customerName: customerName,
-      customerMobile: customerMobile,
+      customerIdentity: customerIdentity,
+      customerLedgerData: customerLedgerData,
+      summary: summary,
+      // useBrandedFooter left at its default (false) — the Table/Toolbar
+      // PDF always gets the plain footer; only the Header PDF (built
+      // separately in report_pdf_generator.dart's _customerLedgerDataSet)
+      // opts into the branded one, keeping the two independent as required.
     );
     return ReportTableBlock(
       key: ValueKey('${_sel.key}_${_from}_${_to}_${_tblCallIndex++}'),
@@ -1009,6 +1425,45 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
   // Applies on change directly (no Apply/Clear dialog needed), matching
   // "avoid unnecessary dialogs" from the zero-learning-curve spec.
   Widget _buildInlineFilters() {
+    if (_sel.key == 'inventory_ledger') {
+      return Container(
+        color: kSurface,
+        padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
+        child: Row(children: [
+          Expanded(
+            child: DropdownButtonFormField<String>(
+              value: _ledgerProductId,
+              isDense: true,
+              decoration: const InputDecoration(
+                  labelText: 'Product', isDense: true,
+                  contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8)),
+              items: [
+                const DropdownMenuItem(value: null, child: Text('All Products')),
+                ..._ledgerProducts.map((p) => DropdownMenuItem(
+                    value: p['id'] as String, child: Text(p['name'] as String? ?? '—'))),
+              ],
+              onChanged: (v) { setState(() => _ledgerProductId = v); _load(); },
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: DropdownButtonFormField<String>(
+              value: _ledgerMovementType,
+              isDense: true,
+              decoration: const InputDecoration(
+                  labelText: 'Movement Type', isDense: true,
+                  contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8)),
+              items: [
+                const DropdownMenuItem(value: null, child: Text('All Movement Types')),
+                ..._kLedgerMovementTypes.map((t) => DropdownMenuItem(
+                    value: t, child: Text(_label(t), overflow: TextOverflow.ellipsis))),
+              ],
+              onChanged: (v) { setState(() => _ledgerMovementType = v); _load(); },
+            ),
+          ),
+        ]),
+      );
+    }
     if (_agents.isEmpty && _retailers.isEmpty) return const SizedBox.shrink();
     return Container(
       color: kSurface,
