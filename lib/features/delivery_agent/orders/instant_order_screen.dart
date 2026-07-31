@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/providers/session_provider.dart';
 import '../../../core/router/app_router.dart';
@@ -195,6 +196,58 @@ class _S extends ConsumerState<InstantOrderScreen> {
           behavior: SnackBarBehavior.floating, duration: Duration(seconds: 2), content: Text('Product removed')));
   }
 
+  // ★ NEW: Possible-duplicate confirmation dialog — never blocks, just
+  // warns. Returns true if the trader/agent chooses to proceed anyway.
+  Future<bool?> _showDuplicateOrderDialog(Map<String, dynamic> d) {
+    final createdAt = DateTime.tryParse(d['created_at'] as String? ?? '');
+    final timeStr = createdAt != null
+        ? DateFormat('dd MMM, hh:mm a').format(createdAt.toLocal())
+        : '—';
+    return showDialog<bool>(
+      context: context,
+      useRootNavigator: true,
+      builder: (c) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kRadiusCard)),
+        title: Row(children: const [
+          Icon(Icons.info_outline, color: Colors.orange, size: 20),
+          SizedBox(width: 8),
+          Text('Possible Duplicate Order', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+        ]),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('A similar order was created recently.',
+                style: TextStyle(fontSize: 13, color: kTextSub, height: 1.4)),
+            const SizedBox(height: 12),
+            _dupRow('Order No', '${d['order_no']}'),
+            _dupRow('Retailer', '${d['retailer_name']}'),
+            _dupRow('Time', timeStr),
+            _dupRow('Product(s)', (d['products'] as String? ?? '').isEmpty ? '—' : '${d['products']}'),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(c, rootNavigator: true).pop(false),
+            child: const Text('Cancel', style: TextStyle(color: kTextSub, fontWeight: FontWeight.w600)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(c, rootNavigator: true).pop(true),
+            child: const Text('Create New Order', style: TextStyle(color: kNavy, fontWeight: FontWeight.w800)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _dupRow(String label, String value) => Padding(
+    padding: const EdgeInsets.only(bottom: 6),
+    child: Row(children: [
+      SizedBox(width: 80, child: Text(label, style: const TextStyle(fontSize: 12, color: kTextHint))),
+      Expanded(child: Text(value, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700))),
+    ]),
+  );
+
   Future<void> _submit() async {
     setState(() => _err = null);
 
@@ -215,7 +268,35 @@ class _S extends ConsumerState<InstantOrderScreen> {
     }
 
     final agentId = ref.read(appUserProvider).valueOrNull?.agentId;
+    final traderId = ref.read(appUserProvider).valueOrNull?.traderId;
     if (agentId == null) return;
+
+    // ★ NEW (duplicate-order audit): checked once for all lines before any
+    // creation happens — if any line looks like a recent duplicate, the
+    // trader/agent sees one warning up front rather than a mix of some
+    // lines already created and others not. Never blocks; the check
+    // failing silently is treated as "no duplicate" so submission is
+    // never held up by it.
+    if (traderId != null) {
+      for (final line in validLines) {
+        try {
+          final dup = await _c.rpc('check_duplicate_order', params: {
+            'p_trader_id': traderId,
+            'p_retailer_id': _selRetailer!['id'],
+            'p_product_id': line.product!['id'],
+            'p_estimated_birds': line.b,
+          });
+          final d = (dup as Map?)?.cast<String, dynamic>();
+          if (d?['is_duplicate'] == true) {
+            final proceed = await _showDuplicateOrderDialog(d!);
+            if (proceed != true) return;
+            break; // one confirmation covers the whole batch
+          }
+        } catch (_) {
+          // Pre-check failing should never block order creation.
+        }
+      }
+    }
 
     if (mounted) setState(() => _submitting = true);
     final createdDeliveryIds = <String>[];

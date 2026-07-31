@@ -126,7 +126,7 @@ class _AgentAssistanceHubScreenState
         final b = await _c
             .from('delivery_batches')
             .select(
-            'id,status,vehicle_no,total_birds,total_weight,'
+            'id,status,vehicle_no,total_birds,total_weight,batch_date,'
                 'delivery_challans(id)')
             .eq('delivery_agent_id', widget.agentId)
             .inFilter('status', ['assigned', 'picked_up', 'out_for_delivery'])
@@ -505,51 +505,132 @@ class _AgentAssistanceHubScreenState
     );
   }
 
+  // ── Create Batch dialog — the single place a batch date is ever chosen ──
+  // Backend (ensure_active_batch_for_agent) remains the source of truth:
+  // this only collects the date the trader picked; the RPC call that
+  // actually creates the batch happens in each caller below. Today or past
+  // only — showDatePicker's lastDate enforces "no future dates" natively,
+  // no client-side date math needed beyond that.
+  Future<DateTime?> _pickBatchDateAndConfirm() async {
+    var selected = DateTime.now();
+    final confirmed = await showDialog<bool>(
+      context: context,
+      useRootNavigator: true,
+      builder: (c) => StatefulBuilder(builder: (c, setDialog) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kRadiusCard)),
+          title: const Text('Create Batch',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('No active batch found for this agent.',
+                  style: TextStyle(fontSize: 14, color: kTextSub, height: 1.5)),
+              const SizedBox(height: 14),
+              const Text('BATCH DATE', style: TextStyle(fontSize: 11, color: kTextHint, fontWeight: FontWeight.w700)),
+              const SizedBox(height: 6),
+              InkWell(
+                borderRadius: BorderRadius.circular(kRadiusInner),
+                onTap: () async {
+                  final picked = await showDatePicker(
+                    context: c,
+                    initialDate: selected,
+                    firstDate: DateTime.now().subtract(const Duration(days: 90)),
+                    lastDate: DateTime.now(), // ★ today or past only — no future dates
+                  );
+                  if (picked != null) setDialog(() => selected = picked);
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                  decoration: BoxDecoration(
+                    color: kBgPage,
+                    borderRadius: BorderRadius.circular(kRadiusInner),
+                    border: Border.all(color: kBorderLight),
+                  ),
+                  child: Row(children: [
+                    const Icon(Icons.event_outlined, size: 18, color: kNavy),
+                    const SizedBox(width: 8),
+                    Text(DateFormat('dd MMM yyyy').format(selected),
+                        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: kNavy)),
+                    const Spacer(),
+                    const Icon(Icons.edit_calendar_outlined, size: 16, color: kTextHint),
+                  ]),
+                ),
+              ),
+              if (DateUtils.isSameDay(selected, DateTime.now()))
+                const Padding(
+                  padding: EdgeInsets.only(top: 6),
+                  child: Text('Today', style: TextStyle(fontSize: 11, color: kTextHint)),
+                )
+              else
+                Padding(
+                  padding: const EdgeInsets.only(top: 6),
+                  child: Text('Backdated — all entries in this batch will use this date',
+                      style: TextStyle(fontSize: 11, color: Colors.orange.shade800, fontWeight: FontWeight.w600)),
+                ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(c, rootNavigator: true).pop(false),
+              child: const Text('Cancel', style: TextStyle(color: kTextSub, fontWeight: FontWeight.w600)),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(c, rootNavigator: true).pop(true),
+              child: const Text('Create Batch', style: TextStyle(color: kNavy, fontWeight: FontWeight.w800)),
+            ),
+          ],
+        );
+      }),
+    );
+    return confirmed == true ? selected : null;
+  }
+
+  // Creates a batch for the chosen date via the shared, single source-of-
+  // truth RPC. Returns the batch id, or null if the user cancelled or it
+  // failed (error already shown).
+  Future<String?> _createBatchWithPickedDate() async {
+    final selectedDate = await _pickBatchDateAndConfirm();
+    if (selectedDate == null || !mounted) return null;
+
+    final user = ref.read(appUserProvider).valueOrNull;
+    final traderId = user?.traderId;
+    if (traderId == null) return null;
+
+    setState(() => _creatingBatch = true);
+    try {
+      final dateStr =
+          '${selectedDate.year.toString().padLeft(4, '0')}-${selectedDate.month.toString().padLeft(2, '0')}-${selectedDate.day.toString().padLeft(2, '0')}';
+      final batchId = await _c.rpc('ensure_active_batch_for_agent', params: {
+        'p_trader_id': traderId,
+        'p_agent_id': widget.agentId,
+        'p_batch_date': dateStr,
+      }) as String;
+      if (!mounted) return null;
+      await _load();
+      if (!mounted) return null;
+      setState(() => _creatingBatch = false);
+      return batchId;
+    } catch (e) {
+      if (!mounted) return null;
+      setState(() => _creatingBatch = false);
+      showError(context, e.toString().replaceAll('Exception: ', '').replaceAll('PostgrestException(message: ', ''));
+      return null;
+    }
+  }
+
   Future<void> _showDCUploadSheet(Map<String, dynamic>? batch) async {
     if (batch != null) {
       context.push(R.batchDetailPath(batch['id'] as String));
       return;
     }
 
-    // No active batch — offer to create one via the SAME shared function
-    // Dispatch already uses (ensure_active_batch_for_agent, reached today
-    // through assign_orders_to_agent). This is the only batch-creation path
-    // in the app; nothing new is introduced here.
-    final ok = await confirmDialog(
-      context,
-      title: 'No Active Batch',
-      message: 'No active batch found for this agent.\nCreate an active batch now?',
-      confirmText: 'Create Batch',
-      confirmColor: kNavy,
-    );
-    if (!ok || !mounted) return;
-
-    final user = ref.read(appUserProvider).valueOrNull;
-    final traderId = user?.traderId;
-    if (traderId == null) return;
-
-    setState(() => _creatingBatch = true);
-    try {
-      final batchId = await _c.rpc('ensure_active_batch_for_agent', params: {
-        'p_trader_id': traderId,
-        'p_agent_id': widget.agentId,
-      }) as String;
-
-      if (!mounted) return;
-      await _load(); // refresh Hub state (assigned batches, counts, etc.)
-      if (!mounted) return;
-      setState(() => _creatingBatch = false);
-      context.push(R.batchDetailPath(batchId)).then((_) => _load());
-    } catch (e) {
-      if (!mounted) return;
-      setState(() => _creatingBatch = false);
-      showError(
-          context,
-          e
-              .toString()
-              .replaceAll('Exception: ', '')
-              .replaceAll('PostgrestException(message: ', ''));
-    }
+    // No active batch — same shared ensure_active_batch_for_agent() path
+    // Quick Entry now also uses, via the same date-picking dialog.
+    final batchId = await _createBatchWithPickedDate();
+    if (batchId == null || !mounted) return;
+    context.push(R.batchDetailPath(batchId)).then((_) => _load());
   }
 
   Future<void> _showInstantOrderSheet() async {
@@ -575,6 +656,28 @@ class _AgentAssistanceHubScreenState
       showError(context, 'Agent has no open shift. Open a shift first.');
       return;
     }
+
+    // ── Batch gate: reuse the active batch silently if one exists; only
+    // ask for a date when there truly isn't one yet. Backend remains the
+    // single source of truth — Flutter never computes a date itself.
+    String batchId;
+    DateTime batchDate;
+    if (_assignedBatches.isNotEmpty) {
+      final active = _assignedBatches.first;
+      batchId = active['id'] as String;
+      batchDate = DateTime.parse(active['batch_date'] as String);
+    } else {
+      final created = await _createBatchWithPickedDate();
+      if (created == null || !mounted) return;
+      batchId = created;
+      final refreshed = _assignedBatches.firstWhere(
+        (b) => b['id'] == created,
+        orElse: () => {'batch_date': DateTime.now().toIso8601String()},
+      );
+      batchDate = DateTime.parse(refreshed['batch_date'] as String);
+    }
+
+    if (!mounted) return;
     await showModalBottomSheet(
       context: context,
       useRootNavigator: true,
@@ -583,6 +686,8 @@ class _AgentAssistanceHubScreenState
       builder: (_) => AgentQuickEntrySheet(
         agentId: widget.agentId,
         agentName: widget.agentName,
+        batchId: batchId,
+        batchDate: batchDate,
         onDone: _load,
         onRecoveryNeeded: (deliveryId) {
           // Called after the sheet has already popped itself — safe to use
@@ -772,6 +877,36 @@ class _AgentAssistanceHubScreenState
               ),
             ],
           ),
+          if (_assignedBatches.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Builder(builder: (_) {
+              final batchDate = DateTime.tryParse(_assignedBatches.first['batch_date'] as String? ?? '');
+              final isToday = batchDate != null && DateUtils.isSameDay(batchDate, DateTime.now());
+              return Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: (isToday ? Colors.white : Colors.orange).withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(kRadiusChip),
+                  border: Border.all(color: isToday ? Colors.white24 : Colors.orangeAccent),
+                ),
+                child: Row(children: [
+                  Icon(Icons.event_outlined, size: 15,
+                      color: isToday ? Colors.white70 : Colors.orangeAccent),
+                  const SizedBox(width: 6),
+                  Text(
+                    batchDate == null
+                        ? 'Batch Date: —'
+                        : 'Batch Date: ${DateFormat('dd MMM yyyy').format(batchDate)}${isToday ? '' : '  (Backdated)'}',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: isToday ? Colors.white70 : Colors.orangeAccent,
+                    ),
+                  ),
+                ]),
+              );
+            }),
+          ],
           if (hasShift) ...[
             const SizedBox(height: 18),
             Row(
@@ -1935,6 +2070,57 @@ class _InstantOrderSheetState extends ConsumerState<_InstantOrderSheet> {
         date.year, date.month, date.day, time.hour, time.minute));
   }
 
+  // ★ NEW: Possible-duplicate confirmation dialog — never blocks, just warns.
+  Future<bool?> _showDuplicateOrderDialog(Map<String, dynamic> d) {
+    final createdAt = DateTime.tryParse(d['created_at'] as String? ?? '');
+    final timeStr = createdAt != null
+        ? DateFormat('dd MMM, hh:mm a').format(createdAt.toLocal())
+        : '—';
+    return showDialog<bool>(
+      context: context,
+      useRootNavigator: true,
+      builder: (c) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kRadiusCard)),
+        title: Row(children: const [
+          Icon(Icons.info_outline, color: Colors.orange, size: 20),
+          SizedBox(width: 8),
+          Text('Possible Duplicate Order', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+        ]),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('A similar order was created recently.',
+                style: TextStyle(fontSize: 13, color: kTextSub, height: 1.4)),
+            const SizedBox(height: 12),
+            _dupRow('Order No', '${d['order_no']}'),
+            _dupRow('Retailer', '${d['retailer_name']}'),
+            _dupRow('Time', timeStr),
+            _dupRow('Product(s)', (d['products'] as String? ?? '').isEmpty ? '—' : '${d['products']}'),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(c, rootNavigator: true).pop(false),
+            child: const Text('Cancel', style: TextStyle(color: kTextSub, fontWeight: FontWeight.w600)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(c, rootNavigator: true).pop(true),
+            child: const Text('Create New Order', style: TextStyle(color: kNavy, fontWeight: FontWeight.w800)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _dupRow(String label, String value) => Padding(
+    padding: const EdgeInsets.only(bottom: 6),
+    child: Row(children: [
+      SizedBox(width: 80, child: Text(label, style: const TextStyle(fontSize: 12, color: kTextHint))),
+      Expanded(child: Text(value, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700))),
+    ]),
+  );
+
   Future<void> _submit() async {
     setState(() => _err = null);
     if (_selRetailer == null) {
@@ -1960,6 +2146,23 @@ class _InstantOrderSheetState extends ConsumerState<_InstantOrderSheet> {
       confirmColor: kNavy,
     );
     if (!ok || !mounted) return;
+
+    // ★ NEW (duplicate-order audit): warn, never block.
+    try {
+      final dup = await _c.rpc('check_duplicate_order', params: {
+        'p_trader_id': user.traderId,
+        'p_retailer_id': _selRetailer!['id'],
+        'p_product_id': _selProduct?['id'],
+        'p_estimated_birds': _birds,
+      });
+      final d = (dup as Map?)?.cast<String, dynamic>();
+      if (d?['is_duplicate'] == true) {
+        final proceed = await _showDuplicateOrderDialog(d!);
+        if (proceed != true) return;
+      }
+    } catch (_) {
+      // Pre-check failing should never block order creation.
+    }
 
     setState(() => _submitting = true);
     try {

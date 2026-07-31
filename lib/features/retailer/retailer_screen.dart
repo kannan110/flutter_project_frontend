@@ -834,6 +834,25 @@ class _RS extends ConsumerState<RetailerScreen>
                           selectedProductId = products.first['id'] as String;
                         Navigator.of(ctx, rootNavigator: true).pop();
                         try {
+                          // ★ NEW (duplicate-order audit): warn, never block.
+                          try {
+                            final ret = await _c.from('retailers')
+                                .select('trader_id').eq('id', _retailerId!).single();
+                            final dup = await _c.rpc('check_duplicate_order', params: {
+                              'p_trader_id': (ret)['trader_id'],
+                              'p_retailer_id': _retailerId,
+                              'p_product_id': selectedProductId,
+                              'p_estimated_birds': mode == 'birds' ? qty.toInt() : 0,
+                            });
+                            final d = (dup as Map?)?.cast<String, dynamic>();
+                            if (d?['is_duplicate'] == true) {
+                              if (!mounted) return;
+                              final proceed = await _showDuplicateOrderDialog(d!);
+                              if (proceed != true) return;
+                            }
+                          } catch (_) {
+                            // Pre-check failing should never block order creation.
+                          }
                           final dDate = deliverySlot == 'tomorrow'
                               ? DateTime.now().add(const Duration(days: 1))
                               : DateTime.now();
@@ -855,6 +874,57 @@ class _RS extends ConsumerState<RetailerScreen>
                       child: const Text('Confirm Order')),
                 ])))));
   }
+
+  // ★ NEW: Possible-duplicate confirmation dialog — never blocks, just warns.
+  Future<bool?> _showDuplicateOrderDialog(Map<String, dynamic> d) {
+    final createdAt = DateTime.tryParse(d['created_at'] as String? ?? '');
+    final timeStr = createdAt != null
+        ? DateFormat('dd MMM, hh:mm a').format(createdAt.toLocal())
+        : '—';
+    return showDialog<bool>(
+      context: context,
+      useRootNavigator: true,
+      builder: (c) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kRadiusCard)),
+        title: Row(children: const [
+          Icon(Icons.info_outline, color: Colors.orange, size: 20),
+          SizedBox(width: 8),
+          Text('Possible Duplicate Order', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+        ]),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('A similar order was created recently.',
+                style: TextStyle(fontSize: 13, color: kTextSub, height: 1.4)),
+            const SizedBox(height: 12),
+            _dupRow('Order No', '${d['order_no']}'),
+            _dupRow('Retailer', '${d['retailer_name']}'),
+            _dupRow('Time', timeStr),
+            _dupRow('Product(s)', (d['products'] as String? ?? '').isEmpty ? '—' : '${d['products']}'),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(c, rootNavigator: true).pop(false),
+            child: const Text('Cancel', style: TextStyle(color: kTextSub, fontWeight: FontWeight.w600)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(c, rootNavigator: true).pop(true),
+            child: const Text('Create New Order', style: TextStyle(color: kNavy, fontWeight: FontWeight.w800)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _dupRow(String label, String value) => Padding(
+    padding: const EdgeInsets.only(bottom: 6),
+    child: Row(children: [
+      SizedBox(width: 80, child: Text(label, style: const TextStyle(fontSize: 12, color: kTextHint))),
+      Expanded(child: Text(value, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700))),
+    ]),
+  );
 
   Future<void> _cancelOrder(String orderId, String status) async {
     final ok = await confirmDialog(context,

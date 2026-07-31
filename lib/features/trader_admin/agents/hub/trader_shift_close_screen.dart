@@ -145,12 +145,17 @@ class _TraderShiftCloseScreenState
   int    get _totalMortalityBirds => _mortalityBirds + _mortReturnBirds;
   double get _totalMortalityKg    => _mortalityKg    + _mortReturnWt;
 
-  // Shrinkage formula — identical to shift_close_screen.dart
-  double get _shrinkageKg => (_dcKg + _transferInKg - _transferOutKg
+  // ★ CHANGED (Loaded Stock audit): Total Loaded is the single authoritative
+  // value from get_shift_stock_summary — shrinkage now reads it directly
+  // instead of adding _dcKg + _transferInKg in Flutter.
+  int    get _totalLoadedBirds => (_recon['total_loaded_birds'] as num?)?.toInt()    ?? 0;
+  double get _totalLoadedKg    => (_recon['total_loaded_kg']    as num?)?.toDouble() ?? 0;
+
+  double get _shrinkageKg => (_totalLoadedKg - _transferOutKg
       - _deliveredKg - _totalMortalityKg - _returnWt).clamp(0.0, double.infinity);
 
   double get _shrinkagePct {
-    final base = _dcKg + _transferInKg;
+    final base = _totalLoadedKg;
     return base > 0 ? (_shrinkageKg / base * 100) : 0.0;
   }
 
@@ -220,6 +225,26 @@ class _TraderShiftCloseScreenState
       stockOk = true;
     } catch (_) {}
 
+    // ★ NEW (Loaded Stock audit): get_shift_stock_summary is now the single
+    // source of truth for Loaded Stock — Farm DC, In-House Loaded, and the
+    // authoritative Total Loaded. Nothing below recalculates these; the
+    // remaining local stock_ledger queries stay only for delivered/mortality/
+    // transfer-out figures and the itemized transfer notes list, which this
+    // RPC doesn't provide.
+    int dcLoadedBirds = 0, inHouseLoadedBirds = 0, totalLoadedBirds = 0;
+    double dcLoadedKg = 0, inHouseLoadedKg = 0, totalLoadedKg = 0;
+    try {
+      final summary = await _c.rpc('get_shift_stock_summary',
+          params: {'p_shift_id': widget.shiftId}).timeout(const Duration(seconds: 10));
+      final s = (summary as Map?)?.cast<String, dynamic>();
+      dcLoadedBirds      = (s?['dc_loaded_birds']       as num?)?.toInt()    ?? 0;
+      dcLoadedKg         = (s?['dc_loaded_kg']           as num?)?.toDouble() ?? 0;
+      inHouseLoadedBirds = (s?['in_house_loaded_birds']  as num?)?.toInt()    ?? 0;
+      inHouseLoadedKg    = (s?['in_house_loaded_kg']     as num?)?.toDouble() ?? 0;
+      totalLoadedBirds   = (s?['total_loaded_birds']     as num?)?.toInt()    ?? 0;
+      totalLoadedKg      = (s?['total_loaded_kg']        as num?)?.toDouble() ?? 0;
+    } catch (_) {}
+
     // Stock ledger reconciliation — two-query approach from shift_close_screen.dart
     Map<String, dynamic> recon = {};
     try {
@@ -246,8 +271,8 @@ class _TraderShiftCloseScreenState
                 .timeout(const Duration(seconds: 10))) as List? ?? []);
       }
 
-      int dcB = 0, delB = 0, mortB = 0, tiB = 0, toB = 0;
-      double dcK = 0, delK = 0, mortK = 0, tiK = 0, toK = 0;
+      int delB = 0, mortB = 0, toB = 0;
+      double delK = 0, mortK = 0, toK = 0;
       final List<String> tNotes = [];
       final Set<String> seen = {};
 
@@ -259,16 +284,23 @@ class _TraderShiftCloseScreenState
       // transferRows for the same shift — counting it from shiftRows too would
       // double it. Keeping transfer totals sourced from transferRows alone
       // avoids that, and still covers older rows where shift_id is still NULL.
+      // ★ CHANGED (Loaded Stock audit): 'purchased' is no longer summed here
+      // — dcLoadedBirds/Kg from get_shift_stock_summary is the single
+      // source of truth for that figure now.
       for (final row in shiftRows) {
         final mt = row['movement_type'] as String? ?? '';
         final b  = (row['quantity_birds'] as num?)?.toInt()    ?? 0;
         final k  = (row['quantity_kg']    as num?)?.toDouble() ?? 0;
         switch (mt) {
-          case 'purchased': dcB  += b; dcK  += k;
           case 'delivered': delB += b; delK += k;
           case 'mortality': mortB+= b; mortK+= k;
         }
       }
+      // ★ CHANGED (Loaded Stock audit): this loop is kept only to build the
+      // itemized per-transfer notes list (tNotes) and transferred_out
+      // totals — tiB/tiK are no longer accumulated as the authoritative
+      // In-House Loaded figure; inHouseLoadedBirds/Kg from
+      // get_shift_stock_summary is used for that instead.
       for (final row in transferRows) {
         final mt   = row['movement_type'] as String? ?? '';
         final b    = (row['quantity_birds'] as num?)?.toInt()    ?? 0;
@@ -276,7 +308,6 @@ class _TraderShiftCloseScreenState
         final note = row['notes'] as String? ?? '';
         switch (mt) {
           case 'transferred_in':
-            tiB += b; tiK += k;
             if (note.isNotEmpty && seen.add(note))
               tNotes.add('IN: $b birds (${k.toStringAsFixed(1)} kg) — $note');
           case 'transferred_out':
@@ -294,11 +325,17 @@ class _TraderShiftCloseScreenState
       }
 
       recon = {
-        'dc_birds': dcB, 'dc_kg': dcK,
+        // ★ CHANGED (Loaded Stock audit): dc_birds/kg and transfer_in_birds/kg
+        // now come from get_shift_stock_summary (backend-authoritative),
+        // not a local stock_ledger sum. total_loaded_* added as the single
+        // authoritative figure everything else (shrinkage, expected return,
+        // balance) must use.
+        'dc_birds': dcLoadedBirds, 'dc_kg': dcLoadedKg,
         'delivered_birds': delB, 'delivered_kg': delK,
         'mortality_birds': mortB, 'mortality_kg': mortK,
-        'transfer_in_birds': tiB, 'transfer_in_kg': tiK,
+        'transfer_in_birds': inHouseLoadedBirds, 'transfer_in_kg': inHouseLoadedKg,
         'transfer_out_birds': toB, 'transfer_out_kg': toK,
+        'total_loaded_birds': totalLoadedBirds, 'total_loaded_kg': totalLoadedKg,
         'transfer_notes': tNotes, 'total_cash': cash, 'pending_count': pendCount,
       };
     } catch (_) {}
@@ -312,11 +349,12 @@ class _TraderShiftCloseScreenState
         _stockKg     = stockK;
         _stockLoaded = stockOk;
         _checking    = false;
-        // Pre-fill return fields with current stock
-        if (stockB > 0 && _returnBirdsCtrl.text == '0') {
-          _returnBirdsCtrl.text = '$stockB';
-          _returnWtCtrl.text    = stockK.toStringAsFixed(1);
-        }
+        // ★ FIX (Batch Loss UI audit): removed the auto-fill that used to
+        // pre-populate Returned Birds/Weight with the full expected stock
+        // amount. That silently implied the trader must return everything
+        // to proceed. Fields now start neutral (0) so the trader declares
+        // what actually came back; any shortfall is shown explicitly as
+        // Missing/Unaccounted below, not hidden by a forced pre-fill.
         // Auto-open mortality section if shift has mortality
         if (((recon['mortality_birds'] as num?)?.toInt() ?? 0) > 0) {
           _showMortality = true;
@@ -371,14 +409,11 @@ class _TraderShiftCloseScreenState
     if (_odoEndCtrl.text.trim().isEmpty) {
       showError(context, 'Odometer end reading required'); return;
     }
-    // Stock guard: must declare return if stock remains
-    if (_stockBirds > 0 && _returnBirds == 0 && _returnWt == 0) {
-      showError(context,
-          '⚠️ Return stock not declared\n\n'
-              '$_stockBirds birds in system stock.\n'
-              'Fill the Return Stock section before closing.');
-      return;
-    }
+    // ★ FIX (Batch Loss UI audit): removed the client-side pre-check that
+    // duplicated the backend's own decision about whether closing is
+    // allowed. close_delivery_shift is the single source of truth for
+    // that business rule (unchanged) — its own exception, if any, is
+    // still caught and shown below via the existing error handling.
 
     final user = ref.read(appUserProvider).valueOrNull;
     if (user?.traderId == null) return;
@@ -722,11 +757,39 @@ class _TraderShiftCloseScreenState
           ? '${_shrinkageKg.toStringAsFixed(1)} kg shrinkage' : 'Balanced',
       badgeColor: sc,
       child: Column(children: [
-        _rrow('DC Loaded', '+$_dcBirds birds',
+        // ★ CHANGED (Loaded Stock audit): Loaded Stock breakdown — Farm DC
+        // and In-House Loaded are informational sub-rows; Total Loaded
+        // (bold, from get_shift_stock_summary) is the authoritative figure
+        // everything below (shrinkage, matched/variance) is computed from.
+        // No addition happens in Flutter — total_loaded_* is displayed as
+        // returned by the backend.
+        const Padding(
+          padding: EdgeInsets.only(bottom: 4),
+          child: Text('LOADED STOCK', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w700, color: kTextHint)),
+        ),
+        _rrow('Farm DC', '+$_dcBirds birds',
             '+${_dcKg.toStringAsFixed(1)} kg', Colors.blue, true),
         if (_transferInBirds > 0)
-          _rrow('Transfer In', '+$_transferInBirds birds',
+          _rrow('In-House Loaded', '+$_transferInBirds birds',
               '+${_transferInKg.toStringAsFixed(1)} kg', Colors.teal, true),
+        const Padding(padding: EdgeInsets.symmetric(vertical: 4),
+            child: Divider(height: 1)),
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 3),
+          child: Row(children: [
+            const SizedBox(width: 12),
+            const Expanded(child: Text('Total Loaded',
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: kNavy))),
+            Text('+$_totalLoadedBirds birds',
+                style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: kNavy)),
+            const SizedBox(width: 8),
+            SizedBox(width: 84, child: Text('+${_totalLoadedKg.toStringAsFixed(1)} kg',
+                textAlign: TextAlign.right,
+                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: kNavy))),
+          ]),
+        ),
+        const Padding(padding: EdgeInsets.symmetric(vertical: 4),
+            child: Divider(height: 1)),
         if (_transferOutBirds > 0)
           _rrow('Transfer Out', '−$_transferOutBirds birds',
               '−${_transferOutKg.toStringAsFixed(1)} kg', Colors.indigo, false),
@@ -763,7 +826,7 @@ class _TraderShiftCloseScreenState
                       '(${_shrinkagePct.toStringAsFixed(1)}%)',
                       style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900,
                           color: sc)),
-                  Text('Base: ${(_dcKg + _transferInKg).toStringAsFixed(1)} kg loaded',
+                  Text('Base: ${_totalLoadedKg.toStringAsFixed(1)} kg loaded',
                       style: TextStyle(fontSize: 9, color: sc.withValues(alpha: 0.7))),
                 ])),
           ]),
@@ -838,6 +901,27 @@ class _TraderShiftCloseScreenState
                         '${_stockKg.toStringAsFixed(1)} kg',
                     style: const TextStyle(fontSize: 11, color: Colors.blue))),
               ])),
+        // ★ NEW (Batch Loss UI audit): live Missing/Unaccounted, computed as
+        // Expected Return (backend) − Returned (what the trader has typed
+        // so far). Purely informational — does not block or require a
+        // specific value; only shown when a real shortfall exists.
+        if (_stockLoaded && (_stockBirds - _returnBirds) > 0)
+          Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(color: Colors.orange.shade50,
+                    borderRadius: BorderRadius.circular(8)),
+                child: Row(children: [
+                  Icon(Icons.warning_amber_rounded, color: Colors.orange.shade800, size: 13),
+                  const SizedBox(width: 8),
+                  Expanded(child: Text(
+                      'Returned: $_returnBirds birds  ·  '
+                      'Missing/Unaccounted: ${_stockBirds - _returnBirds} birds'
+                      '${(_stockKg - _returnWt) > 0 ? '  ·  ${(_stockKg - _returnWt).toStringAsFixed(1)} kg' : ''}',
+                      style: TextStyle(fontSize: 11, color: Colors.orange.shade900, fontWeight: FontWeight.w600))),
+                ])),
+          ),
         const SizedBox(height: 10),
         Row(children: [
           Expanded(child: TextField(

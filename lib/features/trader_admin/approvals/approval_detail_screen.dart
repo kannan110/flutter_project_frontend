@@ -412,16 +412,21 @@ class _S extends ConsumerState<ApprovalDetailScreen> {
         context.go(R.approvals);
       }
     } catch (e) {
-      if (mounted)
-        showError(
-            context,
-            e
-                .toString()
-                .replaceAll('Exception: ', '')
-                .replaceAll('PostgrestException(message: ', ''));
+      if (mounted) showError(context, _cleanPgError(e));
     } finally {
       if (mounted) setState(() => _submitting = false);
     }
+  }
+
+  // Strips Postgres/PostgREST wrapper noise so the trader sees just the
+  // RAISE EXCEPTION message (e.g. "Cannot approve: this delivery was
+  // undone...") instead of the full "PostgrestException(message: ..., code:
+  // P0001, details: Bad Request, hint: null)" wrapper.
+  String _cleanPgError(Object e) {
+    var s = e.toString().replaceAll('Exception: ', '');
+    final match = RegExp(r'PostgrestException\(message:\s*(.*?),\s*code:').firstMatch(s);
+    if (match != null) return match.group(1)!.trim();
+    return s.replaceAll('PostgrestException(message: ', '');
   }
 
   Future<void> _reject() async {
@@ -496,6 +501,51 @@ class _S extends ConsumerState<ApprovalDetailScreen> {
           backgroundColor: kBgPage,
           appBar: AppBar(backgroundColor: kSurface),
           body: const Center(child: Text('Not found')));
+
+    // ★ NEW: this delivery was undone (Undo Delivery) — its stock and cash
+    // effects were already reversed, so it must never be approvable. This
+    // is checked BEFORE any billing UI renders, not just at submit time —
+    // the backend guard in approve_delivery_and_order still exists too
+    // (defense in depth), but a trader should never get as far as entering
+    // rates for something that can't actually be approved.
+    if (_delivery!['is_undone'] == true) {
+      return Scaffold(
+        backgroundColor: kBgPage,
+        appBar: AppBar(
+          backgroundColor: kSurface,
+          title: const Text('Approve Delivery'),
+        ),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.replay_circle_filled_outlined,
+                    size: 48, color: Colors.orange.shade700),
+                const SizedBox(height: 16),
+                const Text('This Delivery Was Undone',
+                    style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800),
+                    textAlign: TextAlign.center),
+                const SizedBox(height: 8),
+                Text(
+                  'Its stock and cash effects have already been reversed, '
+                  'so it cannot be approved.'
+                  '${_delivery!['undo_reason'] != null ? '\n\nReason: ${_delivery!['undo_reason']}' : ''}',
+                  style: const TextStyle(fontSize: 13, color: kTextSub, height: 1.5),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 20),
+                OutlinedButton(
+                  onPressed: () => context.go(R.approvals),
+                  child: const Text('Back to Approvals'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
 
     final o = _delivery!['orders'] as Map<String, dynamic>?;
     final r = o?['retailers'] as Map<String, dynamic>?;
@@ -2148,6 +2198,7 @@ class _S extends ConsumerState<ApprovalDetailScreen> {
                     child: Row(children: [
                       Text(cat.$2,
                           style: TextStyle(
+
                               fontSize: 13,
                               fontWeight: FontWeight.w700,
                               color: selected ? Colors.orange : kTextMain)),

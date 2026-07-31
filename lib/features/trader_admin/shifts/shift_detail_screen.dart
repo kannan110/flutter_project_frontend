@@ -175,15 +175,19 @@ class _S extends ConsumerState<ShiftDetailScreen> {
                                 color: kTextHint, letterSpacing: 0.5))),
                       ]),
                     ),
-                    _approvalReconRow('DC Loaded', dcBirds, dcKg,
+                    const Padding(
+                      padding: EdgeInsets.only(bottom: 4),
+                      child: Text('LOADED STOCK', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: kTextHint, letterSpacing: 0.5)),
+                    ),
+                    _approvalReconRow('Farm DC Loaded', dcBirds, dcKg,
                         Colors.blue, false, prefix: '+'),
                     if (transferInBirds > 0 || transferInKg > 0)
-                      _approvalReconRow('Transfer In', transferInBirds, transferInKg,
+                      _approvalReconRow('In-House Loaded', transferInBirds, transferInKg,
                           Colors.green, false, prefix: '+'),
                     _approvalReconRow('Delivered', delBirds, delKg,
                         Colors.teal, false, prefix: '\u2212'),
                     if (transferOutBirds > 0 || transferOutKg > 0)
-                      _approvalReconRow('Transfer Out', transferOutBirds, transferOutKg,
+                      _approvalReconRow('Transfer Out (to Another Agent)', transferOutBirds, transferOutKg,
                           Colors.orange, false, prefix: '\u2212'),
                     if (liveRetBirds > 0 || liveRetKg > 0)
                       _approvalReconRow('Live Return (Stock Added)',
@@ -2764,15 +2768,19 @@ class _S extends ConsumerState<ShiftDetailScreen> {
                           color: kTextHint, letterSpacing: 0.5))),
                 ]),
                 const SizedBox(height: 4),
-                _approvalReconRow('DC Loaded', dcBirds, dcKg,
+                const Padding(
+                  padding: EdgeInsets.only(bottom: 4),
+                  child: Text('LOADED STOCK', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: kTextHint, letterSpacing: 0.5)),
+                ),
+                _approvalReconRow('Farm DC Loaded', dcBirds, dcKg,
                     Colors.blue, false, prefix: '+'),
                 if (transferInBirds > 0 || transferInKg > 0)
-                  _approvalReconRow('Transfer In', transferInBirds, transferInKg,
+                  _approvalReconRow('In-House Loaded', transferInBirds, transferInKg,
                       Colors.green, false, prefix: '+'),
                 _approvalReconRow('Delivered', delBirds, delKg,
                     Colors.teal, false, prefix: '−'),
                 if (transferOutBirds > 0 || transferOutKg > 0)
-                  _approvalReconRow('Transfer Out', transferOutBirds, transferOutKg,
+                  _approvalReconRow('Transfer Out (to Another Agent)', transferOutBirds, transferOutKg,
                       Colors.orange, false, prefix: '−'),
                 if (liveRetBirds > 0 || liveRetKg > 0)
                   _approvalReconRow('Live Return (Stock Added)',
@@ -2901,12 +2909,16 @@ class _S extends ConsumerState<ShiftDetailScreen> {
                                   color: kTextHint))),
                         ]),
                         const SizedBox(height: 2),
-                        _approvalReconRow('DC Loaded', bDcBirds, bDcKg, Colors.blue, false, prefix: '+'),
+                        const Padding(
+                          padding: EdgeInsets.only(bottom: 2),
+                          child: Text('LOADED STOCK', style: TextStyle(fontSize: 8, fontWeight: FontWeight.w800, color: kTextHint, letterSpacing: 0.5)),
+                        ),
+                        _approvalReconRow('Farm DC Loaded', bDcBirds, bDcKg, Colors.blue, false, prefix: '+'),
                         if (bTransferInBirds > 0 || bTransferInKg > 0)
-                          _approvalReconRow('Transfer In', bTransferInBirds, bTransferInKg, Colors.green, false, prefix: '+'),
+                          _approvalReconRow('In-House Loaded', bTransferInBirds, bTransferInKg, Colors.green, false, prefix: '+'),
                         _approvalReconRow('Delivered', bDelBirds, bDelKg, Colors.teal, false, prefix: '−'),
                         if (bTransferOutBirds > 0 || bTransferOutKg > 0)
-                          _approvalReconRow('Transfer Out', bTransferOutBirds, bTransferOutKg, Colors.orange, false, prefix: '−'),
+                          _approvalReconRow('Transfer Out (to Another Agent)', bTransferOutBirds, bTransferOutKg, Colors.orange, false, prefix: '−'),
                         if (bLiveRet > 0 || bLiveRetKg > 0)
                           _approvalReconRow('Live Return', bLiveRet, bLiveRetKg, Colors.indigo, false, prefix: '+'),
                         if (bRetMBirds > 0)

@@ -5,6 +5,8 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import 'package:rooster_trader/features/trader_admin/reports/report_dataset.dart';
 
+import 'customer_ledger_row_builder.dart';
+
 // ─────────────────────────────────────────────────────────────────────────────
 // REPORT PDF GENERATOR
 // Generates professional A4 PDF reports for all 11 report types.
@@ -43,8 +45,10 @@ class ReportPdfGenerator {
         pageFormat: PdfPageFormat.a4,
         margin: const pw.EdgeInsets.all(28),
         header: (_) => _header(companyName, dataSet.title, from, to),
-        footer: (_) => _footer(),
+        footer: (ctx) => dataSet.customerName != null ? _footer(ctx) : _footer(),
         build: (_) => [
+          if (dataSet.customerName != null)
+            _customerInfoLine(dataSet.customerName!, dataSet.customerMobile),
           if (dataSet.summary.isNotEmpty) ...[
             _secTitle('SUMMARY'),
             _kpiRow(dataSet.summary
@@ -66,6 +70,23 @@ class ReportPdfGenerator {
         ]));
     return doc;
   }
+
+  // Compact customer identity line — Customer Ledger only (any ReportDataSet
+  // with customerName set gets this; every other report leaves it null and
+  // is unaffected). Deliberately plain text, not a colored card, to match
+  // "compact" and to keep the rest of this shared PDF's look untouched.
+  static pw.Widget _customerInfoLine(String name, String? mobile) => pw.Padding(
+    padding: const pw.EdgeInsets.only(bottom: 8),
+    child: pw.Row(children: [
+      pw.Text(name, style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold, color: _dark)),
+      if (mobile != null && mobile.isNotEmpty) ...[
+        pw.SizedBox(width: 10),
+        pw.Text('|', style: pw.TextStyle(fontSize: 10, color: _border)),
+        pw.SizedBox(width: 10),
+        pw.Text('Mobile: $mobile', style: pw.TextStyle(fontSize: 9, color: _subText)),
+      ],
+    ]),
+  );
 
   /// Download / Print entry point — opens the native print/share/save
   /// preview sheet (covers "Download PDF" and "Print" from the same,
@@ -216,6 +237,62 @@ class ReportPdfGenerator {
     );
   }
 
+  // ─── Customer Ledger Report (Reports → Ledger → Customer Ledger) ─────────
+  // Deliberately thin: builds a ReportDataSet (via CustomerLedgerTableData,
+  // the single shared source for header/row/totals strings — also used by
+  // reports_hub_screen.dart's on-screen table) and hands it to the exact
+  // same generateFromDataSetAndShow/shareFromDataSet every other report's
+  // PDF/Share button already uses. This is intentional: the on-screen
+  // table, its own per-table PDF/Share buttons, and these global entry
+  // points must all produce the identical table styling — columns, colors,
+  // spacing, fonts, borders — with the only report-specific additions being
+  // the compact customer-info line and branded footer (see
+  // _buildDataSetDoc's customerName handling above).
+  static ReportDataSet _customerLedgerDataSet(
+      Map<String, dynamic> data, {
+        required DateTime fromDate,
+        required DateTime toDate,
+      }) {
+    final header = (data['header'] as Map?)?.cast<String, dynamic>() ?? {};
+    final t = CustomerLedgerTableData.from(data);
+    return ReportDataSet(
+      title: 'Customer Ledger Statement',
+      headers: t.headers,
+      rows: t.rows,
+      totals: t.totals,
+      highlightColumns: const [8],
+      fromDate: fromDate,
+      toDate: toDate,
+      customerName: header['retailer_name'] as String? ?? 'Customer',
+      customerMobile: header['retailer_phone'] as String?,
+    );
+  }
+
+  /// Download / Print entry point for the Customer Ledger Report.
+  static Future<void> generateCustomerLedgerReportAndShow({
+    required BuildContext context,
+    required Map<String, dynamic> data,
+    required String companyName,
+    required DateTime fromDate,
+    required DateTime toDate,
+    String? agentFilterName,
+  }) async {
+    final ds = _customerLedgerDataSet(data, fromDate: fromDate, toDate: toDate);
+    await generateFromDataSetAndShow(context: context, dataSet: ds, companyName: companyName);
+  }
+
+  /// Explicit share-sheet entry point for the Customer Ledger Report.
+  static Future<void> shareCustomerLedgerReport({
+    required Map<String, dynamic> data,
+    required String companyName,
+    required DateTime fromDate,
+    required DateTime toDate,
+    String? agentFilterName,
+  }) async {
+    final ds = _customerLedgerDataSet(data, fromDate: fromDate, toDate: toDate);
+    await shareFromDataSet(dataSet: ds, companyName: companyName);
+  }
+
   // ─── Main entry: build and show PDF preview (legacy, per-report-type) ────
   static Future<void> generateAndShow({
     required BuildContext context,
@@ -301,14 +378,30 @@ class ReportPdfGenerator {
       ]);
 
   // Footer
-  static pw.Widget _footer() => pw.Row(
-      mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-      children: [
-        pw.Text('Rooster Trader PTOS v2  —  Confidential',
-            style: pw.TextStyle(fontSize: 7, color: _subText)),
-        pw.Text('This report is system-generated',
-            style: pw.TextStyle(fontSize: 7, color: _subText)),
-      ]);
+  // Optional [ctx] switches to the simple branded footer — generation
+  // timestamp + "RoosterHub Trader OS" — used only for customer-facing
+  // statements (Customer Ledger). Every existing call site passes no
+  // context, so their footer is unchanged.
+  static pw.Widget _footer([pw.Context? ctx]) {
+    if (ctx == null) {
+      return pw.Row(
+          mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+          children: [
+            pw.Text('Rooster Trader PTOS v2  —  Confidential',
+                style: pw.TextStyle(fontSize: 7, color: _subText)),
+            pw.Text('This report is system-generated',
+                style: pw.TextStyle(fontSize: 7, color: _subText)),
+          ]);
+    }
+    return pw.Row(
+        mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+        children: [
+          pw.Text('RoosterHub Trader OS',
+              style: pw.TextStyle(fontSize: 7, color: _subText)),
+          pw.Text('Generated ${DateFormat("d MMM yyyy, HH:mm").format(DateTime.now())}',
+              style: pw.TextStyle(fontSize: 7, color: _subText)),
+        ]);
+  }
 
   // KPI row: 2 or 4 cells
   static pw.Widget _kpiRow(List<_KpiCell> cells) => pw.Row(
@@ -352,11 +445,15 @@ class ReportPdfGenerator {
                   : isTotals  ? const PdfColor.fromInt(0xFFBF1B2C).shade(0.85)
                   : null),
           children: cells.asMap().map((i, cell) => MapEntry(i,
-              pw.Padding(
+              pw.Container(
                   padding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 5),
+                  decoration: isTotals
+                      ? const pw.BoxDecoration(
+                      border: pw.Border(top: pw.BorderSide(color: _primary, width: 1.3)))
+                      : null,
                   child: pw.Text(cell,
                       style: pw.TextStyle(
-                          fontSize: isHeader ? 8 : 9,
+                          fontSize: isHeader ? 8 : isTotals ? 10 : 9,
                           fontWeight: (isHeader || isTotals || bold.contains(i))
                               ? pw.FontWeight.bold : pw.FontWeight.normal,
                           color: isHeader ? PdfColors.white

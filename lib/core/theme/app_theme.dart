@@ -1061,6 +1061,15 @@ class Fmt {
     return '₹${_indianCommas(rounded)}';
   }
 
+  /// Same Indian-comma grouping as [amount], without the ₹ prefix — for
+  /// dense grids (e.g. ledger tables) where repeating the currency symbol
+  /// on every cell would be visual noise. Still NO K/L abbreviations.
+  static String plainAmount(double v) {
+    final sign = v < 0 ? '-' : '';
+    final rounded = v.abs().toStringAsFixed(0);
+    return '$sign${_indianCommas(rounded)}';
+  }
+
   static String _indianCommas(String n) {
     if (n.length <= 3) return n;
     // Last 3 digits, then groups of 2

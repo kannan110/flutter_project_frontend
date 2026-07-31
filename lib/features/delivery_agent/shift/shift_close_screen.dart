@@ -189,8 +189,13 @@ class _S extends ConsumerState<ShiftCloseScreen> {
   //
   // Example: DC=1100 | Delivered=1000 | LiveReturn=66 kg | Mortality=15.07 kg
   //   Shrinkage = 1100 − 1000 − 66 − 15.07 = 18.93 kg ✓
-  double get _shrinkageKg => (_dcKg +
-      _transferInKg -
+  // ★ CHANGED (Loaded Stock audit): Total Loaded is the single authoritative
+  // value from get_shift_stock_summary — shrinkage now reads it directly
+  // instead of adding _dcKg + _transferInKg in Flutter.
+  int    get _totalLoadedBirds => (_recon['total_loaded_birds'] as num?)?.toInt()    ?? 0;
+  double get _totalLoadedKg    => (_recon['total_loaded_kg']    as num?)?.toDouble() ?? 0;
+
+  double get _shrinkageKg => (_totalLoadedKg -
       _transferOutKg -
       _deliveredKg -
       _returnWt -          // direct live return weight (Section 4)
@@ -198,7 +203,7 @@ class _S extends ConsumerState<ShiftCloseScreen> {
       .clamp(0.0, double.infinity);
 
   double get _shrinkagePct {
-    final base = _dcKg + _transferInKg;
+    final base = _totalLoadedKg;
     return base > 0 ? (_shrinkageKg / base * 100) : 0.0;
   }
 
@@ -295,6 +300,23 @@ class _S extends ConsumerState<ShiftCloseScreen> {
       stockOk = true;
     } catch (_) {}
 
+    // ★ NEW (Loaded Stock audit): get_shift_stock_summary is now the single
+    // source of truth for Loaded Stock — Farm DC, In-House Loaded, and the
+    // authoritative Total Loaded. Nothing below recalculates these.
+    int dcLoadedBirds = 0, inHouseLoadedBirds = 0, totalLoadedBirds = 0;
+    double dcLoadedKg = 0, inHouseLoadedKg = 0, totalLoadedKg = 0;
+    try {
+      final summary = await _c.rpc('get_shift_stock_summary',
+          params: {'p_shift_id': shift['id']}).timeout(const Duration(seconds: 10));
+      final s = (summary as Map?)?.cast<String, dynamic>();
+      dcLoadedBirds      = (s?['dc_loaded_birds']       as num?)?.toInt()    ?? 0;
+      dcLoadedKg         = (s?['dc_loaded_kg']           as num?)?.toDouble() ?? 0;
+      inHouseLoadedBirds = (s?['in_house_loaded_birds']  as num?)?.toInt()    ?? 0;
+      inHouseLoadedKg    = (s?['in_house_loaded_kg']     as num?)?.toDouble() ?? 0;
+      totalLoadedBirds   = (s?['total_loaded_birds']     as num?)?.toInt()    ?? 0;
+      totalLoadedKg      = (s?['total_loaded_kg']        as num?)?.toDouble() ?? 0;
+    } catch (_) {}
+
     // Stock ledger breakdown for this shift
     // FIX: transfers have shift_id=null (written before shift linkage fix).
     // Query ALL agent ledger rows for today — transfers are date-based not shift-linked.
@@ -329,8 +351,8 @@ class _S extends ConsumerState<ShiftCloseScreen> {
             []);
       }
 
-      int dcB = 0, delB = 0, mortB = 0, tiB = 0, toB = 0;
-      double dcK = 0, delK = 0, mortK = 0, tiK = 0, toK = 0;
+      int delB = 0, mortB = 0, toB = 0;
+      double delK = 0, mortK = 0, toK = 0;
       final List<String> transferNotes = [];
       final Set<String> seenTransferNotes = {};
 
@@ -345,9 +367,6 @@ class _S extends ConsumerState<ShiftCloseScreen> {
         final b = (row['quantity_birds'] as num?)?.toInt() ?? 0;
         final k = (row['quantity_kg'] as num?)?.toDouble() ?? 0;
         switch (mt) {
-          case 'purchased':
-            dcB += b;
-            dcK += k;
           case 'delivered':
             delB += b;
             delK += k;
@@ -356,6 +375,9 @@ class _S extends ConsumerState<ShiftCloseScreen> {
             mortK += k;
         }
       }
+      // ★ CHANGED (Loaded Stock audit): kept only for itemized transfer
+      // notes / transferred_out totals — inHouseLoadedBirds/Kg from
+      // get_shift_stock_summary is the authoritative In-House Loaded figure.
       for (final row in transferRows) {
         final mt = row['movement_type'] as String? ?? '';
         final b = (row['quantity_birds'] as num?)?.toInt() ?? 0;
@@ -363,8 +385,6 @@ class _S extends ConsumerState<ShiftCloseScreen> {
         final note = row['notes'] as String? ?? '';
         switch (mt) {
           case 'transferred_in':
-            tiB += b;
-            tiK += k;
             if (note.isNotEmpty && !seenTransferNotes.contains(note)) {
               seenTransferNotes.add(note);
               transferNotes
@@ -390,16 +410,21 @@ class _S extends ConsumerState<ShiftCloseScreen> {
       }
 
       recon = {
-        'dc_birds': dcB,
-        'dc_kg': dcK,
+        // ★ CHANGED (Loaded Stock audit): dc_birds/kg and transfer_in_birds/kg
+        // now come from get_shift_stock_summary (backend-authoritative).
+        // total_loaded_* added as the single authoritative figure.
+        'dc_birds': dcLoadedBirds,
+        'dc_kg': dcLoadedKg,
         'delivered_birds': delB,
         'delivered_kg': delK,
         'mortality_birds': mortB,
         'mortality_kg': mortK,
-        'transfer_in_birds': tiB,
-        'transfer_in_kg': tiK,
+        'transfer_in_birds': inHouseLoadedBirds,
+        'transfer_in_kg': inHouseLoadedKg,
         'transfer_out_birds': toB,
         'transfer_out_kg': toK,
+        'total_loaded_birds': totalLoadedBirds,
+        'total_loaded_kg': totalLoadedKg,
         'transfer_notes': transferNotes,
         'total_cash': cash,
         'pending_count': pendCount,
@@ -933,11 +958,36 @@ class _S extends ConsumerState<ShiftCloseScreen> {
         child: Column(children: [
           // ── Full reconciliation flow — matches exact formula from spec ─────────
           // Formula: (DC + TransferIn) - TransferOut - Delivered - Mortality - Returned = Shrinkage
-          _rrow('DC Loaded', '+$_dcBirds birds',
+          // ★ CHANGED (Loaded Stock audit): Loaded Stock breakdown — Farm DC
+          // and In-House Loaded are informational sub-rows; Total Loaded
+          // (bold, from get_shift_stock_summary) is authoritative.
+          const Padding(
+            padding: EdgeInsets.only(bottom: 4),
+            child: Text('LOADED STOCK', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w700, color: kTextHint)),
+          ),
+          _rrow('Farm DC', '+$_dcBirds birds',
               '+${_dcKg.toStringAsFixed(1)} kg', Colors.blue, true),
           if (_transferInBirds > 0)
-            _rrow('Transfer In', '+$_transferInBirds birds',
+            _rrow('In-House Loaded', '+$_transferInBirds birds',
                 '+${_transferInKg.toStringAsFixed(1)} kg', Colors.teal, true),
+          const Padding(padding: EdgeInsets.symmetric(vertical: 4),
+              child: Divider(height: 1)),
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 3),
+            child: Row(children: [
+              const SizedBox(width: 12),
+              const Expanded(child: Text('Total Loaded',
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: kNavy))),
+              Text('+$_totalLoadedBirds birds',
+                  style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: kNavy)),
+              const SizedBox(width: 8),
+              SizedBox(width: 84, child: Text('+${_totalLoadedKg.toStringAsFixed(1)} kg',
+                  textAlign: TextAlign.right,
+                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: kNavy))),
+            ]),
+          ),
+          const Padding(padding: EdgeInsets.symmetric(vertical: 4),
+              child: Divider(height: 1)),
           if (_transferOutBirds > 0)
             _rrow(
                 'Transfer Out',
@@ -2139,11 +2189,35 @@ class _S extends ConsumerState<ShiftCloseScreen> {
         ]),
         const SizedBox(height: 16),
         // Formula rows
-        _simpleReconRow('📦 DC Loaded', '+$_dcBirds birds',
+        // ★ FIX (Loaded Stock audit): renamed "DC Loaded" → "Farm DC" and
+        // added the Total Loaded row (bold, backend-sourced from
+        // total_loaded_birds/total_loaded_kg), matching _sec3StockRecon()
+        // exactly. No calculation changed — _dcBirds/_dcKg/_transferInBirds/
+        // _transferInKg/_totalLoadedBirds/_totalLoadedKg are the same
+        // backend-sourced getters already used everywhere else in this file.
+        _simpleReconRow('📦 Farm DC', '+$_dcBirds birds',
             '+${_dcKg.toStringAsFixed(1)} kg', Colors.blue, true),
         if (_transferInBirds > 0)
-          _simpleReconRow('📥 Transfer In', '+$_transferInBirds birds',
+          _simpleReconRow('📥 In-House Loaded', '+$_transferInBirds birds',
               '+${_transferInKg.toStringAsFixed(1)} kg', Colors.teal, true),
+        const Padding(padding: EdgeInsets.symmetric(vertical: 4),
+            child: Divider(height: 1)),
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 3),
+          child: Row(children: [
+            const SizedBox(width: 15),
+            const Expanded(child: Text('Total Loaded',
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: kNavy))),
+            Text('+$_totalLoadedBirds birds',
+                style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: kNavy)),
+            const SizedBox(width: 8),
+            SizedBox(width: 90, child: Text('+${_totalLoadedKg.toStringAsFixed(1)} kg',
+                textAlign: TextAlign.right,
+                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: kNavy))),
+          ]),
+        ),
+        const Padding(padding: EdgeInsets.symmetric(vertical: 4),
+            child: Divider(height: 1)),
         if (_transferOutBirds > 0)
           _simpleReconRow('📤 Transfer Out', '−$_transferOutBirds birds',
               '−${_transferOutKg.toStringAsFixed(1)} kg', Colors.indigo, false),

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../core/providers/session_provider.dart';
 import '../../../../core/theme/app_theme.dart';
@@ -188,6 +189,57 @@ class _AgentSimpleEntrySheetState extends ConsumerState<AgentSimpleEntrySheet> {
     return anyEntered ? _totalBirds : null;
   }
 
+  // ★ NEW: Possible-duplicate confirmation dialog — never blocks, just warns.
+  Future<bool?> _showDuplicateOrderDialog(Map<String, dynamic> d) {
+    final createdAt = DateTime.tryParse(d['created_at'] as String? ?? '');
+    final timeStr = createdAt != null
+        ? DateFormat('dd MMM, hh:mm a').format(createdAt.toLocal())
+        : '—';
+    return showDialog<bool>(
+      context: context,
+      useRootNavigator: true,
+      builder: (c) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kRadiusCard)),
+        title: Row(children: const [
+          Icon(Icons.info_outline, color: Colors.orange, size: 20),
+          SizedBox(width: 8),
+          Text('Possible Duplicate Order', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+        ]),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('A similar order was created recently.',
+                style: TextStyle(fontSize: 13, color: kTextSub, height: 1.4)),
+            const SizedBox(height: 12),
+            _dupRow('Order No', '${d['order_no']}'),
+            _dupRow('Retailer', '${d['retailer_name']}'),
+            _dupRow('Time', timeStr),
+            _dupRow('Product(s)', (d['products'] as String? ?? '').isEmpty ? '—' : '${d['products']}'),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(c, rootNavigator: true).pop(false),
+            child: const Text('Cancel', style: TextStyle(color: kTextSub, fontWeight: FontWeight.w600)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(c, rootNavigator: true).pop(true),
+            child: const Text('Create New Order', style: TextStyle(color: kNavy, fontWeight: FontWeight.w800)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _dupRow(String label, String value) => Padding(
+    padding: const EdgeInsets.only(bottom: 6),
+    child: Row(children: [
+      SizedBox(width: 80, child: Text(label, style: const TextStyle(fontSize: 12, color: kTextHint))),
+      Expanded(child: Text(value, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700))),
+    ]),
+  );
+
   Future<void> _submit() async {
     setState(() => _err = null);
 
@@ -231,6 +283,24 @@ class _AgentSimpleEntrySheetState extends ConsumerState<AgentSimpleEntrySheet> {
       confirmColor: kNavy,
     );
     if (!ok || !mounted) return;
+
+    // ★ NEW (duplicate-order audit): warn, never block.
+    try {
+      final totalBirds = activeLines.fold<int>(0, (s, l) => s + l.birds);
+      final dup = await _c.rpc('check_duplicate_order', params: {
+        'p_trader_id': user.traderId,
+        'p_retailer_id': _selRetailer!['id'],
+        'p_product_id': activeLines.first.product!['id'],
+        'p_estimated_birds': totalBirds,
+      });
+      final d = (dup as Map?)?.cast<String, dynamic>();
+      if (d?['is_duplicate'] == true) {
+        final proceed = await _showDuplicateOrderDialog(d!);
+        if (proceed != true) return;
+      }
+    } catch (_) {
+      // Pre-check failing should never block order creation.
+    }
 
     setState(() => _submitting = true);
 

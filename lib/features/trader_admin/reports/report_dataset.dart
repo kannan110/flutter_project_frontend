@@ -58,6 +58,13 @@ class ReportDataSet {
   /// hint, never affects Table View, PDF, or any calculation.
   final List<int>? cardPrimaryColumns;
 
+  /// Optional compact customer identity line, rendered by the PDF between
+  /// the report header and the table (e.g. Customer Ledger's "Customer /
+  /// Mobile"). Null for every report except Customer Ledger — no visual
+  /// change for any other report.
+  final String? customerName;
+  final String? customerMobile;
+
   const ReportDataSet({
     required this.title,
     required this.headers,
@@ -70,6 +77,8 @@ class ReportDataSet {
     this.warnThreshold = 0,
     this.summary = const [],
     this.cardPrimaryColumns,
+    this.customerName,
+    this.customerMobile,
   });
 
   int get columnCount => headers.length;
@@ -105,6 +114,8 @@ class ReportDataSet {
       warnThreshold: warnThreshold,
       summary: summary,
       cardPrimaryColumns: cardPrimaryColumns,
+      customerName: customerName,
+      customerMobile: customerMobile,
     );
   }
 

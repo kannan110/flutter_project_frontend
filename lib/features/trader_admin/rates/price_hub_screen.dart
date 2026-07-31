@@ -753,7 +753,7 @@ class _CustomerRatesTabState extends ConsumerState<_CustomerRatesTab> {
                               context: ctx,
                               initialDate: effDate,
                               firstDate: DateTime.now()
-                                  .subtract(const Duration(days: 1)),
+                                  .subtract(const Duration(days: 10)),
                               lastDate:
                               DateTime.now().add(const Duration(days: 30)));
                           if (p != null) ss(() => effDate = p);

@@ -8,6 +8,7 @@ import 'package:rooster_trader/features/trader_admin/reports/report_table.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/providers/session_provider.dart';
 import '../../../core/theme/app_theme.dart';
+import 'customer_ledger_row_builder.dart';
 import 'report_pdf_generator.dart';
 import '../../../shared/layouts/responsive_layout.dart';
 
@@ -54,6 +55,7 @@ const _cBusiness   = Color(0xFF1565C0);
 const _cOperations = Color(0xFFE65100);
 const _cSales       = Color(0xFF2E7D32);
 const _cFinancial   = Color(0xFF4527A0);
+const _cLedger      = Color(0xFF00695C); // matches ReportCategory.ledger in report_inventory.dart
 
 const _kR = [
   _Rep('daily_summary',        'Daily Summary',      Icons.today_outlined,             _cBusiness),
@@ -80,6 +82,8 @@ const _kR = [
   // official full-batch-cost model — the P&L Statement remains the source
   // for the official Profit figure. No data/RPC change — label + banner only.
   _Rep('profitability_breakdown','Profit Breakdown',    Icons.pie_chart_outline,         _cFinancial),
+  // ── Ledger (new) ────────────────────────────────────────────────────────
+  _Rep('customer_ledger',       'Customer Ledger',      Icons.receipt_long_outlined,     _cLedger),
 ];
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -153,6 +157,18 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
   Future<void> _load() async {
     final tid = ref.read(appUserProvider).valueOrNull?.traderId;
     if (tid == null) return;
+
+    final isCustomerLedger = _sel.key == 'customer_ledger';
+    // Customer Ledger is retailer-scoped (get_retailer_statement), unlike
+    // every other report here (trader-wide get_report_data). Without a
+    // retailer picked there is nothing to fetch — skip the call rather
+    // than error, and let _rCustomerLedger() render the "pick a customer"
+    // prompt instead.
+    if (isCustomerLedger && _retailerId == null) {
+      setState(() { _loading = false; _error = null; _data = null; });
+      return;
+    }
+
     setState(() { _loading=true; _error=null; _data=null; });
     final isPricingAnalytics = const {
       'product_sales', 'zone_sales', 'discount_leakage',
@@ -161,6 +177,20 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
     final isProfitBreakdown = _sel.key == 'profitability_breakdown';
 
     try {
+      if (isCustomerLedger) {
+        // Same RPC the Retailer Statement screen uses — no duplicated
+        // balance/ledger logic. p_agent_id reuses the exact filter already
+        // wired below for every other report.
+        final res = await _c.rpc('get_retailer_statement', params: {
+          'p_retailer_id': _retailerId,
+          'p_from_date':   DateFormat('yyyy-MM-dd').format(_from),
+          'p_to_date':     DateFormat('yyyy-MM-dd').format(_to),
+          if (_agentId != null) 'p_agent_id': _agentId,
+        }).timeout(const Duration(seconds: 20));
+        if (mounted) setState(() => _data = (res as Map?)?.cast<String, dynamic>());
+        return;
+      }
+
       final p = <String,dynamic>{
         'p_trader_id': tid,
         'p_from_date': DateFormat('yyyy-MM-dd').format(_from),
@@ -220,10 +250,19 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
         body: Column(children: [
           if (widget.showChipPicker) _buildReportGrid(),
           _buildDateBar(),
-          if (_filtersExpanded) _buildInlineFilters(),
+          // Customer Ledger's Retailer dropdown is mandatory (this report
+          // is retailer-scoped), so its filters are always visible for
+          // this report regardless of the collapsed/expanded toggle state
+          // — same inline filter row every other report already has.
+          if (_filtersExpanded || _sel.key == 'customer_ledger') _buildInlineFilters(),
           if (_sel.key == 'profitability_breakdown') _buildDimensionBar(),
           Expanded(child: _loading ? const LoadingList()
               : _error != null ? _buildError()
+              : (_sel.key == 'customer_ledger' && _retailerId == null)
+              ? const EmptyState(
+              icon: Icons.storefront_outlined,
+              message: 'Pick a customer to view their ledger',
+              sub: 'Use the Retailer filter above.')
               : _data == null  ? const EmptyState(icon: Icons.bar_chart_outlined, message: 'Loading...')
               : _buildReport()),
         ]));
@@ -368,6 +407,7 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
       'rate_source_breakdown'=> _rRateSource(),
       'profitability_enhanced'=> _rProfitabilityEnhanced(),
       'profitability_breakdown'=> _rProfitabilityBreakdown(),
+      'customer_ledger'       => _rCustomerLedger(),
       _                      => const EmptyState(icon: Icons.bar_chart_outlined, message: 'No data'),
     };
   }
@@ -736,6 +776,58 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
+  // 18. CUSTOMER LEDGER  (Reports → Ledger → Customer Ledger)
+  //
+  // Deliberately built the exact same way as _rRetailerPurchase() above:
+  // _kpiGrid for summary cards, _sec for the section label, _tbl() for the
+  // table — which gives this report the identical Card/Table toggle,
+  // PDF/Excel/Print/Share toolbar, responsive table, and styling every
+  // other report already has, with zero new UI code. Only the summary
+  // cards and the table's columns are report-specific.
+  //
+  // Data source: get_retailer_statement() RPC (see _load()'s isCustomerLedger
+  // branch) — the same RPC the Retailer Statement screen uses. Row
+  // flattening (multi-product invoice splitting, interpolated balance) is
+  // shared with the PDF generator via CustomerLedgerRowBuilder, so the
+  // on-screen table and the exported PDF can never disagree.
+  // ═══════════════════════════════════════════════════════════════════════════
+  Widget _rCustomerLedger() {
+    if (_data == null) return const EmptyState(icon: Icons.receipt_long_outlined, message: 'No data for the selected range');
+
+    final header = (_data!['header'] as Map?)?.cast<String, dynamic>() ?? {};
+    final opening = (_data!['opening_balance'] as num?)?.toDouble() ?? 0;
+    final closing = (_data!['closing_balance'] as num?)?.toDouble() ?? 0;
+    final s = _s();
+    final agentName = _agentId == null
+        ? null
+        : _agents.firstWhere((a) => a['id'] == _agentId, orElse: () => const {})['name'] as String?;
+
+    // Same shared builder the PDF uses (CustomerLedgerTableData.from) — the
+    // on-screen table and every exported PDF are guaranteed to show
+    // identical headers/rows/totals text.
+    final t = CustomerLedgerTableData.from(_data!);
+
+    return _scroll([
+      _kpiGrid([
+        _kpi2('Opening Bal.', Fmt.amount(opening), Colors.blueGrey, Icons.account_balance_outlined),
+        _kpi2('Total Sales',  Fmt.amount(_d(s, 'total_invoiced')), const Color(0xFFE65100), Icons.receipt_outlined),
+        _kpi2('Collected',    Fmt.amount(_d(s, 'total_collections')), Colors.green, Icons.payments_outlined),
+        _kpi2('Closing Bal.', Fmt.amount(closing), closing > 0 ? Colors.red : Colors.green, Icons.account_balance_wallet_outlined),
+      ]),
+      if (agentName != null)
+        _banner('Showing entries handled by $agentName only. Balance reflects the full account across all agents.', _cLedger),
+      _sec('${(header['retailer_name'] as String?) ?? 'Customer'} — LEDGER'),
+      _tbl(
+          t.headers,
+          t.rows,
+          tots: t.totals,
+          hi: const [8],
+          customerName: header['retailer_name'] as String? ?? 'Customer',
+          customerMobile: header['retailer_phone'] as String?),
+    ]);
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
   // 11. PROFITABILITY
   // ═══════════════════════════════════════════════════════════════════════════
   Widget _rProfitability() {
@@ -851,7 +943,7 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
 
   Widget _tbl(List<String> heads, List<List<String>> rows, {
     List<String>? tots, List<int> hi=const[], int? warnC, double warnT=0,
-    List<int>? cardPrimary,
+    List<int>? cardPrimary, String? customerName, String? customerMobile,
   }) {
     final user = ref.read(appUserProvider).valueOrNull;
     final company = user?.companyName ?? 'Rooster';
@@ -866,6 +958,8 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
       warnColumn: warnC,
       warnThreshold: warnT,
       cardPrimaryColumns: cardPrimary,
+      customerName: customerName,
+      customerMobile: customerMobile,
     );
     return ReportTableBlock(
       key: ValueKey('${_sel.key}_${_from}_${_to}_${_tblCallIndex++}'),
@@ -884,6 +978,20 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
     final user = ref.read(appUserProvider).valueOrNull;
     final company = user?.companyName ?? 'DSR Chicken';
     try {
+      if (_sel.key == 'customer_ledger') {
+        final agentName = _agentId == null
+            ? null
+            : _agents.firstWhere((a) => a['id'] == _agentId, orElse: () => const {})['name'] as String?;
+        await ReportPdfGenerator.generateCustomerLedgerReportAndShow(
+          context: context,
+          data: _data!,
+          companyName: company,
+          fromDate: _from,
+          toDate: _to,
+          agentFilterName: agentName,
+        );
+        return;
+      }
       await ReportPdfGenerator.generateAndShow(
         context:     context,
         reportData:  _data!,
@@ -945,6 +1053,24 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
 
   Future<void> _shareReport() async {
     if (_data == null) { showError(context, 'No report to share'); return; }
+    if (_sel.key == 'customer_ledger') {
+      final user = ref.read(appUserProvider).valueOrNull;
+      final agentName = _agentId == null
+          ? null
+          : _agents.firstWhere((a) => a['id'] == _agentId, orElse: () => const {})['name'] as String?;
+      try {
+        await ReportPdfGenerator.shareCustomerLedgerReport(
+          data: _data!,
+          companyName: user?.companyName ?? 'DSR Chicken',
+          fromDate: _from,
+          toDate: _to,
+          agentFilterName: agentName,
+        );
+      } catch (e) {
+        if (mounted) showError(context, e.toString().replaceAll('Exception: ', ''));
+      }
+      return;
+    }
     final buf = StringBuffer();
     buf.writeln('DSR Chicken - ${_sel.label}');
     buf.writeln('${DateFormat("d MMM yyyy").format(_from)} - ${DateFormat("d MMM yyyy").format(_to)}');

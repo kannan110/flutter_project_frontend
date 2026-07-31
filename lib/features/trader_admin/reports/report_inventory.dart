@@ -11,7 +11,7 @@
 
 import 'package:flutter/material.dart';
 
-enum ReportCategory { business, operations, sales, financial }
+enum ReportCategory { business, operations, sales, financial, ledger }
 
 extension ReportCategoryX on ReportCategory {
   String get label => switch (this) {
@@ -19,24 +19,28 @@ extension ReportCategoryX on ReportCategory {
     ReportCategory.operations => 'Operations',
     ReportCategory.sales => 'Sales',
     ReportCategory.financial => 'Financial',
+    ReportCategory.ledger => 'Ledger',
   };
   String get description => switch (this) {
     ReportCategory.business => 'Daily summary, collection, profitability, expenses',
     ReportCategory.operations => 'Deliveries, stock recon., mortality, shrinkage',
     ReportCategory.sales => 'Retailer purchase, product sales, zone sales',
     ReportCategory.financial => 'P&L, cash flow, margin analysis, supplier statement',
+    ReportCategory.ledger => 'Customer ledger statements with running balance',
   };
   IconData get icon => switch (this) {
     ReportCategory.business => Icons.trending_up_outlined,
     ReportCategory.operations => Icons.local_shipping_outlined,
     ReportCategory.sales => Icons.storefront_outlined,
     ReportCategory.financial => Icons.account_balance_outlined,
+    ReportCategory.ledger => Icons.receipt_long_outlined,
   };
   Color get color => switch (this) {
     ReportCategory.business => const Color(0xFF1565C0),
     ReportCategory.operations => const Color(0xFFE65100),
     ReportCategory.sales => const Color(0xFF2E7D32),
     ReportCategory.financial => const Color(0xFF4527A0),
+    ReportCategory.ledger => const Color(0xFF00695C),
   };
 }
 
@@ -84,6 +88,15 @@ const List<ReportInventoryEntry> kReportInventory = [
   // ── Financial ─────────────────────────────────────────────────────────
   ReportInventoryEntry(key: 'profitability_enhanced', label: 'Profit (Full)', category: ReportCategory.financial, frequency: 'Monthly'),
   ReportInventoryEntry(key: 'profitability_breakdown', label: 'Profit Breakdown', category: ReportCategory.financial, frequency: 'Monthly'),
+
+  // ── Ledger ────────────────────────────────────────────────────────────
+  // 'customer_ledger' IS a ReportsHubScreen/_kR tab (matching key added to
+  // _kR in reports_hub_screen.dart) — it reuses the exact same report
+  // framework (date bar, Agent/Retailer inline filters, _kpiGrid summary
+  // cards, _tbl()/ReportTableBlock Card/Table toggle + PDF/Excel/Print/
+  // Share toolbar) as every other report, e.g. Retailer Purchase. Only its
+  // summary cards and table columns differ.
+  ReportInventoryEntry(key: 'customer_ledger', label: 'Customer Ledger', category: ReportCategory.ledger, frequency: 'Ad hoc'),
 ];
 
 List<ReportInventoryEntry> reportsInCategory(ReportCategory c) =>
