@@ -60,6 +60,15 @@ class _S extends ConsumerState<DashboardScreen> {
   List<Map<String, dynamic>> _dashboardAging   = [];  // from get_dashboard_aging
   List<Map<String, dynamic>> _topRetailers     = [];  // from get_top_retailers_today
   List<Map<String, dynamic>> _revenueTrend     = [];  // from get_7day_revenue_trend
+  // ★ Business Health — Current Stock Value by Product. Purely rendered
+  // from get_business_health_by_product_v1 — every cost/value figure comes
+  // from the shared Valuation Engine (Traced → Effective Stock Point Cost
+  // → Existing Average Cost → MWAC → Pending), nothing computed here.
+  // Filtered to enabled AND currently-stocked products only (kg > 0) —
+  // this main dashboard is a top-level summary, not the per-product deep
+  // dive (that's Inventory Dashboard, which still shows every product
+  // regardless of current stock level).
+  List<Map<String, dynamic>> _stockValueByProduct = [];
   bool _loading = true;
   String? _error;
 
@@ -108,6 +117,22 @@ class _S extends ConsumerState<DashboardScreen> {
         recentOrders = List<Map<String, dynamic>>.from(r as List? ?? []);
       } catch (_) {}
 
+      // ★ Business Health — Current Stock Value by Product. Isolated in
+      // its own try/catch (matching recentOrders above) so a failure here
+      // never breaks the rest of the dashboard — it just shows nothing.
+      List<Map<String, dynamic>> bhRows = [];
+      try {
+        final bh = await Supabase.instance.client
+            .rpc('get_business_health_by_product_v1', params: {'p_trader_id': tid})
+            .timeout(const Duration(seconds: 8));
+        // ★ Presentation-only filter (which rows to show), not a
+        // calculation — every value in each row already came from the
+        // backend untouched.
+        bhRows = List<Map<String, dynamic>>.from((bh as Map?)?['rows'] as List? ?? [])
+            .where((r) => ((r['current_stock_kg'] as num?) ?? 0) > 0)
+            .toList();
+      } catch (_) {}
+
       if (!mounted) return;
 
       final dm  = results[0] as Map<String, dynamic>?;
@@ -124,6 +149,7 @@ class _S extends ConsumerState<DashboardScreen> {
         _topRetailers   = List<Map<String, dynamic>>.from(tr ?? []);
         _revenueTrend   = List<Map<String, dynamic>>.from(rt ?? []);
         _recentOrders = recentOrders;
+        _stockValueByProduct = bhRows;
         _loading      = false;
       });
 
@@ -180,6 +206,7 @@ class _S extends ConsumerState<DashboardScreen> {
             const SizedBox(height: 20),
             _BusinessHealthCard(
               data: d,
+              stockValueByProduct: _stockValueByProduct,
               onPnl: () => context.push(R.pnlStatement),
               onCashFlow: () => context.push(R.cashFlowStatement),
             ),
@@ -366,6 +393,7 @@ class _S extends ConsumerState<DashboardScreen> {
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
             child: _BusinessHealthCard(
               data: d,
+              stockValueByProduct: _stockValueByProduct,
               onPnl: () => context.push(R.pnlStatement),
               onCashFlow: () => context.push(R.cashFlowStatement),
             ),
@@ -611,6 +639,7 @@ class _S extends ConsumerState<DashboardScreen> {
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
             child: _BusinessHealthCard(
               data: d,
+              stockValueByProduct: _stockValueByProduct,
               onPnl: () => context.push(R.pnlStatement),
               onCashFlow: () => context.push(R.cashFlowStatement),
             ),
@@ -1657,11 +1686,18 @@ class _BusinessHealthCard extends StatelessWidget {
     required this.data,
     required this.onPnl,
     required this.onCashFlow,
+    this.stockValueByProduct = const [],
   });
 
   final DashboardData data;
   final VoidCallback onPnl;
   final VoidCallback onCashFlow;
+  // ★ Current Stock Value by Product — enabled + currently-stocked
+  // products only. Every field in each row is read verbatim from
+  // get_business_health_by_product_v1; nothing here computes a cost or
+  // a value. Empty list (default) simply hides this sub-section — every
+  // existing call site of this widget continues to work unchanged.
+  final List<Map<String, dynamic>> stockValueByProduct;
 
   @override
   Widget build(BuildContext context) {
@@ -1897,6 +1933,62 @@ class _BusinessHealthCard extends StatelessWidget {
               ]),
             ),
           ),
+
+        // ── Current Stock Value by Product (enabled + stocked only) ──────────
+        // Purely rendered from get_business_health_by_product_v1 — no
+        // calculation happens here. Hidden entirely when there's nothing
+        // currently stocked, rather than showing an empty section.
+        if (stockValueByProduct.isNotEmpty) ...[
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+            child: Row(children: [
+              const Icon(Icons.inventory_2_outlined, size: 11, color: kNavy),
+              const SizedBox(width: 4),
+              const Text('CURRENT STOCK VALUE  —  By Product',
+                  style: TextStyle(fontSize: 9, fontWeight: FontWeight.w900,
+                      color: kNavy, letterSpacing: 0.5)),
+            ]),
+          ),
+          ...stockValueByProduct.map((r) {
+            final kg = (r['current_stock_kg'] as num?)?.toDouble() ?? 0;
+            final costPerKg = (r['cost_per_kg'] as num?)?.toDouble();
+            final stockValue = (r['current_stock_value'] as num?)?.toDouble();
+            final marketRate = (r['market_rate_per_kg'] as num?)?.toDouble();
+            final marketValue = (r['market_value'] as num?)?.toDouble();
+            final isPending = r['is_pending_cost'] == true;
+            return Container(
+              margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: isPending ? Colors.orange.withValues(alpha: 0.05) : kNavy.withValues(alpha: 0.03),
+                borderRadius: BorderRadius.circular(kRadiusInner),
+                border: Border.all(color: isPending ? Colors.orange.withValues(alpha: 0.2) : kNavy.withValues(alpha: 0.08)),
+              ),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Row(children: [
+                  Expanded(child: Text(r['product_name'] as String? ?? '—',
+                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800))),
+                  Text('${kg.toStringAsFixed(0)} kg', style: const TextStyle(fontSize: 11, color: kTextSub)),
+                ]),
+                const SizedBox(height: 6),
+                Row(children: [
+                  _kgPill('Cost/kg', costPerKg, isPending ? Colors.orange : Colors.blue,
+                      format: (v) => '₹${v.toStringAsFixed(0)}'),
+                  _kgPill('Stock Value', stockValue, isPending ? Colors.orange : kSuccess,
+                      format: (v) => Fmt.amount(v)),
+                  _kgPill('Mkt Value', marketValue, kNavy,
+                      format: (v) => Fmt.amount(v)),
+                ]),
+                if (marketRate != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Text("Today's Market Rate: ₹${marketRate.toStringAsFixed(0)}/kg",
+                        style: const TextStyle(fontSize: 9.5, color: kTextSub)),
+                  ),
+              ]),
+            );
+          }),
+        ],
       ]),
     );
   }

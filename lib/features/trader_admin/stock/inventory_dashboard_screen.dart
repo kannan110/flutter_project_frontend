@@ -27,6 +27,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:rooster_trader/features/trader_admin/stock/stockpoint_effective_cost_screen.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/providers/session_provider.dart';
 import '../../../core/theme/app_theme.dart';
@@ -44,6 +45,17 @@ class _InventoryDashboardScreenState extends ConsumerState<InventoryDashboardScr
   Map<String, dynamic>? _data;
   bool _loading = true;
   String? _error;
+
+  // ★ ROOT-CAUSE FIX — out-of-order async response guard. Every call to
+  // _load() captures the product it was fetching for AND a monotonically
+  // increasing request id at the moment it starts. When its RPC response
+  // arrives, it is only ever applied to state if BOTH still match current
+  // state — i.e. no newer request has since started, and the product
+  // hasn't changed underneath it. This is what makes it structurally
+  // impossible (not just unlikely) for a slow response from a previously
+  // -selected product to overwrite a newer, correct one: a stale response
+  // is silently discarded rather than applied.
+  int _requestId = 0;
 
   // ★ Product selection — one chip per active product, no "All Products"
   // option (per requirement). Defaults to Broiler by name if present,
@@ -97,24 +109,46 @@ class _InventoryDashboardScreenState extends ConsumerState<InventoryDashboardScr
 
   void _selectProduct(String productId) {
     if (productId == _selectedProductId) return;
-    setState(() => _selectedProductId = productId);
+    setState(() {
+      _selectedProductId = productId;
+      // ★ FIX: clear the previous product's data the INSTANT the switch
+      // happens, not just when the new response arrives. Combined with
+      // the request-token guard in _load(), this closes the gap on both
+      // ends — nothing stale can render while waiting, and nothing stale
+      // can be written once the new response lands.
+      _data = null;
+    });
     _load();
   }
 
   Future<void> _load() async {
     final tid = ref.read(appUserProvider).valueOrNull?.traderId;
     if (tid == null || _selectedProductId == null) return;
+
+    // ★ FIX: capture what THIS call is for, before the await. If, by the
+    // time the response comes back, a newer call has started (request id
+    // moved on) or the product has changed, this response is discarded —
+    // it can never overwrite state for a product it wasn't fetched for.
+    final requestId = ++_requestId;
+    final requestedProductId = _selectedProductId;
+
     setState(() { _loading = true; _error = null; });
     try {
       final res = await _c.rpc('get_stock_point_dashboard_v1', params: {
         'p_trader_id': tid,
-        'p_product_id': _selectedProductId,
+        'p_product_id': requestedProductId,
       }).timeout(const Duration(seconds: 20));
-      if (mounted) setState(() => _data = (res as Map?)?.cast<String, dynamic>());
+
+      final isStillCurrent = requestId == _requestId && requestedProductId == _selectedProductId;
+      if (mounted && isStillCurrent) {
+        setState(() => _data = (res as Map?)?.cast<String, dynamic>());
+      }
     } catch (e) {
-      if (mounted) setState(() => _error = e.toString().replaceAll('Exception:', '').trim());
+      final isStillCurrent = requestId == _requestId && requestedProductId == _selectedProductId;
+      if (mounted && isStillCurrent) setState(() => _error = e.toString().replaceAll('Exception:', '').trim());
     } finally {
-      if (mounted) setState(() => _loading = false);
+      final isStillCurrent = requestId == _requestId && requestedProductId == _selectedProductId;
+      if (mounted && isStillCurrent) setState(() => _loading = false);
     }
   }
 
@@ -135,6 +169,17 @@ class _InventoryDashboardScreenState extends ConsumerState<InventoryDashboardScr
         initialProductId: _selectedProductId,
       ),
     ));
+  }
+
+  void _openEffectiveCostScreen() {
+    final productId = _selectedProductId;
+    if (productId == null) return;
+    final productName = _products.firstWhere(
+          (p) => p['id'] == productId, orElse: () => const {},
+    )['name'] as String? ?? '';
+    Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => StockPointEffectiveCostScreen(productId: productId, productName: productName),
+    )).then((_) => _load()); // refresh dashboard on return — a new confirmation may have changed Average Cost
   }
 
   @override
@@ -347,6 +392,7 @@ class _InventoryDashboardScreenState extends ConsumerState<InventoryDashboardScr
     final purchaseValue = avgCost == null ? null : currentKg * avgCost;
     final basisLabel = switch (_data?['avg_cost_basis']) {
       'traced_purchase_entry' => 'Traced Purchase Cost',
+      'effective_stock_point_cost' => 'Effective Stock Point Cost',
       'existing_average_cost' || 'rollout_seed_average_cost' => 'Existing Average Cost',
       'current_mwac' => 'MWAC',
       _ => null,
@@ -372,24 +418,31 @@ class _InventoryDashboardScreenState extends ConsumerState<InventoryDashboardScr
         ]),
       ),
       const SizedBox(height: 10),
-      Row(children: [
-        Icon(Icons.calculate_outlined, size: 14, color: kTextHint),
-        const SizedBox(width: 6),
-        Expanded(child: Text(
-          avgCost == null
-              ? 'Average Cost: Pending'
-              : 'Average Cost: ₹${avgCost.toStringAsFixed(2)}/kg',
-          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600,
-              color: avgCost == null ? Colors.orange.shade800 : kTextSub),
-        )),
-        Expanded(child: Text(
+      InkWell(
+        borderRadius: BorderRadius.circular(8),
+        onTap: () => _openEffectiveCostScreen(),
+        child: Row(children: [
+          Icon(Icons.calculate_outlined, size: 14, color: kTextHint),
+          const SizedBox(width: 6),
+          Expanded(child: Text(
+            avgCost == null
+                ? 'Average Cost: Pending'
+                : 'Average Cost: ₹${avgCost.toStringAsFixed(2)}/kg',
+            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600,
+                color: avgCost == null ? Colors.orange.shade800 : kTextSub),
+          )),
+          Icon(Icons.chevron_right, size: 16, color: kTextHint.withValues(alpha: 0.6)),
+        ]),
+      ),
+      Padding(
+        padding: const EdgeInsets.only(top: 2),
+        child: Text(
           marketRate == null
               ? "Today's Market Rate: —"
               : "Today's Market Rate: ₹${marketRate.toStringAsFixed(2)}/kg",
-          textAlign: TextAlign.end,
           style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: kTextSub),
-        )),
-      ]),
+        ),
+      ),
       if (basisLabel != null) ...[
         const SizedBox(height: 4),
         Text('Source: $basisLabel', style: TextStyle(fontSize: 10.5, color: kTextHint.withValues(alpha: 0.9))),
