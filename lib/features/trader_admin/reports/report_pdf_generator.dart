@@ -43,7 +43,7 @@ class ReportPdfGenerator {
     final to   = dataSet.toDate   ?? DateTime.now();
 
     doc.addPage(pw.MultiPage(
-        pageFormat: PdfPageFormat.a4,
+        pageFormat: dataSet.landscape ? PdfPageFormat.a4.landscape : PdfPageFormat.a4,
         margin: const pw.EdgeInsets.all(28),
         header: (_) => _header(companyName, dataSet.title, from, to),
         footer: (ctx) => dataSet.useBrandedFooter ? _footer(ctx) : _footer(),
@@ -67,6 +67,7 @@ class ReportPdfGenerator {
               rows: dataSet.rows,
               totals: dataSet.totals,
               bold: dataSet.highlightColumns,
+              columnFlex: dataSet.columnFlex,
             ),
         ]));
     return doc;
@@ -432,22 +433,28 @@ class ReportPdfGenerator {
         ]);
   }
 
-  // KPI row: 2 or 4 cells
-  static pw.Widget _kpiRow(List<_KpiCell> cells) => pw.Row(
-      children: cells.map((c) => pw.Expanded(
-          child: pw.Container(
-              margin: const pw.EdgeInsets.only(right: 6),
-              padding: const pw.EdgeInsets.all(10),
-              decoration: pw.BoxDecoration(
-                  color: _bgLight,
-                  borderRadius: pw.BorderRadius.circular(4),
-                  border: pw.Border.all(color: _border)),
-              child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
-                pw.Text(c.label, style: pw.TextStyle(fontSize: 8, color: _subText)),
-                pw.SizedBox(height: 3),
-                pw.Text(c.value, style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold,
-                    color: c.color)),
-              ])))).toList());
+  // KPI row: was a single pw.Row of N Expanded cells — fine for the 2-4
+  // items most reports have, but a report with a longer summary (e.g.
+  // Inventory Ledger's 13 items) crammed every card into an unreadably
+  // narrow sliver with labels wrapping letter-by-letter. pw.Wrap with a
+  // sensible minimum card width lets cards flow onto additional rows
+  // instead — for 2-4 items this renders identically to before (they all
+  // still fit on one line), so no existing report's PDF changes.
+  static pw.Widget _kpiRow(List<_KpiCell> cells) => pw.Wrap(
+      spacing: 6, runSpacing: 6,
+      children: cells.map((c) => pw.Container(
+          width: 122,
+          padding: const pw.EdgeInsets.all(10),
+          decoration: pw.BoxDecoration(
+              color: _bgLight,
+              borderRadius: pw.BorderRadius.circular(4),
+              border: pw.Border.all(color: _border)),
+          child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
+            pw.Text(c.label, style: pw.TextStyle(fontSize: 8, color: _subText)),
+            pw.SizedBox(height: 3),
+            pw.Text(c.value, style: pw.TextStyle(fontSize: 13, fontWeight: pw.FontWeight.bold,
+                color: c.color)),
+          ]))).toList());
 
   // Section title
   static pw.Widget _secTitle(String t) => pw.Padding(
@@ -461,11 +468,24 @@ class ReportPdfGenerator {
     required List<List<String>> rows,
     List<String>? totals,
     List<int> bold = const [],
+    // ★ Optional relative width weights (one per header). Null preserves
+    // the exact equal-FlexColumnWidth behavior every existing report's
+    // PDF already uses — this is purely additive.
+    List<double>? columnFlex,
   }) {
     final colWidths = <int, pw.TableColumnWidth>{};
     for (var i = 0; i < headers.length; i++) {
-      colWidths[i] = const pw.FlexColumnWidth();
+      colWidths[i] = (columnFlex != null && i < columnFlex.length)
+          ? pw.FlexColumnWidth(columnFlex[i])
+          : const pw.FlexColumnWidth();
     }
+    // ★ Many-column tables (Inventory Ledger, Daily Closing) need a
+    // smaller font to fit readable words per cell even in landscape —
+    // reports with a normal column count (<=8) are completely unaffected.
+    final isWide = headers.length > 8;
+    final headFs = isWide ? 7.0 : 8.0;
+    final bodyFs = isWide ? 7.5 : 9.0;
+    final cellPad = isWide ? 4.0 : 6.0;
 
     pw.TableRow buildRow(List<String> cells, {bool isHeader=false, bool isTotals=false}) {
       return pw.TableRow(
@@ -478,7 +498,7 @@ class ReportPdfGenerator {
               color: (isHeader || isTotals) ? _primary : null),
           children: cells.asMap().map((i, cell) => MapEntry(i,
               pw.Container(
-                  padding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 5),
+                  padding: pw.EdgeInsets.symmetric(horizontal: cellPad, vertical: isWide ? 3 : 5),
                   // A bold top rule is the "stronger separator" for the
                   // totals row — visually distinct without changing the
                   // row's own height.
@@ -488,7 +508,7 @@ class ReportPdfGenerator {
                       : null,
                   child: pw.Text(cell,
                       style: pw.TextStyle(
-                          fontSize: isHeader ? 8 : 9,
+                          fontSize: isHeader ? headFs : bodyFs,
                           fontWeight: (isHeader || isTotals || bold.contains(i))
                               ? pw.FontWeight.bold : pw.FontWeight.normal,
                           color: (isHeader || isTotals) ? PdfColors.white
@@ -505,10 +525,10 @@ class ReportPdfGenerator {
                   decoration: pw.BoxDecoration(color: i.isOdd ? _bgLight : PdfColors.white),
                   children: row.asMap().map((ci, cell) => MapEntry(ci,
                       pw.Padding(
-                          padding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 5),
+                          padding: pw.EdgeInsets.symmetric(horizontal: cellPad, vertical: isWide ? 3 : 5),
                           child: pw.Text(cell,
                               style: pw.TextStyle(
-                                  fontSize: 9,
+                                  fontSize: bodyFs,
                                   fontWeight: bold.contains(ci) ? pw.FontWeight.bold : pw.FontWeight.normal,
                                   color: _dark))))).values.toList()))).values,
           if (totals != null) buildRow(totals, isTotals: true),

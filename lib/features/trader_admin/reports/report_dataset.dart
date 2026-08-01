@@ -107,6 +107,20 @@ class ReportDataSet {
   /// Customer Ledger.
   final Map<String, dynamic>? customerLedgerData;
 
+  /// ★ Print readability fix. When a table has many columns (e.g. Inventory
+  /// Ledger's 14), equal-width portrait columns wrap text into unreadable
+  /// single-character lines. Landscape roughly doubles usable width.
+  /// Default false — every existing report's PDF is completely unaffected.
+  final bool landscape;
+
+  /// ★ Print readability fix. Relative width weights, one per header
+  /// (e.g. [1.3, 1.0, 1.3, ...] — text-heavy columns like "Remarks" or
+  /// "Movement Type" get more room than short numeric columns like
+  /// "Birds In"). Must match headers.length if provided. Default null
+  /// preserves the exact equal-FlexColumnWidth behavior every existing
+  /// report's PDF already uses.
+  final List<double>? columnFlex;
+
   const ReportDataSet({
     required this.title,
     required this.headers,
@@ -122,6 +136,8 @@ class ReportDataSet {
     this.customerIdentity,
     this.useBrandedFooter = false,
     this.customerLedgerData,
+    this.landscape = false,
+    this.columnFlex,
   });
 
   int get columnCount => headers.length;

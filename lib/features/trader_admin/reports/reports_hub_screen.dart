@@ -96,7 +96,7 @@ const _kR = [
 
 // ─────────────────────────────────────────────────────────────────────────────
 class ReportsHubScreen extends ConsumerStatefulWidget {
-  const ReportsHubScreen({super.key, this.initialReportKey, this.showChipPicker = true});
+  const ReportsHubScreen({super.key, this.initialReportKey, this.showChipPicker = true, this.initialProductId});
 
   /// Optional deep-link target — set when opening a specific report from
   /// the Reports screen category list. Defaults to null (opens on the
@@ -109,6 +109,12 @@ class ReportsHubScreen extends ConsumerStatefulWidget {
   /// true (default), behaves exactly as before — this is what "All Reports"
   /// still uses, unchanged.
   final bool showChipPicker;
+
+  /// ★ Inventory Dashboard product selector — pre-filters the Inventory
+  /// Ledger's existing Product dropdown when deep-linking from a specific
+  /// product's dashboard, so Quick Actions stay product-specific. Defaults
+  /// to null (no filter), preserving every existing call site unchanged.
+  final String? initialProductId;
 
   @override ConsumerState<ReportsHubScreen> createState() => _RHS();
 }
@@ -165,7 +171,7 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
   ];
 
   @override
-  void initState() { super.initState(); _loadFilters(); _load(); }
+  void initState() { super.initState(); _ledgerProductId = widget.initialProductId; _loadFilters(); _load(); }
 
   Future<void> _loadFilters() async {
     final tid = ref.read(appUserProvider).valueOrNull?.traderId;
@@ -530,6 +536,10 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
           r['stock_verified'] == true ? 'Yes' : 'No',
         ]).toList(),
         hi: [8, 9], cardPrimary: [6, 8, 9],
+        // ★ Print readability fix — same 14-column disaster risk as
+        // Inventory Ledger, same fix (landscape + content-aware weights).
+        landscape: true,
+        columnFlex: const [1.2, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.9, 1.1, 1.1, 1.0, 1.3, 0.7, 0.8],
         summary: [
           ReportSummaryItem('Total Loaded', '${_d(s,"total_loaded_kg").toStringAsFixed(1)} kg'),
           ReportSummaryItem('Total Return', '${_d(s,"total_return_kg").toStringAsFixed(1)} kg'),
@@ -675,7 +685,6 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
       '${_fd(r['entry_date'])} ${_time(r['created_at'])}',
       _str(r,'reference_no'),
       _label(_str(r,'movement_type')),
-      _str(r,'stock_point'),
       _str(r,'product_name'),
       _i(r,'birds_in') > 0 ? '${_i(r,"birds_in")}' : '—',
       _i(r,'birds_out') > 0 ? '${_i(r,"birds_out")}' : '—',
@@ -694,12 +703,12 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
     // they read clearly in both Table View and the PDF without changing
     // ReportDataSet's shape.
     final openingRow = [
-      _fd(_from), '—', '— OPENING BALANCE —', stockPoint, '(all products)',
+      _fd(_from), '—', '— OPENING BALANCE —', '(all products)',
       '—','—','—','—', '${_i(s,"opening_birds")}', _d(s,'opening_kg').toStringAsFixed(1),
       '—','—','—','Brought forward',
     ];
     final closingRow = [
-      _fd(_to), '—', '— CLOSING BALANCE —', stockPoint, '(all products)',
+      _fd(_to), '—', '— CLOSING BALANCE —', '(all products)',
       '—','—','—','—', '${_i(s,"closing_birds")}', _d(s,'closing_kg').toStringAsFixed(1),
       s['avg_cost_per_kg'] == null ? '—' : '₹${_d(s,"avg_cost_per_kg").toStringAsFixed(2)}',
       Fmt.amount(_d(s,'closing_inventory_value')), '—', 'Carried forward',
@@ -734,13 +743,24 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
       ]),
       _sec('STOCK LEDGER'),
       _tbl(
-        ['Date & Time','Ref No','Movement Type','Stock Point','Product',
+        ['Date & Time','Ref No','Movement Type','Product',
           'Birds In','Birds Out','Wt In kg','Wt Out kg','Bal. Birds','Bal. kg',
           'Cost/kg','Inventory Value','Valuation Source','Remarks'],
         tableRows,
-        hi: [12],
-        cardPrimary: [4, 9, 10],
+        hi: [11],
+        cardPrimary: [3, 8, 9],
+        // ★ Print readability fix: this table used to render at A4 portrait
+        // with 15 equal-width columns (one of them — Stock Point — was
+        // constant on every row, adding nothing) and wrapped words like
+        // "Movement Type"/"Adjustment" into single-character lines.
+        // Landscape + content-aware weights (text columns wider than short
+        // numeric ones) fixes this without a new printing engine — same
+        // _table()/_kpiRow() pipeline, just given the width information it
+        // was always missing.
+        landscape: true,
+        columnFlex: const [1.3, 1.1, 1.3, 1.0, 0.6, 0.6, 0.7, 0.7, 0.7, 0.7, 0.8, 1.1, 1.3, 1.8],
         summary: [
+          ReportSummaryItem('Stock Point', stockPoint),
           ReportSummaryItem('Opening Stock', '${_i(s,"opening_birds")} birds / ${_d(s,"opening_kg").toStringAsFixed(1)} kg'),
           ReportSummaryItem('Total Inward Birds', '${_i(s,"total_in_birds")}'),
           ReportSummaryItem('Total Outward Birds', '${_i(s,"total_out_birds")}'),
@@ -1355,6 +1375,10 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
     // the table in Card View AND in the PDF's summary section. Default
     // empty list — every existing call site is completely unaffected.
     List<ReportSummaryItem> summary = const [],
+    // ★ Print readability fix — see report_pdf_generator.dart. Both
+    // default off, so every existing call site's PDF is unaffected.
+    bool landscape = false,
+    List<double>? columnFlex,
   }) {
     final user = ref.read(appUserProvider).valueOrNull;
     final company = user?.companyName ?? 'Rooster';
@@ -1372,6 +1396,8 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
       customerIdentity: customerIdentity,
       customerLedgerData: customerLedgerData,
       summary: summary,
+      landscape: landscape,
+      columnFlex: columnFlex,
       // useBrandedFooter left at its default (false) — the Table/Toolbar
       // PDF always gets the plain footer; only the Header PDF (built
       // separately in report_pdf_generator.dart's _customerLedgerDataSet)

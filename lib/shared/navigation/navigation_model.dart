@@ -122,6 +122,12 @@ class TraderNavigation {
               badge:      pendingApprovals > 0 ? pendingApprovals : null,
             ),
             NavItem(
+              label:      'Inventory Dashboard',
+              icon:       Icons.warehouse_outlined,
+              activeIcon: Icons.warehouse_rounded,
+              route:      R.inventoryDashboard,
+            ),
+            NavItem(
               label:      'Stock',
               icon:       Icons.inventory_2_outlined,
               activeIcon: Icons.inventory_2_rounded,
@@ -319,6 +325,12 @@ class TraderNavigation {
           activeIcon: Icons.fact_check_rounded,
           route:      R.approvals,
           badge:      pendingApprovals > 0 ? pendingApprovals : null,
+        ),
+        NavItem(
+          label:      'Inventory Dashboard',
+          icon:       Icons.warehouse_outlined,
+          activeIcon: Icons.warehouse_rounded,
+          route:      R.inventoryDashboard,
         ),
         NavItem(
           label:      'Stock',
