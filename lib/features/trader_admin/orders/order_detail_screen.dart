@@ -480,6 +480,10 @@ class _S extends ConsumerState<OrderDetailScreen> {
             const Divider(height: 20, color: kBorderLight),
             _amtRow('Notes', _order!['notes'] as String),
           ],
+          if ((_order!['remarks'] as String?)?.trim().isNotEmpty == true) ...[
+            const Divider(height: 20, color: kBorderLight),
+            _amtRow('Remarks', _order!['remarks'] as String),
+          ],
         ]),
       ),
 

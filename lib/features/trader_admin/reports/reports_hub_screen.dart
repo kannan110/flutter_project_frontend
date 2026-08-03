@@ -976,12 +976,16 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
       ]),
       _sec('DELIVERY RECORDS'),
       _tbl(['Date','Agent','Shop','DC#','Gross Wt','Tare Wt','Net Del Wt','DC Birds','Del Birds','Mort','Collected'],
-          rows.map((r)=>[_fd(r['del_date']),_str(r,'agent_name'),_sh(_str(r,'shop_name'),10),
-            _sh(_str(r,'dc_number'),8),
-            '${_d(r,"gross_weight").toStringAsFixed(0)}','${_d(r,"tare_weight").toStringAsFixed(0)}',
-            '${_d(r,"net_del_weight").toStringAsFixed(0)}',
-            '${_i(r,"dc_birds")}','${_i(r,"del_birds")}','${_i(r,"mortality_birds")}',
-            Fmt.amount(_d(r,'collected_amount'))]).toList(),
+          rows.map((r){
+            final remarks = (r['order_remarks'] as String?)?.trim();
+            final shop = _sh(_str(r,'shop_name'),10) + (remarks == null || remarks.isEmpty ? '' : '\n📝 $remarks');
+            return [_fd(r['del_date']),_str(r,'agent_name'),shop,
+              _sh(_str(r,'dc_number'),8),
+              '${_d(r,"gross_weight").toStringAsFixed(0)}','${_d(r,"tare_weight").toStringAsFixed(0)}',
+              '${_d(r,"net_del_weight").toStringAsFixed(0)}',
+              '${_i(r,"dc_birds")}','${_i(r,"del_birds")}','${_i(r,"mortality_birds")}',
+              Fmt.amount(_d(r,'collected_amount'))];
+          }).toList(),
           hi:[6]),
     ]);
   }

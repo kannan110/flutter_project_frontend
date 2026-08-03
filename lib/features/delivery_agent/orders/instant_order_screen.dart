@@ -314,6 +314,7 @@ class _S extends ConsumerState<InstantOrderScreen> {
           'p_weight_kg': line.kg,
           'p_payment_mode': _payMode,
           'p_notes': _notesCtrl.text.trim().isEmpty ? null : _notesCtrl.text.trim(),
+          'p_remarks': _notesCtrl.text.trim().isEmpty ? null : _notesCtrl.text.trim(),
         });
         final result = res as Map<String, dynamic>;
         retailerName = result['retailer_name'] as String? ?? retailerName;

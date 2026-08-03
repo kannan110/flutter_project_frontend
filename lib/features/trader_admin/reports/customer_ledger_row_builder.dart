@@ -98,6 +98,12 @@ class CustomerLedgerRowBuilder {
       final refNumber = r['ref_number'] as String?;
       final entryDateStr = r['entry_date'] as String?;
       final description = (r['description'] as String? ?? '').trim();
+      // ★ Order Remarks — appended to the first (or only) printed line for
+      // this raw row, so it shows once per order/invoice, not repeated on
+      // every product line of a multi-product invoice.
+      final orderRemarks = (r['order_remarks'] as String?)?.trim();
+      String _withRemarks(String base) =>
+          (orderRemarks == null || orderRemarks.isEmpty) ? base : '$base  ·  Remarks: $orderRemarks';
 
       final rateBreakdown = (r['rate_breakdown'] as List?)
           ?.map((e) => (e as Map).cast<String, dynamic>())
@@ -120,7 +126,7 @@ class CustomerLedgerRowBuilder {
             date: i == 0 ? entryDateStr : null,
             refNo: i == 0 ? refNumber : null,
             type: i == 0 ? typeLabel(sourceType) : null,
-            description: (line['product_name'] as String?) ?? '—',
+            description: i == 0 ? _withRemarks((line['product_name'] as String?) ?? '—') : (line['product_name'] as String?) ?? '—',
             kg: hasWeight ? weightKg : null,
             rate: hasWeight ? _numOrNull(line['applied_rate']) : null,
             saleAmt: isDebit ? lineTotal : null,
@@ -140,7 +146,7 @@ class CustomerLedgerRowBuilder {
           date: entryDateStr,
           refNo: refNumber,
           type: typeLabel(sourceType),
-          description: description.isEmpty ? 'Sale' : description,
+          description: _withRemarks(description.isEmpty ? 'Sale' : description),
           kg: weightKg,
           rate: _numOrNull(r['rate_per_kg']),
           saleAmt: isDebit ? amount : null,
@@ -162,7 +168,7 @@ class CustomerLedgerRowBuilder {
           date: entryDateStr,
           refNo: refNumber,
           type: typeLabel(sourceType),
-          description: desc,
+          description: _withRemarks(desc),
           kg: hasWeight ? weightKg : null,
           rate: hasWeight ? _numOrNull(r['rate_per_kg']) : null,
           saleAmt: isDebit ? amount : null,
@@ -181,7 +187,7 @@ class CustomerLedgerRowBuilder {
           date: entryDateStr,
           refNo: refNumber,
           type: typeLabel(sourceType),
-          description: desc,
+          description: _withRemarks(desc),
           saleAmt: isDebit ? amount : null,
           paymentAmt: !isDebit ? amount : null,
           balance: runningBalance,
@@ -195,7 +201,7 @@ class CustomerLedgerRowBuilder {
         date: entryDateStr,
         refNo: refNumber,
         type: typeLabel(sourceType),
-        description: description.isEmpty ? typeLabel(sourceType) : description,
+        description: _withRemarks(description.isEmpty ? typeLabel(sourceType) : description),
         saleAmt: isDebit ? amount : null,
         paymentAmt: !isDebit ? amount : null,
         balance: runningBalance,

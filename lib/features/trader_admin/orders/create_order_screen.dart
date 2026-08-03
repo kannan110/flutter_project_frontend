@@ -94,6 +94,11 @@ class _S extends ConsumerState<CreateOrderScreen> {
   final _c = Supabase.instance.client;
   final _form = GlobalKey<FormState>();
   final _notesCtrl = TextEditingController();
+  // ★ Order Remarks — a new, separate, properly-wired field. _notesCtrl
+  // above is pre-existing but was never actually attached to a visible
+  // widget (confirmed during audit) — left untouched rather than repaired,
+  // since this is a distinct new field, not a fix to that one.
+  final _remarksCtrl = TextEditingController();
   final _scrollCtrl = ScrollController();
   final _localMessengerKey = GlobalKey<ScaffoldMessengerState>();
   final _customerScrollCtrl = ScrollController();
@@ -125,6 +130,7 @@ class _S extends ConsumerState<CreateOrderScreen> {
   void dispose() {
     _localMessengerKey.currentState?.clearSnackBars();
     _notesCtrl.dispose();
+    _remarksCtrl.dispose();
     _scrollCtrl.dispose();
     _customerScrollCtrl.dispose();
     _productScrollCtrl.dispose();
@@ -581,6 +587,7 @@ class _S extends ConsumerState<CreateOrderScreen> {
         if (_totalAmt > 0) 'total_amount': _totalAmt,
         if (firstLine.r > 0) 'final_price': firstLine.r,
         if (_notesCtrl.text.trim().isNotEmpty) 'notes': _notesCtrl.text.trim(),
+        if (_remarksCtrl.text.trim().isNotEmpty) 'remarks': _remarksCtrl.text.trim(),
       })
           .select()
           .single();
@@ -645,6 +652,7 @@ class _S extends ConsumerState<CreateOrderScreen> {
   void _resetForNewOrder() {
     for (final l in _lines) l.dispose();
     _notesCtrl.clear();
+    _remarksCtrl.clear();
     setState(() {
       _lines = [_OrderLine()];
       _activeIdx = 0;
@@ -764,9 +772,34 @@ class _S extends ConsumerState<CreateOrderScreen> {
       _stepHeader(3, 'Order Items'),
       _activeProductCard(_activeIdx),
       _addedProductsList(),
+      const SizedBox(height: 14),
+      _remarksField(),
       const SizedBox(height: 120),
     ];
   }
+
+  // ── Order Remarks — optional, customer-facing (e.g. delivery
+  // instructions). Shown to the delivery agent on the Complete Delivery
+  // screen, and everywhere Order Details/Customer Ledger/Reports are shown.
+  Widget _remarksField() => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      const Padding(
+        padding: EdgeInsets.only(bottom: 6),
+        child: Text('Remarks (optional)', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
+      ),
+      TextField(
+        controller: _remarksCtrl,
+        maxLines: 2,
+        decoration: InputDecoration(
+          hintText: 'e.g. leave at back gate, call before delivery',
+          isDense: true,
+          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+        ),
+      ),
+    ],
+  );
 
   // ── Customer: favourites/recent horizontal scroll + search ─────────────
   Widget _stepHeader(int n, String title, {Widget? trailing}) => Padding(

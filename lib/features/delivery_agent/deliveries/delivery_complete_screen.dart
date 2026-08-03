@@ -119,7 +119,7 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
           .from('deliveries')
           .select('*,orders(id,estimated_birds,total_quantity,product_id,'
           'fulfilled_birds,fulfilled_quantity,backorder_birds,backorder_quantity,'
-          'is_partial_delivery,partial_count,'
+          'is_partial_delivery,partial_count,remarks,'
           'retailers(shop_name,address,phone),'
           'master_products(name,name_tamil,category),'
           'order_items(id,product_id,bird_count,total_weight,applied_rate,'
@@ -958,6 +958,7 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
                                 _productChip(mp),
                               ],
                             ])),
+                  _remarksBanner(),
 
                   // ── Multi-product item selector ─────────────────────────────────
                   _buildItemSelector(),
@@ -1681,6 +1682,7 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
                 // ── Shop header card ──────────────────────────────────────
                 _simpleHeroCard(shopName, r, mp, isAlreadyPartial, partialCount),
                 const SizedBox(height: 12),
+                _remarksBanner(),
 
                 // ── Multi-product item selector (simple view) ────────
                 _buildItemSelector(),
@@ -2032,6 +2034,37 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
   // ── Multi-product item selector ──────────────────────────────────────────
   // Shown only when the order has >1 order_items (multi-product order).
   // Single-product orders skip this entirely — backward compat preserved.
+  // ── Order Remarks — shown prominently so the agent can follow customer
+  // instructions before completing delivery. Reads orders.remarks directly;
+  // renders nothing at all when empty, per requirement.
+  Widget _remarksBanner() {
+    final o = _delivery?['orders'] as Map<String, dynamic>?;
+    final remarks = (o?['remarks'] as String?)?.trim();
+    if (remarks == null || remarks.isEmpty) return const SizedBox.shrink();
+    return Container(
+      padding: const EdgeInsets.all(12),
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: Colors.amber.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(kRadiusCard),
+        border: Border.all(color: Colors.amber.withValues(alpha: 0.4)),
+      ),
+      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        const Icon(Icons.campaign_outlined, size: 18, color: Color(0xFF8D6E00)),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            const Text('CUSTOMER REMARKS',
+                style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900,
+                    color: Color(0xFF8D6E00), letterSpacing: 0.5)),
+            const SizedBox(height: 3),
+            Text(remarks, style: const TextStyle(fontSize: 13, color: Color(0xFF6B5200), height: 1.3)),
+          ]),
+        ),
+      ]),
+    );
+  }
+
   Widget _buildItemSelector() {
     if (_orderItems.length <= 1) return const SizedBox.shrink();
     return Column(

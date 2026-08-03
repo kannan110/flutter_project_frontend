@@ -89,6 +89,10 @@ class _QuickLine {
 
 class _AgentQuickEntrySheetState extends ConsumerState<AgentQuickEntrySheet> {
   final _c = Supabase.instance.client;
+  // ★ Order Remarks — optional, customer-facing, one per order (not
+  // per-line, so it lives here on the sheet's state, not on _QuickLine).
+  // Quick Entry had no remarks/notes input at all before this.
+  final remarksCtrl = TextEditingController();
 
   List<Map<String, dynamic>> _retailers = [];
   List<Map<String, dynamic>> _recentRetailers = [];
@@ -135,6 +139,7 @@ class _AgentQuickEntrySheetState extends ConsumerState<AgentQuickEntrySheet> {
     for (final l in _lines) l.dispose();
     _customerScrollCtrl.dispose();
     _productScrollCtrl.dispose();
+    remarksCtrl.dispose();
     super.dispose();
   }
 
@@ -534,6 +539,7 @@ class _AgentQuickEntrySheetState extends ConsumerState<AgentQuickEntrySheet> {
         // truth for the business date — no date is computed or sent from
         // Flutter. The backend looks up batch_date from this batchId.
         'p_batch_id': widget.batchId,
+        if (remarksCtrl.text.trim().isNotEmpty) 'p_remarks': remarksCtrl.text.trim(),
       });
       createRes = Map<String, dynamic>.from(res as Map);
     } catch (e) {
@@ -713,7 +719,7 @@ class _AgentQuickEntrySheetState extends ConsumerState<AgentQuickEntrySheet> {
                   const SizedBox(width: 8),
                   Text(
                     'Batch Date: ${DateFormat('dd MMM yyyy').format(widget.batchDate)}'
-                    '${isToday ? '' : '  •  Backdated entry'}',
+                        '${isToday ? '' : '  •  Backdated entry'}',
                     style: TextStyle(
                       fontSize: 12.5,
                       fontWeight: FontWeight.w800,
@@ -753,6 +759,20 @@ class _AgentQuickEntrySheetState extends ConsumerState<AgentQuickEntrySheet> {
             const SizedBox(height: 16),
 
             _secondaryOptionsRow(),
+            const SizedBox(height: 12),
+            TextField(
+              controller: remarksCtrl,
+              maxLines: 2,
+              decoration: InputDecoration(
+                labelText: 'Remarks (optional)',
+                alignLabelWithHint: true,
+                filled: true,
+                fillColor: kBgPage,
+                prefixIcon: const Icon(Icons.notes_outlined, size: 16, color: kTextHint),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              ),
+            ),
             const SizedBox(height: 18),
 
             if (_err != null)
