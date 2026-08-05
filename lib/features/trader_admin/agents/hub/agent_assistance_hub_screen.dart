@@ -78,6 +78,13 @@ class _AgentAssistanceHubScreenState
 
   int get _stockBirds =>
       (_stock['available_birds'] as num?)?.toInt() ?? 0;
+  double get _stockKg =>
+      (_stock['available_kg'] as num?)?.toDouble() ?? 0;
+  List<Map<String, dynamic>> get _stockByProduct {
+    final raw = _dashboard['stock_by_product'];
+    if (raw == null) return [];
+    return List<Map<String, dynamic>>.from(raw as List);
+  }
   int get _expenseCount =>
       (_dashboard['expense_count'] as num?)?.toInt() ?? 0;
   int get _transferCount =>
@@ -671,7 +678,7 @@ class _AgentAssistanceHubScreenState
       if (created == null || !mounted) return;
       batchId = created;
       final refreshed = _assignedBatches.firstWhere(
-        (b) => b['id'] == created,
+            (b) => b['id'] == created,
         orElse: () => {'batch_date': DateTime.now().toIso8601String()},
       );
       batchDate = DateTime.parse(refreshed['batch_date'] as String);
@@ -911,20 +918,98 @@ class _AgentAssistanceHubScreenState
             const SizedBox(height: 18),
             Row(
               children: [
-                _heroStat('🐔', '$_stockBirds', 'Stock'),
+                _heroStat('🐔', '$_stockBirds', 'Stock',
+                    subValue: '${_stockKg.toStringAsFixed(2)} Kg'),
                 _heroStat('🚛', '$_todayDelivered', 'Delivered'),
                 _heroStat(
                     '💰', Fmt.amount(_todayCash), 'Collected'),
                 _heroStat('⏳', '$_pendingCount', 'Pending'),
               ],
             ),
+            if (_stockByProduct.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(kRadiusChip),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('STOCK BY PRODUCT',
+                          style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w800,
+                              color: Colors.white60,
+                              letterSpacing: 0.6)),
+                      const SizedBox(height: 10),
+                      // Responsive 2-up card grid — fills the full card width
+                      // instead of a narrow stacked-text column, and reflows
+                      // cleanly if the container is ever resized.
+                      LayoutBuilder(builder: (context, constraints) {
+                        const gap = 10.0;
+                        final cardWidth = (constraints.maxWidth - gap) / 2;
+                        return Wrap(
+                          spacing: gap,
+                          runSpacing: gap,
+                          children: _stockByProduct.map((p) {
+                            final birds =
+                                (p['available_birds'] as num?)?.toInt() ?? 0;
+                            final kg =
+                                (p['available_kg'] as num?)?.toDouble() ?? 0;
+                            return SizedBox(
+                              width: cardWidth,
+                              child: Container(
+                                padding: const EdgeInsets.all(10),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withValues(alpha: 0.06),
+                                  borderRadius:
+                                  BorderRadius.circular(kRadiusChip),
+                                  border: Border.all(
+                                      color: Colors.white.withValues(alpha: 0.15)),
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(p['product_name'] as String? ?? '—',
+                                        style: const TextStyle(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w800,
+                                            color: Colors.white),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis),
+                                    const SizedBox(height: 4),
+                                    Text('• $birds Birds',
+                                        style: const TextStyle(
+                                            fontSize: 11,
+                                            color: Colors.white70)),
+                                    Text('• ${kg.toStringAsFixed(2)} Kg',
+                                        style: const TextStyle(
+                                            fontSize: 11,
+                                            color: Colors.white70)),
+                                  ],
+                                ),
+                              ),
+                            );
+                          }).toList(),
+                        );
+                      }),
+                    ],
+                  ),
+                ),
+              ),
+            ],
           ],
         ],
       ),
     );
   }
 
-  Widget _heroStat(String emoji, String value, String label) => Expanded(
+  Widget _heroStat(String emoji, String value, String label, {String? subValue}) => Expanded(
     child: Container(
       margin: const EdgeInsets.only(right: 6),
       padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
@@ -947,6 +1032,18 @@ class _AgentAssistanceHubScreenState
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),
+          if (subValue != null)
+            Text(
+              subValue,
+              style: const TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color: Colors.white70,
+              ),
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
           Text(
             label,
             style: const TextStyle(fontSize: 9, color: Colors.white60),

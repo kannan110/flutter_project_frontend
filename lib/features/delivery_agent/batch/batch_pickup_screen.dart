@@ -58,6 +58,12 @@ class _S extends ConsumerState<BatchPickupScreen> {
   String? _dcImageUrl;
   final _picker = ImagePicker();
 
+  // In-house stock per product — shown when Source Type = In-House, so the
+  // agent can see what's actually available at the trader's stock point
+  // before loading a DC against it. Read-only, reuses the same
+  // get_available_stock RPC already used elsewhere (e.g. trader dashboard).
+  List<Map<String, dynamic>> _inHouseStock = [];
+
   @override
   void initState() {
     super.initState();
@@ -165,6 +171,22 @@ class _S extends ConsumerState<BatchPickupScreen> {
       parentProducts = List<Map<String, dynamic>>.from(p as List? ?? []);
     } catch (_) {}
 
+    // In-house stock per product (read-only) — lets the agent see what's
+    // available at the trader's stock point before loading an In-House DC.
+    // Reuses the existing get_available_stock RPC; no new backend logic.
+    List<Map<String, dynamic>> inHouseStock = [];
+    try {
+      final tid = ref.read(appUserProvider).valueOrNull?.traderId;
+      if (tid != null) {
+        final raw = await _c
+            .rpc('get_available_stock', params: {'p_trader_id': tid});
+        inHouseStock = List<Map<String, dynamic>>.from(raw as List? ?? [])
+            .where((r) => ((r['in_house_birds'] as num?) ?? 0) > 0 ||
+            ((r['in_house_kg'] as num?) ?? 0) > 0)
+            .toList();
+      }
+    } catch (_) {}
+
     if (mounted)
       setState(() {
         _batch = batch;
@@ -173,6 +195,7 @@ class _S extends ConsumerState<BatchPickupScreen> {
         _deliveries = deliveries;
         _farms = farms;
         _parentProducts = parentProducts;
+        _inHouseStock = inHouseStock;
         _dataLoading = false;
       });
   }
@@ -972,6 +995,52 @@ class _S extends ConsumerState<BatchPickupScreen> {
                                       color: Colors.orange,
                                       height: 1.4)),
                             ])),
+                    if (_inHouseStock.isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                              color: kBgGrey,
+                              borderRadius: BorderRadius.circular(kRadiusChip),
+                              border: Border.all(color: kBorderLight)),
+                          child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text('AVAILABLE IN-HOUSE STOCK',
+                                    style: TextStyle(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.w800,
+                                        color: kTextHint,
+                                        letterSpacing: 0.6)),
+                                const SizedBox(height: 6),
+                                ..._inHouseStock.map((s) {
+                                  final birds =
+                                      (s['in_house_birds'] as num?)?.toInt() ?? 0;
+                                  final kg =
+                                      (s['in_house_kg'] as num?)?.toDouble() ?? 0;
+                                  return Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                        vertical: 2),
+                                    child: Row(children: [
+                                      Expanded(
+                                          child: Text(
+                                              s['product_name'] as String? ??
+                                                  '—',
+                                              style: const TextStyle(
+                                                  fontSize: 12,
+                                                  fontWeight: FontWeight.w700,
+                                                  color: kNavy))),
+                                      Text(
+                                          'Available: $birds Birds | ${kg.toStringAsFixed(2)} Kg',
+                                          style: const TextStyle(
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.w600,
+                                              color: kTextSub)),
+                                    ]),
+                                  );
+                                }),
+                              ])),
+                    ],
                   ],
                   const SizedBox(height: 12),
 

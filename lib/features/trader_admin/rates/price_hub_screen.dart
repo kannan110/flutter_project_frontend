@@ -528,10 +528,20 @@ class _CustomerRatesTabState extends ConsumerState<_CustomerRatesTab> {
   List<Map<String, dynamic>> _products = [];
   bool _loading = true;
 
+  // Customer search — filters the pricing list below by shop name.
+  String _search = '';
+  final _searchCtrl = TextEditingController();
+
   @override
   void initState() {
     super.initState();
     _load();
+  }
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
   }
 
   Future<void> _load() async {
@@ -885,6 +895,17 @@ class _CustomerRatesTabState extends ConsumerState<_CustomerRatesTab> {
     }
   }
 
+  /// Case-insensitive filter over shop name — default (empty search) shows
+  /// all customer pricing rows, matching the same search pattern already
+  /// used in the Assign tab (_ZoneAssignTab._filtered).
+  List<Map<String, dynamic>> get _filteredRates {
+    if (_search.isEmpty) return _rates;
+    final q = _search.toLowerCase();
+    return _rates
+        .where((r) => (r['shop_name'] as String? ?? '').toLowerCase().contains(q))
+        .toList();
+  }
+
   /// Build the display label for the trailing rate cell
   String _rateDisplay(Map<String, dynamic> r) {
     final type = r['pricing_type'] as String? ?? 'fixed';
@@ -922,12 +943,31 @@ class _CustomerRatesTabState extends ConsumerState<_CustomerRatesTab> {
           _PricingTypeLegend(),
           const SizedBox(height: 16),
 
+          if (_rates.isNotEmpty) ...[
+            AppSearchBar(
+              controller: _searchCtrl,
+              hint: 'Search by shop name / retailer…',
+              onChanged: (v) => setState(() => _search = v),
+              onClear: () => setState(() {
+                _search = '';
+                _searchCtrl.clear();
+              }),
+            ),
+            const SizedBox(height: 12),
+          ],
+
           if (_rates.isEmpty)
             const EmptyState(
               icon: Icons.person_pin_outlined,
               message: 'No Customer Pricing',
               sub:
               'Set fixed rates, cutting rates, premiums or contracts for specific customers.',
+            )
+          else if (_filteredRates.isEmpty)
+            EmptyState(
+              icon: Icons.search_off_rounded,
+              message: 'No customers match "$_search"',
+              sub: 'Try a different shop name, or clear the search.',
             )
           else
             Container(
@@ -937,10 +977,10 @@ class _CustomerRatesTabState extends ConsumerState<_CustomerRatesTab> {
                   border: Border.all(color: kBorderLight),
                   boxShadow: kCardShadow),
               child: Column(
-                children: _rates.asMap().entries.map((e) {
+                children: _filteredRates.asMap().entries.map((e) {
                   final i = e.key;
                   final r = e.value;
-                  final isLast = i == _rates.length - 1;
+                  final isLast = i == _filteredRates.length - 1;
                   final td = _pricingTypeDef(r['pricing_type'] as String?);
                   final expStr = r['expiry_date'] as String?;
                   final exp = expStr != null ? DateTime.tryParse(expStr) : null;

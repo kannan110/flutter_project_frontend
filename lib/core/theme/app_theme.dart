@@ -1057,7 +1057,7 @@ class Fmt {
   /// Plain Indian rupee format — no K/L abbreviations
   /// ₹85,400  |  ₹1,22,600  |  ₹45,00,000
   static String amount(double v) {
-    final rounded = v.toStringAsFixed(0);
+    final rounded = v.toStringAsFixed(2);
     return '₹${_indianCommas(rounded)}';
   }
 
@@ -1071,16 +1071,25 @@ class Fmt {
   }
 
   static String _indianCommas(String n) {
-    if (n.length <= 3) return n;
-    // Last 3 digits, then groups of 2
-    final last3 = n.substring(n.length - 3);
-    final rest   = n.substring(0, n.length - 3);
-    final buf    = StringBuffer();
+    // Preserve decimal part (if any)
+    final parts = n.split('.');
+    final whole = parts[0];
+    final decimal = parts.length > 1 ? '.${parts[1]}' : '';
+
+    if (whole.length <= 3) return '$whole$decimal';
+
+    final last3 = whole.substring(whole.length - 3);
+    final rest = whole.substring(0, whole.length - 3);
+
+    final buf = StringBuffer();
     for (int i = 0; i < rest.length; i++) {
-      if (i > 0 && (rest.length - i) % 2 == 0) buf.write(',');
+      if (i > 0 && (rest.length - i) % 2 == 0) {
+        buf.write(',');
+      }
       buf.write(rest[i]);
     }
-    return '${buf.toString()},${last3}';
+
+    return '${buf.toString()},$last3$decimal';
   }
 
   /// 760.5 → "760.5 kg"

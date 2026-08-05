@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:rooster_trader/features/trader_admin/retailers/retailer_openinh_balancesheet.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/providers/session_provider.dart';
 import '../../../core/router/app_router.dart';
@@ -32,8 +33,6 @@ class _S extends ConsumerState<RetailerDetailScreen> {
   @override
   void initState() {
     super.initState();
-    _obAmountCtrl = TextEditingController();
-    _obNoteCtrl   = TextEditingController();
     _load();
   }
 
@@ -44,8 +43,6 @@ class _S extends ConsumerState<RetailerDetailScreen> {
     _phoneCtrl.dispose();
     _addressCtrl.dispose();
     _creditCtrl.dispose();
-    _obAmountCtrl.dispose();
-    _obNoteCtrl.dispose();
     super.dispose();
   }
 
@@ -60,11 +57,6 @@ class _S extends ConsumerState<RetailerDetailScreen> {
   bool _loadingHistory = false;
   bool _historyLoaded  = false;   // lazy-load on first expand
   bool _showHistory    = false;
-  bool _editingOb     = false;
-  bool _savingOb      = false;
-  late TextEditingController _obAmountCtrl;
-  late TextEditingController _obNoteCtrl;
-  DateTime _obDate    = DateTime.now();
 
   Future<void> _load() async {
     if (mounted) setState(() => _loading = true);
@@ -112,13 +104,6 @@ class _S extends ConsumerState<RetailerDetailScreen> {
           List<Map<String, dynamic>>.from(results[2] as List? ?? []);
           // Phase 1: opening balance
           _obInfo = results[3] as Map<String, dynamic>?;
-          final obAmt = (_obInfo?['opening_balance'] as num?)?.toDouble() ?? 0;
-          _obAmountCtrl.text = obAmt > 0 ? obAmt.toStringAsFixed(0) : '0';
-          _obNoteCtrl.text   = _obInfo?['opening_balance_note'] as String? ?? '';
-          final obDateStr    = _obInfo?['opening_balance_date'] as String?;
-          if (obDateStr != null) {
-            _obDate = DateTime.tryParse(obDateStr) ?? DateTime.now();
-          }
           _loading = false;
         });
       }
@@ -181,34 +166,6 @@ class _S extends ConsumerState<RetailerDetailScreen> {
       }
     } catch (e) {
       if (mounted) showError(context, e.toString());
-    }
-  }
-
-  // Phase 1: Save opening balance via RPC
-  Future<void> _saveOpeningBalance() async {
-    final amt = double.tryParse(_obAmountCtrl.text.trim()) ?? 0;
-    if (amt < 0) { showError(context, 'Amount must be 0 or greater'); return; }
-    if (mounted) setState(() => _savingOb = true);
-    try {
-      await _c.rpc('set_retailer_opening_balance', params: {
-        'p_retailer_id': widget.id,
-        'p_amount':      amt,
-        'p_as_of_date':  '${_obDate.year}-'
-            '${_obDate.month.toString().padLeft(2,'0')}-'
-            '${_obDate.day.toString().padLeft(2,'0')}',
-        'p_note': _obNoteCtrl.text.trim().isEmpty
-            ? 'Opening balance (migration)'
-            : _obNoteCtrl.text.trim(),
-      });
-      if (mounted) {
-        showSuccess(context, 'Opening balance saved ✓');
-        setState(() => _editingOb = false);
-        _load();
-      }
-    } catch (e) {
-      if (mounted) showError(context, e.toString().replaceAll('Exception: ', ''));
-    } finally {
-      if (mounted) setState(() => _savingOb = false);
     }
   }
 
@@ -564,9 +521,17 @@ class _S extends ConsumerState<RetailerDetailScreen> {
                     Expanded(child: Text('Opening Balance',
                         style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800,
                             color: obAmt > 0 ? Colors.orange.shade800 : kTextSub))),
-                    if (canEdit && !_editingOb)
+                    if (canEdit)
                       TextButton.icon(
-                        onPressed: () => setState(() => _editingOb = true),
+                        onPressed: () => showRetailerOpeningBalanceSheet(
+                          context,
+                          retailerId: widget.id,
+                          shopName: r['shop_name'] as String? ?? 'Customer',
+                          currentAmount: obAmt,
+                          currentDate: obDate,
+                          currentNote: obNote,
+                          onSaved: _load,
+                        ),
                         icon: const Icon(Icons.edit_outlined, size: 14),
                         label: Text(obAmt > 0 ? 'Edit' : 'Set',
                             style: const TextStyle(fontSize: 12)),
@@ -587,8 +552,8 @@ class _S extends ConsumerState<RetailerDetailScreen> {
                   ]),
                 ),
 
-                // View mode
-                if (!_editingOb) Padding(
+                // Opening balance summary (editing happens in the bottom sheet)
+                Padding(
                   padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
                   child: obAmt > 0 ? Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -627,102 +592,6 @@ class _S extends ConsumerState<RetailerDetailScreen> {
                       ),
                     ],
                   ),
-                ),
-
-                // Edit mode
-                if (_editingOb) Padding(
-                  padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
-                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Container(
-                      padding: const EdgeInsets.all(10),
-                      margin: const EdgeInsets.only(bottom: 12),
-                      decoration: BoxDecoration(
-                          color: Colors.orange.shade100,
-                          borderRadius: BorderRadius.circular(8)),
-                      child: const Row(children: [
-                        Icon(Icons.info_outline, size: 14, color: Colors.orange),
-                        SizedBox(width: 8),
-                        Expanded(child: Text(
-                          'This sets the amount owed before joining Rooster. '
-                              'It posts as "Opening Balance" in the ledger.',
-                          style: TextStyle(fontSize: 11, color: Colors.orange),
-                        )),
-                      ]),
-                    ),
-                    TextField(
-                      controller: _obAmountCtrl,
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                      decoration: const InputDecoration(
-                          labelText: 'Outstanding Amount (₹)',
-                          prefixText: '₹',
-                          filled: true, fillColor: Colors.white),
-                    ),
-                    const SizedBox(height: 10),
-                    // Date picker
-                    GestureDetector(
-                      onTap: () async {
-                        final picked = await showDatePicker(
-                          context: context,
-                          initialDate: _obDate,
-                          firstDate: DateTime(2020),
-                          lastDate: DateTime.now(),
-                        );
-                        if (picked != null && mounted) {
-                          setState(() => _obDate = picked);
-                        }
-                      },
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 12, vertical: 14),
-                        decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: Colors.grey.shade400)),
-                        child: Row(children: [
-                          const Icon(Icons.calendar_today_outlined,
-                              size: 16, color: kTextSub),
-                          const SizedBox(width: 10),
-                          Expanded(child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Text('As of Date',
-                                    style: TextStyle(fontSize: 11, color: kTextSub)),
-                                Text(
-                                    '${_obDate.day} '
-                                        '${['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][_obDate.month-1]} '
-                                        '${_obDate.year}',
-                                    style: const TextStyle(
-                                        fontSize: 14, fontWeight: FontWeight.w600)),
-                              ])),
-                          const Icon(Icons.arrow_drop_down, color: kTextSub),
-                        ]),
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    TextField(
-                      controller: _obNoteCtrl,
-                      decoration: const InputDecoration(
-                          labelText: 'Note / Reference (optional)',
-                          filled: true, fillColor: Colors.white),
-                    ),
-                    const SizedBox(height: 14),
-                    Row(children: [
-                      Expanded(child: ElevatedButton(
-                        onPressed: _savingOb ? null : _saveOpeningBalance,
-                        style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.orange),
-                        child: _savingOb
-                            ? const SizedBox(width: 18, height: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                            : const Text('Save Opening Balance'),
-                      )),
-                      const SizedBox(width: 10),
-                      OutlinedButton(
-                        onPressed: () => setState(() => _editingOb = false),
-                        child: const Text('Cancel'),
-                      ),
-                    ]),
-                  ]),
                 ),
               ]),
             );

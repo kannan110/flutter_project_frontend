@@ -903,7 +903,13 @@ class _S extends ConsumerState<DashboardScreen> {
                                 fontSize: 8,
                                 fontWeight: FontWeight.w900,
                                 color: kTextHint,
-                                letterSpacing: 0.8))
+                                letterSpacing: 0.8)),
+                            const SizedBox(height: 2),
+                            Text(
+                                '${_stock.fold(0.0, (s, p) => s + p.availableKg).toStringAsFixed(2)} Kg',
+                                style: const TextStyle(fontSize: 12,
+                                    fontWeight: FontWeight.w800,
+                                    color: kTextSub)),
                           ]),
                         ])),
                     const SizedBox(width: 20),
@@ -2526,6 +2532,11 @@ class _LiveStockPanel extends StatelessWidget {
                 const Text('Birds',
                     style: TextStyle(fontSize: 9, color: _kText3,
                         fontWeight: FontWeight.w500)),
+                const SizedBox(height: 2),
+                Text(
+                    '${stock.fold(0.0, (s, p) => s + p.availableKg).toStringAsFixed(2)} Kg',
+                    style: const TextStyle(fontSize: 10, color: _kText3,
+                        fontWeight: FontWeight.w700)),
                 if (survival != null) ...[
                   const SizedBox(height: 2),
                   Text(

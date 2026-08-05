@@ -34,6 +34,19 @@ class _S extends ConsumerState<BatchDetailScreen> {
   // pickup_batch/add_batch_dc (rejects variant ids even if somehow sent).
   List<Map<String, dynamic>> _parentProducts = [];
 
+  // In-house stock per product — shown in the Add DC sheet when Source Type
+  // = In-House, so the trader can see what's actually available at the
+  // stock point before loading a DC against it. Read-only; reuses the same
+  // get_available_stock RPC already used on the dashboard / agent DC form.
+  List<Map<String, dynamic>> _inHouseStock = [];
+
+  /// Filters the in-house stock preview to a selected product — returns all
+  /// in-stock products when none is selected yet.
+  List<Map<String, dynamic>> _visibleInHouseStock(String? productId) {
+    if (productId == null) return _inHouseStock;
+    return _inHouseStock.where((s) => s['product_id'] == productId).toList();
+  }
+
   @override void initState() {
     super.initState();
     _load();
@@ -83,6 +96,18 @@ class _S extends ConsumerState<BatchDetailScreen> {
             .order('sort_order');
         parentProducts = List<Map<String, dynamic>>.from(pp as List? ?? []);
       } catch (_) {}
+      // In-house stock per product (read-only) — lets the trader see what's
+      // available at the stock point before loading an In-House DC. Reuses
+      // the existing get_available_stock RPC; no new backend logic.
+      List<Map<String, dynamic>> inHouseStock = [];
+      try {
+        final raw = await _c
+            .rpc('get_available_stock', params: {'p_trader_id': tid});
+        inHouseStock = List<Map<String, dynamic>>.from(raw as List? ?? [])
+            .where((r) => ((r['in_house_birds'] as num?) ?? 0) > 0 ||
+            ((r['in_house_kg'] as num?) ?? 0) > 0)
+            .toList();
+      } catch (_) {}
       if (mounted) setState(() {
         _batch = b;
         _deliveries = List<Map<String, dynamic>>.from(d);
@@ -91,6 +116,7 @@ class _S extends ConsumerState<BatchDetailScreen> {
         _agents = List<Map<String, dynamic>>.from(ag);
         _farms = farms;
         _parentProducts = parentProducts;
+        _inHouseStock = inHouseStock;
         _loading = false;
       });
     } catch (e) {
@@ -405,6 +431,65 @@ class _S extends ConsumerState<BatchDetailScreen> {
                                             color: Colors.orange,
                                             height: 1.4)),
                                   ])),
+                          if (_visibleInHouseStock(selectedProductId)
+                              .isNotEmpty) ...[
+                            const SizedBox(height: 8),
+                            Container(
+                                padding: const EdgeInsets.all(10),
+                                decoration: BoxDecoration(
+                                    color: kBgGrey,
+                                    borderRadius:
+                                    BorderRadius.circular(kRadiusInner),
+                                    border: Border.all(color: kBorderLight)),
+                                child: Column(
+                                    crossAxisAlignment:
+                                    CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                          selectedProductId == null
+                                              ? 'AVAILABLE IN-HOUSE STOCK'
+                                              : 'AVAILABLE IN-HOUSE STOCK — $selectedProductName',
+                                          style: const TextStyle(
+                                              fontSize: 10,
+                                              fontWeight: FontWeight.w800,
+                                              color: kTextHint,
+                                              letterSpacing: 0.6)),
+                                      const SizedBox(height: 6),
+                                      ..._visibleInHouseStock(
+                                          selectedProductId)
+                                          .map((s) {
+                                        final birds = (s['in_house_birds']
+                                        as num?)
+                                            ?.toInt() ?? 0;
+                                        final kg = (s['in_house_kg']
+                                        as num?)
+                                            ?.toDouble() ?? 0;
+                                        return Padding(
+                                          padding: const EdgeInsets.symmetric(
+                                              vertical: 2),
+                                          child: Row(children: [
+                                            Expanded(
+                                                child: Text(
+                                                    s['product_name']
+                                                    as String? ??
+                                                        '—',
+                                                    style: const TextStyle(
+                                                        fontSize: 12,
+                                                        fontWeight:
+                                                        FontWeight.w700,
+                                                        color: kNavy))),
+                                            Text(
+                                                'Available: $birds Birds | ${kg.toStringAsFixed(2)} Kg',
+                                                style: const TextStyle(
+                                                    fontSize: 11,
+                                                    fontWeight:
+                                                    FontWeight.w600,
+                                                    color: kTextSub)),
+                                          ]),
+                                        );
+                                      }),
+                                    ])),
+                          ],
                         ],
                         const SizedBox(height: 14),
                         const Text('Product *',
