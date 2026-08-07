@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/providers/session_provider.dart';
 import '../../../core/theme/app_theme.dart';
@@ -60,6 +61,12 @@ class _S extends ConsumerState<InHouseSaleScreen> {
 
   // ── Payment ───────────────────────────────────────────────────────────
   String _paymentMode = 'cash';
+  // Business Date — defaults to today, editable, never future. Lets the
+  // trader record a stock point sale that actually happened a few days
+  // ago (e.g. catching up on pending entries) so it lands on the correct
+  // day everywhere downstream — Stock/Valuation Ledger, Customer Ledger,
+  // Cash Flow, P&L, Dashboard, Reports — instead of always today.
+  DateTime _saleDate = DateTime.now();
   final _notesCtrl = TextEditingController();
 
   String? get _traderId => ref.read(appUserProvider).valueOrNull?.traderId;
@@ -145,8 +152,8 @@ class _S extends ConsumerState<InHouseSaleScreen> {
                   filtered = ql.isEmpty
                       ? List.from(_retailers)
                       : _retailers.where((r) =>
-                          (r['shop_name'] as String? ?? '').toLowerCase().contains(ql) ||
-                          (r['phone'] as String? ?? '').toLowerCase().contains(ql)).toList();
+                  (r['shop_name'] as String? ?? '').toLowerCase().contains(ql) ||
+                      (r['phone'] as String? ?? '').toLowerCase().contains(ql)).toList();
                 }),
               ),
               const SizedBox(height: 10),
@@ -292,6 +299,7 @@ class _S extends ConsumerState<InHouseSaleScreen> {
         'p_payment_mode': _paymentMode,
         'p_notes': _notesCtrl.text.trim().isEmpty ? null : _notesCtrl.text.trim(),
         'p_created_by': uid,
+        'p_sale_date': DateFormat('yyyy-MM-dd').format(_saleDate),
       });
       if (!mounted) return;
       final result = res as Map<String, dynamic>;
@@ -319,19 +327,19 @@ class _S extends ConsumerState<InHouseSaleScreen> {
       body: _loading
           ? const LoadingList()
           : ListView(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
-              children: [
-                _customerSection(),
-                const SizedBox(height: 18),
-                _productSection(),
-                const SizedBox(height: 8),
-                ..._lines.asMap().entries.map((e) => e.key == _activeIdx
-                    ? _activeProductCard(e.key)
-                    : _collapsedProductRow(e.key)),
-                const SizedBox(height: 10),
-                _paymentRow(),
-              ],
-            ),
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+        children: [
+          _customerSection(),
+          const SizedBox(height: 18),
+          _productSection(),
+          const SizedBox(height: 8),
+          ..._lines.asMap().entries.map((e) => e.key == _activeIdx
+              ? _activeProductCard(e.key)
+              : _collapsedProductRow(e.key)),
+          const SizedBox(height: 10),
+          _paymentRow(),
+        ],
+      ),
       // ── Sticky footer: always visible, no scrolling needed ──────────────
       bottomNavigationBar: _loading ? null : _stickyFooter(),
     );
@@ -457,26 +465,26 @@ class _S extends ConsumerState<InHouseSaleScreen> {
   }
 
   Widget _productSection() => Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const SectionHeader('PRODUCTS — TAP TO ADD'),
-          const SizedBox(height: 6),
-          if (_products.isEmpty)
-            const Text('No products found.', style: TextStyle(color: kTextHint, fontSize: 12))
-          else
-            SizedBox(
-              height: 88,
-              child: HorizontalScrollWheel(
-                controller: _productScrollCtrl,
-                child: ListView(
-                  controller: _productScrollCtrl,
-                  scrollDirection: Axis.horizontal,
-                  children: _products.map(_productChip).toList(),
-                ),
-              ),
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      const SectionHeader('PRODUCTS — TAP TO ADD'),
+      const SizedBox(height: 6),
+      if (_products.isEmpty)
+        const Text('No products found.', style: TextStyle(color: kTextHint, fontSize: 12))
+      else
+        SizedBox(
+          height: 88,
+          child: HorizontalScrollWheel(
+            controller: _productScrollCtrl,
+            child: ListView(
+              controller: _productScrollCtrl,
+              scrollDirection: Axis.horizontal,
+              children: _products.map(_productChip).toList(),
             ),
-        ],
-      );
+          ),
+        ),
+    ],
+  );
 
   Widget _productChip(Map<String, dynamic> product) {
     final name = product['name'] as String? ?? '';
@@ -672,6 +680,32 @@ class _S extends ConsumerState<InHouseSaleScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        const SectionHeader('BUSINESS DATE'),
+        const SizedBox(height: 6),
+        InkWell(
+          onTap: () async {
+            final picked = await showDatePicker(
+              context: context,
+              initialDate: _saleDate,
+              firstDate: DateTime.now().subtract(const Duration(days: 365)),
+              lastDate: DateTime.now(),
+            );
+            if (picked != null) setState(() => _saleDate = picked);
+          },
+          child: InputDecorator(
+            decoration: InputDecoration(
+              isDense: true,
+              filled: true,
+              fillColor: kBgPage,
+              prefixIcon: const Icon(Icons.calendar_today_outlined, size: 14, color: kTextHint),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
+              contentPadding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
+            ),
+            child: Text(DateFormat('d MMM yyyy').format(_saleDate),
+                style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+          ),
+        ),
+        const SizedBox(height: 14),
         const SectionHeader('PAYMENT'),
         const SizedBox(height: 6),
         Wrap(
@@ -733,10 +767,10 @@ class _S extends ConsumerState<InHouseSaleScreen> {
                 ),
                 child: _submitting
                     ? const SizedBox(
-                        height: 20, width: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                    height: 20, width: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
                     : const Text('Create Invoice',
-                        style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: Colors.white)),
+                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: Colors.white)),
               ),
             ),
           ),
