@@ -74,12 +74,25 @@ class _QuickLine {
   final birdsCtrl = TextEditingController();
   final weightCtrl = TextEditingController();
 
+  // Customer Rate & Bill Preview — same fields/semantics as CreateOrderScreen's
+  // _OrderLine, populated by the same get_effective_rate_v4 RPC (see
+  // _fetchRate below). Read-only preview only; no new pricing logic.
+  double? suggestRate;
+  String? rateSource;
+  String? rateSourceLabel;
+  String? rateZoneId;
+  String? rateZoneName;
+  double? baseRate;
+  String? pricingType;
+  double? adjustmentValue;
+
   int get birds => int.tryParse(birdsCtrl.text.trim()) ?? 0;
   // Scenario 1 fix: preserves a blank Bird Count field as NULL (distinct
   // from a typed 0) so the sheet-level total can tell "no lines had a count
   // entered" apart from "some lines summed to zero."
   int? get birdsToRecord => int.tryParse(birdsCtrl.text.trim());
   double get weight => double.tryParse(weightCtrl.text.trim()) ?? 0;
+  double get estimatedBill => weight * (suggestRate ?? 0);
 
   void dispose() {
     birdsCtrl.dispose();
@@ -102,6 +115,17 @@ class _AgentQuickEntrySheetState extends ConsumerState<AgentQuickEntrySheet> {
   // productId -> {available_birds, available_kg} — fetched once per session;
   // complete_delivery is always the authoritative, final check regardless.
   Map<String, Map<String, num>> _stockByProduct = {};
+
+  // In-House Stock Preview — trader's stock POINT (agent_id=NULL), distinct
+  // from _stockByProduct above (the agent's own carried stock). Populated
+  // once at load via the same canonical get_available_stock RPC the
+  // Dashboard uses, then read per-product client-side — no extra network
+  // call on every Product/Source change, matching "do not affect performance".
+  Map<String, Map<String, num>> _inHouseStockByProduct = {};
+  // The active batch's source (farm / shop_collection / inhouse_stock),
+  // resolved once at load — determines whether the In-House Stock Preview
+  // applies to this Quick Entry session at all.
+  String? _batchSourceType;
 
   Map<String, dynamic>? _selRetailer;
   final List<_QuickLine> _lines = [];
@@ -189,6 +213,18 @@ class _AgentQuickEntrySheetState extends ConsumerState<AgentQuickEntrySheet> {
           'p_agent_id': widget.agentId,
           'p_shift_id': currentShiftId,
         }),
+        // In-House Stock Preview: same canonical RPC, agent_id=NULL so it
+        // resolves the trader's stock POINT balance instead of this
+        // agent's own carried stock — identical call shape to how the
+        // Dashboard/batch DC screens already show in-house availability.
+        _c.rpc('get_available_stock', params: {
+          'p_trader_id': tid,
+          'p_agent_id': null,
+          'p_shift_id': null,
+        }),
+        // The active batch's source (farm / shop_collection / inhouse_stock)
+        // — determines whether the In-House Stock Preview applies.
+        _c.from('delivery_batches').select('source_type').eq('id', widget.batchId).maybeSingle(),
       ]);
 
       if (!mounted) return;
@@ -198,6 +234,8 @@ class _AgentQuickEntrySheetState extends ConsumerState<AgentQuickEntrySheet> {
       List<Map<String, dynamic>>.from(results[1] as List? ?? []);
       final history = List<Map<String, dynamic>>.from(results[2] as List? ?? []);
       final stockRows = List<Map<String, dynamic>>.from(results[3] as List? ?? []);
+      final inHouseStockRows = List<Map<String, dynamic>>.from(results[4] as List? ?? []);
+      final batchRow = results[5] as Map<String, dynamic>?;
 
       // Quick-Entry-only supplement: parent_product_id for family-pooled
       // stock grouping, scoped strictly to the trader-enabled product IDs
@@ -243,6 +281,13 @@ class _AgentQuickEntrySheetState extends ConsumerState<AgentQuickEntrySheet> {
             'available_kg': (row['available_kg'] as num?) ?? 0,
           }
       };
+      final inHouseStockMap = <String, Map<String, num>>{
+        for (final row in inHouseStockRows)
+          row['product_id'] as String: {
+            'in_house_birds': (row['in_house_birds'] as num?) ?? 0,
+            'in_house_kg': (row['in_house_kg'] as num?) ?? 0,
+          }
+      };
 
       setState(() {
         _retailers = retailers;
@@ -250,6 +295,8 @@ class _AgentQuickEntrySheetState extends ConsumerState<AgentQuickEntrySheet> {
         _favouriteIds = favIds;
         _products = products;
         _stockByProduct = stockMap;
+        _inHouseStockByProduct = inHouseStockMap;
+        _batchSourceType = batchRow?['source_type'] as String?;
         _loading = false;
       });
 
@@ -301,7 +348,55 @@ class _AgentQuickEntrySheetState extends ConsumerState<AgentQuickEntrySheet> {
   }
 
   // ── Customer selection ───────────────────────────────────────────────────
-  void _selectRetailer(Map<String, dynamic> r) => setState(() => _selRetailer = r);
+  void _selectRetailer(Map<String, dynamic> r) {
+    setState(() => _selRetailer = r);
+    // Customer Rate & Bill Preview: refresh every line now that a customer
+    // (and therefore a Zone) is known.
+    for (int i = 0; i < _lines.length; i++) _fetchRate(i);
+  }
+
+  // Customer Rate & Bill Preview — same RPC, same params, same cascade
+  // (Zone → Customer Pricing → Product Rate) as CreateOrderScreen's own
+  // _fetchRate. No pricing logic is reimplemented here; this only calls the
+  // existing get_effective_rate_v4 RPC and stores exactly what it returns.
+  Future<void> _fetchRate(int idx) async {
+    final line = _lines[idx];
+    if (_selRetailer == null || line.product == null) return;
+    final tid = ref.read(appUserProvider).valueOrNull?.traderId;
+    final kg = line.weight;
+    if (kg <= 0) return;
+    try {
+      final res = await _c.rpc('get_effective_rate_v4', params: {
+        'p_trader_id': tid,
+        'p_retailer_id': _selRetailer!['id'],
+        'p_product_id': line.product!['id'],
+        'p_quantity_kg': kg,
+      });
+      final rows = res as List?;
+      if (rows == null || rows.isEmpty) return;
+      final row = rows.first as Map<String, dynamic>;
+      final rate = (row['rate'] as num?)?.toDouble() ?? 0;
+      if (mounted && rate > 0) {
+        setState(() {
+          line.suggestRate = rate;
+          line.baseRate = (row['base_rate'] as num?)?.toDouble();
+          line.rateSource = row['rate_source'] as String? ?? 'default_rate';
+          line.rateSourceLabel = row['rate_label'] as String?;
+          line.pricingType = row['pricing_type'] as String? ?? 'none';
+          line.adjustmentValue = (row['adjustment_value'] as num?)?.toDouble() ?? 0;
+          line.rateZoneId = row['zone_id'] as String?;
+          line.rateZoneName = row['zone_name'] as String?;
+        });
+      }
+    } catch (_) {}
+  }
+
+  String _rateSourceLabel(_QuickLine line) {
+    if (line.rateSourceLabel != null && line.rateSourceLabel!.trim().isNotEmpty) {
+      return line.rateSourceLabel!;
+    }
+    return line.rateSource ?? 'Default rate';
+  }
 
   Future<void> _openSearchSheet() async {
     final ctrl = TextEditingController();
@@ -376,6 +471,7 @@ class _AgentQuickEntrySheetState extends ConsumerState<AgentQuickEntrySheet> {
       _lines.add(_QuickLine()..product = product);
       _activeIdx = _lines.length - 1;
     });
+    _fetchRate(_lines.length - 1);
   }
 
   void _removeLine(int idx) {
@@ -1043,7 +1139,10 @@ class _AgentQuickEntrySheetState extends ConsumerState<AgentQuickEntrySheet> {
               controller: line.weightCtrl,
               icon: Icons.scale_outlined,
               decimal: true,
-              onChanged: () => setState(() {}),
+              onChanged: () {
+                setState(() {});
+                _fetchRate(idx);
+              },
             ),
           ),
         ]),
@@ -1059,6 +1158,77 @@ class _AgentQuickEntrySheetState extends ConsumerState<AgentQuickEntrySheet> {
             fontWeight: short ? FontWeight.w700 : FontWeight.normal,
           ),
         ),
+
+        // In-House Stock Preview — only relevant when this batch's stock
+        // came from the trader's own in-house stock point. Read-only,
+        // reuses the same get_available_stock data already loaded for
+        // every product at session start (no extra call per keystroke).
+        if (_batchSourceType == 'inhouse_stock') ...[
+          const SizedBox(height: 10),
+          Builder(builder: (_) {
+            final inHouse = _inHouseStockByProduct[product['id']];
+            final birds = (inHouse?['in_house_birds'] ?? 0).toInt();
+            final kg = (inHouse?['in_house_kg'] ?? 0).toDouble();
+            return Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: kBgPage,
+                borderRadius: BorderRadius.circular(kRadiusInner),
+                border: Border.all(color: kBorderLight),
+              ),
+              child: Row(children: [
+                const Icon(Icons.home_work_outlined, size: 14, color: kTextHint),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text('In-House Stock — $birds Birds · ${kg.toStringAsFixed(2)} Kg',
+                      style: const TextStyle(
+                          fontSize: 11, fontWeight: FontWeight.w700, color: kTextSub)),
+                ),
+              ]),
+            );
+          }),
+        ],
+
+        // Customer Rate & Bill Preview — same cascade/labels as Order
+        // Creation (Zone → Customer Pricing → Product Rate), via the same
+        // get_effective_rate_v4 RPC. Read-only preview only.
+        if (_selRetailer != null) ...[
+          const SizedBox(height: 10),
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: kPrimary.withValues(alpha: 0.06),
+              borderRadius: BorderRadius.circular(kRadiusInner),
+              border: Border.all(color: kPrimary.withValues(alpha: 0.2)),
+            ),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(children: [
+                Expanded(
+                  child: Text('Rate Source: ${_rateSourceLabel(line)}',
+                      style: const TextStyle(fontSize: 11, color: kTextSub)),
+                ),
+                Text(
+                  line.suggestRate != null
+                      ? '₹${line.suggestRate!.toStringAsFixed(2)}/kg'
+                      : '—',
+                  style: const TextStyle(
+                      fontSize: 13, fontWeight: FontWeight.w800, color: kPrimary),
+                ),
+              ]),
+              const SizedBox(height: 4),
+              Row(children: [
+                const Expanded(
+                  child: Text('Estimated Bill', style: TextStyle(fontSize: 11, color: kTextSub)),
+                ),
+                Text(
+                  line.suggestRate != null ? Fmt.amount(line.estimatedBill) : '—',
+                  style: const TextStyle(
+                      fontSize: 14, fontWeight: FontWeight.w900, color: kNavy),
+                ),
+              ]),
+            ]),
+          ),
+        ],
       ]),
     );
   }

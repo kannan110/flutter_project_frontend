@@ -247,6 +247,18 @@ class CustomerLedgerTableData {
     final closing = (data['closing_balance'] as num?)?.toDouble() ?? 0;
     final printRows = CustomerLedgerRowBuilder.build(data);
 
+    // Period Summary — Total Birds / Kg / Sales / Payment Collected, for the
+    // selected date range only (excludes Opening/Closing Balance, matching
+    // the requirement exactly). Reuses the backend's own already-computed
+    // `summary` object from get_retailer_statement() — no new calculation
+    // logic here, so this can never drift from the authoritative ledger
+    // math (running balance / opening / closing are untouched).
+    final summary = (data['summary'] as Map?)?.cast<String, dynamic>() ?? {};
+    final totalBirds = (summary['total_birds'] as num?)?.toInt() ?? 0;
+    final totalKg = (summary['total_weight_kg'] as num?)?.toDouble() ?? 0;
+    final totalSales = (summary['total_invoiced'] as num?)?.toDouble() ?? 0;
+    final totalPayment = (summary['total_collections'] as num?)?.toDouble() ?? 0;
+
     final rows = <List<String>>[
       ['', 'OPEN', 'Opening', 'Opening Balance', '', '', '', '', Fmt.amount(opening)],
       for (final r in printRows)
@@ -261,6 +273,16 @@ class CustomerLedgerTableData {
           r.paymentAmt == null ? '' : Fmt.amount(r.paymentAmt!),
           Fmt.amount(r.balance),
         ],
+      // Period Summary row — sits above Closing Balance. Birds has no
+      // dedicated column (adding one would reshape every row of every
+      // Customer Ledger ever rendered), so it's folded into the
+      // Description cell alongside the "Period Summary" label instead.
+      [
+        '', '', 'Summary',
+        'Period Summary  ·  Total Birds: $totalBirds',
+        _fmtNum(totalKg), '',
+        Fmt.amount(totalSales), Fmt.amount(totalPayment), '',
+      ],
     ];
 
     final totals = ['', '', '', 'Closing Balance', '', '', '', '', Fmt.amount(closing)];

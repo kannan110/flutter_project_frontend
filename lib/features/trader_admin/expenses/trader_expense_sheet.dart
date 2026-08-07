@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/providers/session_provider.dart';
 import '../../../core/theme/app_theme.dart';
@@ -43,6 +44,11 @@ class _TraderExpenseSheetState extends ConsumerState<_TraderExpenseSheet> {
 
   String _category   = 'labour';
   bool   _submitting = false;
+  // Business Date — defaults to today, editable, never future. Lets the
+  // trader record expenses from a few days ago (e.g. catching up on 3-5
+  // days of pending entries) so they land on the correct day in P&L and
+  // Batch Cost Allocation instead of always being stamped with today.
+  DateTime _expenseDate = DateTime.now();
 
   // Accumulated entries in this session (shown as chips before close)
   final List<Map<String, dynamic>> _added = [];
@@ -73,7 +79,7 @@ class _TraderExpenseSheetState extends ConsumerState<_TraderExpenseSheet> {
     try {
       await _c.from('trader_daily_expenses').insert({
         'trader_id':    user.traderId,
-        'expense_date': DateTime.now().toIso8601String().substring(0, 10),
+        'expense_date': DateFormat('yyyy-MM-dd').format(_expenseDate),
         'category':     _category,
         'label':        _lblCtrl.text.trim().isEmpty ? null : _lblCtrl.text.trim(),
         'amount':       amt,
@@ -164,6 +170,32 @@ class _TraderExpenseSheetState extends ConsumerState<_TraderExpenseSheet> {
               textCapitalization: TextCapitalization.sentences,
             ),
             const SizedBox(height: 10),
+
+            // Business Date — defaults to today, editable, never future.
+            InkWell(
+              onTap: () async {
+                final picked = await showDatePicker(
+                  context: context,
+                  initialDate: _expenseDate,
+                  firstDate: DateTime.now().subtract(const Duration(days: 365)),
+                  lastDate: DateTime.now(),
+                );
+                if (picked != null) setState(() => _expenseDate = picked);
+              },
+              child: InputDecorator(
+                decoration: InputDecoration(
+                  labelText: 'Business Date',
+                  prefixIcon: const Icon(Icons.calendar_today_outlined, size: 18),
+                  filled: true, fillColor: Colors.grey.shade50,
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10),
+                      borderSide: BorderSide(color: Colors.grey.shade300)),
+                  enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10),
+                      borderSide: BorderSide(color: Colors.grey.shade300)),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                ),
+                child: Text(DateFormat('d MMM yyyy').format(_expenseDate)),
+              ),
+            ),
 
             // Amount + submit
             Row(children: [

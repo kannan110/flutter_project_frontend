@@ -71,11 +71,11 @@ class _S extends ConsumerState<ApprovalsScreen> {
           .eq('trader_id', tid)
           .eq('status', 'delivered')
           .eq('approval_status', 'pending')
-          // ★ NEW (Undo Delivery bug fix, Issue 2): an undone delivery's
-          // stock/cash effects were already reversed by Undo Delivery — it
-          // must never appear here, or approving it would create a real
-          // invoice against stock that no longer exists. is_undone stays
-          // false for every normal delivery, so this is a no-op for them.
+      // ★ NEW (Undo Delivery bug fix, Issue 2): an undone delivery's
+      // stock/cash effects were already reversed by Undo Delivery — it
+      // must never appear here, or approving it would create a real
+      // invoice against stock that no longer exists. is_undone stays
+      // false for every normal delivery, so this is a no-op for them.
           .eq('is_undone', false)
           .order('delivered_at', ascending: false);
       if (!mounted) return;
@@ -168,7 +168,14 @@ class _S extends ConsumerState<ApprovalsScreen> {
     int approved = 0;
     int failed = 0;
     final failures = <Map<String, String>>[]; // {retailer, error}
-    final invoiceDate = DateTime.now().toIso8601String().split('T')[0];
+    // ROOT CAUSE FIX (Business Date audit): previously computed ONE shared
+    // DateTime.now() here and applied it to every delivery in the batch,
+    // regardless of each delivery's own business date — so bulk-approving
+    // a mix of backdated batches collapsed them all onto today's date. Each
+    // delivery's own delivered_at (already correctly business-dated by
+    // complete_delivery) is now read per-delivery inside the loop below,
+    // exactly like approve_delivery_and_order's own fallback already
+    // prefers when no override is supplied.
 
     setState(() => _approvingAll = true);
 
@@ -207,13 +214,21 @@ class _S extends ConsumerState<ApprovalsScreen> {
         // manual rate override — matches the RPC's own automatic-resolution
         // default path (identical to a single-/multi-product order approved
         // without touching the rate fields).
+        //
+        // p_invoice_date is this delivery's OWN delivered_at (already
+        // correctly business-dated by complete_delivery) — not a shared
+        // "today" for the whole run. If somehow missing, omit the param
+        // entirely so the RPC's own COALESCE(p_invoice_date, DATE(delivered_at),
+        // CURRENT_DATE) fallback resolves it instead of forcing today's date.
+        final deliveredAt = delivery['delivered_at'] as String?;
         await _c.rpc('approve_delivery_and_order', params: {
           'p_delivery_id': deliveryId,
           'p_final_rate': null,
           'p_final_amount': null,
           'p_approved_by': userId,
           'p_approval_notes': 'Bulk approved via Approve All',
-          'p_invoice_date': invoiceDate,
+          if (deliveredAt != null)
+            'p_invoice_date': deliveredAt.split('T')[0],
         });
         approved++;
       } catch (e) {

@@ -64,6 +64,7 @@ class _S extends ConsumerState<RetailerLedgerScreen> {
     final amtCtrl  = TextEditingController();
     final descCtrl = TextEditingController();
     String mode = 'cash';
+    DateTime entryDate = DateTime.now();
     final tid = ref.read(appUserProvider).valueOrNull?.traderId;
     final uid = ref.read(appUserProvider).valueOrNull?.userId;
 
@@ -82,6 +83,29 @@ class _S extends ConsumerState<RetailerLedgerScreen> {
                   segments: const [ButtonSegment(value:'cash',label:Text('Cash')), ButtonSegment(value:'upi',label:Text('UPI')), ButtonSegment(value:'bank',label:Text('Bank'))],
                   selected: {mode}, onSelectionChanged: (s) => ss(() => mode = s.first)),
               const SizedBox(height: 10),
+              // Business Date — defaults to today, editable, never future —
+              // lets the trader record a payment collected a few days ago
+              // (e.g. entering 3-5 days of pending cash collections on a
+              // catch-up day) so it lands on the correct day everywhere
+              // downstream (Customer Ledger, P&L, Cash Flow) instead of
+              // always being stamped with today's date.
+              InkWell(
+                onTap: () async {
+                  final picked = await showDatePicker(
+                    context: ctx,
+                    initialDate: entryDate,
+                    firstDate: DateTime.now().subtract(const Duration(days: 365)),
+                    lastDate: DateTime.now(),
+                  );
+                  if (picked != null) ss(() => entryDate = picked);
+                },
+                child: InputDecorator(
+                  decoration: const InputDecoration(labelText: 'Business Date',
+                      prefixIcon: Icon(Icons.calendar_today_outlined, size: 18)),
+                  child: Text(DateFormat('d MMM yyyy').format(entryDate)),
+                ),
+              ),
+              const SizedBox(height: 10),
               TextField(controller: descCtrl, decoration: const InputDecoration(labelText: 'Reference / Notes (optional)')),
               const SizedBox(height: 16),
               ElevatedButton(onPressed: () async {
@@ -94,6 +118,7 @@ class _S extends ConsumerState<RetailerLedgerScreen> {
                     'p_amount': amt, 'p_payment_mode': mode,
                     'p_description': descCtrl.text.trim().isEmpty ? 'Payment via $mode' : descCtrl.text.trim(),
                     'p_recorded_by': uid,
+                    'p_entry_date': DateFormat('yyyy-MM-dd').format(entryDate),
                   });
                   _load(); if (mounted) showSuccess(context, 'Payment recorded ✓');
                 } catch (e) { if (mounted) showError(context, e.toString()); }

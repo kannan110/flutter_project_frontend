@@ -369,6 +369,25 @@ class _S extends ConsumerState<BatchDetailScreen> {
               final emptyVal = double.tryParse(emptyWtCtrl.text) ?? 0;
               final netWt = (grossVal - emptyVal).clamp(0, double.infinity);
               final birds = int.tryParse(birdsCtrl.text) ?? 0;
+
+              // In-House Stock Auto Fill — triggered explicitly from the
+              // Source toggle and Product picker below (not on every
+              // rebuild), so it fills once on the trigger event but never
+              // fights the trader's own edits afterward. Uses the exact
+              // same _visibleInHouseStock data already backing the
+              // read-only "AVAILABLE IN-HOUSE STOCK" preview — no new
+              // fetch, no duplicated stock calculation.
+              void applyInHouseAutoFill() {
+                if (sourceType != 'inhouse_stock' || selectedProductId == null) return;
+                final match = _visibleInHouseStock(selectedProductId);
+                if (match.isEmpty) return;
+                final availBirds = (match.first['in_house_birds'] as num?)?.toInt() ?? 0;
+                final availKg = (match.first['in_house_kg'] as num?)?.toDouble() ?? 0;
+                grossWtCtrl.text = availKg.toStringAsFixed(2);
+                emptyWtCtrl.text = '0';
+                birdsCtrl.text = availBirds.toString();
+              }
+
               return Padding(
                   padding: EdgeInsets.fromLTRB(20, 20, 20, MediaQuery
                       .of(ctx)
@@ -400,7 +419,10 @@ class _S extends ConsumerState<BatchDetailScreen> {
                             ],
                             selected: {sourceType},
                             onSelectionChanged: (s) =>
-                                ss(() => sourceType = s.first)),
+                                ss(() {
+                                  sourceType = s.first;
+                                  applyInHouseAutoFill();
+                                })),
                         if (sourceType == 'inhouse_stock') ...[
                           const SizedBox(height: 8),
                           Container(
@@ -518,6 +540,7 @@ class _S extends ConsumerState<BatchDetailScreen> {
                                     onTap: () => ss(() {
                                       selectedProductId = id;
                                       selectedProductName = name;
+                                      applyInHouseAutoFill();
                                     }),
                                     borderRadius: BorderRadius.circular(20),
                                     child: Container(
