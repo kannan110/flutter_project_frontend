@@ -346,7 +346,15 @@ class _S extends ConsumerState<BatchDetailScreen> {
     final birdsCtrl = TextEditingController();
     final cratesCtrl = TextEditingController(text: '0');
     final rateCtrl = TextEditingController();
-    DateTime dcDate = DateTime.now();
+    // ★ FIX (Batch Detail audit): default the DC Date to the batch's own
+    // batch_date instead of today — a backdated batch (e.g. 05-Aug) should
+    // never default this form to CURRENT_DATE. Re-read fresh every time
+    // this sheet opens, so if the batch's date is ever corrected, the next
+    // Add DC automatically picks up the new value with no extra wiring.
+    final batchDateStr = _batch?['batch_date'] as String?;
+    DateTime dcDate = batchDateStr != null
+        ? (DateTime.tryParse(batchDateStr) ?? DateTime.now())
+        : DateTime.now();
     String sourceType = 'farm';
     String? selectedFarmId;
     String? selectedProductId;
@@ -356,6 +364,13 @@ class _S extends ConsumerState<BatchDetailScreen> {
     String? dcImageUrl;
     bool uploadingDcImage = false;
     final picker = ImagePicker();
+    // Validation errors render as a banner pinned to the TOP of this sheet
+    // (not a bottom SnackBar, which — per showError's use of the app's
+    // root ScaffoldMessenger — floats over the whole screen, not the sheet
+    // itself, and can be missed while the trader's focus/scroll position
+    // is down near the Save button).
+    String? formError;
+    final scrollCtrl = ScrollController();
 
     await showModalBottomSheet(
         context: context,
@@ -388,690 +403,755 @@ class _S extends ConsumerState<BatchDetailScreen> {
                 birdsCtrl.text = availBirds.toString();
               }
 
+              // Validation errors surface as the top-of-sheet banner above,
+              // not a bottom SnackBar — and scroll the sheet back to the
+              // top so the trader actually sees it even if they were
+              // scrolled down near the Save button.
+              void showFieldError(String msg) {
+                ss(() => formError = msg);
+                if (scrollCtrl.hasClients) {
+                  scrollCtrl.animateTo(0,
+                      duration: const Duration(milliseconds: 250),
+                      curve: Curves.easeOut);
+                }
+              }
+
               return Padding(
                   padding: EdgeInsets.fromLTRB(20, 20, 20, MediaQuery
                       .of(ctx)
                       .viewInsets
                       .bottom + 20),
-                  child: SingleChildScrollView(child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Row(children: [
-                          const Text('Add DC', style: TextStyle(
-                              fontSize: 16, fontWeight: FontWeight.w800)),
-                          const Spacer(),
-                          const Icon(
-                              Icons.receipt_long_outlined, color: kPrimary),
-                        ]),
-                        const SizedBox(height: 10),
-                        SegmentedButton<String>(
-                            segments: const [
-                              ButtonSegment(value: 'farm', icon: Icon(Icons
-                                  .agriculture, size: 14), label: Text('Farm')),
-                              ButtonSegment(
-                                  value: 'shop_collection', icon: Icon(Icons
-                                  .store, size: 14), label: Text('Shop')),
-                              ButtonSegment(value: 'inhouse_stock',
-                                  icon: Icon(Icons.warehouse_outlined,
-                                      size: 14),
-                                  label: Text('In-House')),
-                            ],
-                            selected: {sourceType},
-                            onSelectionChanged: (s) =>
-                                ss(() {
-                                  sourceType = s.first;
-                                  applyInHouseAutoFill();
-                                })),
-                        if (sourceType == 'inhouse_stock') ...[
-                          const SizedBox(height: 8),
-                          Container(
-                              padding: const EdgeInsets.all(10),
-                              decoration: BoxDecoration(
-                                  color: Colors.orange.shade50,
-                                  borderRadius: BorderRadius.circular(
-                                      kRadiusInner),
-                                  border: Border.all(
-                                      color: Colors.orange.shade200)),
-                              child: const Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Row(children: [
-                                      Icon(Icons.warehouse_outlined,
-                                          color: Colors.orange, size: 14),
-                                      SizedBox(width: 6),
-                                      Text('IN-HOUSE DC — Internal Transfer',
-                                          style: TextStyle(fontSize: 11,
-                                              fontWeight: FontWeight.w800,
-                                              color: Colors.orange)),
-                                    ]),
-                                    SizedBox(height: 4),
-                                    Text(
-                                        'Moves stock FROM in-house inventory TO agent.\n'
-                                            'In-house stock DECREASES. Agent stock INCREASES.',
-                                        style: TextStyle(fontSize: 10,
-                                            color: Colors.orange,
-                                            height: 1.4)),
-                                  ])),
-                          if (_visibleInHouseStock(selectedProductId)
-                              .isNotEmpty) ...[
-                            const SizedBox(height: 8),
-                            Container(
-                                padding: const EdgeInsets.all(10),
+                  child: SingleChildScrollView(
+                      controller: scrollCtrl,
+                      child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Row(children: [
+                              const Text('Add DC', style: TextStyle(
+                                  fontSize: 16, fontWeight: FontWeight.w800)),
+                              const Spacer(),
+                              const Icon(
+                                  Icons.receipt_long_outlined, color: kPrimary),
+                            ]),
+                            if (formError != null) ...[
+                              const SizedBox(height: 10),
+                              Container(
+                                width: double.infinity,
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 12, vertical: 10),
                                 decoration: BoxDecoration(
-                                    color: kBgGrey,
-                                    borderRadius:
-                                    BorderRadius.circular(kRadiusInner),
-                                    border: Border.all(color: kBorderLight)),
-                                child: Column(
-                                    crossAxisAlignment:
-                                    CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                          selectedProductId == null
-                                              ? 'AVAILABLE IN-HOUSE STOCK'
-                                              : 'AVAILABLE IN-HOUSE STOCK — $selectedProductName',
+                                    color: kError.withValues(alpha: 0.1),
+                                    borderRadius: BorderRadius.circular(
+                                        kRadiusInner),
+                                    border: Border.all(
+                                        color: kError.withValues(alpha: 0.4))),
+                                child: Row(children: [
+                                  const Icon(Icons.error_outline,
+                                      size: 18, color: kError),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                      child: Text(formError!,
                                           style: const TextStyle(
-                                              fontSize: 10,
-                                              fontWeight: FontWeight.w800,
-                                              color: kTextHint,
-                                              letterSpacing: 0.6)),
-                                      const SizedBox(height: 6),
-                                      ..._visibleInHouseStock(
-                                          selectedProductId)
-                                          .map((s) {
-                                        final birds = (s['in_house_birds']
-                                        as num?)
-                                            ?.toInt() ?? 0;
-                                        final kg = (s['in_house_kg']
-                                        as num?)
-                                            ?.toDouble() ?? 0;
-                                        return Padding(
-                                          padding: const EdgeInsets.symmetric(
-                                              vertical: 2),
-                                          child: Row(children: [
-                                            Expanded(
-                                                child: Text(
-                                                    s['product_name']
-                                                    as String? ??
-                                                        '—',
-                                                    style: const TextStyle(
-                                                        fontSize: 12,
-                                                        fontWeight:
-                                                        FontWeight.w700,
-                                                        color: kNavy))),
-                                            Text(
-                                                'Available: $birds Birds | ${kg.toStringAsFixed(2)} Kg',
-                                                style: const TextStyle(
-                                                    fontSize: 11,
-                                                    fontWeight:
-                                                    FontWeight.w600,
-                                                    color: kTextSub)),
-                                          ]),
-                                        );
-                                      }),
-                                    ])),
-                          ],
-                        ],
-                        const SizedBox(height: 14),
-                        const Text('Product *',
-                            style: TextStyle(fontSize: 12,
-                                fontWeight: FontWeight.w700,
-                                color: kTextHint)),
-                        const SizedBox(height: 4),
-                        const Text(
-                            'One product per DC. Variant breakdown '
-                                '(Small/Medium/Big) is confirmed separately '
-                                'after loading.',
-                            style: TextStyle(fontSize: 11, color: kTextHint)),
-                        const SizedBox(height: 8),
-                        if (_parentProducts.isEmpty)
-                          Padding(
-                              padding: const EdgeInsets.symmetric(vertical: 8),
-                              child: Text('No active products found.',
-                                  style: TextStyle(color: kTextHint)))
-                        else
-                          Wrap(spacing: 8, runSpacing: 8,
-                              children: _parentProducts.map((p) {
-                                final id = p['id'] as String;
-                                final name = p['name'] as String? ?? '—';
-                                final selected = selectedProductId == id;
-                                return InkWell(
-                                    onTap: () => ss(() {
-                                      selectedProductId = id;
-                                      selectedProductName = name;
+                                              fontSize: 12.5,
+                                              fontWeight: FontWeight.w700,
+                                              color: kError))),
+                                ]),
+                              ),
+                            ],
+                            const SizedBox(height: 10),
+                            SegmentedButton<String>(
+                                segments: const [
+                                  ButtonSegment(value: 'farm', icon: Icon(Icons
+                                      .agriculture, size: 14), label: Text('Farm')),
+                                  ButtonSegment(
+                                      value: 'shop_collection', icon: Icon(Icons
+                                      .store, size: 14), label: Text('Shop')),
+                                  ButtonSegment(value: 'inhouse_stock',
+                                      icon: Icon(Icons.warehouse_outlined,
+                                          size: 14),
+                                      label: Text('In-House')),
+                                ],
+                                selected: {sourceType},
+                                onSelectionChanged: (s) =>
+                                    ss(() {
+                                      sourceType = s.first;
                                       applyInHouseAutoFill();
-                                    }),
-                                    borderRadius: BorderRadius.circular(20),
-                                    child: Container(
-                                        padding: const EdgeInsets.symmetric(
-                                            horizontal: 14, vertical: 8),
-                                        decoration: BoxDecoration(
-                                            color: selected
-                                                ? kPrimary.withValues(alpha: 0.1)
-                                                : Colors.grey.shade100,
-                                            borderRadius:
-                                            BorderRadius.circular(20),
-                                            border: Border.all(
+                                    })),
+                            if (sourceType == 'inhouse_stock') ...[
+                              const SizedBox(height: 8),
+                              Container(
+                                  padding: const EdgeInsets.all(10),
+                                  decoration: BoxDecoration(
+                                      color: Colors.orange.shade50,
+                                      borderRadius: BorderRadius.circular(
+                                          kRadiusInner),
+                                      border: Border.all(
+                                          color: Colors.orange.shade200)),
+                                  child: const Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Row(children: [
+                                          Icon(Icons.warehouse_outlined,
+                                              color: Colors.orange, size: 14),
+                                          SizedBox(width: 6),
+                                          Text('IN-HOUSE DC — Internal Transfer',
+                                              style: TextStyle(fontSize: 11,
+                                                  fontWeight: FontWeight.w800,
+                                                  color: Colors.orange)),
+                                        ]),
+                                        SizedBox(height: 4),
+                                        Text(
+                                            'Moves stock FROM in-house inventory TO agent.\n'
+                                                'In-house stock DECREASES. Agent stock INCREASES.',
+                                            style: TextStyle(fontSize: 10,
+                                                color: Colors.orange,
+                                                height: 1.4)),
+                                      ])),
+                              if (_visibleInHouseStock(selectedProductId)
+                                  .isNotEmpty) ...[
+                                const SizedBox(height: 8),
+                                Container(
+                                    padding: const EdgeInsets.all(10),
+                                    decoration: BoxDecoration(
+                                        color: kBgGrey,
+                                        borderRadius:
+                                        BorderRadius.circular(kRadiusInner),
+                                        border: Border.all(color: kBorderLight)),
+                                    child: Column(
+                                        crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                              selectedProductId == null
+                                                  ? 'AVAILABLE IN-HOUSE STOCK'
+                                                  : 'AVAILABLE IN-HOUSE STOCK — $selectedProductName',
+                                              style: const TextStyle(
+                                                  fontSize: 10,
+                                                  fontWeight: FontWeight.w800,
+                                                  color: kTextHint,
+                                                  letterSpacing: 0.6)),
+                                          const SizedBox(height: 6),
+                                          ..._visibleInHouseStock(
+                                              selectedProductId)
+                                              .map((s) {
+                                            final birds = (s['in_house_birds']
+                                            as num?)
+                                                ?.toInt() ?? 0;
+                                            final kg = (s['in_house_kg']
+                                            as num?)
+                                                ?.toDouble() ?? 0;
+                                            return Padding(
+                                              padding: const EdgeInsets.symmetric(
+                                                  vertical: 2),
+                                              child: Row(children: [
+                                                Expanded(
+                                                    child: Text(
+                                                        s['product_name']
+                                                        as String? ??
+                                                            '—',
+                                                        style: const TextStyle(
+                                                            fontSize: 12,
+                                                            fontWeight:
+                                                            FontWeight.w700,
+                                                            color: kNavy))),
+                                                Text(
+                                                    'Available: $birds Birds | ${kg.toStringAsFixed(2)} Kg',
+                                                    style: const TextStyle(
+                                                        fontSize: 11,
+                                                        fontWeight:
+                                                        FontWeight.w600,
+                                                        color: kTextSub)),
+                                              ]),
+                                            );
+                                          }),
+                                        ])),
+                              ],
+                            ],
+                            const SizedBox(height: 14),
+                            const Text('Product *',
+                                style: TextStyle(fontSize: 12,
+                                    fontWeight: FontWeight.w700,
+                                    color: kTextHint)),
+                            const SizedBox(height: 4),
+                            const Text(
+                                'One product per DC. Variant breakdown '
+                                    '(Small/Medium/Big) is confirmed separately '
+                                    'after loading.',
+                                style: TextStyle(fontSize: 11, color: kTextHint)),
+                            const SizedBox(height: 8),
+                            if (_parentProducts.isEmpty)
+                              Padding(
+                                  padding: const EdgeInsets.symmetric(vertical: 8),
+                                  child: Text('No active products found.',
+                                      style: TextStyle(color: kTextHint)))
+                            else
+                              Wrap(spacing: 8, runSpacing: 8,
+                                  children: _parentProducts.map((p) {
+                                    final id = p['id'] as String;
+                                    final name = p['name'] as String? ?? '—';
+                                    final selected = selectedProductId == id;
+                                    return InkWell(
+                                        onTap: () => ss(() {
+                                          selectedProductId = id;
+                                          selectedProductName = name;
+                                          applyInHouseAutoFill();
+                                        }),
+                                        borderRadius: BorderRadius.circular(20),
+                                        child: Container(
+                                            padding: const EdgeInsets.symmetric(
+                                                horizontal: 14, vertical: 8),
+                                            decoration: BoxDecoration(
                                                 color: selected
-                                                    ? kPrimary
-                                                    : Colors.grey.shade300,
-                                                width: selected ? 1.5 : 1)),
-                                        child: Text(name,
-                                            style: TextStyle(
-                                                fontSize: 13,
-                                                fontWeight: selected
-                                                    ? FontWeight.w700
-                                                    : FontWeight.w500,
-                                                color: selected
-                                                    ? kPrimary
-                                                    : kTextHint))));
-                              }).toList()),
-                        const SizedBox(height: 10),
-                        Row(children: [
-                          Expanded(child: TextField(
-                              textInputAction: TextInputAction.next,
-                              onSubmitted: (_) =>
-                                  FocusScope.of(context).nextFocus(),
-                              controller: dcNumCtrl,
-                              textCapitalization: TextCapitalization.characters,
-                              decoration: const InputDecoration(
-                                  labelText: 'DC Number *'))),
-                          const SizedBox(width: 10),
-                          Expanded(child: InkWell(
-                              onTap: () async {
-                                final d = await showDatePicker(context: ctx,
-                                    initialDate: dcDate,
-                                    firstDate: DateTime.now().subtract(
-                                        const Duration(days: 7)),
-                                    lastDate: DateTime.now());
-                                if (d != null) ss(() => dcDate = d);
+                                                    ? kPrimary.withValues(alpha: 0.1)
+                                                    : Colors.grey.shade100,
+                                                borderRadius:
+                                                BorderRadius.circular(20),
+                                                border: Border.all(
+                                                    color: selected
+                                                        ? kPrimary
+                                                        : Colors.grey.shade300,
+                                                    width: selected ? 1.5 : 1)),
+                                            child: Text(name,
+                                                style: TextStyle(
+                                                    fontSize: 13,
+                                                    fontWeight: selected
+                                                        ? FontWeight.w700
+                                                        : FontWeight.w500,
+                                                    color: selected
+                                                        ? kPrimary
+                                                        : kTextHint))));
+                                  }).toList()),
+                            const SizedBox(height: 10),
+                            Row(children: [
+                              Expanded(child: TextField(
+                                  textInputAction: TextInputAction.next,
+                                  onSubmitted: (_) =>
+                                      FocusScope.of(context).nextFocus(),
+                                  controller: dcNumCtrl,
+                                  textCapitalization: TextCapitalization.characters,
+                                  decoration: const InputDecoration(
+                                      labelText: 'DC Number *'))),
+                              const SizedBox(width: 10),
+                              Expanded(child: InkWell(
+                                  onTap: () async {
+                                    // firstDate must never be after dcDate's
+                                    // initial value (Flutter requires
+                                    // initialDate within [firstDate, lastDate])
+                                    // — a batch older than 7 days would
+                                    // otherwise crash this picker now that
+                                    // dcDate correctly defaults to the batch
+                                    // date instead of today.
+                                    final sevenDaysAgo = DateTime.now()
+                                        .subtract(const Duration(days: 7));
+                                    final pickerFirstDate =
+                                    dcDate.isBefore(sevenDaysAgo)
+                                        ? dcDate
+                                        : sevenDaysAgo;
+                                    final d = await showDatePicker(context: ctx,
+                                        initialDate: dcDate,
+                                        firstDate: pickerFirstDate,
+                                        lastDate: DateTime.now());
+                                    if (d != null) ss(() => dcDate = d);
+                                  },
+                                  child: Container(
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 12, vertical: 16),
+                                      decoration: BoxDecoration(
+                                          color: const Color(0xFFF3F4F6),
+                                          borderRadius: BorderRadius.circular(10)),
+                                      child: Text(
+                                          DateFormat('d MMM y').format(dcDate),
+                                          style: const TextStyle(fontSize: 13))))),
+                            ]),
+                            const SizedBox(height: 8),
+                            // ── Supplier picker ────────────────────────────────
+                            StatefulBuilder(builder: (_, fss) =>
+                                Column(children: [
+                                  if (sourceType == 'farm' &&
+                                      _farms.isNotEmpty) ...[
+                                    GestureDetector(
+                                        onTap: () =>
+                                            showModalBottomSheet(
+                                                context: context,
+                                                useRootNavigator: true,
+                                                isScrollControlled: true,
+                                                shape: const RoundedRectangleBorder(
+                                                    borderRadius: BorderRadius
+                                                        .vertical(
+                                                        top: Radius.circular(20))),
+                                                builder: (pCtx) =>
+                                                    StatefulBuilder(
+                                                        builder: (pCtx, ps) {
+                                                          String q = '';
+                                                          final flt = q.isEmpty
+                                                              ? _farms
+                                                              : _farms.where((f) =>
+                                                              (f['farmer_name'] as String? ??
+                                                                  '')
+                                                                  .toLowerCase()
+                                                                  .contains(
+                                                                  q.toLowerCase()))
+                                                              .toList();
+                                                          return DraggableScrollableSheet(
+                                                              expand: false,
+                                                              initialChildSize: 0.55,
+                                                              maxChildSize: 0.85,
+                                                              builder: (_, ctrl) =>
+                                                                  Column(children: [
+                                                                    Padding(
+                                                                        padding: const EdgeInsets
+                                                                            .fromLTRB(
+                                                                            16, 12,
+                                                                            16, 8),
+                                                                        child: Column(
+                                                                            children: [
+                                                                              const Text(
+                                                                                  'Select Supplier',
+                                                                                  style: TextStyle(
+                                                                                      fontSize: 15,
+                                                                                      fontWeight: FontWeight
+                                                                                          .w800)),
+                                                                              const SizedBox(
+                                                                                  height: 8),
+                                                                              TextField(
+                                                                                  textInputAction: TextInputAction
+                                                                                      .search,
+                                                                                  onSubmitted: (
+                                                                                      _) =>
+                                                                                      FocusScope
+                                                                                          .of(
+                                                                                          context)
+                                                                                          .nextFocus(),
+                                                                                  onChanged: (
+                                                                                      v) =>
+                                                                                      ps(() =>
+                                                                                      q =
+                                                                                          v),
+                                                                                  decoration: const InputDecoration(
+                                                                                      hintText: 'Search...',
+                                                                                      prefixIcon: Icon(
+                                                                                          Icons
+                                                                                              .search,
+                                                                                          size: 18),
+                                                                                      isDense: true)),
+                                                                            ])),
+                                                                    const Divider(
+                                                                        height: 1),
+                                                                    Expanded(
+                                                                        child: ListView
+                                                                            .builder(
+                                                                            controller: ctrl,
+                                                                            padding: const EdgeInsets
+                                                                                .all(
+                                                                                10),
+                                                                            itemCount: flt
+                                                                                .length,
+                                                                            itemBuilder: (
+                                                                                _,
+                                                                                i) {
+                                                                              final f = flt[i];
+                                                                              return ListTile(
+                                                                                  dense: true,
+                                                                                  leading: CircleAvatar(
+                                                                                      radius: 14,
+                                                                                      backgroundColor: kPrimary
+                                                                                          .withValues(
+                                                                                          alpha: 0.08),
+                                                                                      child: Text(
+                                                                                          (f['farmer_name'] as String? ??
+                                                                                              '?')[0]
+                                                                                              .toUpperCase(),
+                                                                                          style: const TextStyle(
+                                                                                              fontSize: 11,
+                                                                                              fontWeight: FontWeight
+                                                                                                  .w800,
+                                                                                              color: kPrimary))),
+                                                                                  title: Text(
+                                                                                      f['farmer_name'] as String? ??
+                                                                                          '—'),
+                                                                                  subtitle: (f['farm_name'] as String?) !=
+                                                                                      null
+                                                                                      ? Text(
+                                                                                      f['farm_name'] as String)
+                                                                                      : null,
+                                                                                  trailing: selectedFarmId ==
+                                                                                      f['id']
+                                                                                      ? const Icon(
+                                                                                      Icons
+                                                                                          .check_circle,
+                                                                                      color: kPrimary,
+                                                                                      size: 16)
+                                                                                      : null,
+                                                                                  onTap: () {
+                                                                                    Navigator
+                                                                                        .of(
+                                                                                        pCtx,
+                                                                                        rootNavigator: true)
+                                                                                        .pop();
+                                                                                    ss(() {
+                                                                                      selectedFarmId =
+                                                                                      f['id'] as String;
+                                                                                      selectedFarmName =
+                                                                                      f['farmer_name'] as String?;
+                                                                                      farmerCtrl
+                                                                                          .text =
+                                                                                          f['farmer_name'] as String? ??
+                                                                                              '';
+                                                                                      if ((f['location'] as String?)
+                                                                                          ?.isNotEmpty ==
+                                                                                          true &&
+                                                                                          farmLocCtrl
+                                                                                              .text
+                                                                                              .isEmpty)
+                                                                                        farmLocCtrl
+                                                                                            .text =
+                                                                                        f['location'] as String;
+                                                                                    });
+                                                                                  });
+                                                                            })),
+                                                                  ]));
+                                                        })),
+                                        child: Container(
+                                            padding: const EdgeInsets.symmetric(
+                                                horizontal: 12, vertical: 11),
+                                            decoration: BoxDecoration(
+                                                color: Colors.white,
+                                                borderRadius: BorderRadius.circular(
+                                                    kRadiusCard),
+                                                border: Border.all(
+                                                    color: selectedFarmId != null
+                                                        ? kPrimary
+                                                        : kBorder,
+                                                    width: selectedFarmId != null
+                                                        ? 1.5
+                                                        : 1)),
+                                            child: Row(children: [
+                                              Icon(Icons.agriculture_outlined,
+                                                  size: 15,
+                                                  color: selectedFarmId != null
+                                                      ? kPrimary
+                                                      : kTextHint),
+                                              const SizedBox(width: 8),
+                                              Expanded(child: Text(
+                                                  selectedFarmId != null
+                                                      ? (selectedFarmName ?? '—')
+                                                      : 'Select Supplier',
+                                                  style: TextStyle(fontSize: 12,
+                                                      fontWeight: selectedFarmId !=
+                                                          null
+                                                          ? FontWeight.w700
+                                                          : FontWeight.normal,
+                                                      color: selectedFarmId != null
+                                                          ? kTextMain
+                                                          : kTextHint))),
+                                              const Icon(
+                                                  Icons.chevron_right, size: 15,
+                                                  color: kTextHint),
+                                            ]))),
+                                    const SizedBox(height: 4),
+                                    const Center(child: Text('— or type manually —',
+                                        style: TextStyle(
+                                            fontSize: 10, color: kTextHint))),
+                                    const SizedBox(height: 6),
+                                  ],
+                                ])),
+                            TextField(
+                                textInputAction: TextInputAction.next,
+                                onSubmitted: (_) =>
+                                    FocusScope.of(context).nextFocus(),
+                                controller: farmerCtrl,
+                                textCapitalization: TextCapitalization.words,
+                                decoration: InputDecoration(
+                                    labelText: sourceType == 'shop_collection'
+                                        ? 'Shop Name *'
+                                        : sourceType == 'inhouse_stock'
+                                        ? 'Stock Point Name *'
+                                        : 'Farmer Name *')),
+                            const SizedBox(height: 8),
+                            TextField(
+                                textInputAction: TextInputAction.next,
+                                onSubmitted: (_) =>
+                                    FocusScope.of(context).nextFocus(),
+                                controller: farmLocCtrl,
+                                decoration: const InputDecoration(
+                                    labelText: 'Location (optional)')),
+                            const SizedBox(height: 8),
+                            TextField(
+                                textInputAction: TextInputAction.next,
+                                onSubmitted: (_) =>
+                                    FocusScope.of(context).nextFocus(),
+                                controller: vehicleCtrl,
+                                textCapitalization: TextCapitalization.characters,
+                                decoration: const InputDecoration(
+                                    labelText: 'Vehicle No.')),
+                            const SizedBox(height: 10),
+                            Row(children: [
+                              Expanded(child: TextField(
+                                  textInputAction: TextInputAction.next,
+                                  onSubmitted: (_) =>
+                                      FocusScope.of(context).nextFocus(),
+                                  controller: grossWtCtrl,
+                                  keyboardType: const TextInputType
+                                      .numberWithOptions(decimal: true),
+                                  decoration: const InputDecoration(
+                                      labelText: 'Gross Wt (kg) *'),
+                                  onChanged: (_) => ss(() {}))),
+                              const SizedBox(width: 8),
+                              Expanded(child: TextField(
+                                  textInputAction: TextInputAction.next,
+                                  onSubmitted: (_) =>
+                                      FocusScope.of(context).nextFocus(),
+                                  controller: emptyWtCtrl,
+                                  keyboardType: const TextInputType
+                                      .numberWithOptions(decimal: true),
+                                  decoration: const InputDecoration(
+                                      labelText: 'Empty Crate'),
+                                  onChanged: (_) => ss(() {}))),
+                              const SizedBox(width: 8),
+                              Expanded(child: TextField(
+                                  textInputAction: TextInputAction.next,
+                                  onSubmitted: (_) =>
+                                      FocusScope.of(context).nextFocus(),
+                                  controller: birdsCtrl,
+                                  keyboardType: TextInputType.number,
+                                  decoration: const InputDecoration(
+                                      labelText: 'Birds'),
+                                  onChanged: (_) => ss(() {}))),
+                            ]),
+                            if (grossVal > 0) Padding(
+                                padding: const EdgeInsets.only(top: 6),
+                                child: Text('Net: ${netWt.toStringAsFixed(
+                                    2)} kg${birds > 0 ? ' · Avg: ${(netWt / birds)
+                                    .toStringAsFixed(3)} kg/bird' : ''}',
+                                    style: const TextStyle(fontSize: 12,
+                                        color: kPrimary,
+                                        fontWeight: FontWeight.w700))),
+                            const SizedBox(height: 8),
+                            // ── DC Photo (optional here — this screen may run on
+                            // desktop without a camera; the agent's mobile pickup
+                            // flow is where the photo is mandatory) ─────────────
+                            const Text('DC Photo',
+                                style: TextStyle(fontSize: 12,
+                                    fontWeight: FontWeight.w700,
+                                    color: kTextHint)),
+                            const SizedBox(height: 6),
+                            GestureDetector(
+                              onTap: uploadingDcImage ? null : () async {
+                                final picked = await picker.pickImage(
+                                    source: ImageSource.gallery,
+                                    imageQuality: 70, maxWidth: 1200);
+                                if (picked == null) return;
+                                final file = File(picked.path);
+                                ss(() { dcImage = file; uploadingDcImage = true; });
+                                try {
+                                  final path =
+                                      'dc/${DateTime.now().millisecondsSinceEpoch}.jpg';
+                                  await Supabase.instance.client.storage
+                                      .from('dc-images').upload(path, file);
+                                  final url = Supabase.instance.client.storage
+                                      .from('dc-images').getPublicUrl(path);
+                                  ss(() { dcImageUrl = url; uploadingDcImage = false; });
+                                } catch (e) {
+                                  ss(() => uploadingDcImage = false);
+                                  if (ctx.mounted) showError(ctx,
+                                      'Photo upload failed — check connection');
+                                }
                               },
                               child: Container(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 12, vertical: 16),
-                                  decoration: BoxDecoration(
-                                      color: const Color(0xFFF3F4F6),
-                                      borderRadius: BorderRadius.circular(10)),
-                                  child: Text(
-                                      DateFormat('d MMM y').format(dcDate),
-                                      style: const TextStyle(fontSize: 13))))),
-                        ]),
-                        const SizedBox(height: 8),
-                        // ── Supplier picker ────────────────────────────────
-                        StatefulBuilder(builder: (_, fss) =>
-                            Column(children: [
-                              if (sourceType == 'farm' &&
-                                  _farms.isNotEmpty) ...[
-                                GestureDetector(
-                                    onTap: () =>
-                                        showModalBottomSheet(
-                                            context: context,
-                                            useRootNavigator: true,
-                                            isScrollControlled: true,
-                                            shape: const RoundedRectangleBorder(
-                                                borderRadius: BorderRadius
-                                                    .vertical(
-                                                    top: Radius.circular(20))),
-                                            builder: (pCtx) =>
-                                                StatefulBuilder(
-                                                    builder: (pCtx, ps) {
-                                                      String q = '';
-                                                      final flt = q.isEmpty
-                                                          ? _farms
-                                                          : _farms.where((f) =>
-                                                          (f['farmer_name'] as String? ??
-                                                              '')
-                                                              .toLowerCase()
-                                                              .contains(
-                                                              q.toLowerCase()))
-                                                          .toList();
-                                                      return DraggableScrollableSheet(
-                                                          expand: false,
-                                                          initialChildSize: 0.55,
-                                                          maxChildSize: 0.85,
-                                                          builder: (_, ctrl) =>
-                                                              Column(children: [
-                                                                Padding(
-                                                                    padding: const EdgeInsets
-                                                                        .fromLTRB(
-                                                                        16, 12,
-                                                                        16, 8),
-                                                                    child: Column(
-                                                                        children: [
-                                                                          const Text(
-                                                                              'Select Supplier',
-                                                                              style: TextStyle(
-                                                                                  fontSize: 15,
-                                                                                  fontWeight: FontWeight
-                                                                                      .w800)),
-                                                                          const SizedBox(
-                                                                              height: 8),
-                                                                          TextField(
-                                                                              textInputAction: TextInputAction
-                                                                                  .search,
-                                                                              onSubmitted: (
-                                                                                  _) =>
-                                                                                  FocusScope
-                                                                                      .of(
-                                                                                      context)
-                                                                                      .nextFocus(),
-                                                                              onChanged: (
-                                                                                  v) =>
-                                                                                  ps(() =>
-                                                                                  q =
-                                                                                      v),
-                                                                              decoration: const InputDecoration(
-                                                                                  hintText: 'Search...',
-                                                                                  prefixIcon: Icon(
-                                                                                      Icons
-                                                                                          .search,
-                                                                                      size: 18),
-                                                                                  isDense: true)),
-                                                                        ])),
-                                                                const Divider(
-                                                                    height: 1),
-                                                                Expanded(
-                                                                    child: ListView
-                                                                        .builder(
-                                                                        controller: ctrl,
-                                                                        padding: const EdgeInsets
-                                                                            .all(
-                                                                            10),
-                                                                        itemCount: flt
-                                                                            .length,
-                                                                        itemBuilder: (
-                                                                            _,
-                                                                            i) {
-                                                                          final f = flt[i];
-                                                                          return ListTile(
-                                                                              dense: true,
-                                                                              leading: CircleAvatar(
-                                                                                  radius: 14,
-                                                                                  backgroundColor: kPrimary
-                                                                                      .withValues(
-                                                                                      alpha: 0.08),
-                                                                                  child: Text(
-                                                                                      (f['farmer_name'] as String? ??
-                                                                                          '?')[0]
-                                                                                          .toUpperCase(),
-                                                                                      style: const TextStyle(
-                                                                                          fontSize: 11,
-                                                                                          fontWeight: FontWeight
-                                                                                              .w800,
-                                                                                          color: kPrimary))),
-                                                                              title: Text(
-                                                                                  f['farmer_name'] as String? ??
-                                                                                      '—'),
-                                                                              subtitle: (f['farm_name'] as String?) !=
-                                                                                  null
-                                                                                  ? Text(
-                                                                                  f['farm_name'] as String)
-                                                                                  : null,
-                                                                              trailing: selectedFarmId ==
-                                                                                  f['id']
-                                                                                  ? const Icon(
-                                                                                  Icons
-                                                                                      .check_circle,
-                                                                                  color: kPrimary,
-                                                                                  size: 16)
-                                                                                  : null,
-                                                                              onTap: () {
-                                                                                Navigator
-                                                                                    .of(
-                                                                                    pCtx,
-                                                                                    rootNavigator: true)
-                                                                                    .pop();
-                                                                                ss(() {
-                                                                                  selectedFarmId =
-                                                                                  f['id'] as String;
-                                                                                  selectedFarmName =
-                                                                                  f['farmer_name'] as String?;
-                                                                                  farmerCtrl
-                                                                                      .text =
-                                                                                      f['farmer_name'] as String? ??
-                                                                                          '';
-                                                                                  if ((f['location'] as String?)
-                                                                                      ?.isNotEmpty ==
-                                                                                      true &&
-                                                                                      farmLocCtrl
-                                                                                          .text
-                                                                                          .isEmpty)
-                                                                                    farmLocCtrl
-                                                                                        .text =
-                                                                                    f['location'] as String;
-                                                                                });
-                                                                              });
-                                                                        })),
-                                                              ]));
-                                                    })),
-                                    child: Container(
-                                        padding: const EdgeInsets.symmetric(
-                                            horizontal: 12, vertical: 11),
-                                        decoration: BoxDecoration(
-                                            color: Colors.white,
-                                            borderRadius: BorderRadius.circular(
-                                                kRadiusCard),
-                                            border: Border.all(
-                                                color: selectedFarmId != null
-                                                    ? kPrimary
-                                                    : kBorder,
-                                                width: selectedFarmId != null
-                                                    ? 1.5
-                                                    : 1)),
-                                        child: Row(children: [
-                                          Icon(Icons.agriculture_outlined,
-                                              size: 15,
-                                              color: selectedFarmId != null
-                                                  ? kPrimary
-                                                  : kTextHint),
-                                          const SizedBox(width: 8),
-                                          Expanded(child: Text(
-                                              selectedFarmId != null
-                                                  ? (selectedFarmName ?? '—')
-                                                  : 'Select Supplier',
-                                              style: TextStyle(fontSize: 12,
-                                                  fontWeight: selectedFarmId !=
-                                                      null
-                                                      ? FontWeight.w700
-                                                      : FontWeight.normal,
-                                                  color: selectedFarmId != null
-                                                      ? kTextMain
-                                                      : kTextHint))),
-                                          const Icon(
-                                              Icons.chevron_right, size: 15,
-                                              color: kTextHint),
-                                        ]))),
-                                const SizedBox(height: 4),
-                                const Center(child: Text('— or type manually —',
-                                    style: TextStyle(
-                                        fontSize: 10, color: kTextHint))),
-                                const SizedBox(height: 6),
-                              ],
-                            ])),
-                        TextField(
-                            textInputAction: TextInputAction.next,
-                            onSubmitted: (_) =>
-                                FocusScope.of(context).nextFocus(),
-                            controller: farmerCtrl,
-                            textCapitalization: TextCapitalization.words,
-                            decoration: InputDecoration(
-                                labelText: sourceType == 'shop_collection'
-                                    ? 'Shop Name *'
-                                    : sourceType == 'inhouse_stock'
-                                    ? 'Stock Point Name *'
-                                    : 'Farmer Name *')),
-                        const SizedBox(height: 8),
-                        TextField(
-                            textInputAction: TextInputAction.next,
-                            onSubmitted: (_) =>
-                                FocusScope.of(context).nextFocus(),
-                            controller: farmLocCtrl,
-                            decoration: const InputDecoration(
-                                labelText: 'Location (optional)')),
-                        const SizedBox(height: 8),
-                        TextField(
-                            textInputAction: TextInputAction.next,
-                            onSubmitted: (_) =>
-                                FocusScope.of(context).nextFocus(),
-                            controller: vehicleCtrl,
-                            textCapitalization: TextCapitalization.characters,
-                            decoration: const InputDecoration(
-                                labelText: 'Vehicle No.')),
-                        const SizedBox(height: 10),
-                        Row(children: [
-                          Expanded(child: TextField(
-                              textInputAction: TextInputAction.next,
-                              onSubmitted: (_) =>
-                                  FocusScope.of(context).nextFocus(),
-                              controller: grossWtCtrl,
-                              keyboardType: const TextInputType
-                                  .numberWithOptions(decimal: true),
-                              decoration: const InputDecoration(
-                                  labelText: 'Gross Wt (kg) *'),
-                              onChanged: (_) => ss(() {}))),
-                          const SizedBox(width: 8),
-                          Expanded(child: TextField(
-                              textInputAction: TextInputAction.next,
-                              onSubmitted: (_) =>
-                                  FocusScope.of(context).nextFocus(),
-                              controller: emptyWtCtrl,
-                              keyboardType: const TextInputType
-                                  .numberWithOptions(decimal: true),
-                              decoration: const InputDecoration(
-                                  labelText: 'Empty Crate'),
-                              onChanged: (_) => ss(() {}))),
-                          const SizedBox(width: 8),
-                          Expanded(child: TextField(
-                              textInputAction: TextInputAction.next,
-                              onSubmitted: (_) =>
-                                  FocusScope.of(context).nextFocus(),
-                              controller: birdsCtrl,
-                              keyboardType: TextInputType.number,
-                              decoration: const InputDecoration(
-                                  labelText: 'Birds'),
-                              onChanged: (_) => ss(() {}))),
-                        ]),
-                        if (grossVal > 0) Padding(
-                            padding: const EdgeInsets.only(top: 6),
-                            child: Text('Net: ${netWt.toStringAsFixed(
-                                2)} kg${birds > 0 ? ' · Avg: ${(netWt / birds)
-                                .toStringAsFixed(3)} kg/bird' : ''}',
-                                style: const TextStyle(fontSize: 12,
-                                    color: kPrimary,
-                                    fontWeight: FontWeight.w700))),
-                        const SizedBox(height: 8),
-                        // ── DC Photo (optional here — this screen may run on
-                        // desktop without a camera; the agent's mobile pickup
-                        // flow is where the photo is mandatory) ─────────────
-                        const Text('DC Photo',
-                            style: TextStyle(fontSize: 12,
-                                fontWeight: FontWeight.w700,
-                                color: kTextHint)),
-                        const SizedBox(height: 6),
-                        GestureDetector(
-                          onTap: uploadingDcImage ? null : () async {
-                            final picked = await picker.pickImage(
-                                source: ImageSource.gallery,
-                                imageQuality: 70, maxWidth: 1200);
-                            if (picked == null) return;
-                            final file = File(picked.path);
-                            ss(() { dcImage = file; uploadingDcImage = true; });
-                            try {
-                              final path =
-                                  'dc/${DateTime.now().millisecondsSinceEpoch}.jpg';
-                              await Supabase.instance.client.storage
-                                  .from('dc-images').upload(path, file);
-                              final url = Supabase.instance.client.storage
-                                  .from('dc-images').getPublicUrl(path);
-                              ss(() { dcImageUrl = url; uploadingDcImage = false; });
-                            } catch (e) {
-                              ss(() => uploadingDcImage = false);
-                              if (ctx.mounted) showError(ctx,
-                                  'Photo upload failed — check connection');
-                            }
-                          },
-                          child: Container(
-                            height: 80,
-                            clipBehavior: Clip.antiAlias,
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(kRadiusInner),
-                              border: Border.all(color: kBorder),
-                              color: kBgGrey,
+                                height: 80,
+                                clipBehavior: Clip.antiAlias,
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(kRadiusInner),
+                                  border: Border.all(color: kBorder),
+                                  color: kBgGrey,
+                                ),
+                                child: uploadingDcImage
+                                    ? const Center(child: CircularProgressIndicator())
+                                    : dcImage != null
+                                    ? Image.file(dcImage!, fit: BoxFit.cover,
+                                    width: double.infinity)
+                                    : Center(child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(Icons.add_a_photo_outlined,
+                                          color: kTextHint, size: 20),
+                                      SizedBox(height: 4),
+                                      Text('Tap to attach DC photo (optional)',
+                                          style: TextStyle(
+                                              fontSize: 11, color: kTextHint)),
+                                    ])),
+                              ),
                             ),
-                            child: uploadingDcImage
-                                ? const Center(child: CircularProgressIndicator())
-                                : dcImage != null
-                                ? Image.file(dcImage!, fit: BoxFit.cover,
-                                width: double.infinity)
-                                : Center(child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(Icons.add_a_photo_outlined,
-                                      color: kTextHint, size: 20),
-                                  SizedBox(height: 4),
-                                  Text('Tap to attach DC photo (optional)',
-                                      style: TextStyle(
-                                          fontSize: 11, color: kTextHint)),
-                                ])),
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Row(children: [
-                          Expanded(child: TextField(
-                              textInputAction: TextInputAction.next,
-                              onSubmitted: (_) =>
-                                  FocusScope.of(context).nextFocus(),
-                              controller: cratesCtrl,
-                              keyboardType: TextInputType.number,
-                              decoration: const InputDecoration(
-                                  labelText: 'Crates'))),
-                          const SizedBox(width: 8),
-                          Expanded(child: TextField(
-                              textInputAction: TextInputAction.done,
-                              onSubmitted: (_) =>
-                                  FocusScope.of(context).unfocus(),
-                              controller: rateCtrl,
-                              keyboardType: const TextInputType
-                                  .numberWithOptions(decimal: true),
-                              decoration: const InputDecoration(
-                                  labelText: '₹/kg', prefixText: '₹'))),
-                        ]),
-                        const SizedBox(height: 16),
-                        ElevatedButton(
-                            onPressed: () async {
-                              if (dcNumCtrl.text
-                                  .trim()
-                                  .isEmpty) {
-                                showError(ctx, 'DC number required');
-                                return;
-                              }
-                              if (farmerCtrl.text
-                                  .trim()
-                                  .isEmpty) {
-                                showError(ctx, 'Name required');
-                                return;
-                              }
-                              final gross = double.tryParse(grossWtCtrl.text) ??
-                                  0;
-                              if (gross <= 0) {
-                                showError(ctx, 'Enter gross weight');
-                                return;
-                              }
-                              if (selectedProductId == null) {
-                                showError(ctx,
-                                    'Select a product for this DC (e.g. Broiler, Country)');
-                                return;
-                              }
-                              Navigator.of(ctx, rootNavigator: true).pop();
-                              try {
-                                final bStatus = _batch?['status'] as String? ??
-                                    'assigned';
-                                final tid = ref
-                                    .read(appUserProvider)
-                                    .valueOrNull
-                                    ?.traderId;
-                                // Load supplier list
-                                // farms loaded in _load() as _farms state field
-                                final empty = double.tryParse(
-                                    emptyWtCtrl.text) ?? 0;
-                                final net = (gross - empty).clamp(
-                                    0, double.infinity);
-                                final bCount = int.tryParse(birdsCtrl.text) ??
-                                    0;
-                                final avg = bCount > 0 ? net / bCount : 0.0;
+                            const SizedBox(height: 8),
+                            Row(children: [
+                              Expanded(child: TextField(
+                                  textInputAction: TextInputAction.next,
+                                  onSubmitted: (_) =>
+                                      FocusScope.of(context).nextFocus(),
+                                  controller: cratesCtrl,
+                                  keyboardType: TextInputType.number,
+                                  decoration: const InputDecoration(
+                                      labelText: 'Crates'))),
+                              const SizedBox(width: 8),
+                              Expanded(child: TextField(
+                                  textInputAction: TextInputAction.done,
+                                  onSubmitted: (_) =>
+                                      FocusScope.of(context).unfocus(),
+                                  controller: rateCtrl,
+                                  keyboardType: const TextInputType
+                                      .numberWithOptions(decimal: true),
+                                  decoration: const InputDecoration(
+                                      labelText: '₹/kg', prefixText: '₹'))),
+                            ]),
+                            const SizedBox(height: 16),
+                            ElevatedButton(
+                                onPressed: () async {
+                                  if (dcNumCtrl.text
+                                      .trim()
+                                      .isEmpty) {
+                                    showFieldError('DC number required');
+                                    return;
+                                  }
+                                  if (farmerCtrl.text
+                                      .trim()
+                                      .isEmpty) {
+                                    showFieldError('Name required');
+                                    return;
+                                  }
+                                  final gross = double.tryParse(grossWtCtrl.text) ??
+                                      0;
+                                  if (gross <= 0) {
+                                    showFieldError('Please enter Gross Weight.');
+                                    return;
+                                  }
+                                  if (selectedProductId == null) {
+                                    showFieldError('Please select a Product.');
+                                    return;
+                                  }
+                                  final bCountCheck = int.tryParse(birdsCtrl.text) ??
+                                      0;
+                                  if (bCountCheck <= 0) {
+                                    showFieldError('Please enter Bird Count.');
+                                    return;
+                                  }
+                                  // Note: no need to reset formError here — the
+                                  // sheet and all its local state (including
+                                  // this StatefulBuilder) are torn down the
+                                  // moment it closes below. Calling ss() this
+                                  // late, right as the pop/dispose sequence
+                                  // begins, was unnecessary and risked
+                                  // scheduling one more rebuild frame against
+                                  // controllers already mid-disposal.
+                                  Navigator.of(ctx, rootNavigator: true).pop();
+                                  try {
+                                    final bStatus = _batch?['status'] as String? ??
+                                        'assigned';
+                                    final tid = ref
+                                        .read(appUserProvider)
+                                        .valueOrNull
+                                        ?.traderId;
+                                    // Load supplier list
+                                    // farms loaded in _load() as _farms state field
+                                    final empty = double.tryParse(
+                                        emptyWtCtrl.text) ?? 0;
+                                    final net = (gross - empty).clamp(
+                                        0, double.infinity);
+                                    final bCount = int.tryParse(birdsCtrl.text) ??
+                                        0;
+                                    final avg = bCount > 0 ? net / bCount : 0.0;
 
-                                if (bStatus == 'assigned') {
-                                  final shiftRow = await _c.from(
-                                      'delivery_shifts')
-                                      .select('id')
-                                      .eq('delivery_agent_id',
-                                      _batch!['delivery_agent_id'])
-                                      .eq('status', 'open')
-                                      .maybeSingle();
-                                  // FIX: pass p_source_type — was missing, inhouse_stock treated as farm
-                                  await _c.rpc('pickup_batch', params: {
-                                    'p_batch_id': widget.id,
-                                    'p_shift_id': shiftRow?['id'],
-                                    'p_dc_number': dcNumCtrl.text.trim(),
-                                    'p_dc_date': dcDate.toIso8601String().split(
-                                        'T')[0],
-                                    'p_farmer_name': farmerCtrl.text.trim(),
-                                    'p_farm_id': selectedFarmId,
-                                    'p_farm_location': farmLocCtrl.text
-                                        .trim()
-                                        .isEmpty ? null : farmLocCtrl.text
-                                        .trim(),
-                                    'p_vehicle_number': vehicleCtrl.text
-                                        .trim()
-                                        .isEmpty ? null : vehicleCtrl.text
-                                        .trim(),
-                                    'p_driver_name': null,
-                                    'p_supervisor_name': null,
-                                    'p_gross_weight': gross,
-                                    'p_empty_weight': empty,
-                                    'p_net_weight': net,
-                                    'p_avg_weight': avg > 0 ? avg : 0.0,
-                                    'p_bird_count': bCount,
-                                    'p_weak_birds': 0,
-                                    'p_crates_count': int.tryParse(
-                                        cratesCtrl.text) ?? 0,
-                                    'p_farm_rate': rateCtrl.text.isEmpty
-                                        ? null
-                                        : double.tryParse(rateCtrl.text),
-                                    'p_in_time': null,
-                                    'p_out_time': null,
-                                    'p_dc_photo_url': dcImageUrl,
-                                    'p_source_type': sourceType,
-                                    // FIX: was missing
-                                    'p_product_id': selectedProductId,  // NEW: explicit, mandatory — no more guessing
-                                  });
-                                  // Advance picked_up → out_for_delivery so agent can complete
-                                  await _c.rpc('start_batch_delivery',
-                                      params: {'p_batch_id': widget.id});
-                                } else {
-                                  await _c.rpc('add_batch_dc', params: {
-                                    'p_batch_id': widget.id,
-                                    'p_dc_number': dcNumCtrl.text.trim(),
-                                    'p_dc_date': dcDate.toIso8601String().split(
-                                        'T')[0],
-                                    'p_farmer_name': farmerCtrl.text.trim(),
-                                    'p_farm_id': selectedFarmId,
-                                    'p_farm_location': farmLocCtrl.text
-                                        .trim()
-                                        .isEmpty ? null : farmLocCtrl.text
-                                        .trim(),
-                                    'p_vehicle_number': vehicleCtrl.text
-                                        .trim()
-                                        .isEmpty ? null : vehicleCtrl.text
-                                        .trim(),
-                                    'p_gross_weight': gross,
-                                    'p_empty_weight': empty,
-                                    'p_net_weight': net,
-                                    'p_avg_weight': avg > 0 ? avg : 0.0,
-                                    'p_bird_count': bCount,
-                                    'p_crates_count': int.tryParse(
-                                        cratesCtrl.text) ?? 0,
-                                    'p_farm_rate': rateCtrl.text.isEmpty
-                                        ? null
-                                        : double.tryParse(rateCtrl.text),
-                                    'p_source_type': sourceType,
-                                    'p_product_id': selectedProductId,  // NEW: explicit, mandatory — no more guessing
-                                    'p_dc_photo_url': dcImageUrl,
-                                    // FIX: this screen previously always sent null —
-                                    // now uploads through the same 'dc-images' bucket
-                                    // the agent app uses, and sends the real URL.
-                                  });
-                                }
-                                _load();
-                                if (mounted) showSuccess(context, 'DC added ✓');
-                              } catch (e) {
-                                if (mounted) showError(context,
-                                    e.toString().replaceAll('Exception: ', ''));
-                              }
-                            },
-                            child: const Text('Save DC')),
-                      ])));
+                                    if (bStatus == 'assigned') {
+                                      final shiftRow = await _c.from(
+                                          'delivery_shifts')
+                                          .select('id')
+                                          .eq('delivery_agent_id',
+                                          _batch!['delivery_agent_id'])
+                                          .eq('status', 'open')
+                                          .maybeSingle();
+                                      // FIX: pass p_source_type — was missing, inhouse_stock treated as farm
+                                      await _c.rpc('pickup_batch', params: {
+                                        'p_batch_id': widget.id,
+                                        'p_shift_id': shiftRow?['id'],
+                                        'p_dc_number': dcNumCtrl.text.trim(),
+                                        'p_dc_date': dcDate.toIso8601String().split(
+                                            'T')[0],
+                                        'p_farmer_name': farmerCtrl.text.trim(),
+                                        'p_farm_id': selectedFarmId,
+                                        'p_farm_location': farmLocCtrl.text
+                                            .trim()
+                                            .isEmpty ? null : farmLocCtrl.text
+                                            .trim(),
+                                        'p_vehicle_number': vehicleCtrl.text
+                                            .trim()
+                                            .isEmpty ? null : vehicleCtrl.text
+                                            .trim(),
+                                        'p_driver_name': null,
+                                        'p_supervisor_name': null,
+                                        'p_gross_weight': gross,
+                                        'p_empty_weight': empty,
+                                        'p_net_weight': net,
+                                        'p_avg_weight': avg > 0 ? avg : 0.0,
+                                        'p_bird_count': bCount,
+                                        'p_weak_birds': 0,
+                                        'p_crates_count': int.tryParse(
+                                            cratesCtrl.text) ?? 0,
+                                        'p_farm_rate': rateCtrl.text.isEmpty
+                                            ? null
+                                            : double.tryParse(rateCtrl.text),
+                                        'p_in_time': null,
+                                        'p_out_time': null,
+                                        'p_dc_photo_url': dcImageUrl,
+                                        'p_source_type': sourceType,
+                                        // FIX: was missing
+                                        'p_product_id': selectedProductId,  // NEW: explicit, mandatory — no more guessing
+                                      });
+                                      // Advance picked_up → out_for_delivery so agent can complete
+                                      await _c.rpc('start_batch_delivery',
+                                          params: {'p_batch_id': widget.id});
+                                    } else {
+                                      await _c.rpc('add_batch_dc', params: {
+                                        'p_batch_id': widget.id,
+                                        'p_dc_number': dcNumCtrl.text.trim(),
+                                        'p_dc_date': dcDate.toIso8601String().split(
+                                            'T')[0],
+                                        'p_farmer_name': farmerCtrl.text.trim(),
+                                        'p_farm_id': selectedFarmId,
+                                        'p_farm_location': farmLocCtrl.text
+                                            .trim()
+                                            .isEmpty ? null : farmLocCtrl.text
+                                            .trim(),
+                                        'p_vehicle_number': vehicleCtrl.text
+                                            .trim()
+                                            .isEmpty ? null : vehicleCtrl.text
+                                            .trim(),
+                                        'p_gross_weight': gross,
+                                        'p_empty_weight': empty,
+                                        'p_net_weight': net,
+                                        'p_avg_weight': avg > 0 ? avg : 0.0,
+                                        'p_bird_count': bCount,
+                                        'p_crates_count': int.tryParse(
+                                            cratesCtrl.text) ?? 0,
+                                        'p_farm_rate': rateCtrl.text.isEmpty
+                                            ? null
+                                            : double.tryParse(rateCtrl.text),
+                                        'p_source_type': sourceType,
+                                        'p_product_id': selectedProductId,  // NEW: explicit, mandatory — no more guessing
+                                        'p_dc_photo_url': dcImageUrl,
+                                        // FIX: this screen previously always sent null —
+                                        // now uploads through the same 'dc-images' bucket
+                                        // the agent app uses, and sends the real URL.
+                                      });
+                                    }
+                                    _load();
+                                    if (mounted) showSuccess(context, 'DC added ✓');
+                                  } catch (e) {
+                                    if (mounted) showError(context,
+                                        e.toString().replaceAll('Exception: ', ''));
+                                  }
+                                },
+                                child: const Text('Save DC')),
+                          ])));
             }));
     for (final c in [
       dcNumCtrl,
@@ -1086,6 +1166,7 @@ class _S extends ConsumerState<BatchDetailScreen> {
     ]) {
       c.dispose();
     }
+    scrollCtrl.dispose();
   }
 
   @override
