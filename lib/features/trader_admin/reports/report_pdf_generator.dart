@@ -41,11 +41,12 @@ class ReportPdfGenerator {
     final doc  = pw.Document(theme: pw.ThemeData.withFont(base: font, bold: bold));
     final from = dataSet.fromDate ?? DateTime.now();
     final to   = dataSet.toDate   ?? DateTime.now();
+    final bw   = dataSet.printStyle == ReportPrintStyle.blackAndWhite;
 
     doc.addPage(pw.MultiPage(
         pageFormat: dataSet.landscape ? PdfPageFormat.a4.landscape : PdfPageFormat.a4,
         margin: const pw.EdgeInsets.all(28),
-        header: (_) => _header(companyName, dataSet.title, from, to),
+        header: (_) => _header(companyName, dataSet.title, from, to, bw: bw),
         footer: (ctx) => dataSet.useBrandedFooter ? _footer(ctx) : _footer(),
         build: (_) => [
           if (dataSet.customerIdentity != null)
@@ -54,7 +55,7 @@ class ReportPdfGenerator {
             _secTitle('SUMMARY'),
             _kpiRow(dataSet.summary
                 .map((s) => _KpiCell(s.label, s.value, _primary))
-                .toList()),
+                .toList(), bw: bw),
             pw.SizedBox(height: 6),
           ],
           if (dataSet.customerIdentity == null) _secTitle('DETAILS (${dataSet.rowCount} rows)'),
@@ -68,6 +69,7 @@ class ReportPdfGenerator {
               totals: dataSet.totals,
               bold: dataSet.highlightColumns,
               columnFlex: dataSet.columnFlex,
+              style: dataSet.printStyle,
             ),
         ]));
     return doc;
@@ -385,25 +387,28 @@ class ReportPdfGenerator {
   // ══════════════════════════════════════════════════════════════════════════
 
   // Standard page header with company branding
-  static pw.Widget _header(String company, String reportLabel, DateTime from, DateTime to) =>
+  static pw.Widget _header(String company, String reportLabel, DateTime from, DateTime to,
+      {bool bw = false}) =>
       pw.Column(children: [
         pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [
           pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
-            pw.Text(company, style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold, color: _primary)),
+            pw.Text(company, style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold,
+                color: bw ? PdfColors.black : _primary)),
             pw.Text('Rooster Trader — Poultry Trading Operations',
-                style: const pw.TextStyle(fontSize: 9, color: _subText)),
+                style: pw.TextStyle(fontSize: 9, color: bw ? PdfColors.black : _subText)),
           ]),
           pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.end, children: [
             pw.Text(reportLabel.toUpperCase(),
-                style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold, color: _primary)),
+                style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold,
+                    color: bw ? PdfColors.black : _primary)),
             pw.Text('${DateFormat("d MMM yyyy").format(from)}  to  ${DateFormat("d MMM yyyy").format(to)}',
-                style: pw.TextStyle(fontSize: 9, color: _subText)),
+                style: pw.TextStyle(fontSize: 9, color: bw ? PdfColors.black : _subText)),
             pw.Text('Generated: ${DateFormat("d MMM yyyy, HH:mm").format(DateTime.now())}',
-                style: pw.TextStyle(fontSize: 8, color: _subText)),
+                style: pw.TextStyle(fontSize: 8, color: bw ? PdfColors.black : _subText)),
           ]),
         ]),
         pw.SizedBox(height: 6),
-        pw.Divider(color: _primary, thickness: 1.5),
+        pw.Divider(color: bw ? PdfColors.black : _primary, thickness: bw ? 1.2 : 1.5),
         pw.SizedBox(height: 8),
       ]);
 
@@ -440,20 +445,21 @@ class ReportPdfGenerator {
   // sensible minimum card width lets cards flow onto additional rows
   // instead — for 2-4 items this renders identically to before (they all
   // still fit on one line), so no existing report's PDF changes.
-  static pw.Widget _kpiRow(List<_KpiCell> cells) => pw.Wrap(
+  static pw.Widget _kpiRow(List<_KpiCell> cells, {bool bw = false}) => pw.Wrap(
       spacing: 6, runSpacing: 6,
       children: cells.map((c) => pw.Container(
           width: 122,
           padding: const pw.EdgeInsets.all(10),
           decoration: pw.BoxDecoration(
-              color: _bgLight,
+              color: bw ? PdfColors.white : _bgLight,
               borderRadius: pw.BorderRadius.circular(4),
-              border: pw.Border.all(color: _border)),
+              border: pw.Border.all(color: bw ? PdfColors.black : _border,
+                  width: bw ? 1.0 : 1.0)),
           child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
-            pw.Text(c.label, style: pw.TextStyle(fontSize: 8, color: _subText)),
+            pw.Text(c.label, style: pw.TextStyle(fontSize: 8, color: bw ? PdfColors.black : _subText)),
             pw.SizedBox(height: 3),
             pw.Text(c.value, style: pw.TextStyle(fontSize: 13, fontWeight: pw.FontWeight.bold,
-                color: c.color)),
+                color: bw ? PdfColors.black : c.color)),
           ]))).toList());
 
   // Section title
@@ -472,7 +478,14 @@ class ReportPdfGenerator {
     // the exact equal-FlexColumnWidth behavior every existing report's
     // PDF already uses — this is purely additive.
     List<double>? columnFlex,
+    // ★ Print Style — Color (default, existing design, byte-for-byte
+    // unchanged) or Black & White (monochrome-laser-optimized). Every one
+    // of this function's 21 call sites is unaffected unless it explicitly
+    // passes ReportPrintStyle.blackAndWhite.
+    ReportPrintStyle style = ReportPrintStyle.color,
   }) {
+    final bw = style == ReportPrintStyle.blackAndWhite;
+
     final colWidths = <int, pw.TableColumnWidth>{};
     for (var i = 0; i < headers.length; i++) {
       colWidths[i] = (columnFlex != null && i < columnFlex.length)
@@ -487,50 +500,114 @@ class ReportPdfGenerator {
     final bodyFs = isWide ? 7.5 : 9.0;
     final cellPad = isWide ? 4.0 : 6.0;
 
+    // B&W: a cell reads as "numeric" if, after stripping currency/percent/
+    // unit noise (same stripping report_dataset.dart's own column-sort
+    // already uses), what remains parses as a number — right-aligned per
+    // the spec. Purely a B&W display concern; Color mode's alignment is
+    // completely untouched (defaults to left, exactly as before).
+    bool looksNumeric(String cell) {
+      final cleaned = cell
+          .replaceAll('₹', '').replaceAll(',', '').replaceAll('%', '')
+          .replaceAll('kg', '').replaceAll('Kg', '').replaceAll('birds', '')
+          .trim();
+      return cleaned.isNotEmpty && num.tryParse(cleaned) != null;
+    }
+
+    // B&W: a row is one of the emphasized summary rows (Opening/Period
+    // Summary/Closing Balance) if any cell's text contains one of these
+    // labels — the same literal labels already used verbatim across every
+    // report built on this shared table (Customer Ledger, Stock Point
+    // Ledger, Daily Closing, etc.), so this needs no per-report metadata.
+    bool isEmphasisRow(List<String> cells) {
+      final joined = cells.join(' ').toLowerCase();
+      return joined.contains('opening balance') ||
+          joined.contains('period summary') ||
+          joined.contains('closing balance');
+    }
+
     pw.TableRow buildRow(List<String> cells, {bool isHeader=false, bool isTotals=false}) {
+      final emphasize = isTotals || (bw && isEmphasisRow(cells));
       return pw.TableRow(
           decoration: pw.BoxDecoration(
-            // Totals row now uses the SAME solid red + white text combo
-            // as the header row above (not a lighter tint of red text on
-            // red background, which was nearly unreadable — see fix
-            // below). This is still "existing colors" — no new palette,
-            // just the one already used for the header row.
-              color: (isHeader || isTotals) ? _primary : null),
+            color: bw
+            // B&W: white background always — bold text + borders carry
+            // the emphasis instead of a colored fill (spec: "no colored
+            // background" for headers; summary rows use thick borders,
+            // not fill, for the same reason).
+                ? PdfColors.white
+            // Color (unchanged): header/totals get the solid brand-red
+            // fill exactly as before.
+                : ((isHeader || isTotals) ? _primary : null),
+          ),
           children: cells.asMap().map((i, cell) => MapEntry(i,
               pw.Container(
                   padding: pw.EdgeInsets.symmetric(horizontal: cellPad, vertical: isWide ? 3 : 5),
-                  // A bold top rule is the "stronger separator" for the
-                  // totals row — visually distinct without changing the
-                  // row's own height.
-                  decoration: isTotals
+                  decoration: bw
+                      ? (isHeader
+                  // B&W header: thin black rule under the header
+                  // row instead of a colored fill.
+                      ? const pw.BoxDecoration(
+                      border: pw.Border(bottom: pw.BorderSide(color: PdfColors.black, width: 1.0)))
+                      : (emphasize
+                  // B&W Opening/Summary/Closing rows: thick
+                  // black top+bottom border, per spec.
+                      ? const pw.BoxDecoration(
+                      border: pw.Border.symmetric(
+                          horizontal: pw.BorderSide(color: PdfColors.black, width: 1.2)))
+                      : null))
+                      : (isTotals
                       ? const pw.BoxDecoration(
                       border: pw.Border(top: pw.BorderSide(color: _dark, width: 1.2)))
-                      : null,
+                      : null),
                   child: pw.Text(cell,
+                      textAlign: bw && looksNumeric(cell) ? pw.TextAlign.right : null,
                       style: pw.TextStyle(
                           fontSize: isHeader ? headFs : bodyFs,
-                          fontWeight: (isHeader || isTotals || bold.contains(i))
+                          fontWeight: (isHeader || emphasize || bold.contains(i))
                               ? pw.FontWeight.bold : pw.FontWeight.normal,
-                          color: (isHeader || isTotals) ? PdfColors.white
-                              : bold.contains(i) ? _dark : _dark))))).values.toList());
+                          color: bw
+                              ? PdfColors.black
+                              : ((isHeader || isTotals) ? PdfColors.white
+                              : bold.contains(i) ? _dark : _dark)))))).values.toList());
     }
 
     return pw.Table(
         columnWidths: colWidths,
-        border: pw.TableBorder.all(color: _border, width: 0.5),
+        border: bw
+        // B&W: thick outer border, thin black grid lines inside —
+        // exactly per spec, replacing Color's light-grey thin border.
+            ? const pw.TableBorder(
+          top: pw.BorderSide(color: PdfColors.black, width: 1.2),
+          bottom: pw.BorderSide(color: PdfColors.black, width: 1.2),
+          left: pw.BorderSide(color: PdfColors.black, width: 1.2),
+          right: pw.BorderSide(color: PdfColors.black, width: 1.2),
+          horizontalInside: pw.BorderSide(color: PdfColors.black, width: 0.5),
+          verticalInside: pw.BorderSide(color: PdfColors.black, width: 0.5),
+        )
+            : pw.TableBorder.all(color: _border, width: 0.5),
         children: [
           buildRow(headers, isHeader: true),
           ...rows.asMap().map((i, row) => MapEntry(i,
               pw.TableRow(
-                  decoration: pw.BoxDecoration(color: i.isOdd ? _bgLight : PdfColors.white),
+                  decoration: pw.BoxDecoration(
+                    // B&W: no zebra striping — white background only,
+                    // per spec ("White background", no mention of tint).
+                      color: bw ? PdfColors.white : (i.isOdd ? _bgLight : PdfColors.white)),
                   children: row.asMap().map((ci, cell) => MapEntry(ci,
-                      pw.Padding(
+                      pw.Container(
                           padding: pw.EdgeInsets.symmetric(horizontal: cellPad, vertical: isWide ? 3 : 5),
+                          decoration: bw && isEmphasisRow(row)
+                              ? const pw.BoxDecoration(
+                              border: pw.Border.symmetric(
+                                  horizontal: pw.BorderSide(color: PdfColors.black, width: 1.2)))
+                              : null,
                           child: pw.Text(cell,
+                              textAlign: bw && looksNumeric(cell) ? pw.TextAlign.right : null,
                               style: pw.TextStyle(
                                   fontSize: bodyFs,
-                                  fontWeight: bold.contains(ci) ? pw.FontWeight.bold : pw.FontWeight.normal,
-                                  color: _dark))))).values.toList()))).values,
+                                  fontWeight: (bold.contains(ci) || (bw && isEmphasisRow(row)))
+                                      ? pw.FontWeight.bold : pw.FontWeight.normal,
+                                  color: bw ? PdfColors.black : _dark))))).values.toList()))).values,
           if (totals != null) buildRow(totals, isTotals: true),
         ]);
   }

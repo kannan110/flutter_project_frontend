@@ -398,9 +398,6 @@ class _S extends ConsumerState<RetailerDetailScreen> {
                       : 'Generate an invite code to let this retailer log in to the app.',
                   style: const TextStyle(fontSize: 11, color: kTextSub)),
               const SizedBox(height: 10),
-              // Two-step setup:
-              // Step 1: Create App Account (auth credentials for retailer)
-              // Step 2: Generate Invite Code (links account to this retailer)
               Row(children: [
                 Expanded(child: ElevatedButton.icon(
                     onPressed: () => _createAppAccount(
@@ -435,7 +432,6 @@ class _S extends ConsumerState<RetailerDetailScreen> {
                         style: TextStyle(fontSize: 10, color: Colors.orange))),
             ])),
 
-        // Status badge
         if (!isActive) Container(
             padding: const EdgeInsets.all(10),
             margin: const EdgeInsets.only(bottom: 12),
@@ -446,7 +442,6 @@ class _S extends ConsumerState<RetailerDetailScreen> {
             ])),
 
         if (_editing) ...[
-          // EDIT MODE
           const SectionHeader('SHOP DETAILS'),
           TextField(controller: _shopNameCtrl,
               textCapitalization: TextCapitalization.words,
@@ -477,7 +472,6 @@ class _S extends ConsumerState<RetailerDetailScreen> {
                   ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white))
                   : const Text('Save Changes')),
         ] else ...[
-          // VIEW MODE
           WhiteCard(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             const SectionHeader('CUSTOMER DETAILS'),
             InfoRow('Shop', r['shop_name'] as String),
@@ -491,12 +485,10 @@ class _S extends ConsumerState<RetailerDetailScreen> {
           ])),
           const SizedBox(height: 16),
 
-          // ── Opening Balance Card (Phase 1) ──────────────────────────────
               () {
             final obAmt  = (_obInfo?['opening_balance'] as num?)?.toDouble() ?? 0;
             final obDate = _obInfo?['opening_balance_date'] as String?;
             final obNote = _obInfo?['opening_balance_note'] as String?;
-            final canEdit= _obInfo?['can_edit'] as bool? ?? true;
             final hasEntry = _obInfo?['has_opening_entry'] as bool? ?? false;
 
             return Container(
@@ -510,7 +502,6 @@ class _S extends ConsumerState<RetailerDetailScreen> {
                 ),
               ),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                // Header row
                 Padding(
                   padding: const EdgeInsets.fromLTRB(14, 12, 14, 8),
                   child: Row(children: [
@@ -521,38 +512,32 @@ class _S extends ConsumerState<RetailerDetailScreen> {
                     Expanded(child: Text('Opening Balance',
                         style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800,
                             color: obAmt > 0 ? Colors.orange.shade800 : kTextSub))),
-                    if (canEdit)
-                      TextButton.icon(
-                        onPressed: () => showRetailerOpeningBalanceSheet(
-                          context,
-                          retailerId: widget.id,
-                          shopName: r['shop_name'] as String? ?? 'Customer',
-                          currentAmount: obAmt,
-                          currentDate: obDate,
-                          currentNote: obNote,
-                          onSaved: _load,
-                        ),
-                        icon: const Icon(Icons.edit_outlined, size: 14),
-                        label: Text(obAmt > 0 ? 'Edit' : 'Set',
-                            style: const TextStyle(fontSize: 12)),
-                        style: TextButton.styleFrom(
-                            foregroundColor: Colors.orange.shade700,
-                            minimumSize: const Size(0, 30),
-                            padding: const EdgeInsets.symmetric(horizontal: 8)),
+                    // Opening Balance Enhancement: editing is always allowed,
+                    // even after invoices/payments/ledger entries exist —
+                    // the backend (set_retailer_opening_balance) now handles
+                    // this safely via an append-only compensating entry, so
+                    // the UI no longer needs to gate on invoice existence.
+                    TextButton.icon(
+                      onPressed: () => showRetailerOpeningBalanceSheet(
+                        context,
+                        retailerId: widget.id,
+                        shopName: r['shop_name'] as String? ?? 'Customer',
+                        currentAmount: obAmt,
+                        currentDate: obDate,
+                        currentNote: obNote,
+                        onSaved: _load,
                       ),
-                    if (!canEdit && obAmt > 0)
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                        decoration: BoxDecoration(
-                            color: Colors.grey.shade200,
-                            borderRadius: BorderRadius.circular(4)),
-                        child: const Text('Locked',
-                            style: TextStyle(fontSize: 10, color: kTextHint)),
-                      ),
+                      icon: const Icon(Icons.edit_outlined, size: 14),
+                      label: Text(obAmt > 0 ? 'Edit' : 'Set',
+                          style: const TextStyle(fontSize: 12)),
+                      style: TextButton.styleFrom(
+                          foregroundColor: Colors.orange.shade700,
+                          minimumSize: const Size(0, 30),
+                          padding: const EdgeInsets.symmetric(horizontal: 8)),
+                    ),
                   ]),
                 ),
 
-                // Opening balance summary (editing happens in the bottom sheet)
                 Padding(
                   padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
                   child: obAmt > 0 ? Column(
@@ -571,13 +556,6 @@ class _S extends ConsumerState<RetailerDetailScreen> {
                         const SizedBox(height: 2),
                         Text(obNote,
                             style: const TextStyle(fontSize: 11, color: kTextHint)),
-                      ],
-                      if (!canEdit) ...[
-                        const SizedBox(height: 6),
-                        const Text(
-                          '⚠ Cannot edit after invoices have been created',
-                          style: TextStyle(fontSize: 10, color: kTextHint),
-                        ),
                       ],
                     ],
                   ) : Column(
@@ -624,7 +602,6 @@ class _S extends ConsumerState<RetailerDetailScreen> {
               ])),
           const SizedBox(height: 14),
 
-          // Quick actions
           ElevatedButton.icon(
               onPressed: () => context.push(R.retailerLedgerPath(widget.id)),
               icon: const Icon(Icons.account_balance_wallet_outlined, size: 18),
@@ -641,7 +618,6 @@ class _S extends ConsumerState<RetailerDetailScreen> {
               label: const Text('New Order')),
           const SizedBox(height: 10),
 
-          // Recent orders
           if (_recentOrders.isNotEmpty) ...[
             const SizedBox(height: 8),
             const SectionHeader('RECENT ORDERS'),
@@ -688,7 +664,6 @@ class _S extends ConsumerState<RetailerDetailScreen> {
                   foregroundColor: isActive ? Colors.red : kPrimary,
                   side: BorderSide(color: isActive ? Colors.red : kPrimary))),
 
-          // ── Phase 2: Credit History section ─────────────────────────────
           const SizedBox(height: 16),
           GestureDetector(
             onTap: () {
@@ -743,7 +718,6 @@ class _S extends ConsumerState<RetailerDetailScreen> {
                     row['changed_at'] as String? ?? '');
                 final who = row['changed_by_name'] as String? ?? 'System';
 
-                // Build human-readable description
                 String desc;
                 Color  color;
                 IconData icon;
@@ -796,7 +770,6 @@ class _S extends ConsumerState<RetailerDetailScreen> {
                         : null,
                   ),
                   child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    // Timeline dot
                     Container(
                       width: 30, height: 30,
                       decoration: BoxDecoration(

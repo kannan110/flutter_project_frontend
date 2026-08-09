@@ -27,6 +27,17 @@
 // Deliberately excludes mobile, address, delivery agent, and any KPI/
 // summary content — see report_pdf_generator.dart's _customerIdentityBlock.
 // ─────────────────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// ReportPrintStyle — Color (existing, default) vs Black & White (new).
+// Threaded through ReportDataSet so every tabular PDF report (Customer
+// Ledger, Supplier Ledger, Stock Ledger, Inventory Ledger, Day Closing,
+// etc.) gets the choice for free through the one shared _table() renderer
+// in report_pdf_generator.dart — no per-report duplication.
+// Default is `color`, so every existing call site that doesn't pass this
+// is byte-for-byte unaffected.
+// ─────────────────────────────────────────────────────────────────────────────
+enum ReportPrintStyle { color, blackAndWhite }
+
 class CustomerReportIdentity {
   final String customerName;
   final String? area;
@@ -121,6 +132,10 @@ class ReportDataSet {
   /// report's PDF already uses.
   final List<double>? columnFlex;
 
+  /// ★ Print Style — Color (existing design, default) or Black & White
+  /// (optimized for monochrome laser printing). See ReportPrintStyle above.
+  final ReportPrintStyle printStyle;
+
   const ReportDataSet({
     required this.title,
     required this.headers,
@@ -138,11 +153,35 @@ class ReportDataSet {
     this.customerLedgerData,
     this.landscape = false,
     this.columnFlex,
+    this.printStyle = ReportPrintStyle.color,
   });
 
   int get columnCount => headers.length;
   int get rowCount => rows.length;
   bool get isEmpty => rows.isEmpty;
+
+  /// Returns a copy with only the given fields overridden — used to apply
+  /// the Print Style choice right before PDF generation without having to
+  /// reconstruct every other field at each call site.
+  ReportDataSet copyWith({ReportPrintStyle? printStyle}) => ReportDataSet(
+    title: title,
+    headers: headers,
+    rows: rows,
+    fromDate: fromDate,
+    toDate: toDate,
+    totals: totals,
+    highlightColumns: highlightColumns,
+    warnColumn: warnColumn,
+    warnThreshold: warnThreshold,
+    summary: summary,
+    cardPrimaryColumns: cardPrimaryColumns,
+    customerIdentity: customerIdentity,
+    useBrandedFooter: useBrandedFooter,
+    customerLedgerData: customerLedgerData,
+    landscape: landscape,
+    columnFlex: columnFlex,
+    printStyle: printStyle ?? this.printStyle,
+  );
 
   /// Returns a copy with rows reordered — used by ReportTable column sort.
   /// Sorting is numeric-aware: strips currency symbols/commas/% before
@@ -176,6 +215,9 @@ class ReportDataSet {
       customerIdentity: customerIdentity,
       useBrandedFooter: useBrandedFooter,
       customerLedgerData: customerLedgerData,
+      landscape: landscape,
+      columnFlex: columnFlex,
+      printStyle: printStyle,
     );
   }
 

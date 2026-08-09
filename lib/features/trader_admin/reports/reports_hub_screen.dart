@@ -1329,6 +1329,36 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
     final company = user?.companyName ?? 'DSR Chicken';
     bool busy = false;
     return StatefulBuilder(builder: (context, setLocal) {
+      // Print Style — Color (default) or Black & White, chosen right
+      // before PDF generation. A simple two-option dialog rather than a
+      // persistent toggle, since most exports are Color and this keeps
+      // the action bar itself completely unchanged (ReportActionsBar is
+      // shared elsewhere in the app — its signature/behavior is untouched).
+      Future<ReportPrintStyle?> pickPrintStyle() => showDialog<ReportPrintStyle>(
+        context: context,
+        builder: (dCtx) => SimpleDialog(
+          title: const Text('Print Style'),
+          children: [
+            SimpleDialogOption(
+              onPressed: () => Navigator.pop(dCtx, ReportPrintStyle.color),
+              child: const Row(children: [
+                Icon(Icons.palette_outlined, size: 18, color: kPrimary),
+                SizedBox(width: 10),
+                Text('Color'),
+              ]),
+            ),
+            SimpleDialogOption(
+              onPressed: () => Navigator.pop(dCtx, ReportPrintStyle.blackAndWhite),
+              child: const Row(children: [
+                Icon(Icons.contrast_outlined, size: 18, color: Colors.black87),
+                SizedBox(width: 10),
+                Text('Black & White'),
+              ]),
+            ),
+          ],
+        ),
+      );
+
       Future<void> run(Future<void> Function() action) async {
         if (busy) return;
         setLocal(() => busy = true);
@@ -1353,12 +1383,24 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
             const Spacer(),
             ReportActionsBar(
               busy: busy,
-              onDownload: () => run(() => ReportPdfGenerator.generateFromDataSetAndShow(
-                  context: context, dataSet: ds, companyName: company)),
-              onShare: () => run(() => ReportPdfGenerator.shareFromDataSet(
-                  dataSet: ds, companyName: company)),
-              onPrint: () => run(() => ReportPdfGenerator.generateFromDataSetAndShow(
-                  context: context, dataSet: ds, companyName: company)),
+              onDownload: () async {
+                final style = await pickPrintStyle();
+                if (style == null) return;
+                run(() => ReportPdfGenerator.generateFromDataSetAndShow(
+                    context: context, dataSet: ds.copyWith(printStyle: style), companyName: company));
+              },
+              onShare: () async {
+                final style = await pickPrintStyle();
+                if (style == null) return;
+                run(() => ReportPdfGenerator.shareFromDataSet(
+                    dataSet: ds.copyWith(printStyle: style), companyName: company));
+              },
+              onPrint: () async {
+                final style = await pickPrintStyle();
+                if (style == null) return;
+                run(() => ReportPdfGenerator.generateFromDataSetAndShow(
+                    context: context, dataSet: ds.copyWith(printStyle: style), companyName: company));
+              },
             ),
           ]),
         ),
