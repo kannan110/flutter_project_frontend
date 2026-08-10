@@ -123,6 +123,12 @@ class SettingsScreen extends ConsumerWidget {
             ),
 
           // ── OPERATIONS section ─────────────────────────────────────────
+          _sectionLabel('ACCOUNT'),
+          _menuCard(context, [
+            _item(context, Icons.storefront_outlined, 'Profile', R.traderProfile),
+          ]),
+
+          const SizedBox(height: 12),
           _sectionLabel('OPERATIONS'),
           _menuCard(context, [
             _item(context, Icons.analytics_outlined, 'Analytics', R.analytics),

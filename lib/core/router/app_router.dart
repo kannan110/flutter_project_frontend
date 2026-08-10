@@ -61,6 +61,7 @@ import '../../features/trader_admin/shifts/shift_detail_screen.dart';
 import '../../features/trader_admin/crates/crates_screen.dart';
 import '../../features/trader_admin/analytics/analytics_screen.dart';
 import '../../features/trader_admin/settings/settings_screen.dart';
+import '../../features/trader_admin/settings/trader_profile_screen.dart';
 import '../../features/trader_admin/settings/user_management_screen.dart';
 import '../../features/trader_admin/returns/returns_screen.dart';
 import '../../features/trader_admin/stock/stock_screen.dart';
@@ -189,6 +190,7 @@ abstract class R {
   static const deliveryDone = '/a/delivery/:id/complete';
   static const agentExpenses = '/a/expenses';
   static const userMgmt = '/t/user-management';
+  static const traderProfile = '/t/profile';
   static const deliveryHistory = '/a/delivery-history/:id';
 
   static String deliveryHistoryPath(String id) => '/a/delivery-history/\$id';
@@ -497,6 +499,9 @@ final appRouterProvider = Provider<GoRouter>((ref) => GoRouter(
         GoRoute(
             path: R.userMgmt,
             builder: (_, __) => const UserManagementScreen()),
+        GoRoute(
+            path: R.traderProfile,
+            builder: (_, __) => const TraderProfileScreen()),
         GoRoute(
             path: R.settings, builder: (_, __) => const SettingsScreen()),
         GoRoute(path: R.returns, builder: (_, __) => const ReturnsScreen()),

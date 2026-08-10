@@ -5,6 +5,8 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import '../../../../core/theme/app_theme.dart' show Fmt;
 import 'customer_ledger_row_builder.dart';
+import 'report_dataset.dart' show ReportPrintStyle;
+import 'report_pdf_generator.dart' show ReportPdfGenerator;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // CustomerLedgerPrintBuilder
@@ -19,9 +21,14 @@ import 'customer_ledger_row_builder.dart';
 // the on-screen table or the existing Header/Table PDFs on the numbers.
 //
 // This is deliberately separate from ReportPdfGenerator's _table()/
-// _buildDataSetDoc — those remain completely unchanged, along with every
-// one of the other 17 reports and Customer Ledger's own existing Header
-// PDF and Table PDF. This builder is additive only.
+// _buildDataSetDoc for the TABLE specifically (TableHelper.fromTextArray
+// gives native multi-page header repeat that a hand-built pw.Table
+// doesn't) — but the COMPANY HEADER (logo/name/contact details/BILL TO/
+// CUSTOMER LEDGER block) now calls ReportPdfGenerator's public
+// richCompanyHeader/customerLedgerHeaderRight/billToBlock/fetchLogo
+// directly, rather than maintaining a second, divergence-prone copy of
+// that layout. Full Sheet and Half Sheet both go through this same
+// shared implementation, scaled by [PrintSheetSize].
 //
 // Future Batch Print (All Customers): loop `build()` once per customer's
 // get_retailer_statement() result, same PrintSheetSize each time. The
@@ -87,6 +94,7 @@ class CustomerLedgerPrintBuilder {
     required DateTime fromDate,
     required DateTime toDate,
     required PrintSheetSize size,
+    ReportPrintStyle style = ReportPrintStyle.color,
     pw.Font? regularFont,
     pw.Font? boldFont,
   }) async {
@@ -97,13 +105,24 @@ class CustomerLedgerPrintBuilder {
     final t = CustomerLedgerTableData.from(data);
 
     final customerName = header['retailer_name'] as String? ?? 'Customer';
-    final periodLabel =
-        '${DateFormat("d MMM yyyy").format(fromDate)} - ${DateFormat("d MMM yyyy").format(toDate)}';
     final openingLabel = Fmt.amount(opening);
 
     final font = regularFont ?? await PdfGoogleFonts.notoSansRegular();
     final bold = boldFont ?? await PdfGoogleFonts.notoSansBold();
     final doc = pw.Document(theme: pw.ThemeData.withFont(base: font, bold: bold));
+
+    final bw = style == ReportPrintStyle.blackAndWhite;
+    // Company Logo — ROOT CAUSE FIX (Full Sheet logo-missing audit): now
+    // calls ReportPdfGenerator.fetchLogo (package:http, cross-platform
+    // including Web) instead of a local dart:io HttpClient copy, which
+    // silently failed on Web (dart:io doesn't exist there) — that's why
+    // the logo never appeared despite traders.logo_url being valid and
+    // the Profile screen showing it correctly (a different, working code
+    // path — Image.network — was never involved in PDF generation at all).
+    final logo = await ReportPdfGenerator.fetchLogo(header['company_logo'] as String?);
+    // Scale factor for the shared header widgets at A5 (Half Sheet) —
+    // reuses size.identityFontSize's existing ratio (7/9) as the scale.
+    final headerScale = size.isHalf ? 0.75 : 1.0;
 
     doc.addPage(pw.MultiPage(
       pageFormat: size.pageFormat,
@@ -111,18 +130,43 @@ class CustomerLedgerPrintBuilder {
       // Repeats on every page — this is what makes the customer header
       // survive a page break, unlike the existing Table PDF's identity
       // block (which lives in page content, not this header slot).
-      header: (_) => _printHeader(
+      header: (_) => ReportPdfGenerator.richCompanyHeader(
         companyName: companyName,
-        customerName: customerName,
-        periodLabel: periodLabel,
-        openingLabel: openingLabel,
-        size: size,
+        phone: header['company_phone'] as String?,
+        address: [header['company_address'], header['company_city']]
+            .where((s) => s != null && (s as String).isNotEmpty).join(', '),
+        email: header['company_email'] as String?,
+        gstNumber: header['company_gst'] as String?,
+        logo: logo,
+        bw: bw,
+        scale: headerScale,
+        right: ReportPdfGenerator.customerLedgerHeaderRight(
+          customerName: customerName,
+          from: fromDate, to: toDate,
+          openingLabel: openingLabel,
+          bw: bw,
+          scale: headerScale,
+        ),
       ),
       // ctx.pageNumber / ctx.pagesCount — native to pw.MultiPage, no
       // manual page counting.
-      footer: (ctx) => _printFooter(ctx, size),
+      footer: (ctx) => _printFooter(ctx, size, bw: bw),
       build: (_) => [
-        _printTable(t.headers, t.rows, t.totals, size),
+        // BILL TO — same shared block the Table PDF uses, scaled for
+        // Half Sheet. Any field genuinely absent for this customer is
+        // simply omitted, not shown blank.
+        ReportPdfGenerator.billToBlock(
+          customerName: header['retailer_name'] as String? ?? customerName,
+          contactPerson: header['retailer_owner'] as String?,
+          mobile: header['retailer_phone'] as String?,
+          areaOrAddress: (header['retailer_address'] as String?)?.isNotEmpty == true
+              ? header['retailer_address'] as String?
+              : header['retailer_area'] as String?,
+          bw: bw,
+          scale: headerScale,
+        ),
+        pw.SizedBox(height: size.isHalf ? 5 : 8),
+        _printTable(t.headers, t.rows, t.totals, size, bw: bw),
       ],
     ));
 
@@ -137,9 +181,11 @@ class CustomerLedgerPrintBuilder {
     required DateTime fromDate,
     required DateTime toDate,
     required PrintSheetSize size,
+    ReportPrintStyle style = ReportPrintStyle.color,
   }) async {
     final doc = await build(
       data: data, companyName: companyName, fromDate: fromDate, toDate: toDate, size: size,
+      style: style,
     );
     final header = (data['header'] as Map?)?.cast<String, dynamic>() ?? {};
     final name = (header['retailer_name'] as String? ?? 'Customer')
@@ -171,9 +217,11 @@ class CustomerLedgerPrintBuilder {
     required DateTime fromDate,
     required DateTime toDate,
     required PrintSheetSize size,
+    ReportPrintStyle style = ReportPrintStyle.color,
   }) async {
     final doc = await build(
       data: data, companyName: companyName, fromDate: fromDate, toDate: toDate, size: size,
+      style: style,
     );
     final bytes = await doc.save();
     final header = (data['header'] as Map?)?.cast<String, dynamic>() ?? {};
@@ -187,39 +235,20 @@ class CustomerLedgerPrintBuilder {
     );
   }
 
-  // ── Compact customer header — repeats every page via MultiPage.header ──
-  static pw.Widget _printHeader({
-    required String companyName,
-    required String customerName,
-    required String periodLabel,
-    required String openingLabel,
-    required PrintSheetSize size,
-  }) {
-    return pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
-      pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [
-        pw.Text(companyName,
-            style: pw.TextStyle(fontSize: size.companyFontSize, fontWeight: pw.FontWeight.bold, color: _primary)),
-        pw.Text('CUSTOMER LEDGER',
-            style: pw.TextStyle(fontSize: size.titleFontSize, fontWeight: pw.FontWeight.bold, color: _primary)),
-      ]),
-      pw.SizedBox(height: size.isHalf ? 2 : 4),
-      pw.Text('Customer : $customerName',
-          style: pw.TextStyle(fontSize: size.identityFontSize, fontWeight: pw.FontWeight.bold, color: _dark)),
-      pw.Text('$periodLabel  |  Opening : $openingLabel',
-          style: pw.TextStyle(fontSize: size.identityFontSize, color: _subText)),
-      pw.SizedBox(height: size.isHalf ? 3 : 5),
-      pw.Divider(color: _primary, thickness: size.dividerThickness),
-      pw.SizedBox(height: size.isHalf ? 3 : 5),
-    ]);
-  }
+  // ── Old duplicate header removed (Full Sheet header-consolidation audit)
+  //    — company header + BILL TO now come from ReportPdfGenerator's
+  //    shared richCompanyHeader/customerLedgerHeaderRight/billToBlock,
+  //    called directly from build() above, so Full Sheet, Half Sheet, and
+  //    the Table PDF can never diverge again.
 
   // ── Footer — "Page X of Y" on every page, via native MultiPage context ──
-  static pw.Widget _printFooter(pw.Context ctx, PrintSheetSize size) => pw.Row(
+  static pw.Widget _printFooter(pw.Context ctx, PrintSheetSize size, {bool bw = false}) => pw.Row(
     mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
     children: [
-      pw.Text('RoosterHub Trader OS', style: pw.TextStyle(fontSize: size.footerFontSize, color: _subText)),
+      pw.Text('RoosterHub Trader OS',
+          style: pw.TextStyle(fontSize: size.footerFontSize, color: bw ? PdfColors.black : _subText)),
       pw.Text('Page ${ctx.pageNumber} of ${ctx.pagesCount}',
-          style: pw.TextStyle(fontSize: size.footerFontSize, color: _subText)),
+          style: pw.TextStyle(fontSize: size.footerFontSize, color: bw ? PdfColors.black : _subText)),
     ],
   );
 
@@ -228,20 +257,46 @@ class CustomerLedgerPrintBuilder {
   //    its header row across page breaks. Native pagination only — no row
   //    counting, no manual page splitting; rows 9-10 of an 8-per-page
   //    ledger simply flow onto page 2 on their own.
+  //
+  //    Note (Print Style audit): fromTextArray's cellStyle/headerStyle are
+  //    static per-call values, not per-row callbacks, so unlike the shared
+  //    _table() in report_pdf_generator.dart, this builder cannot bold or
+  //    thick-border individual Opening/Summary/Closing rows without a
+  //    larger rewrite to a manually-built pw.Table (which would also need
+  //    to reimplement this builder's native multi-page header repeat by
+  //    hand). Scoped out of this pass — flagged, not silently skipped.
+  //    Right-alignment of numeric columns and header-repeat-per-page are
+  //    already native here via cellAlignments/fromTextArray respectively,
+  //    for both Color and Black & White.
   static pw.Widget _printTable(
       List<String> headers,
       List<List<String>> rows,
       List<String> totals,
       PrintSheetSize size,
+      {bool bw = false}
       ) {
     return pw.TableHelper.fromTextArray(
       headers: headers,
       data: [...rows, totals],
-      border: pw.TableBorder.all(color: _border, width: 0.4),
-      headerDecoration: const pw.BoxDecoration(color: _primary),
+      border: bw
+          ? pw.TableBorder(
+        top: const pw.BorderSide(color: PdfColors.black, width: 1.0),
+        bottom: const pw.BorderSide(color: PdfColors.black, width: 1.0),
+        left: const pw.BorderSide(color: PdfColors.black, width: 1.0),
+        right: const pw.BorderSide(color: PdfColors.black, width: 1.0),
+        horizontalInside: const pw.BorderSide(color: PdfColors.black, width: 0.4),
+        verticalInside: const pw.BorderSide(color: PdfColors.black, width: 0.4),
+      )
+          : pw.TableBorder.all(color: _border, width: 0.4),
+      headerDecoration: bw
+          ? const pw.BoxDecoration(
+          color: PdfColors.white,
+          border: pw.Border(bottom: pw.BorderSide(color: PdfColors.black, width: 1.0)))
+          : const pw.BoxDecoration(color: _primary),
       headerStyle: pw.TextStyle(
-          fontSize: size.tableHeaderFontSize, fontWeight: pw.FontWeight.bold, color: PdfColors.white),
-      cellStyle: pw.TextStyle(fontSize: size.tableCellFontSize, color: _dark),
+          fontSize: size.tableHeaderFontSize, fontWeight: pw.FontWeight.bold,
+          color: bw ? PdfColors.black : PdfColors.white),
+      cellStyle: pw.TextStyle(fontSize: size.tableCellFontSize, color: bw ? PdfColors.black : _dark),
       cellPadding: pw.EdgeInsets.symmetric(horizontal: size.cellPaddingH, vertical: size.cellPaddingV),
       cellAlignments: const {
         0: pw.Alignment.centerLeft,

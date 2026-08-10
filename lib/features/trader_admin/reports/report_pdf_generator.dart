@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
@@ -27,6 +28,134 @@ class ReportPdfGenerator {
   static const _purple   = PdfColor.fromInt(0xFF6A1B9A);
   static const _red      = PdfColor.fromInt(0xFFC62828);
 
+  // ─── Company logo fetch — the ONE shared implementation for every PDF
+  // path that shows a logo (Customer Ledger's Table PDF AND Full/Half
+  // Sheet Print — CustomerLedgerPrintBuilder calls this directly rather
+  // than fetching its own copy, per the "single shared header" audit).
+  //
+  // ★ ROOT CAUSE FIX (Full Sheet logo-missing audit): this previously used
+  // dart:io's HttpClient, which does NOT work on Flutter Web at all — it
+  // throws immediately, and the surrounding try/catch silently swallowed
+  // that failure, so the logo simply never appeared on Web while the
+  // text-only parts of the header (which need no network call) rendered
+  // fine. That's exactly why the logo was missing despite traders.logo_url
+  // being valid and the Profile screen displaying it correctly (Image.network
+  // in Flutter's own widget tree does its own — working — network fetch;
+  // this dart:io code path never touched that). Switched to package:http,
+  // which is cross-platform (Android/iOS/Web/Windows/macOS) and was
+  // already a transitive dependency via supabase_flutter, so no new
+  // pubspec entry was required.
+  //
+  // Still best-effort: any failure (network, bad URL, unsupported format)
+  // returns null and the caller falls back to the existing text-based
+  // header — a missing/broken logo must never break PDF generation.
+  static Future<pw.MemoryImage?> fetchLogo(String? url) async {
+    if (url == null || url.isEmpty) return null;
+    try {
+      final res = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 8));
+      if (res.statusCode != 200) return null;
+      return pw.MemoryImage(res.bodyBytes);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  // ─── Rich company header (logo + name + contact details on the left,
+  // an arbitrary right-side block on the right) — a business-document
+  // style header, e.g. for Customer Ledger's "Customer : / Period /
+  // Opening Balance" block. Deliberately generic (the right side is any
+  // widget) so it can be reused by future PDF types (Tax Invoice, Credit
+  // Note, Delivery Challan) without duplicating the left-side layout.
+  // Falls back to a plain text company name when no logo is available —
+  // never blocks on a missing logo.
+  //
+  // Public (no leading underscore) + [scale] specifically so
+  // CustomerLedgerPrintBuilder (Full/Half Sheet — a separate class) can
+  // call this exact same implementation instead of maintaining its own
+  // copy, per the "Full Sheet and Half Sheet must use the same shared
+  // header implementation" requirement. scale=1.0 (default) reproduces
+  // the original Table-PDF sizing exactly; Half Sheet passes a smaller
+  // scale to fit A5.
+  static pw.Widget richCompanyHeader({
+    required String companyName,
+    String? phone,
+    String? address,
+    String? email,
+    String? gstNumber,
+    pw.MemoryImage? logo,
+    required pw.Widget right,
+    bool bw = false,
+    double scale = 1.0,
+  }) {
+    final textColor = bw ? PdfColors.black : _subText;
+    final accent = bw ? PdfColors.black : _primary;
+    final logoSize = 52 * scale;
+    return pw.Column(children: [
+      pw.Row(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
+        if (logo != null) ...[
+          pw.Container(
+            width: logoSize, height: logoSize,
+            alignment: pw.Alignment.center,
+            child: pw.Image(logo, fit: pw.BoxFit.contain),
+          ),
+          pw.SizedBox(width: 10 * scale),
+        ],
+        pw.Expanded(
+          child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
+            pw.Text(companyName,
+                style: pw.TextStyle(fontSize: 17 * scale, fontWeight: pw.FontWeight.bold, color: accent)),
+            pw.SizedBox(height: 3 * scale),
+            if (phone != null && phone.isNotEmpty)
+              pw.Text(phone, style: pw.TextStyle(fontSize: 8.5 * scale, color: textColor)),
+            if (address != null && address.isNotEmpty)
+              pw.Text(address, style: pw.TextStyle(fontSize: 8.5 * scale, color: textColor)),
+            if (email != null && email.isNotEmpty)
+              pw.Text(email, style: pw.TextStyle(fontSize: 8.5 * scale, color: textColor)),
+            if (gstNumber != null && gstNumber.isNotEmpty)
+              pw.Text('GSTIN: $gstNumber', style: pw.TextStyle(fontSize: 8.5 * scale, color: textColor)),
+          ]),
+        ),
+        pw.SizedBox(width: 14 * scale),
+        right,
+      ]),
+      pw.SizedBox(height: 6),
+      pw.Divider(color: accent, thickness: bw ? 1.2 : 1.5),
+      pw.SizedBox(height: 8),
+    ]);
+  }
+
+  // ─── Customer Ledger's specific right-side block: title, customer,
+  // period, generated timestamp, opening balance — matches the reference
+  // Tax-Invoice-style layout exactly (right-aligned, title in accent
+  // color, everything else in plain dark text). Public + [scale] for the
+  // same shared-with-Full/Half-Sheet reason as richCompanyHeader above.
+  static pw.Widget customerLedgerHeaderRight({
+    required String customerName,
+    required DateTime from,
+    required DateTime to,
+    required String openingLabel,
+    bool bw = false,
+    double scale = 1.0,
+  }) {
+    final accent = bw ? PdfColors.black : _primary;
+    final textColor = bw ? PdfColors.black : _dark;
+    return pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.end, children: [
+      pw.Text('CUSTOMER LEDGER',
+          style: pw.TextStyle(fontSize: 13 * scale, fontWeight: pw.FontWeight.bold, color: accent)),
+      pw.SizedBox(height: 4 * scale),
+      pw.Text('Customer : $customerName',
+          style: pw.TextStyle(fontSize: 9.5 * scale, fontWeight: pw.FontWeight.bold, color: textColor)),
+      pw.SizedBox(height: 2 * scale),
+      pw.Text('${DateFormat("d MMM yyyy").format(from)} - ${DateFormat("d MMM yyyy").format(to)}',
+          style: pw.TextStyle(fontSize: 8.5 * scale, color: bw ? PdfColors.black : _subText)),
+      pw.Text('Generated: ${DateFormat("d MMM yyyy, HH:mm").format(DateTime.now())}',
+          style: pw.TextStyle(fontSize: 7.5 * scale, color: bw ? PdfColors.black : _subText)),
+      pw.SizedBox(height: 2 * scale),
+      pw.Text('Opening Balance : $openingLabel',
+          style: pw.TextStyle(fontSize: 9 * scale, fontWeight: pw.FontWeight.bold, color: textColor)),
+    ]);
+  }
+
   // ─── Generic entry: build a PDF from a ReportDataSet ─────────────────────
   // This is the NEW canonical path — every report Card View, Table View,
   // and PDF now come from the exact same ReportDataSet, so they can never
@@ -43,14 +172,62 @@ class ReportPdfGenerator {
     final to   = dataSet.toDate   ?? DateTime.now();
     final bw   = dataSet.printStyle == ReportPrintStyle.blackAndWhite;
 
+    // ── Customer Ledger Enhancement: rich business-document header ──────
+    // Only applies when this ReportDataSet carries the raw
+    // get_retailer_statement() response (customerLedgerData) alongside a
+    // customerIdentity — currently Customer Ledger only. Every other
+    // report keeps the existing plain _header()/_customerIdentityBlock(),
+    // completely unaffected.
+    final ledgerHeader = (dataSet.customerLedgerData?['header'] as Map?)?.cast<String, dynamic>();
+    final useRichHeader = dataSet.customerIdentity != null && ledgerHeader != null;
+    pw.MemoryImage? logo;
+    if (useRichHeader) {
+      logo = await fetchLogo(ledgerHeader['company_logo'] as String?);
+    }
+
     doc.addPage(pw.MultiPage(
         pageFormat: dataSet.landscape ? PdfPageFormat.a4.landscape : PdfPageFormat.a4,
         margin: const pw.EdgeInsets.all(28),
-        header: (_) => _header(companyName, dataSet.title, from, to, bw: bw),
+        header: (_) => useRichHeader
+            ? richCompanyHeader(
+          companyName: (ledgerHeader['company_name'] as String?) ?? companyName,
+          phone: ledgerHeader['company_phone'] as String?,
+          address: [ledgerHeader['company_address'], ledgerHeader['company_city']]
+              .where((s) => s != null && (s as String).isNotEmpty).join(', '),
+          email: ledgerHeader['company_email'] as String?,
+          gstNumber: ledgerHeader['company_gst'] as String?,
+          logo: logo,
+          bw: bw,
+          right: customerLedgerHeaderRight(
+            customerName: dataSet.customerIdentity!.customerName,
+            from: from, to: to,
+            openingLabel: dataSet.customerIdentity!.openingLabel ?? Fmt.amount(0),
+            bw: bw,
+          ),
+        )
+            : _header(companyName, dataSet.title, from, to, bw: bw),
         footer: (ctx) => dataSet.useBrandedFooter ? _footer(ctx) : _footer(),
         build: (_) => [
-          if (dataSet.customerIdentity != null)
+          // The rich header above already carries the customer identity
+          // (name/period/opening) — the old inline identity block would
+          // duplicate it, so it's skipped whenever the rich header is used.
+          if (dataSet.customerIdentity != null && !useRichHeader)
             _customerIdentityBlock(dataSet.customerIdentity!),
+          // BILL TO — Customer Name, Contact Person, Mobile, Area/Address.
+          // Only shown alongside the rich header (same data source,
+          // ledgerHeader); the plain-header fallback path is unaffected.
+          if (useRichHeader) ...[
+            billToBlock(
+              customerName: ledgerHeader!['retailer_name'] as String? ?? dataSet.customerIdentity!.customerName,
+              contactPerson: ledgerHeader['retailer_owner'] as String?,
+              mobile: ledgerHeader['retailer_phone'] as String?,
+              areaOrAddress: (ledgerHeader['retailer_address'] as String?)?.isNotEmpty == true
+                  ? ledgerHeader['retailer_address'] as String?
+                  : ledgerHeader['retailer_area'] as String?,
+              bw: bw,
+            ),
+            pw.SizedBox(height: 8),
+          ],
           if (dataSet.customerIdentity == null && dataSet.summary.isNotEmpty) ...[
             _secTitle('SUMMARY'),
             _kpiRow(dataSet.summary
@@ -75,7 +252,46 @@ class ReportPdfGenerator {
     return doc;
   }
 
-  // ─────────────────────────────────────────────────────────────────────────
+  // ─── BILL TO block — Customer Name, Contact Person, Mobile, Area/Address.
+  // A light bordered box (no colored fill in B&W) sitting between the
+  // company header and the transaction table, matching the reference
+  // invoice-style layout. Any field that's genuinely absent for a given
+  // customer is simply omitted, not shown as blank/"—". Public + [scale]
+  // for the same shared-with-Full/Half-Sheet reason as richCompanyHeader.
+  static pw.Widget billToBlock({
+    required String customerName,
+    String? contactPerson,
+    String? mobile,
+    String? areaOrAddress,
+    bool bw = false,
+    double scale = 1.0,
+  }) {
+    final labelColor = bw ? PdfColors.black : _primary;
+    final textColor = bw ? PdfColors.black : _dark;
+    return pw.Container(
+      width: double.infinity,
+      padding: pw.EdgeInsets.all(10 * scale),
+      decoration: pw.BoxDecoration(
+        color: bw ? PdfColors.white : _bgLight,
+        border: pw.Border.all(color: bw ? PdfColors.black : _border, width: bw ? 1.0 : 0.75),
+        borderRadius: bw ? null : pw.BorderRadius.circular(4),
+      ),
+      child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
+        pw.Text('BILL TO',
+            style: pw.TextStyle(fontSize: 7.5 * scale, fontWeight: pw.FontWeight.bold,
+                color: labelColor, letterSpacing: 0.6)),
+        pw.SizedBox(height: 3 * scale),
+        pw.Text(customerName,
+            style: pw.TextStyle(fontSize: 11 * scale, fontWeight: pw.FontWeight.bold, color: textColor)),
+        if (contactPerson != null && contactPerson.isNotEmpty && contactPerson != customerName)
+          pw.Text(contactPerson, style: pw.TextStyle(fontSize: 8.5 * scale, color: textColor)),
+        if (mobile != null && mobile.isNotEmpty)
+          pw.Text(mobile, style: pw.TextStyle(fontSize: 8.5 * scale, color: textColor)),
+        if (areaOrAddress != null && areaOrAddress.isNotEmpty)
+          pw.Text(areaOrAddress, style: pw.TextStyle(fontSize: 8.5 * scale, color: textColor)),
+      ]),
+    );
+  }
   // CUSTOMER REPORT IDENTITY — the ONE reusable compact header used by every
   // customer-specific PDF (Customer Ledger's Header PDF, its Table PDF, and
   // any future customer-specific report). Exactly 3 lines, no more:
@@ -297,6 +513,17 @@ class ReportPdfGenerator {
         openingLabel: Fmt.amount(opening),
       ),
       useBrandedFooter: true,
+      // ★ ROOT CAUSE FIX (PDF header not wired audit): this was missing
+      // entirely. _buildDataSetDoc's rich header (logo/phone/address/
+      // email/GSTIN + BILL TO) only activates when BOTH customerIdentity
+      // AND customerLedgerData are present — without this line,
+      // customerLedgerData stayed null (the class default) and the rich
+      // header silently never fired for this screen, which is the actual
+      // live "Reports → Ledger → Customer Ledger" entry point (confirmed
+      // via customer_ledger_report_screen.dart calling
+      // generateCustomerLedgerReportAndShow / shareCustomerLedgerReport,
+      // both of which funnel through this exact function).
+      customerLedgerData: data,
     );
   }
 

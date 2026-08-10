@@ -86,29 +86,28 @@ class _ReportTableBlockState extends State<ReportTableBlock> {
     }
   }
 
-  // Full Sheet / Half Sheet menu — shown only when ds.customerLedgerData is
-  // set (currently: Customer Ledger only). Every other report's Print
-  // button is untouched and keeps calling generateFromDataSetAndShow
-  // directly, exactly as before.
-  Future<void> _showPrintSheetMenu(BuildContext context, ReportDataSet ds) async {
-    final data = ds.customerLedgerData!;
-    final from = ds.fromDate ?? widget.fromDate ?? DateTime.now();
-    final to = ds.toDate ?? widget.toDate ?? DateTime.now();
-
-    Widget option(IconData icon, String label, String sub, PrintSheetSize size) => ListTile(
+  // Full Sheet / Half Sheet, THEN Color / Black & White — shown only when
+  // ds.customerLedgerData is set (currently: Customer Ledger only). Every
+  // other report's Print/Download/Share is untouched and keeps calling
+  // generateFromDataSetAndShow / shareFromDataSet directly, exactly as
+  // before. [onReady] receives the two choices and performs the actual
+  // action (Print, Download, or Share) — same picker flow for all three,
+  // per the "Print, Download and Share all honor the selected style"
+  // requirement.
+  Future<void> _showPrintSheetMenu(
+      BuildContext context,
+      ReportDataSet ds,
+      Future<void> Function(PrintSheetSize size, ReportPrintStyle style) onReady,
+      ) async {
+    Widget sizeOption(IconData icon, String label, String sub, PrintSheetSize size) => ListTile(
       leading: Icon(icon, color: kNavy),
       title: Text(label, style: const TextStyle(fontWeight: FontWeight.w700)),
       subtitle: Text(sub),
-      onTap: () {
+      onTap: () async {
         Navigator.of(context, rootNavigator: true).pop();
-        _run(() => CustomerLedgerPrintBuilder.printAndShow(
-          context: context,
-          data: data,
-          companyName: widget.companyName,
-          fromDate: from,
-          toDate: to,
-          size: size,
-        ));
+        final style = await _showPrintStyleMenu(context);
+        if (style == null) return;
+        onReady(size, style);
       },
     );
 
@@ -122,11 +121,40 @@ class _ReportTableBlockState extends State<ReportTableBlock> {
             padding: EdgeInsets.fromLTRB(16, 16, 16, 4),
             child: Align(
               alignment: Alignment.centerLeft,
-              child: Text('Print Customer Ledger', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800)),
+              child: Text('Select Print Layout', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800)),
             ),
           ),
-          option(Icons.description_outlined, 'Full Sheet Print', 'A4 — one full page per customer', PrintSheetSize.full),
-          option(Icons.crop_7_5_outlined, 'Half Sheet Print', 'A5 — compact, saves paper for batch printing', PrintSheetSize.half),
+          sizeOption(Icons.description_outlined, 'Full Sheet Print', 'A4 — one full page per customer', PrintSheetSize.full),
+          sizeOption(Icons.crop_7_5_outlined, 'Half Sheet Print', 'A5 — compact, saves paper for batch printing', PrintSheetSize.half),
+          const SizedBox(height: 8),
+        ]),
+      ),
+    );
+  }
+
+  // Step 2 — Color / Black & White, shown after the layout is chosen.
+  Future<ReportPrintStyle?> _showPrintStyleMenu(BuildContext context) {
+    Widget styleOption(IconData icon, Color iconColor, String label, ReportPrintStyle style) => ListTile(
+      leading: Icon(icon, color: iconColor),
+      title: Text(label, style: const TextStyle(fontWeight: FontWeight.w700)),
+      onTap: () => Navigator.of(context, rootNavigator: true).pop(style),
+    );
+
+    return showModalBottomSheet<ReportPrintStyle>(
+      context: context,
+      useRootNavigator: true,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (ctx) => SafeArea(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          const Padding(
+            padding: EdgeInsets.fromLTRB(16, 16, 16, 4),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Text('Select Print Style', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800)),
+            ),
+          ),
+          styleOption(Icons.palette_outlined, kPrimary, 'Color', ReportPrintStyle.color),
+          styleOption(Icons.contrast_outlined, Colors.black87, 'Black & White', ReportPrintStyle.blackAndWhite),
           const SizedBox(height: 8),
         ]),
       ),
@@ -155,18 +183,42 @@ class _ReportTableBlockState extends State<ReportTableBlock> {
             const Spacer(),
             ReportActionsBar(
               busy: _busy,
-              onDownload: () =>
-                  _run(() => ReportPdfGenerator.generateFromDataSetAndShow(
-                    context: context,
-                    dataSet: ds,
+              onDownload: () => ds.customerLedgerData != null
+                  ? _showPrintSheetMenu(context, ds, (size, style) => _run(() =>
+                  CustomerLedgerPrintBuilder.printAndShow(
+                    context: context, data: ds.customerLedgerData!,
                     companyName: widget.companyName,
-                  )),
-              onShare: () => _run(() => ReportPdfGenerator.shareFromDataSet(
+                    fromDate: ds.fromDate ?? widget.fromDate ?? DateTime.now(),
+                    toDate: ds.toDate ?? widget.toDate ?? DateTime.now(),
+                    size: size, style: style,
+                  )))
+                  : _run(() => ReportPdfGenerator.generateFromDataSetAndShow(
+                context: context,
+                dataSet: ds,
+                companyName: widget.companyName,
+              )),
+              onShare: () => ds.customerLedgerData != null
+                  ? _showPrintSheetMenu(context, ds, (size, style) => _run(() =>
+                  CustomerLedgerPrintBuilder.share(
+                    data: ds.customerLedgerData!,
+                    companyName: widget.companyName,
+                    fromDate: ds.fromDate ?? widget.fromDate ?? DateTime.now(),
+                    toDate: ds.toDate ?? widget.toDate ?? DateTime.now(),
+                    size: size, style: style,
+                  )))
+                  : _run(() => ReportPdfGenerator.shareFromDataSet(
                 dataSet: ds,
                 companyName: widget.companyName,
               )),
               onPrint: () => ds.customerLedgerData != null
-                  ? _showPrintSheetMenu(context, ds)
+                  ? _showPrintSheetMenu(context, ds, (size, style) => _run(() =>
+                  CustomerLedgerPrintBuilder.printAndShow(
+                    context: context, data: ds.customerLedgerData!,
+                    companyName: widget.companyName,
+                    fromDate: ds.fromDate ?? widget.fromDate ?? DateTime.now(),
+                    toDate: ds.toDate ?? widget.toDate ?? DateTime.now(),
+                    size: size, style: style,
+                  )))
                   : _run(() => ReportPdfGenerator.generateFromDataSetAndShow(
                 context: context,
                 dataSet: ds,
