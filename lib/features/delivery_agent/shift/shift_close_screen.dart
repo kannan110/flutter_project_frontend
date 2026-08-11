@@ -282,6 +282,13 @@ class _S extends ConsumerState<ShiftCloseScreen> {
           'returned_birds,returned_weight,shrinkage_kg,'
           'orders(retailers(shop_name))')
           .eq('delivery_shift_id', shift['id'])
+      // ★ ROOT CAUSE FIX (Close Shift wrong-total audit, part 2): same
+      // fix as trader_shift_close_screen.dart (which copied this exact
+      // two-query pattern from here, per its own code comment) — a
+      // correctly-undone delivery keeps status='delivered' forever by
+      // design, so it must be explicitly excluded here too. Mirrors
+      // SQL's "IS NOT TRUE" — includes false AND null, excludes only true.
+          .not('is_undone', 'eq', true)
           .timeout(const Duration(seconds: 10));
       deliveries = List<Map<String, dynamic>>.from(r as List? ?? []);
     } catch (_) {}
@@ -370,6 +377,16 @@ class _S extends ConsumerState<ShiftCloseScreen> {
           case 'delivered':
             delB += b;
             delK += k;
+        // ★ ROOT CAUSE FIX (Close Shift wrong-total audit, part 3): no
+        // case existed for 'delivery_reversed' — the compensating entry
+        // undo_instant_delivery posts when a mistaken delivery is
+        // undone. Silently ignored before, so the original 'delivered'
+        // row it was meant to cancel stayed counted. Same fix as
+        // trader_shift_close_screen.dart (which copied this exact
+        // pattern from here, per this file's own earlier comments).
+          case 'delivery_reversed':
+            delB -= b;
+            delK -= k;
           case 'mortality':
             mortB += b;
             mortK += k;

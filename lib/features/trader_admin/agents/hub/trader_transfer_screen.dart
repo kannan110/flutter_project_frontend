@@ -75,42 +75,77 @@ class _TraderTransferScreenState
     super.dispose();
   }
 
+  // Retries a transient network failure (e.g. "Connection reset by peer" —
+  // a real, common mobile-network blip, not a logic bug) a few times with
+  // a short backoff before giving up. Only retries genuinely transient
+  // conditions (timeouts, connection resets, socket errors) — a real
+  // server-side error (e.g. a 4xx from Postgrest) fails immediately
+  // rather than retrying something that will never succeed.
+  Future<T> _withRetry<T>(Future<T> Function() fn, {int retries = 2}) async {
+    var attempt = 0;
+    while (true) {
+      try {
+        return await fn();
+      } catch (e) {
+        final msg = e.toString().toLowerCase();
+        final transient = msg.contains('connection reset') ||
+            msg.contains('connection closed') ||
+            msg.contains('socketexception') ||
+            msg.contains('timeout') ||
+            msg.contains('failed host lookup');
+        attempt++;
+        if (!transient || attempt > retries) rethrow;
+        await Future.delayed(Duration(milliseconds: 400 * attempt));
+      }
+    }
+  }
+
   Future<void> _load() async {
     if (mounted) setState(() => _loading = true);
     try {
       final user = ref.read(appUserProvider).valueOrNull;
 
-      // Batch details
-      final b = await _c
-          .from('delivery_batches')
-          .select('*,delivery_agents(id,name,vehicle_no)')
-          .eq('id', widget.batchId)
-          .maybeSingle();
-
-      // Transferable deliveries in this batch
-      final d = await _c
-          .from('deliveries')
-          .select(
-          'id,status,pickup_bird_count,'
-              'orders(id,estimated_birds,total_quantity,'
-              'retailers(shop_name,address))')
-          .eq('batch_id', widget.batchId)
-          .inFilter(
-          'status', ['assigned', 'picked_up', 'out_for_delivery']);
-
-      // Other active agents in same trader
-      final a = await _c
-          .from('delivery_agents')
-          .select('id,name,vehicle_no,phone')
-          .eq('trader_id', user?.traderId ?? '')
-          .eq('is_active', true)
-          .neq('id', widget.fromAgentId)
-          .order('name');
+      // ★ FIX (Transfer Birds "Connection reset by peer" audit): these
+      // three independent queries used to run strictly sequentially,
+      // each unprotected — a single transient network blip on any one of
+      // them (most commonly the last, "Transfer To" agents, simply
+      // because it's the one waiting longest in the chain) threw the raw
+      // exception straight into the UI and aborted the whole screen, even
+      // though the other two queries may have already succeeded. Now:
+      // (a) each query gets its own retry for transient failures, and
+      // (b) they run in parallel via Future.wait — both shortens the
+      // total round-trip (less time exposed to a mid-flight reset) and
+      // means a failure in one no longer has to abort work already done
+      // by the others before Future.wait itself reports the failure.
+      final results = await Future.wait<dynamic>([
+        _withRetry(() => _c
+            .from('delivery_batches')
+            .select('*,delivery_agents(id,name,vehicle_no)')
+            .eq('id', widget.batchId)
+            .maybeSingle()),
+        _withRetry(() => _c
+            .from('deliveries')
+            .select(
+            'id,status,pickup_bird_count,'
+                'orders(id,estimated_birds,total_quantity,'
+                'retailers(shop_name,address))')
+            .eq('batch_id', widget.batchId)
+            .inFilter(
+            'status', ['assigned', 'picked_up', 'out_for_delivery'])),
+        _withRetry(() => _c
+            .from('delivery_agents')
+            .select('id,name,vehicle_no,phone')
+            .eq('trader_id', user?.traderId ?? '')
+            .eq('is_active', true)
+            .neq('id', widget.fromAgentId)
+            .order('name')),
+      ]);
 
       if (!mounted) return;
 
-      final deliveries =
-      List<Map<String, dynamic>>.from(d as List? ?? []);
+      final b = results[0] as Map<String, dynamic>?;
+      final deliveries = List<Map<String, dynamic>>.from(results[1] as List? ?? []);
+      final a = results[2] as List? ?? [];
 
       // Pre-fill totals from batch deliveries
       final totalBirds = deliveries.fold<int>(
@@ -131,7 +166,7 @@ class _TraderTransferScreenState
       setState(() {
         _batch       = b;
         _deliveries  = deliveries;
-        _toAgents    = List<Map<String, dynamic>>.from(a as List? ?? []);
+        _toAgents    = List<Map<String, dynamic>>.from(a);
         _loading     = false;
         if (totalBirds > 0 && _birdsCtrl.text.isEmpty) {
           _birdsCtrl.text = '$totalBirds';
@@ -143,7 +178,18 @@ class _TraderTransferScreenState
     } catch (e) {
       if (mounted) {
         setState(() => _loading = false);
-        showError(context, e.toString().replaceAll('Exception: ', ''));
+        // Friendly message for the common transient case (what the
+        // screenshot showed — a raw "ClientConnection reset by peer,
+        // uri=https://...supabase.co/..." dump is not actionable for a
+        // trader); anything else still surfaces its real message so a
+        // genuine bug isn't hidden behind a generic string.
+        final raw = e.toString();
+        final friendly = raw.toLowerCase().contains('connection reset') ||
+            raw.toLowerCase().contains('socketexception') ||
+            raw.toLowerCase().contains('timeout')
+            ? 'Couldn\'t load transfer data — connection issue. Tap ↻ to retry.'
+            : raw.replaceAll('Exception: ', '');
+        showError(context, friendly);
       }
     }
   }

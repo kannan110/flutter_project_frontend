@@ -561,6 +561,25 @@ class _AgentQuickEntrySheetState extends ConsumerState<AgentQuickEntrySheet> {
         setState(() => _err = 'Enter delivered weight for ${l.product!['name']}');
         return;
       }
+      // ★ FIX (Close Shift "0 birds / weight" audit): a BLANK Bird Count
+      // is a legitimate, existing, supported workflow — it means "not
+      // counted yet," recorded as NULL and flagged as "unconfirmed" at
+      // shift-approval time (see approve_shift's own
+      // unconfirmed_delivery_count handling) so the agent can fill it in
+      // later. That is NOT what this blocks. This blocks the different,
+      // invalid case: the agent explicitly TYPED "0" into Bird Count
+      // while a real, nonzero Weight was also entered — a nonsensical
+      // combination (weight without any birds) that previously reached
+      // complete_delivery as a real, recorded zero (not the unconfirmed
+      // NULL), silently inflating every downstream total that summed
+      // delivered weight.
+      if (l.birdsCtrl.text.trim().isNotEmpty && l.birds <= 0) {
+        setState(() => _err =
+        '${l.product!['name']}: Bird Count can\'t be 0 when Weight is entered. '
+            'Leave Bird Count blank if it genuinely hasn\'t been counted yet, '
+            'or enter the real count.');
+        return;
+      }
     }
 
     // Defensive re-check: every selected product must still be trader-

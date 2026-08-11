@@ -209,6 +209,16 @@ class _TraderShiftCloseScreenState
           'returned_birds,returned_weight,shrinkage_kg,'
           'orders(retailers(shop_name))')
           .eq('delivery_shift_id', widget.shiftId)
+      // ★ ROOT CAUSE FIX (Close Shift wrong-total audit, part 2): this
+      // screen fetches and sums deliveries directly in Flutter,
+      // completely independent of get_shift_summary/approve_shift
+      // (both already fixed) — so those fixes never reached this
+      // screen. A delivery correctly reversed via undo_instant_delivery
+      // keeps status='delivered' forever by design (only is_undone
+      // flips true), so it must be explicitly excluded here too.
+      // .not('is_undone','eq',true) mirrors the SQL "IS NOT TRUE"
+      // semantics exactly — includes false AND null, only excludes true.
+          .not('is_undone', 'eq', true)
           .timeout(const Duration(seconds: 10));
       deliveries = List<Map<String, dynamic>>.from(r as List? ?? []);
     } catch (_) {}
@@ -293,6 +303,20 @@ class _TraderShiftCloseScreenState
         final k  = (row['quantity_kg']    as num?)?.toDouble() ?? 0;
         switch (mt) {
           case 'delivered': delB += b; delK += k;
+        // ★ ROOT CAUSE FIX (Close Shift wrong-total audit, part 3): this
+        // switch had no case for 'delivery_reversed' — the exact
+        // compensating stock_ledger entry undo_instant_delivery posts
+        // when a mistaken delivery is undone. With no matching case it
+        // was silently ignored (falls through, contributes nothing),
+        // while the original 'delivered' row it was meant to cancel out
+        // still got summed above — a third, independent occurrence of
+        // the same "undone delivery not excluded" bug, this time via
+        // stock_ledger movement summing rather than a deliveries.is_undone
+        // filter. Subtracting it here is what makes this loop agree with
+        // Delivery Summary (already correct — sources from `deliveries`
+        // filtered on is_undone) and with the backend
+        // (get_shift_summary/approve_shift, already fixed).
+          case 'delivery_reversed': delB -= b; delK -= k;
           case 'mortality': mortB+= b; mortK+= k;
         }
       }
@@ -917,8 +941,8 @@ class _TraderShiftCloseScreenState
                   const SizedBox(width: 8),
                   Expanded(child: Text(
                       'Returned: $_returnBirds birds  ·  '
-                      'Missing/Unaccounted: ${_stockBirds - _returnBirds} birds'
-                      '${(_stockKg - _returnWt) > 0 ? '  ·  ${(_stockKg - _returnWt).toStringAsFixed(1)} kg' : ''}',
+                          'Missing/Unaccounted: ${_stockBirds - _returnBirds} birds'
+                          '${(_stockKg - _returnWt) > 0 ? '  ·  ${(_stockKg - _returnWt).toStringAsFixed(1)} kg' : ''}',
                       style: TextStyle(fontSize: 11, color: Colors.orange.shade900, fontWeight: FontWeight.w600))),
                 ])),
           ),
