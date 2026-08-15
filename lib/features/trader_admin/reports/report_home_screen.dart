@@ -13,6 +13,7 @@
 
 import 'package:flutter/material.dart';
 import '../../../core/theme/app_theme.dart';
+import 'supervisor_report_screen.dart';
 import 'report_inventory.dart';
 import 'reports_hub_screen.dart';
 
@@ -48,6 +49,12 @@ class _ReportsHomeScreenState extends State<ReportsHomeScreen> {
   }
 
   void _openReport(String key) {
+    if (key == 'supervisor_report') {
+      Navigator.of(context).push(MaterialPageRoute(
+        builder: (_) => const SupervisorReportScreen(),
+      ));
+      return;
+    }
     Navigator.of(context).push(MaterialPageRoute(
       builder: (_) => ReportsHubScreen(initialReportKey: key, showChipPicker: false),
     ));

@@ -14,10 +14,16 @@ import 'package:rooster_trader/features/trader_admin/stock/daily_stock_screen.da
 import 'package:rooster_trader/features/trader_admin/stock/stock_detail_screen.dart'
     show StockDetailScreen;
 import '../../features/delivery_agent/orders/agent_myorder_screen.dart' show AgentMyOrdersScreen;
+import '../../features/supervisor/supervisor_dashboard.dart';
+import '../../features/supervisor/supervisor_link_screen.dart';
+import '../../features/supervisor/supervisor_retailer_screen.dart';
 import '../../features/trader_admin/ledger/creditnote_detailed_screen.dart';
 import '../../features/trader_admin/reports/cashflow_screen.dart' show CashFlowScreen;
 import '../../features/trader_admin/reports/report_home_screen.dart';
 import '../../features/trader_admin/reports/supplier_statement_screen.dart' show SupplierStatementScreen;
+import '../../features/trader_admin/supervisor/create_supervisor_screen.dart';
+import '../../features/trader_admin/supervisor/supervisor_detail_screen.dart';
+import '../../features/trader_admin/supervisor/supervisor_list_screen.dart';
 import '../models/app_user.dart';
 import '../providers/session_provider.dart';
 import '../../features/splash_screen.dart';
@@ -97,6 +103,13 @@ import '../../features/delivery_agent/deliveries/delivery_complete_screen.dart';
 import '../../features/delivery_agent/expenses/expenses_screen.dart';
 import '../../features/delivery_agent/deliveries/delivery_history_screen.dart';
 import '../../features/retailer/retailer_screen.dart';
+import '../../features/supervisor/supervisor_shell.dart';
+import '../../features/supervisor/supervisor_customer_ledger_screen.dart';
+import '../../features/supervisor/supervisor_payment_history_screen.dart';
+import '../../features/supervisor/supervisor_collection_summary_screen.dart';
+import '../../features/supervisor/supervisor_profile_screen.dart';
+import '../../features/supervisor/supervisor_disabled_screen.dart';
+import '../../features/trader_admin/reports/supervisor_report_screen.dart';
 
 abstract class R {
   static const splash = '/';
@@ -192,6 +205,24 @@ abstract class R {
   static const userMgmt = '/t/user-management';
   static const traderProfile = '/t/profile';
   static const deliveryHistory = '/a/delivery-history/:id';
+  static const createSupervisor = '/t/supervisors/create';
+  static const supervisorList = '/t/supervisors';
+  static const supervisorDetail = '/t/supervisors/:id';
+  static const supervisorReport = '/t/reports/supervisor';
+
+  static String supervisorDetailPath(String id) => '/t/supervisors/$id';
+
+  // ── Supervisor / Collection Agent (Plug & Play) ─────────────────────
+  static const supervisorLink = '/supervisor-link';
+  static const supervisorHome = '/s/home';
+  static const supervisorRetailers = '/s/retailers';
+  static const supervisorLedger = '/s/ledger/:rid';
+  static const supervisorPaymentHistory = '/s/history';
+  static const supervisorCollectionSummary = '/s/summary';
+  static const supervisorProfile = '/s/profile';
+  static const supervisorDisabled = '/supervisor-disabled';
+
+  static String supervisorLedgerPath(String id) => '/s/ledger/$id';
 
   static String deliveryHistoryPath(String id) => '/a/delivery-history/\$id';
 
@@ -249,17 +280,18 @@ final appRouterProvider = Provider<GoRouter>((ref) => GoRouter(
 
     // ── Not signed in ─────────────────────────────────────────────
     if (user == null) {
-      // Allow login and agent-link when signed out
-      if (loc == R.splash || loc == R.login || loc == R.agentLink)
+      // Allow login, agent-link, and supervisor-link when signed out
+      if (loc == R.splash || loc == R.login || loc == R.agentLink || loc == R.supervisorLink)
         return null;
       return R.login;
     }
 
     // ── Signed in ─────────────────────────────────────────────────
 
-    // IMPORTANT FIX: /agent-link is allowed even when signed in
-    // An agent may be signed in but not yet linked — let them link!
-    if (loc == R.agentLink) return null;
+    // IMPORTANT FIX: /agent-link and /supervisor-link are allowed even
+    // when signed in — a new agent/supervisor may be signed in but not
+    // yet linked — let them link!
+    if (loc == R.agentLink || loc == R.supervisorLink) return null;
 
     // Super admin → super admin screen
     // Unlinked → trader setup
@@ -279,7 +311,7 @@ final appRouterProvider = Provider<GoRouter>((ref) => GoRouter(
     }
 
     if (user.isUnlinked) {
-      if (loc == R.traderSetup || loc == R.agentLink) return null;
+      if (loc == R.traderSetup || loc == R.agentLink || loc == R.supervisorLink) return null;
       return R.traderSetup;
     }
 
@@ -290,16 +322,37 @@ final appRouterProvider = Provider<GoRouter>((ref) => GoRouter(
       return R.pendingApproval;
     }
 
+    // ── Supervisor / Collection Agent — Plug & Play gate ────────────
+    // A supervisor is already linked (past isUnlinked above) but their
+    // trader may have turned the module off since — or the trader may
+    // simply never have turned it on for a session that predates login.
+    // Either way, every /s/* screen is unreachable while the flag is
+    // off; they're held on the disabled screen instead. This is
+    // enforced on every navigation (refreshListenable re-runs this on
+    // session reload), not just at link time.
+    if (user.isSupervisor && !user.supervisorModuleEnabled) {
+      if (loc == R.supervisorDisabled) return null;
+      return R.supervisorDisabled;
+    }
+
     // Redirect away from login if already signed in
     if (loc == R.login) {
-      return user.isDeliveryAgent ? R.agentHome : R.dashboard;
+      if (user.isDeliveryAgent) return R.agentHome;
+      if (user.isSupervisor)    return R.supervisorHome;
+      return R.dashboard;
     }
 
     // Keep delivery agents in /a/* routes
     if (user.isDeliveryAgent && !loc.startsWith('/a/')) return R.agentHome;
 
-    // Keep trader admin in /t/* routes
+    // Keep supervisors in /s/* routes (and the disabled screen)
+    if (user.isSupervisor && !loc.startsWith('/s/') && loc != R.supervisorDisabled) {
+      return R.supervisorHome;
+    }
+
+    // Keep trader admin (and everyone else) out of /a/* and /s/*
     if (!user.isDeliveryAgent && loc.startsWith('/a/')) return R.dashboard;
+    if (!user.isSupervisor && loc.startsWith('/s/')) return R.dashboard;
 
     return null;
   },
@@ -307,6 +360,8 @@ final appRouterProvider = Provider<GoRouter>((ref) => GoRouter(
     GoRoute(path: R.splash, builder: (_, __) => const SplashScreen()),
     GoRoute(path: R.login, builder: (_, __) => const LoginScreen()),
     GoRoute(path: R.agentLink, builder: (_, __) => const AgentLinkScreen()),
+    GoRoute(path: R.supervisorLink, builder: (_, __) => const SupervisorLinkScreen()),
+    GoRoute(path: R.supervisorDisabled, builder: (_, __) => const SupervisorDisabledScreen()),
     GoRoute(
         path: R.retailerLink,
         builder: (_, __) => const RetailerLinkScreen()),
@@ -500,6 +555,18 @@ final appRouterProvider = Provider<GoRouter>((ref) => GoRouter(
             path: R.userMgmt,
             builder: (_, __) => const UserManagementScreen()),
         GoRoute(
+            path: R.createSupervisor,
+            builder: (_, __) => const CreateSupervisorScreen()),
+        GoRoute(
+            path: R.supervisorList,
+            builder: (_, __) => const SupervisorListScreen()),
+        GoRoute(
+            path: R.supervisorDetail,
+            builder: (_, s) => SupervisorDetailScreen(supervisorId: s.pathParameters['id']!)),
+        GoRoute(
+            path: R.supervisorReport,
+            builder: (_, __) => const SupervisorReportScreen()),
+        GoRoute(
             path: R.traderProfile,
             builder: (_, __) => const TraderProfileScreen()),
         GoRoute(
@@ -606,6 +673,32 @@ final appRouterProvider = Provider<GoRouter>((ref) => GoRouter(
             path: R.deliveryHistory,
             builder: (_, s) =>
                 DeliveryHistoryScreen(orderId: s.pathParameters['id']!)),
+      ],
+    ),
+
+    // ── Supervisor / Collection Agent Shell (Plug & Play) ───────────
+    ShellRoute(
+      builder: (_, __, child) => SupervisorShell(child: child),
+      routes: [
+        GoRoute(
+            path: R.supervisorHome,
+            builder: (_, __) => const SupervisorDashboardScreen()),
+        GoRoute(
+            path: R.supervisorRetailers,
+            builder: (_, __) => const SupervisorRetailersScreen()),
+        GoRoute(
+            path: R.supervisorLedger,
+            builder: (_, s) => SupervisorCustomerLedgerScreen(
+                retailerId: s.pathParameters['rid']!)),
+        GoRoute(
+            path: R.supervisorPaymentHistory,
+            builder: (_, __) => const SupervisorPaymentHistoryScreen()),
+        GoRoute(
+            path: R.supervisorCollectionSummary,
+            builder: (_, __) => const SupervisorCollectionSummaryScreen()),
+        GoRoute(
+            path: R.supervisorProfile,
+            builder: (_, __) => const SupervisorProfileScreen()),
       ],
     ),
   ],

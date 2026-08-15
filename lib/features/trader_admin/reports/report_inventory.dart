@@ -11,7 +11,7 @@
 
 import 'package:flutter/material.dart';
 
-enum ReportCategory { business, operations, sales, financial, ledger, stockPoint }
+enum ReportCategory { business, operations, sales, financial, ledger, stockPoint, supervisor }
 
 extension ReportCategoryX on ReportCategory {
   String get label => switch (this) {
@@ -21,6 +21,7 @@ extension ReportCategoryX on ReportCategory {
     ReportCategory.financial => 'Financial',
     ReportCategory.ledger => 'Ledger',
     ReportCategory.stockPoint => 'Stock Point',
+    ReportCategory.supervisor => 'Supervisor',
   };
   String get description => switch (this) {
     ReportCategory.business => 'Daily summary, collection, profitability, expenses',
@@ -29,6 +30,7 @@ extension ReportCategoryX on ReportCategory {
     ReportCategory.financial => 'P&L, cash flow, margin analysis, supplier statement',
     ReportCategory.ledger => 'Customer ledger statements with running balance',
     ReportCategory.stockPoint => 'Daily closing, inventory history, returns, vehicle & loss analysis',
+    ReportCategory.supervisor => 'Collections recorded by supervisors, by date and by retailer',
   };
   IconData get icon => switch (this) {
     ReportCategory.business => Icons.trending_up_outlined,
@@ -37,6 +39,7 @@ extension ReportCategoryX on ReportCategory {
     ReportCategory.financial => Icons.account_balance_outlined,
     ReportCategory.ledger => Icons.receipt_long_outlined,
     ReportCategory.stockPoint => Icons.warehouse_outlined,
+    ReportCategory.supervisor => Icons.payments_outlined,
   };
   Color get color => switch (this) {
     ReportCategory.business => const Color(0xFF1565C0),
@@ -45,6 +48,7 @@ extension ReportCategoryX on ReportCategory {
     ReportCategory.financial => const Color(0xFF4527A0),
     ReportCategory.ledger => const Color(0xFF00695C),
     ReportCategory.stockPoint => const Color(0xFF8D6E00),
+    ReportCategory.supervisor => const Color(0xFF00838F),
   };
 }
 
@@ -109,6 +113,13 @@ const List<ReportInventoryEntry> kReportInventory = [
   ReportInventoryEntry(key: 'vehicle_report', label: 'Vehicle Report', category: ReportCategory.stockPoint, frequency: 'Weekly'),
   ReportInventoryEntry(key: 'inventory_ledger', label: 'Inventory Ledger', category: ReportCategory.stockPoint, frequency: 'Ad hoc'),
   ReportInventoryEntry(key: 'loss_analysis', label: 'Loss Analysis', category: ReportCategory.stockPoint, frequency: 'Weekly'),
+
+  // ── Supervisor (new — Supervisor / Collection Agent module) ─────────────
+  // Standalone screen (SupervisorReportScreen), NOT a ReportsHubScreen/_kR
+  // tab — its filter shape (Supervisor, Payment Mode) doesn't fit the
+  // shared get_report_data dispatcher. report_home_screen.dart's
+  // _openReport() special-cases this key to navigate there directly.
+  ReportInventoryEntry(key: 'supervisor_report', label: 'Supervisor Report', category: ReportCategory.supervisor, frequency: 'Ad hoc'),
 ];
 
 List<ReportInventoryEntry> reportsInCategory(ReportCategory c) =>

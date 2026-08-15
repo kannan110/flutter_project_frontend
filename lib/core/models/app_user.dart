@@ -1,5 +1,5 @@
 enum UserRole {
-  superAdmin, traderAdmin, traderStaff, deliveryStaff, retailerUser,
+  superAdmin, traderAdmin, traderStaff, deliveryStaff, supervisor, retailerUser,
   unknown;
 
   static UserRole fromString(String? s) => switch (s) {
@@ -7,6 +7,7 @@ enum UserRole {
     'trader_admin'   => traderAdmin,
     'trader_staff'   => traderStaff,
     'delivery_staff' => deliveryStaff,
+    'supervisor'     => supervisor,
     'retailer_user'  => retailerUser,
     _                => unknown,
   };
@@ -16,6 +17,7 @@ enum UserRole {
     UserRole.traderAdmin   => 'trader_admin',
     UserRole.traderStaff   => 'trader_staff',
     UserRole.deliveryStaff => 'delivery_staff',
+    UserRole.supervisor    => 'supervisor',
     UserRole.retailerUser  => 'retailer_user',
     UserRole.unknown       => 'unknown',
   };
@@ -25,6 +27,7 @@ enum UserRole {
     UserRole.traderAdmin   => 'Trader Admin',
     UserRole.traderStaff   => 'Staff',
     UserRole.deliveryStaff => 'Delivery Agent',
+    UserRole.supervisor    => 'Supervisor',
     UserRole.retailerUser  => 'Retailer',
     UserRole.unknown       => 'Unlinked',
   };
@@ -45,6 +48,11 @@ class AppUser {
   final String  traderStatus;      // active | pending_approval | suspended | blocked
   final String  approvalStatus;    // pending | approved | rejected | enterprise_contact
   final bool    isSuperAdmin;
+  // Supervisor / Collection Agent module (Plug & Play)
+  final String? supervisorId;          // supervisor_profiles.id, set only for role==supervisor
+  final bool    supervisorModuleEnabled; // trader_features.supervisor_module — read for BOTH
+  // trader_admin (to show/hide "Create Supervisor")
+  // and supervisor (to gate access post-login)
 
   const AppUser({
     required this.userId,
@@ -60,9 +68,12 @@ class AppUser {
     this.traderStatus    = 'active',
     this.approvalStatus  = 'approved',
     this.isSuperAdmin    = false,
+    this.supervisorId,
+    this.supervisorModuleEnabled = false,
   });
 
   bool get isDeliveryAgent    => role == UserRole.deliveryStaff;
+  bool get isSupervisor       => role == UserRole.supervisor;
   bool get isTraderAdmin      => role == UserRole.traderAdmin;
   bool get isRetailer         => role == UserRole.retailerUser;
   bool get canApprove         => isTraderAdmin || isSuperAdmin;

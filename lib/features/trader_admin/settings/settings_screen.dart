@@ -152,6 +152,13 @@ class SettingsScreen extends ConsumerWidget {
             _item(context, Icons.store_outlined, 'Retailers', R.retailers),
             _item(context, Icons.delivery_dining_outlined, 'Delivery Agents',
                 R.agents),
+            // Plug & Play — only shown when the trader's Supervisor
+            // module is enabled (super admin toggle). Hidden entirely
+            // when off, matching "Trader cannot create Supervisor
+            // accounts" / "menus/screens are hidden".
+            if (user?.supervisorModuleEnabled == true)
+              _item(context, Icons.payments_outlined, 'Supervisors',
+                  R.supervisorList),
             _item(context, Icons.map_outlined, 'Delivery Areas',
                 R.areaManagement),
             _item(context, Icons.manage_accounts_outlined, 'User Management',

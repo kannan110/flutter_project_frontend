@@ -1,3 +1,4 @@
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
@@ -75,6 +76,90 @@ extension PrintSheetSizeX on PrintSheetSize {
   };
 }
 
+// ── Bulk Print data model ──────────────────────────────────────────────────
+// One retailer's already-fetched get_retailer_statement() response, ready
+// to become a page (or pages) in a batch PDF. Built by
+// BulkCustomerLedgerService (data-fetch phase, separate file) and consumed
+// by CustomerLedgerPrintBuilder.buildBatch() (PDF-assembly phase) below —
+// kept as a plain data holder so neither phase needs to know about the
+// other's implementation.
+class RetailerLedgerJob {
+  const RetailerLedgerJob({
+    required this.retailerId,
+    required this.retailerName,
+    required this.data,
+  });
+  final String retailerId;
+  final String retailerName;
+  final Map<String, dynamic> data;
+}
+
+/// Which phase a batch failure happened in — shown to the trader so
+/// "Retry" is only offered where retrying can plausibly help (a network/
+/// RPC fetch failure is often transient; a PDF-build failure on the same
+/// data will almost certainly fail again identically).
+enum BatchFailureStage { fetch, build }
+
+class BatchLedgerFailure {
+  const BatchLedgerFailure({
+    required this.retailerId,
+    required this.retailerName,
+    required this.stage,
+    required this.reason,
+  });
+  final String retailerId;
+  final String retailerName;
+  final BatchFailureStage stage;
+  final String reason;
+}
+
+/// Result of CustomerLedgerPrintBuilder.buildBatch(). [document] is null
+/// only when EVERY retailer failed — callers must treat that as "nothing
+/// to print/save", never fall back to an empty document.
+class BatchLedgerResult {
+  const BatchLedgerResult({
+    required this.document,
+    required this.totalRequested,
+    required this.succeeded,
+    required this.failures,
+  });
+  final pw.Document? document;
+  final int totalRequested;
+  final int succeeded;
+  final List<BatchLedgerFailure> failures;
+}
+
+/// One independently-generated, fully self-contained PDF for a single
+/// retailer — its own pw.Document, own embedded fonts/logo, ready to be
+/// shared/downloaded on its own with no dependency on any other file.
+/// Produced by buildIndividual() (Download All / Download Selected),
+/// never by buildBatch() (Print All / Print Selected, which stays a
+/// single combined document by design).
+class IndividualLedgerFile {
+  const IndividualLedgerFile({
+    required this.retailerId,
+    required this.retailerName,
+    required this.filename,
+    required this.bytes,
+  });
+  final String retailerId;
+  final String retailerName;
+  final String filename;
+  final Uint8List bytes;
+}
+
+class IndividualBuildResult {
+  const IndividualBuildResult({
+    required this.files,
+    required this.totalRequested,
+    required this.failures,
+  });
+  final List<IndividualLedgerFile> files;
+  final int totalRequested;
+  final List<BatchLedgerFailure> failures;
+  int get succeeded => files.length;
+}
+
 class CustomerLedgerPrintBuilder {
   const CustomerLedgerPrintBuilder._();
 
@@ -98,20 +183,11 @@ class CustomerLedgerPrintBuilder {
     pw.Font? regularFont,
     pw.Font? boldFont,
   }) async {
-    // Same row-building logic as every other Customer Ledger PDF path —
-    // no reimplementation, no risk of the numbers disagreeing.
-    final header = (data['header'] as Map?)?.cast<String, dynamic>() ?? {};
-    final opening = (data['opening_balance'] as num?)?.toDouble() ?? 0;
-    final t = CustomerLedgerTableData.from(data);
-
-    final customerName = header['retailer_name'] as String? ?? 'Customer';
-    final openingLabel = Fmt.amount(opening);
-
     final font = regularFont ?? await PdfGoogleFonts.notoSansRegular();
     final bold = boldFont ?? await PdfGoogleFonts.notoSansBold();
     final doc = pw.Document(theme: pw.ThemeData.withFont(base: font, bold: bold));
 
-    final bw = style == ReportPrintStyle.blackAndWhite;
+    final header = (data['header'] as Map?)?.cast<String, dynamic>() ?? {};
     // Company Logo — ROOT CAUSE FIX (Full Sheet logo-missing audit): now
     // calls ReportPdfGenerator.fetchLogo (package:http, cross-platform
     // including Web) instead of a local dart:io HttpClient copy, which
@@ -120,6 +196,225 @@ class CustomerLedgerPrintBuilder {
     // the Profile screen showing it correctly (a different, working code
     // path — Image.network — was never involved in PDF generation at all).
     final logo = await ReportPdfGenerator.fetchLogo(header['company_logo'] as String?);
+
+    _addLedgerPage(
+      doc,
+      data: data,
+      companyName: companyName,
+      fromDate: fromDate,
+      toDate: toDate,
+      size: size,
+      style: style,
+      logo: logo,
+    );
+
+    return doc;
+  }
+
+  /// Batch build — ONE combined pw.Document with every retailer in [jobs]
+  /// starting on its own page (each retailer is its own pw.MultiPage, so a
+  /// retailer whose ledger itself spans multiple pages keeps working
+  /// exactly as it does today — native TableHelper pagination per
+  /// retailer, "Page X of Y" local to that retailer's own pages).
+  ///
+  /// Reuses the EXACT same [_addLedgerPage] the single-retailer build()
+  /// above uses — same header/BILL TO/table/calculations, so a batch PDF
+  /// can never render a retailer differently than printing them one at a
+  /// time would. Fonts are loaded once for the whole batch; the company
+  /// logo (identical for every retailer of one trader) is fetched once
+  /// from the first job's header and the same pw.MemoryImage instance is
+  /// reused for every page, so the pdf package embeds it a single time
+  /// rather than once per retailer.
+  ///
+  /// A retailer whose PAGE fails to build (malformed data, etc.) is
+  /// skipped and recorded in the returned result's `failures` — never
+  /// silently dropped, and never allowed to abort the rest of the batch.
+  /// [onProgress] fires once per retailer processed (build phase only —
+  /// data-fetch progress is reported separately by
+  /// BulkCustomerLedgerService before jobs ever reach this method).
+  ///
+  /// Note on what this can and can't catch: CustomerLedgerTableData.from()
+  /// — the row-flattening/balance step, and the most likely place a
+  /// malformed retailer response would throw — runs eagerly inside
+  /// _addLedgerPage, so a bad retailer is caught and isolated here. The
+  /// actual pw.MultiPage layout (its header/footer/build closures) is lazy
+  /// — the pdf package only invokes it during doc.save() — so a failure
+  /// arising purely from PDF layout itself (not the data) would surface
+  /// later, when the caller calls doc.save() to print/save. That case is
+  /// still handled safely, just one level up: printPreparedDocument /
+  /// savePreparedDocument's caller wraps that call in try/catch too, so
+  /// the trader gets a clear error rather than a silent or partial file —
+  /// it just means nothing is produced that time, rather than isolating
+  /// only the one bad retailer at that specific failure point.
+  static Future<BatchLedgerResult> buildBatch({
+    required List<RetailerLedgerJob> jobs,
+    required String companyName,
+    required DateTime fromDate,
+    required DateTime toDate,
+    required PrintSheetSize size,
+    ReportPrintStyle style = ReportPrintStyle.color,
+    void Function(int done, int total, String currentRetailerName)? onProgress,
+  }) async {
+    if (jobs.isEmpty) {
+      return const BatchLedgerResult(document: null, totalRequested: 0, succeeded: 0, failures: []);
+    }
+
+    final font = await PdfGoogleFonts.notoSansRegular();
+    final bold = await PdfGoogleFonts.notoSansBold();
+    final doc = pw.Document(theme: pw.ThemeData.withFont(base: font, bold: bold));
+
+    final firstHeader = (jobs.first.data['header'] as Map?)?.cast<String, dynamic>() ?? {};
+    final logo = await ReportPdfGenerator.fetchLogo(firstHeader['company_logo'] as String?);
+
+    final failures = <BatchLedgerFailure>[];
+    for (var i = 0; i < jobs.length; i++) {
+      final job = jobs[i];
+      try {
+        _addLedgerPage(
+          doc,
+          data: job.data,
+          companyName: companyName,
+          fromDate: fromDate,
+          toDate: toDate,
+          size: size,
+          style: style,
+          logo: logo,
+        );
+      } catch (e) {
+        failures.add(BatchLedgerFailure(
+          retailerId: job.retailerId,
+          retailerName: job.retailerName,
+          stage: BatchFailureStage.build,
+          reason: e.toString().replaceAll('Exception: ', ''),
+        ));
+      }
+      onProgress?.call(i + 1, jobs.length, job.retailerName);
+    }
+
+    final succeeded = jobs.length - failures.length;
+    return BatchLedgerResult(
+      document: succeeded == 0 ? null : doc,
+      totalRequested: jobs.length,
+      succeeded: succeeded,
+      failures: failures,
+    );
+  }
+
+  /// Individual build — Download All / Download Selected. Unlike
+  /// buildBatch() above (one shared pw.Document, for Print, which stays
+  /// combined into one job by design), this produces ONE fully
+  /// independent pw.Document PER retailer — each with its own embedded
+  /// fonts and its own copy of the company logo, because each file must
+  /// be valid and shareable entirely on its own with no dependency on
+  /// any other file or on this app still being open. That per-file
+  /// duplication (rather than the byte-size optimization buildBatch does)
+  /// is the necessary cost of "N separate files" being the actual
+  /// deliverable.
+  ///
+  /// Because each retailer's pw.Document is independent, a failure for
+  /// one retailer — whether in the eager CustomerLedgerTableData.from()
+  /// step or in that retailer's own doc.save() — can NEVER affect any
+  /// other retailer's file. That's a strictly better isolation guarantee
+  /// than buildBatch() can offer, where all retailers share one Document
+  /// and a layout failure only surfaces at the single shared doc.save().
+  static Future<IndividualBuildResult> buildIndividual({
+    required List<RetailerLedgerJob> jobs,
+    required String companyName,
+    required DateTime fromDate,
+    required DateTime toDate,
+    required PrintSheetSize size,
+    ReportPrintStyle style = ReportPrintStyle.color,
+    void Function(int done, int total, String currentRetailerName)? onProgress,
+  }) async {
+    if (jobs.isEmpty) {
+      return const IndividualBuildResult(files: [], totalRequested: 0, failures: []);
+    }
+
+    final font = await PdfGoogleFonts.notoSansRegular();
+    final bold = await PdfGoogleFonts.notoSansBold();
+
+    // Same trader for every retailer in the batch → same logo URL.
+    // Fetched once, reused by reference across every independent
+    // document rather than re-downloaded per retailer.
+    final firstHeader = (jobs.first.data['header'] as Map?)?.cast<String, dynamic>() ?? {};
+    final logo = await ReportPdfGenerator.fetchLogo(firstHeader['company_logo'] as String?);
+
+    final files = <IndividualLedgerFile>[];
+    final failures = <BatchLedgerFailure>[];
+
+    for (var i = 0; i < jobs.length; i++) {
+      final job = jobs[i];
+      try {
+        final doc = pw.Document(theme: pw.ThemeData.withFont(base: font, bold: bold));
+        _addLedgerPage(
+          doc,
+          data: job.data,
+          companyName: companyName,
+          fromDate: fromDate,
+          toDate: toDate,
+          size: size,
+          style: style,
+          logo: logo,
+        );
+        final bytes = await doc.save();
+        files.add(IndividualLedgerFile(
+          retailerId: job.retailerId,
+          retailerName: job.retailerName,
+          filename: individualFilename(retailerName: job.retailerName, date: fromDate),
+          bytes: bytes,
+        ));
+      } catch (e) {
+        failures.add(BatchLedgerFailure(
+          retailerId: job.retailerId,
+          retailerName: job.retailerName,
+          stage: BatchFailureStage.build,
+          reason: e.toString().replaceAll('Exception: ', ''),
+        ));
+      }
+      onProgress?.call(i + 1, jobs.length, job.retailerName);
+    }
+
+    return IndividualBuildResult(files: files, totalRequested: jobs.length, failures: failures);
+  }
+
+  /// `CustomerName_CustomerLedger_<date>.pdf` — sanitized for
+  /// filesystem/share-sheet safety (strips characters invalid on
+  /// Windows/Android/iOS filesystems, collapses whitespace to
+  /// underscores). [date] is the report's from-date, matching the
+  /// dating convention already used by the single-retailer filenames.
+  static String individualFilename({required String retailerName, required DateTime date}) {
+    final safe = retailerName
+        .trim()
+        .replaceAll(RegExp(r'[\/\\:*?"<>|]'), '')
+        .replaceAll(RegExp(r'\s+'), '_');
+    final name = safe.isEmpty ? 'Customer' : safe;
+    return '${name}_CustomerLedger_${DateFormat('yyyyMMdd').format(date)}.pdf';
+  }
+
+  /// Appends ONE retailer's ledger to [doc] as its own pw.MultiPage — the
+  /// exact page-construction logic build() has always used, extracted
+  /// unchanged so the single-retailer path and the batch path share one
+  /// implementation and can never drift apart on layout, numbers, or
+  /// styling. Not exposed outside this class.
+  static void _addLedgerPage(
+      pw.Document doc, {
+        required Map<String, dynamic> data,
+        required String companyName,
+        required DateTime fromDate,
+        required DateTime toDate,
+        required PrintSheetSize size,
+        required ReportPrintStyle style,
+        required pw.MemoryImage? logo,
+      }) {
+    // Same row-building logic as every other Customer Ledger PDF path —
+    // no reimplementation, no risk of the numbers disagreeing.
+    final header = (data['header'] as Map?)?.cast<String, dynamic>() ?? {};
+    final opening = (data['opening_balance'] as num?)?.toDouble() ?? 0;
+    final t = CustomerLedgerTableData.from(data);
+
+    final customerName = header['retailer_name'] as String? ?? 'Customer';
+    final openingLabel = Fmt.amount(opening);
+    final bw = style == ReportPrintStyle.blackAndWhite;
     // Scale factor for the shared header widgets at A5 (Half Sheet) —
     // reuses size.identityFontSize's existing ratio (7/9) as the scale.
     final headerScale = size.isHalf ? 0.75 : 1.0;
@@ -149,7 +444,9 @@ class CustomerLedgerPrintBuilder {
         ),
       ),
       // ctx.pageNumber / ctx.pagesCount — native to pw.MultiPage, no
-      // manual page counting.
+      // manual page counting. Local to THIS retailer's pages only, which
+      // is what we want in a batch PDF too (each retailer reads as its
+      // own self-contained ledger, "Page 1 of 2" not "Page 47 of 300").
       footer: (ctx) => _printFooter(ctx, size, bw: bw),
       build: (_) => [
         // BILL TO — same shared block the Table PDF uses, scaled for
@@ -169,8 +466,6 @@ class CustomerLedgerPrintBuilder {
         _printTable(t.headers, t.rows, t.totals, size, bw: bw),
       ],
     ));
-
-    return doc;
   }
 
   /// Opens the native print/save preview sheet.
@@ -233,6 +528,51 @@ class CustomerLedgerPrintBuilder {
       bytes: bytes,
       filename: 'Ledger_${name}_${sheetLabel}_${DateFormat('yyyyMMdd').format(fromDate)}.pdf',
     );
+  }
+
+  // ── Bulk Print — prepared-document I/O primitives ───────────────────────
+  //
+  // buildBatch() above ONLY assembles the pw.Document (data → PDF) and
+  // never touches Print/Share/Save — that split lets the caller (see
+  // bulk_ledger_print_sheet.dart) inspect `failures` and show the
+  // "N of M included" decision to the trader BEFORE anything is printed
+  // or saved, so an incomplete batch is only ever produced with the
+  // trader's explicit go-ahead, never silently.
+  //
+  // "Print" opens the native print/layout dialog (Printing.layoutPdf) —
+  // same mechanism the single-retailer flow already uses.
+  //
+  // "Save PDF" is a SEPARATE method from the existing "Share" action
+  // above (different call site, different button, never reused for
+  // Share) per the explicit requirement that Save must not be treated as
+  // Share. Today it is implemented via Printing.sharePdf() because this
+  // project has no direct-file-write dependency (path_provider was
+  // deliberately removed earlier after a Flutter-Web crash — see
+  // report_pdf_generator.dart's fetchLogo comment) — on Flutter Web this
+  // already performs a genuine direct browser download with no chooser;
+  // on Android/iOS it currently opens the OS share sheet, same underlying
+  // call as "Share" would use, until a real direct-save dependency is
+  // added. Isolating it in its own method now means that swap is a
+  // one-line change with no call-site impact later.
+  static Future<void> printPreparedDocument({
+    required pw.Document doc,
+    required PdfPageFormat pageFormat,
+    required String filename,
+  }) async {
+    await Printing.layoutPdf(
+      onLayout: (fmt) async => doc.save(),
+      name: filename,
+      format: pageFormat,
+      dynamicLayout: false,
+    );
+  }
+
+  static Future<void> savePreparedDocument({
+    required pw.Document doc,
+    required String filename,
+  }) async {
+    final bytes = await doc.save();
+    await Printing.sharePdf(bytes: bytes, filename: filename);
   }
 
   // ── Old duplicate header removed (Full Sheet header-consolidation audit)
@@ -312,4 +652,4 @@ class CustomerLedgerPrintBuilder {
       columnWidths: size.columnWidths,
     );
   }
-}
+} 

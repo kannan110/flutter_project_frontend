@@ -9,6 +9,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/providers/session_provider.dart';
 import '../../../core/theme/app_theme.dart';
 import 'customer_ledger_row_builder.dart';
+import 'bulk_ledger_print_sheet.dart';
 import 'report_pdf_generator.dart';
 import '../../../shared/layouts/responsive_layout.dart';
 
@@ -138,6 +139,12 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
   String?    _error;
   String?    _agentId;
   String?    _retailerId;
+  // Customer Ledger — Supervisor Filter Enhancement. Deliberately SEPARATE
+  // state from _agentId/_retailers above (which stay exactly as they were
+  // for every other report) — customer_ledger gets its own Supervisor
+  // filter instead of Agent, everything else is untouched.
+  String?    _supervisorId;
+  List<Map<String,dynamic>> _supervisors = [];
   // Inline, expandable filters replace the old modal bottom sheet — per the
   // zero-learning-curve spec ("avoid unnecessary dialogs"). Collapsed by
   // default; expanding shows Agent/Retailer directly, applying on change.
@@ -178,17 +185,37 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
     if (tid == null) return;
     final ag = await _c.from('delivery_agents')
         .select('id,name').eq('trader_id',tid).eq('is_active',true).order('name');
+    // Bulk Customer Ledger Print audit: this used to be .limit(50), which
+    // silently truncated both the single-retailer dropdown AND would have
+    // silently truncated "Print All" for any trader with 50+ retailers.
+    // Raised to a safe high bound (no realistic single trader's retailer
+    // count approaches this) rather than left unbounded, since PostgREST's
+    // own default row cap shouldn't be relied upon implicitly.
+    // supervisor_id added for the Customer Ledger Supervisor Filter
+    // Enhancement — every other report/screen that reads _retailers still
+    // only ever looks at 'id'/'shop_name', so this is purely additive.
     final rt = await _c.from('retailers')
-        .select('id,shop_name').eq('trader_id',tid).eq('is_active',true)
-        .order('shop_name').limit(50);
+        .select('id,shop_name,supervisor_id').eq('trader_id',tid).eq('is_active',true)
+        .order('shop_name').limit(5000);
     final pr = await _c.from('master_products')
         .select('id,name').eq('is_active', true).order('name');
+    final sv = await _c.from('supervisor_profiles')
+        .select('id,name').eq('trader_id',tid).eq('is_active',true).order('name');
     if (mounted) setState(() {
       _agents    = List<Map<String,dynamic>>.from(ag as List? ?? []);
       _retailers = List<Map<String,dynamic>>.from(rt as List? ?? []);
       _ledgerProducts = List<Map<String,dynamic>>.from(pr as List? ?? []);
+      _supervisors = List<Map<String,dynamic>>.from(sv as List? ?? []);
     });
   }
+
+  /// Customer Ledger's retailer scope — every active retailer, narrowed to
+  /// just the selected Supervisor's assigned retailers when one is picked.
+  /// Reuses retailers.supervisor_id directly; no new mapping table. Every
+  /// OTHER report keeps reading _retailers unfiltered, unaffected.
+  List<Map<String,dynamic>> get _customerLedgerRetailers => _supervisorId == null
+      ? _retailers
+      : _retailers.where((r) => r['supervisor_id'] == _supervisorId).toList();
 
   Future<void> _load() async {
     final tid = ref.read(appUserProvider).valueOrNull?.traderId;
@@ -253,13 +280,17 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
       }
       if (isCustomerLedger) {
         // Same RPC the Retailer Statement screen uses — no duplicated
-        // balance/ledger logic. p_agent_id reuses the exact filter already
-        // wired below for every other report.
+        // balance/ledger logic. Supervisor Filter Enhancement: Agent is no
+        // longer a Customer Ledger filter (removed in favor of Supervisor,
+        // which narrows the RETAILER PICKER itself via _customerLedgerRetailers
+        // rather than being passed into this RPC) — p_agent_id is simply
+        // never sent for this report now. get_retailer_statement's
+        // p_agent_id parameter itself is untouched and still used exactly
+        // as before by every other caller (Retailer Statement screen, etc).
         final res = await _c.rpc('get_retailer_statement', params: {
           'p_retailer_id': _retailerId,
           'p_from_date':   DateFormat('yyyy-MM-dd').format(_from),
           'p_to_date':     DateFormat('yyyy-MM-dd').format(_to),
-          if (_agentId != null) 'p_agent_id': _agentId,
         }).timeout(const Duration(seconds: 20));
         if (mounted) setState(() => _data = (res as Map?)?.cast<String, dynamic>());
         return;
@@ -1223,9 +1254,6 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
     final opening = (_data!['opening_balance'] as num?)?.toDouble() ?? 0;
     final closing = (_data!['closing_balance'] as num?)?.toDouble() ?? 0;
     final s = _s();
-    final agentName = _agentId == null
-        ? null
-        : _agents.firstWhere((a) => a['id'] == _agentId, orElse: () => const {})['name'] as String?;
 
     // Same shared builder the PDF uses (CustomerLedgerTableData.from) — the
     // on-screen table and every exported PDF are guaranteed to show
@@ -1239,8 +1267,6 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
         _kpi2('Collected',    Fmt.amount(_d(s, 'total_collections')), Colors.green, Icons.payments_outlined),
         _kpi2('Closing Bal.', Fmt.amount(closing), closing > 0 ? Colors.red : Colors.green, Icons.account_balance_wallet_outlined),
       ]),
-      if (agentName != null)
-        _banner('Showing entries handled by $agentName only. Balance reflects the full account across all agents.', _cLedger),
       _sec('${(header['retailer_name'] as String?) ?? 'Customer'} — LEDGER'),
       _tbl(
           t.headers,
@@ -1467,16 +1493,17 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
     final company = user?.companyName ?? 'DSR Chicken';
     try {
       if (_sel.key == 'customer_ledger') {
-        final agentName = _agentId == null
-            ? null
-            : _agents.firstWhere((a) => a['id'] == _agentId, orElse: () => const {})['name'] as String?;
+        // Agent filter removed from Customer Ledger (Supervisor Filter
+        // Enhancement) — agentFilterName is always null now. The param
+        // itself is untouched on ReportPdfGenerator, so nothing else that
+        // calls it is affected.
         await ReportPdfGenerator.generateCustomerLedgerReportAndShow(
           context: context,
           data: _data!,
           companyName: company,
           fromDate: _from,
           toDate: _to,
-          agentFilterName: agentName,
+          agentFilterName: null,
         );
         return;
       }
@@ -1536,62 +1563,230 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
         ]),
       );
     }
-    if (_agents.isEmpty && _retailers.isEmpty) return const SizedBox.shrink();
+    final isCustomerLedgerFilters = _sel.key == 'customer_ledger';
+    if (!isCustomerLedgerFilters && _agents.isEmpty && _retailers.isEmpty) return const SizedBox.shrink();
+    if (isCustomerLedgerFilters && _supervisors.isEmpty && _retailers.isEmpty) return const SizedBox.shrink();
     return Container(
       color: kSurface,
       padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
-      child: Row(children: [
-        if (_agents.isNotEmpty)
-          Expanded(
-            child: DropdownButtonFormField<String>(
-              value: _agentId,
-              isDense: true,
-              decoration: const InputDecoration(
-                  labelText: 'Agent', isDense: true,
-                  contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8)),
-              items: [
-                const DropdownMenuItem(value: null, child: Text('All Agents')),
-                ..._agents.map((a) => DropdownMenuItem(
-                    value: a['id'] as String, child: Text(a['name'] as String? ?? '—'))),
-              ],
-              onChanged: (v) { setState(() => _agentId = v); _load(); },
-            ),
-          ),
-        if (_agents.isNotEmpty && _retailers.isNotEmpty) const SizedBox(width: 10),
-        if (_retailers.isNotEmpty)
-          Expanded(
-            child: DropdownButtonFormField<String>(
-              value: _retailerId,
-              isDense: true,
-              decoration: const InputDecoration(
-                  labelText: 'Retailer', isDense: true,
-                  contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8)),
-              items: [
-                const DropdownMenuItem(value: null, child: Text('All Retailers')),
-                ..._retailers.map((r) => DropdownMenuItem(
-                    value: r['id'] as String, child: Text(r['shop_name'] as String? ?? '—'))),
-              ],
-              onChanged: (v) { setState(() => _retailerId = v); _load(); },
-            ),
-          ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        if (isCustomerLedgerFilters)
+        // ── Customer Ledger — Supervisor Filter Enhancement ─────────────
+        // Agent filter replaced with Supervisor (retailers.supervisor_id
+        // narrows the retailer picker itself, not passed to the RPC —
+        // see _load()'s isCustomerLedger branch and _customerLedgerRetailers
+        // above). Retailer picker is now a searchable sheet, not a plain
+        // dropdown — was already unwieldy at 5000 retailers even before
+        // this change, and search is an explicit requirement here.
+        // Every OTHER report below (the `else` branch) is byte-for-byte
+        // unchanged.
+          Row(children: [
+            if (_supervisors.isNotEmpty)
+              Expanded(
+                child: DropdownButtonFormField<String>(
+                  value: _supervisorId,
+                  isDense: true,
+                  decoration: const InputDecoration(
+                      labelText: 'Supervisor', isDense: true,
+                      contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8)),
+                  items: [
+                    const DropdownMenuItem(value: null, child: Text('All Supervisors')),
+                    ..._supervisors.map((sv) => DropdownMenuItem(
+                        value: sv['id'] as String, child: Text(sv['name'] as String? ?? '—'))),
+                  ],
+                  onChanged: (v) {
+                    setState(() {
+                      _supervisorId = v;
+                      // A retailer selected under the old scope may no
+                      // longer be in the new supervisor's list — clear
+                      // rather than silently keep an out-of-scope selection.
+                      if (_retailerId != null &&
+                          !_customerLedgerRetailers.any((r) => r['id'] == _retailerId)) {
+                        _retailerId = null;
+                      }
+                    });
+                    _load();
+                  },
+                ),
+              ),
+            if (_supervisors.isNotEmpty && _retailers.isNotEmpty) const SizedBox(width: 10),
+            if (_retailers.isNotEmpty)
+              Expanded(child: _retailerSearchField()),
+          ])
+        else
+          Row(children: [
+            if (_agents.isNotEmpty)
+              Expanded(
+                child: DropdownButtonFormField<String>(
+                  value: _agentId,
+                  isDense: true,
+                  decoration: const InputDecoration(
+                      labelText: 'Agent', isDense: true,
+                      contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8)),
+                  items: [
+                    const DropdownMenuItem(value: null, child: Text('All Agents')),
+                    ..._agents.map((a) => DropdownMenuItem(
+                        value: a['id'] as String, child: Text(a['name'] as String? ?? '—'))),
+                  ],
+                  onChanged: (v) { setState(() => _agentId = v); _load(); },
+                ),
+              ),
+            if (_agents.isNotEmpty && _retailers.isNotEmpty) const SizedBox(width: 10),
+            if (_retailers.isNotEmpty)
+              Expanded(
+                child: DropdownButtonFormField<String>(
+                  value: _retailerId,
+                  isDense: true,
+                  decoration: const InputDecoration(
+                      labelText: 'Retailer', isDense: true,
+                      contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8)),
+                  items: [
+                    const DropdownMenuItem(value: null, child: Text('All Retailers')),
+                    ..._retailers.map((r) => DropdownMenuItem(
+                        value: r['id'] as String, child: Text(r['shop_name'] as String? ?? '—'))),
+                  ],
+                  onChanged: (v) { setState(() => _retailerId = v); _load(); },
+                ),
+              ),
+          ]),
+        // ── Bulk Customer Ledger Print — Print All / Download All /
+        // Select Retailers. Only shown for Customer Ledger, since bulk
+        // printing every other report doesn't make sense (they're
+        // trader-wide already, not retailer-scoped). Reuses the exact
+        // same CustomerLedgerPrintBuilder design (logo/BILL TO/header/
+        // table/calculations) as the single-retailer flow above — this
+        // does not touch that flow at all. Now scoped to
+        // _customerLedgerRetailers so Print All / Download All respect
+        // the active Supervisor filter too.
+        if (_sel.key == 'customer_ledger' && _customerLedgerRetailers.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          _buildBulkLedgerActions(),
+        ],
       ]),
     );
+  }
+
+  /// Tappable field styled like the other dropdowns; opens a search sheet
+  /// scoped to _customerLedgerRetailers (i.e. already narrowed by the
+  /// selected Supervisor, if any).
+  Widget _retailerSearchField() {
+    final selectedName = _retailerId == null
+        ? null
+        : _customerLedgerRetailers.firstWhere((r) => r['id'] == _retailerId, orElse: () => const {})['shop_name'] as String?;
+    return InkWell(
+      onTap: _showRetailerSearchSheet,
+      child: InputDecorator(
+        isEmpty: selectedName == null,
+        decoration: const InputDecoration(
+            labelText: 'Retailer', isDense: true,
+            // Label always floats to the top (matches the Supervisor
+            // dropdown beside it, which is never "empty" so its label
+            // always floats) — without this, an empty InputDecorator
+            // renders the label AND the hint in the same center slot,
+            // which is what produced the overlapping "Retailer"/"Search
+            // & select…" text.
+            floatingLabelBehavior: FloatingLabelBehavior.always,
+            hintText: 'Search & select…',
+            contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            suffixIcon: Icon(Icons.search, size: 18)),
+        child: selectedName != null ? Text(selectedName, overflow: TextOverflow.ellipsis) : null,
+      ),
+    );
+  }
+
+  Future<void> _showRetailerSearchSheet() async {
+    final candidates = _customerLedgerRetailers;
+    final picked = await showModalBottomSheet<String>(
+      context: context, isScrollControlled: true, useRootNavigator: true,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (ctx) => _RetailerSearchSheet(retailers: candidates, selectedId: _retailerId),
+    );
+    if (picked == null || !mounted) return;
+    setState(() => _retailerId = picked);
+    _load();
+  }
+
+  Future<void> _runBulkAll(bool isPrint) async {
+    final user = ref.read(appUserProvider).valueOrNull;
+    // Scoped to _customerLedgerRetailers (not the full _retailers list) so
+    // Print All / Download All respect the active Supervisor filter —
+    // "only those 5 [retailers]" when a Supervisor with 5 assigned
+    // retailers is selected. Agent is no longer a Customer Ledger filter,
+    // so it's no longer threaded through here either.
+    await runBulkPrintOrSaveAllFlow(
+      context: context,
+      allRetailers: _customerLedgerRetailers,
+      isPrint: isPrint,
+      companyName: user?.companyName ?? 'DSR Chicken',
+      fromDate: _from,
+      toDate: _to,
+    );
+  }
+
+  Future<void> _runBulkSelect() async {
+    final user = ref.read(appUserProvider).valueOrNull;
+    // Same Supervisor-filtered scope as _runBulkAll — "Select Retailers"
+    // only ever offers retailers already in scope of the active filter.
+    await runBulkSelectRetailersFlow(
+      context: context,
+      allRetailers: _customerLedgerRetailers,
+      companyName: user?.companyName ?? 'DSR Chicken',
+      fromDate: _from,
+      toDate: _to,
+    );
+  }
+
+  Widget _buildBulkLedgerActions() {
+    Widget btn(IconData icon, String label, VoidCallback onTap, {bool filled = false}) {
+      return Expanded(
+        child: filled
+            ? ElevatedButton.icon(
+          onPressed: onTap,
+          icon: Icon(icon, size: 16, color: Colors.white),
+          label: Text(label,
+              style: const TextStyle(fontSize: 12, color: Colors.white, fontWeight: FontWeight.w700),
+              overflow: TextOverflow.ellipsis),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: kNavy,
+            padding: const EdgeInsets.symmetric(vertical: 10),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kRadiusCard)),
+          ),
+        )
+            : OutlinedButton.icon(
+          onPressed: onTap,
+          icon: Icon(icon, size: 16, color: kNavy),
+          label: Text(label,
+              style: const TextStyle(fontSize: 12, color: kNavy, fontWeight: FontWeight.w700),
+              overflow: TextOverflow.ellipsis),
+          style: OutlinedButton.styleFrom(
+            side: const BorderSide(color: kNavy),
+            padding: const EdgeInsets.symmetric(vertical: 10),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kRadiusCard)),
+          ),
+        ),
+      );
+    }
+
+    return Row(children: [
+      btn(Icons.print_outlined, 'Print All', () => _runBulkAll(true)),
+      const SizedBox(width: 8),
+      btn(Icons.download_outlined, 'Download All', () => _runBulkAll(false), filled: true),
+      const SizedBox(width: 8),
+      btn(Icons.checklist_outlined, 'Select Retailers', _runBulkSelect),
+    ]);
   }
 
   Future<void> _shareReport() async {
     if (_data == null) { showError(context, 'No report to share'); return; }
     if (_sel.key == 'customer_ledger') {
       final user = ref.read(appUserProvider).valueOrNull;
-      final agentName = _agentId == null
-          ? null
-          : _agents.firstWhere((a) => a['id'] == _agentId, orElse: () => const {})['name'] as String?;
       try {
         await ReportPdfGenerator.shareCustomerLedgerReport(
           data: _data!,
           companyName: user?.companyName ?? 'DSR Chicken',
           fromDate: _from,
           toDate: _to,
-          agentFilterName: agentName,
+          agentFilterName: null,
         );
       } catch (e) {
         if (mounted) showError(context, e.toString().replaceAll('Exception: ', ''));
@@ -2370,4 +2565,84 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
         Text('$sign ${Fmt.amount(value)}',
             style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
       ]));
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// _RetailerSearchSheet — Customer Ledger Supervisor Filter Enhancement.
+// Single-select, search-as-you-type retailer picker. [retailers] is
+// whatever the caller already narrowed (see _customerLedgerRetailers) —
+// this widget has no opinion on supervisor scoping, it just searches
+// whatever list it's given, so "only 5 retailers searchable/selectable
+// when Supervisor 1 is picked" falls out naturally from the caller
+// passing a pre-filtered list rather than any logic in here.
+// ─────────────────────────────────────────────────────────────────────────────
+class _RetailerSearchSheet extends StatefulWidget {
+  const _RetailerSearchSheet({required this.retailers, required this.selectedId});
+  final List<Map<String, dynamic>> retailers;
+  final String? selectedId;
+
+  @override State<_RetailerSearchSheet> createState() => _RetailerSearchSheetState();
+}
+
+class _RetailerSearchSheetState extends State<_RetailerSearchSheet> {
+  final _search = TextEditingController();
+
+  @override void dispose() { _search.dispose(); super.dispose(); }
+
+  List<Map<String, dynamic>> get _filtered {
+    final q = _search.text.trim().toLowerCase();
+    if (q.isEmpty) return widget.retailers;
+    return widget.retailers.where((r) => (r['shop_name'] as String? ?? '').toLowerCase().contains(q)).toList();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final filtered = _filtered;
+    return DraggableScrollableSheet(
+      initialChildSize: 0.75, minChildSize: 0.4, maxChildSize: 0.95, expand: false,
+      builder: (ctx, scrollCtrl) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            const Text('Select Retailer', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800)),
+            const SizedBox(height: 10),
+            TextField(
+              controller: _search,
+              autofocus: true,
+              onChanged: (_) => setState(() {}),
+              decoration: InputDecoration(
+                hintText: 'Search retailers…',
+                prefixIcon: const Icon(Icons.search, size: 18),
+                filled: true, fillColor: kBgPage,
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: kBorderLight)),
+              ),
+            ),
+            const Divider(height: 20),
+            Expanded(
+              child: widget.retailers.isEmpty
+                  ? const Center(child: Text('No retailers in this scope.', style: TextStyle(color: kTextHint)))
+                  : filtered.isEmpty
+                  ? const Center(child: Text('No matches', style: TextStyle(color: kTextHint)))
+                  : ListView.separated(
+                controller: scrollCtrl,
+                itemCount: filtered.length,
+                separatorBuilder: (_, __) => const Divider(height: 1),
+                itemBuilder: (_, i) {
+                  final r = filtered[i];
+                  final selected = r['id'] == widget.selectedId;
+                  return ListTile(
+                    dense: true,
+                    title: Text(r['shop_name'] as String? ?? '—',
+                        style: TextStyle(fontWeight: selected ? FontWeight.w800 : FontWeight.w600, fontSize: 13.5)),
+                    trailing: selected ? const Icon(Icons.check_circle, color: kNavy, size: 18) : null,
+                    onTap: () => Navigator.of(context, rootNavigator: true).pop(r['id'] as String),
+                  );
+                },
+              ),
+            ),
+          ]),
+        ),
+      ),
+    );
+  }
 }
