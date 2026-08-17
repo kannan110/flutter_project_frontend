@@ -692,6 +692,18 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
       showError(context, 'Enter delivered weight');
       return;
     }
+    // Same rule as Quick Entry (agent_quick_entry.dart): a BLANK Bird
+    // Count is a legitimate, supported "not counted yet" workflow — sent
+    // as NULL (see _deliveryBirdsToRecord above) and never blocked here.
+    // An explicit "0" typed alongside a real nonzero Weight is the
+    // invalid, nonsensical combination this blocks — was previously only
+    // enforced in Quick Entry, not here, so the same input could be
+    // rejected in one entry point and silently accepted in the other.
+    if (_birdsCtrl.text.trim().isNotEmpty && _deliveryBirds <= 0) {
+      showError(context,
+          'Bird Count can\'t be 0 when Weight is entered. Leave Bird Count blank if it genuinely hasn\'t been counted yet, or enter the real count.');
+      return;
+    }
     // FIX P0: allow completing from any active status (assigned/picked_up/out_for_delivery)
     if (!['assigned', 'picked_up', 'out_for_delivery'].contains(_deliveryStatus)) {
       showError(context,

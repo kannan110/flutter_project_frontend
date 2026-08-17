@@ -13,7 +13,10 @@ import '../../../shared/layouts/responsive_layout.dart';
 //
 // Reuses:
 //  - get_invoice_detail RPC (same one InvoiceDetailScreen uses) to preload
-//  - cancel_and_reissue_invoice RPC (existing, unmodified) to submit
+//  - cancel_and_reissue_invoice RPC to submit — extended with one new
+//    optional p_payment_type param (Payment Type enhancement) but every
+//    other field/behavior is unchanged; omitting it preserves the
+//    invoice's current payment status rather than resetting it.
 //  - retailers / get_trader_enabled_products — same data sources used by
 //    other order-entry screens in this app
 //
@@ -81,6 +84,13 @@ class _S extends ConsumerState<InvoiceCorrectionScreen> {
   DateTime _invoiceDate = DateTime.now();
   final _remarksCtrl = TextEditingController();
   String _origRemarks = '';
+
+  // Payment Type (Credit / Cash Paid) — new. Defaulted from the invoice's
+  // actual current state (collected >= total), not from orders.payment_type
+  // (that's set once at creation and never kept in sync — collected_amount
+  // is the real current truth). 'credit' | 'cash_paid'.
+  String _origPaymentType = 'credit';
+  String _paymentType = 'credit';
 
   @override
   void initState() {
@@ -153,6 +163,13 @@ class _S extends ConsumerState<InvoiceCorrectionScreen> {
           DateTime.tryParse(inv['invoice_date'] as String? ?? '') ?? DateTime.now();
       final remarks = inv['notes'] as String? ?? '';
 
+      // Same signal the RPC itself uses to determine current payment
+      // status — collected_amount vs total_amount, not orders.payment_type
+      // (which is set once at creation and never kept in sync).
+      final collected = (inv['collected_amount'] as num?)?.toDouble() ?? 0;
+      final total = (inv['total_amount'] as num?)?.toDouble() ?? 0;
+      final paymentType = (total > 0 && collected >= total) ? 'cash_paid' : 'credit';
+
       if (!mounted) return;
       setState(() {
         _original = inv;
@@ -165,6 +182,8 @@ class _S extends ConsumerState<InvoiceCorrectionScreen> {
         _invoiceDate = invDate;
         _origRemarks = remarks;
         _remarksCtrl.text = remarks;
+        _origPaymentType = paymentType;
+        _paymentType = paymentType;
         _loading = false;
       });
     } catch (e) {
@@ -183,6 +202,7 @@ class _S extends ConsumerState<InvoiceCorrectionScreen> {
     if (_selectedRetailerId != _origRetailerId) return true;
     if (!_sameDate(_invoiceDate, _origInvoiceDate)) return true;
     if (_remarksCtrl.text.trim() != _origRemarks.trim()) return true;
+    if (_paymentType != _origPaymentType) return true;
 
     // Compare each line against the snapshot captured right after load.
     for (final l in _lines) {
@@ -258,6 +278,10 @@ class _S extends ConsumerState<InvoiceCorrectionScreen> {
         'p_notes': _remarksCtrl.text.trim().isEmpty ? null : _remarksCtrl.text.trim(),
         'p_reason': 'Invoice Correction',
         'p_items': items,
+        // Only sent when actually changed — the RPC treats "not passed"
+        // as "preserve the invoice's current payment status", which also
+        // applies to corrections that don't touch payment type at all.
+        if (_paymentType != _origPaymentType) 'p_payment_type': _paymentType,
       }).timeout(const Duration(seconds: 20));
 
       if (!mounted) return;
@@ -382,6 +406,32 @@ class _S extends ConsumerState<InvoiceCorrectionScreen> {
                   ]),
                 ),
               ),
+            ]),
+          ),
+          const SizedBox(height: 14),
+
+          // ── Payment Type ─────────────────────────────────────────────
+          WhiteCard(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              const SectionHeader('PAYMENT TYPE'),
+              const SizedBox(height: 10),
+              SegmentedButton<String>(
+                segments: const [
+                  ButtonSegment(value: 'credit', label: Text('Credit')),
+                  ButtonSegment(value: 'cash_paid', label: Text('Cash Paid')),
+                ],
+                selected: {_paymentType},
+                onSelectionChanged: (s) => setState(() => _paymentType = s.first),
+              ),
+              if (_paymentType != _origPaymentType) ...[
+                const SizedBox(height: 8),
+                Text(
+                  _paymentType == 'cash_paid'
+                      ? 'Will mark the corrected invoice as fully paid and record the collection.'
+                      : 'Will reverse the collected payment — the corrected invoice becomes fully outstanding.',
+                  style: const TextStyle(fontSize: 11, color: kTextHint),
+                ),
+              ],
             ]),
           ),
           const SizedBox(height: 14),
