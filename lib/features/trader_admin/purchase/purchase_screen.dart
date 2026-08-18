@@ -568,7 +568,7 @@ class _S extends ConsumerState<PurchaseScreen>
                                     mainAxisAlignment: MainAxisAlignment.end,
                                     children: [
                                       if (amt > 0)
-                                        Text(Fmt.amountShort(amt),
+                                        Text(Fmt.amount(amt),
                                             style: const TextStyle(
                                                 fontSize: 7, color: kTextHint),
                                             textAlign: TextAlign.center),
@@ -618,7 +618,7 @@ class _S extends ConsumerState<PurchaseScreen>
                         Icons.monitor_weight_outlined),
                     _ovKpi(
                         'Stock Value',
-                        Fmt.amountShort(
+                        Fmt.amount(
                             (_stockVal!['total_stock_value'] as num?)
                                 ?.toDouble() ??
                                 0),
@@ -691,7 +691,7 @@ class _S extends ConsumerState<PurchaseScreen>
                       fontSize: 13,
                       fontWeight: FontWeight.w800,
                       color: due > 0 ? Colors.orange : Colors.green)),
-              Text('of ${Fmt.amountShort(amt)}',
+              Text('of ${Fmt.amount(amt)}',
                   style: const TextStyle(fontSize: 9, color: kTextHint)),
             ]),
           ])));
@@ -2855,15 +2855,15 @@ class _S extends ConsumerState<PurchaseScreen>
                         ]),
                         const SizedBox(height: 16),
                         Row(children: [
-                          _kpiCard('Purchase', 'Rs.${Fmt.amountShort(total)}',
+                          _kpiCard('Purchase', Fmt.amount(total),
                               Colors.blue, Icons.shopping_cart_outlined),
                           const SizedBox(width: 8),
-                          _kpiCard('Paid', 'Rs.${Fmt.amountShort(pd)}',
+                          _kpiCard('Paid', Fmt.amount(pd),
                               Colors.green, Icons.payments_outlined),
                           const SizedBox(width: 8),
                           _kpiCard(
                               'Due',
-                              'Rs.${Fmt.amountShort(outstanding)}',
+                              Fmt.amount(outstanding),
                               outstanding > 0 ? Colors.orange : Colors.green,
                               Icons.account_balance_outlined),
                         ]),
@@ -3557,18 +3557,15 @@ class _S extends ConsumerState<PurchaseScreen>
 }
 
 // =============================================================================
-// FORMATTERS
+// FORMATTERS — this file used to define its own local `class Fmt` here,
+// which silently SHADOWED the correct, shared Fmt already imported from
+// core/theme/app_theme.dart (line 9) for this entire file — every
+// Fmt.amount()/Fmt.amountShort() call below was actually using this
+// local, K/L-compacting duplicate instead of the canonical one, despite
+// the import being present and correct. Removed entirely; the existing
+// import now resolves Fmt.amount() correctly everywhere below with zero
+// other changes. Fmt.amountShort() calls were updated to Fmt.amount()
+// (see the three call sites) since "short" compact currency display is
+// exactly what's being eliminated — the canonical Fmt has no compact
+// variant to fall back to, by design.
 // =============================================================================
-class Fmt {
-  static String amount(double v) {
-    if (v >= 100000) return 'Rs.${(v / 100000).toStringAsFixed(2)}L';
-    if (v >= 1000) return 'Rs.${(v / 1000).toStringAsFixed(1)}k';
-    return 'Rs.${v.toStringAsFixed(2)}';
-  }
-
-  static String amountShort(double v) {
-    if (v >= 100000) return '${(v / 100000).toStringAsFixed(1)}L';
-    if (v >= 1000) return '${(v / 1000).toStringAsFixed(1)}k';
-    return v.toStringAsFixed(0);
-  }
-}

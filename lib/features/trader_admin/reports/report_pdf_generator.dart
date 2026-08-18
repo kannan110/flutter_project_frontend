@@ -1537,11 +1537,14 @@ class ReportPdfGenerator {
   static String _f1(Map m, String k) => _d(m,k).toStringAsFixed(1);
   static String _f2(Map m, String k) => _d(m,k).toStringAsFixed(2);
 
-  static String _fmtAmt(double v) {
-    if (v.abs() >= 100000) return '${(v/100000).toStringAsFixed(2)}L';
-    if (v.abs() >= 1000)   return '${(v/1000).toStringAsFixed(1)}K';
-    return v.toStringAsFixed(2);
-  }
+  // Exact INR display — delegates entirely to the one shared Fmt.amount()
+  // (core/theme/app_theme.dart), same Indian-comma, 2-decimal formatting
+  // used everywhere else in the app. This used to independently compact
+  // to K/L (₹13.5K, ₹2.09L) — every one of this file's 18 call sites
+  // wraps this in '₹${_fmtAmt(...)}', so fixing the one function fixes
+  // Collection, P&L, Cash Flow, Supplier Statement, and Customer Ledger
+  // PDFs at once, with no other line needing to change.
+  static String _fmtAmt(double v) => Fmt.amount(v).replaceFirst('₹', '');
   static String _amt(Map m, String k) => '₹${_fmtAmt(_d(m,k))}';
 
   static String _fd(dynamic s) {
