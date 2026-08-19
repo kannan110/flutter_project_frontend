@@ -1144,18 +1144,52 @@ class ReportPdfGenerator {
       String label, String company, DateTime from, DateTime to) {
     final byAgent = _rowList(data['by_agent']);
     final daily   = _rowList(data['daily']);
+    final catBreakdown = _rowList(data['category_breakdown']);
+    final rows    = _rowList(data['rows']);
     doc.addPage(pw.MultiPage(
         pageFormat: PdfPageFormat.a4,
         margin: const pw.EdgeInsets.all(28),
         header: (_) => _header(company, label, from, to),
         footer: (_) => _footer(),
         build: (_) => [
+          // Same 4 cards the screen shows — Total/Trip/Trader/Fixed —
+          // sourced from the same summary object (get_pnl_statement via
+          // get_report_data), so screen and PDF can't disagree.
           _kpiRow([
-            _KpiCell('Total Expenses', _amt(s,'total_expenses'),                         _orange),
-            _KpiCell('Diesel',         _amt(s,'diesel'),                                 _orange),
-            _KpiCell('Allowance',      _amt(s,'allowance'),                              _orange),
-            _KpiCell('Total KM',       '${_f0(s,"total_km")} km',                        _blue),
+            _KpiCell('Total Expenses',   _amt(s,'total_expenses'),  _orange),
+            _KpiCell('Trip Expenses',    _amt(s,'trip_expenses'),   _orange),
+            _KpiCell('Trader Expenses',  _amt(s,'trader_expenses'), _orange),
+            _KpiCell('Fixed Expenses',   _amt(s,'fixed_expenses'),  _orange),
           ]),
+          pw.SizedBox(height: 6),
+          _kpiRow([
+            _KpiCell('Diesel',    _amt(s,'diesel'),                  _blue),
+            _KpiCell('Allowance', _amt(s,'allowance'),               _blue),
+            _KpiCell('Total KM',  '${_f0(s,"total_km")} km',         _blue),
+          ]),
+          if (catBreakdown.isNotEmpty) ...[
+            _secTitle('BY CATEGORY'),
+            _table(
+                headers: ['Type','Category','Entries','Amount'],
+                rows: catBreakdown.map((c)=>[
+                  _expTypeLabel(_str(c,'expense_type')),_str(c,'category'),
+                  '${_i(c,"entry_count")}',_amt(c,'total_amount')]).toList(),
+                bold: [3]),
+          ],
+          _secTitle('EXPENSE DETAILS'),
+          _table(
+              headers: ['Date','Type','Category','Remarks','Created By','Payment Mode','Amount'],
+              rows: rows.map((r)=>[
+                _fd(r['business_date']),
+                _expTypeLabel(_str(r,'expense_type')),
+                _str(r,'category'),
+                (r['remarks'] as String?)?.isNotEmpty == true ? r['remarks'] as String : '—',
+                _str(r,'created_by'),
+                // No expense source tracks payment mode in this schema —
+                // shown as '—', not fabricated. See screen-side comment.
+                (r['payment_mode'] as String?) ?? '—',
+                _amt(r,'amount')]).toList(),
+              bold: [6]),
           _secTitle('BY AGENT'),
           _table(
               headers: ['Agent','Shifts','Diesel','Allowance','Total Expenses','KM'],
@@ -1544,6 +1578,11 @@ class ReportPdfGenerator {
   static int    _i(Map m, String k) => (m[k] as num?)?.toInt() ?? 0;
   static String _str(Map m, String k) => m[k] as String? ?? '—';
   static String _sh(String s, int mx) => s.length>mx ? '${s.substring(0,mx)}…' : s;
+  // Expense Report — same capitalization the screen's _expTypeLabel uses
+  // (a separate class, so not literally shared code, but the exact same
+  // one-line rule — trip/trader/fixed -> Trip/Trader/Fixed) so PDF and
+  // screen can never show different labels for the same value.
+  static String _expTypeLabel(String t) => t.isEmpty ? '—' : '${t[0].toUpperCase()}${t.substring(1)}';
 
   static String _f0(Map m, String k) => _d(m,k).toStringAsFixed(0);
   static String _f1(Map m, String k) => _d(m,k).toStringAsFixed(1);

@@ -145,6 +145,8 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
   // filter instead of Agent, everything else is untouched.
   String?    _supervisorId;
   List<Map<String,dynamic>> _supervisors = [];
+  // Expense Report — Expense Type filter (All/trip/trader/fixed).
+  String?    _expenseType;
   // Inline, expandable filters replace the old modal bottom sheet — per the
   // zero-learning-curve spec ("avoid unnecessary dialogs"). Collapsed by
   // default; expanding shows Agent/Retailer directly, applying on change.
@@ -1147,25 +1149,84 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
   // ═══════════════════════════════════════════════════════════════════════════
   // 8. EXPENSE
   // ═══════════════════════════════════════════════════════════════════════════
+  // Expense Report — Trip/Trader/Fixed capitalized label, shared by both
+  // the category-breakdown table and the detail-rows table so they can
+  // never disagree on how a type is displayed.
+  String _expTypeLabel(String t) => t.isEmpty ? '—' : '${t[0].toUpperCase()}${t.substring(1)}';
+
   Widget _rExpense() {
-    final s = _s(); final byA = _rows('by_agent'); final day = _rows('daily');
+    final s = _s();
+    final byA = _rows('by_agent');
+    final day = _rows('daily');
+    final catBreakdown = _rows('category_breakdown');
+    final allRows = _rows('rows');
+    // Client-side only — get_report_data already returns every type;
+    // this narrows what's rendered, no reload needed.
+    final filteredRows = _expenseType == null
+        ? allRows
+        : allRows.where((r) => r['expense_type'] == _expenseType).toList();
+    final filteredCats = _expenseType == null
+        ? catBreakdown
+        : catBreakdown.where((c) => c['expense_type'] == _expenseType).toList();
+    // BY AGENT / DAILY EXPENSES are structurally trip-only (shift-based)
+    // — hidden rather than shown empty/misleading when Trader or Fixed
+    // is specifically selected.
+    final showTripSections = _expenseType == null || _expenseType == 'trip';
+
     return _scroll([
       _kpiGrid([
-        _kpi('Total Exp', Fmt.amount(_d(s,'total_expenses')), Colors.orange,     Icons.receipt_long_outlined),
-        _kpi('Diesel',    Fmt.amount(_d(s,'diesel')),         Colors.deepOrange, Icons.local_gas_station_outlined),
-        _kpi('Allowance', Fmt.amount(_d(s,'allowance')),      Colors.amber.shade700, Icons.person_outline),
-        _kpi('Total KM',  '${_d(s,"total_km").toStringAsFixed(0)}', Colors.blue, Icons.route_outlined),
+        _kpi('Total',  Fmt.amount(_d(s,'total_expenses')),  Colors.orange,     Icons.receipt_long_outlined),
+        _kpi('Trip',   Fmt.amount(_d(s,'trip_expenses')),   Colors.deepOrange, Icons.local_shipping_outlined),
+        _kpi('Trader', Fmt.amount(_d(s,'trader_expenses')), Colors.indigo,     Icons.storefront_outlined),
+        _kpi('Fixed',  Fmt.amount(_d(s,'fixed_expenses')),  Colors.teal,       Icons.repeat_outlined),
       ]),
-      _sec('BY AGENT'),
-      _tbl(['Agent','Shifts','Diesel','Allowance','Total Exp','KM'],
-          byA.map((a)=>[_str(a,'agent_name'),'${_i(a,"shifts")}',Fmt.amount(_d(a,'diesel')),
-            Fmt.amount(_d(a,'allowance')),Fmt.amount(_d(a,'total_expenses')),'${_d(a,"km_driven").toStringAsFixed(0)}']).toList(),
-          hi:[4]),
-      _sec('DAILY EXPENSES'),
-      _tbl(['Date','Agent','Diesel','Allowance','Total','KM'],
-          day.map((d)=>[_fd(d['dt']),_str(d,'agent_name'),Fmt.amount(_d(d,'diesel_cost')),
-            Fmt.amount(_d(d,'allowance')),Fmt.amount(_d(d,'total_expenses')),'${_d(d,"distance_km").toStringAsFixed(0)}']).toList(),
-          hi:[4]),
+      Container(margin: const EdgeInsets.fromLTRB(12,0,12,8),
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(color: kSurface, borderRadius: BorderRadius.circular(kRadiusCard), border: Border.all(color: kBorderLight), boxShadow: kCardShadow),
+          child: Row(children: [
+            _st('Diesel', Fmt.amount(_d(s,'diesel'))),
+            _st('Allowance', Fmt.amount(_d(s,'allowance'))),
+            _st('Total KM', _d(s,'total_km').toStringAsFixed(0)),
+          ])),
+      if (filteredCats.isNotEmpty) ...[
+        _sec('BY CATEGORY'),
+        _tbl(['Type','Category','Entries','Amount'],
+            filteredCats.map((c)=>[_expTypeLabel(_str(c,'expense_type')),_str(c,'category'),
+              '${_i(c,"entry_count")}',Fmt.amount(_d(c,'total_amount'))]).toList(),
+            hi:[3]),
+      ],
+      _sec('EXPENSE DETAILS'),
+      if (filteredRows.isEmpty)
+        Padding(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            child: Text('No expenses recorded for this filter.', style: const TextStyle(color: kTextHint, fontSize: 13))),
+      if (filteredRows.isNotEmpty)
+        _tbl(['Date','Type','Category','Remarks','Created By','Payment Mode','Amount'],
+            filteredRows.map((r)=>[
+              _fd(r['business_date']),
+              _expTypeLabel(_str(r,'expense_type')),
+              _str(r,'category'),
+              (r['remarks'] as String?)?.isNotEmpty == true ? r['remarks'] as String : '—',
+              _str(r,'created_by'),
+              // No expense source in the schema tracks payment mode
+              // (trader_daily_expenses / delivery_expenses / recurring_
+              // expenses all lack the column) — shown as '—', not
+              // fabricated.
+              (r['payment_mode'] as String?) ?? '—',
+              Fmt.amount(_d(r,'amount')),
+            ]).toList(),
+            hi:[6]),
+      if (showTripSections) ...[
+        _sec('BY AGENT'),
+        _tbl(['Agent','Shifts','Diesel','Allowance','Total Exp','KM'],
+            byA.map((a)=>[_str(a,'agent_name'),'${_i(a,"shifts")}',Fmt.amount(_d(a,'diesel')),
+              Fmt.amount(_d(a,'allowance')),Fmt.amount(_d(a,'total_expenses')),'${_d(a,"km_driven").toStringAsFixed(0)}']).toList(),
+            hi:[4]),
+        _sec('DAILY EXPENSES'),
+        _tbl(['Date','Agent','Diesel','Allowance','Total','KM'],
+            day.map((d)=>[_fd(d['dt']),_str(d,'agent_name'),Fmt.amount(_d(d,'diesel_cost')),
+              Fmt.amount(_d(d,'allowance')),Fmt.amount(_d(d,'total_expenses')),'${_d(d,"distance_km").toStringAsFixed(0)}']).toList(),
+            hi:[4]),
+      ],
     ]);
   }
 
@@ -1665,6 +1726,29 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
                 ),
               ),
           ]),
+        // ── Expense Report — Expense Type filter (All/Trip/Trader/
+        // Fixed). Purely client-side: get_report_data's 'expense' branch
+        // already returns every row across all 3 types; this just
+        // narrows what _rExpense() renders from 'rows'/'category_
+        // breakdown' — no reload, no new RPC param, so it applies
+        // instantly.
+        if (_sel.key == 'expense') ...[
+          const SizedBox(height: 10),
+          DropdownButtonFormField<String>(
+            value: _expenseType,
+            isDense: true,
+            decoration: const InputDecoration(
+                labelText: 'Expense Type', isDense: true,
+                contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8)),
+            items: const [
+              DropdownMenuItem(value: null, child: Text('All')),
+              DropdownMenuItem(value: 'trip', child: Text('Trip')),
+              DropdownMenuItem(value: 'trader', child: Text('Trader')),
+              DropdownMenuItem(value: 'fixed', child: Text('Fixed')),
+            ],
+            onChanged: (v) => setState(() => _expenseType = v),
+          ),
+        ],
         // ── Bulk Customer Ledger Print — Print All / Download All /
         // Select Retailers. Only shown for Customer Ledger, since bulk
         // printing every other report doesn't make sense (they're
