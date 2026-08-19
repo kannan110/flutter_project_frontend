@@ -1243,8 +1243,20 @@ class ReportPdfGenerator {
             _table(
                 headers: ['Shop','Phone','Orders','Total kg','Billed','Collected','Outstanding'],
                 rows: retailers.map((r)=>[
-                  _sh(_str(r,'shop_name'),16),_str(r,'phone'),'${_i(r,"orders")}',
+                  _str(r,'shop_name'),_str(r,'phone'),'${_i(r,"orders")}',
                   _f0(r,'total_kg'),_amt(r,'billed'),_amt(r,'collected'),_amt(r,'outstanding')]).toList(),
+                // Grand Total — summed from the same `retailers` rows this
+                // table renders (no separate/duplicate calculation),
+                // reusing _table()'s existing totals: support.
+                totals: [
+                  'TOTAL',
+                  '',
+                  '${retailers.fold<int>(0, (sum, r) => sum + _i(r, "orders"))}',
+                  retailers.fold<double>(0, (sum, r) => sum + _d(r, 'total_kg')).toStringAsFixed(0),
+                  '₹${_fmtAmt(retailers.fold<double>(0, (sum, r) => sum + _d(r, 'billed')))}',
+                  '₹${_fmtAmt(retailers.fold<double>(0, (sum, r) => sum + _d(r, 'collected')))}',
+                  '₹${_fmtAmt(retailers.fold<double>(0, (sum, r) => sum + _d(r, 'outstanding')))}',
+                ],
                 bold: [6]),
           ],
           _secTitle('ORDER HISTORY'),

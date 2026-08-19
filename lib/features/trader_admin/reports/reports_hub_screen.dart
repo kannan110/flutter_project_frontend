@@ -1218,9 +1218,25 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
       if (ret.isNotEmpty) ...[
         _sec('BY RETAILER'),
         _tbl(['Shop','Phone','Orders','Total kg','Billed','Collected','Outstanding'],
-            ret.map((r)=>[_sh(_str(r,'shop_name'),12),_str(r,'phone'),'${_i(r,"orders")}',
+            ret.map((r)=>[_str(r,'shop_name'),_str(r,'phone'),'${_i(r,"orders")}',
               '${_d(r,"total_kg").toStringAsFixed(0)}',Fmt.amount(_d(r,'billed')),
-              Fmt.amount(_d(r,'collected')),Fmt.amount(_d(r,'outstanding'))]).toList(), hi:[6]),
+              Fmt.amount(_d(r,'collected')),Fmt.amount(_d(r,'outstanding'))]).toList(),
+            // Grand Total — summed from the same `ret` rows the table
+            // itself renders (no separate/duplicate calculation), reusing
+            // _tbl()'s existing tots: support (same mechanism the Day-wise
+            // Collection table above already uses) so Screen, Card view,
+            // Print, and this table's own PDF/Share all read one totals
+            // row from the one ReportDataSet.
+            tots: [
+              'TOTAL',
+              '',
+              '${ret.fold<int>(0, (sum, r) => sum + _i(r, "orders"))}',
+              '${ret.fold<double>(0, (sum, r) => sum + _d(r, "total_kg")).toStringAsFixed(0)}',
+              Fmt.amount(ret.fold<double>(0, (sum, r) => sum + _d(r, 'billed'))),
+              Fmt.amount(ret.fold<double>(0, (sum, r) => sum + _d(r, 'collected'))),
+              Fmt.amount(ret.fold<double>(0, (sum, r) => sum + _d(r, 'outstanding'))),
+            ],
+            hi:[6]),
       ],
       _sec('ORDER HISTORY'),
       _tbl(['Date','Shop','kg','Birds','Rate','Billed','Collected'],

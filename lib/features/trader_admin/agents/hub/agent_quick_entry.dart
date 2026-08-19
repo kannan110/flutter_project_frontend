@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../core/providers/session_provider.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../shared/widgets/common/horizontalscroll_wheel.dart';
+import '../../../../core/util/weight_calc.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // AGENT QUICK ENTRY (multi-product)  — formerly "Simple Entry"
@@ -107,6 +108,27 @@ class _AgentQuickEntrySheetState extends ConsumerState<AgentQuickEntrySheet> {
   // Quick Entry had no remarks/notes input at all before this.
   final remarksCtrl = TextEditingController();
 
+  // ★ Optional Box Count / Gross / Empty Weight — sheet-level (one
+  // physical weighing per delivery, not per product line, per the
+  // approved architecture). Blank by default; when both Gross and Empty
+  // are filled, the live Net Weight preview uses the shared WeightCalc,
+  // and — only when there is exactly ONE line — auto-fills that line's
+  // weightCtrl (still manually editable afterward). With 2+ lines this
+  // stays informational only; per-line weight entry is unchanged, exactly
+  // as today.
+  final boxCountCtrl = TextEditingController();
+  final grossWeightCtrl = TextEditingController();
+  final emptyWeightCtrl = TextEditingController();
+  bool _showWeightDetails = false;
+
+  int? get _boxCount => int.tryParse(boxCountCtrl.text.trim());
+  double? get _grossWeight => double.tryParse(grossWeightCtrl.text.trim());
+  double? get _emptyWeight => double.tryParse(emptyWeightCtrl.text.trim());
+  double? get _computedNetWeight =>
+      (_grossWeight != null && _emptyWeight != null)
+          ? WeightCalc.net(_grossWeight!, _emptyWeight!)
+          : null;
+
   List<Map<String, dynamic>> _retailers = [];
   List<Map<String, dynamic>> _recentRetailers = [];
   Set<String> _favouriteIds = {};
@@ -164,6 +186,9 @@ class _AgentQuickEntrySheetState extends ConsumerState<AgentQuickEntrySheet> {
     _customerScrollCtrl.dispose();
     _productScrollCtrl.dispose();
     remarksCtrl.dispose();
+    boxCountCtrl.dispose();
+    grossWeightCtrl.dispose();
+    emptyWeightCtrl.dispose();
     super.dispose();
   }
 
@@ -692,6 +717,13 @@ class _AgentQuickEntrySheetState extends ConsumerState<AgentQuickEntrySheet> {
         'p_actor_type': 'trader',
         'p_actor_id': user.userId,
         'p_entry_mode': _entryMode,
+        // Optional Box Count / Gross / Empty Weight — pure passthrough
+        // storage (see complete_delivery's own comment on these params).
+        // Omitted/null when the trader never touched these fields, which
+        // is the existing flow, unchanged.
+        if (_boxCount != null) 'p_box_count': _boxCount,
+        if (_grossWeight != null) 'p_gross_weight_kg': _grossWeight,
+        if (_emptyWeight != null) 'p_empty_weight_kg': _emptyWeight,
       });
 
       if (mounted) {
@@ -871,6 +903,9 @@ class _AgentQuickEntrySheetState extends ConsumerState<AgentQuickEntrySheet> {
                 ),
               ),
             ],
+            const SizedBox(height: 16),
+
+            _weightDetailsSection(),
             const SizedBox(height: 16),
 
             _secondaryOptionsRow(),
@@ -1320,6 +1355,105 @@ class _AgentQuickEntrySheetState extends ConsumerState<AgentQuickEntrySheet> {
           onChanged: (_) => onChanged(),
         ),
       ]);
+
+  // ── Optional Box Count / Gross / Empty Weight — sheet-level (one per
+  // delivery), collapsed by default so the existing flow is visually
+  // unchanged unless the trader opts in. Reuses the shared WeightCalc,
+  // the same calculation batch_pickup_screen.dart's Delivery Challan
+  // entry already uses. ─────────────────────────────────────────────────
+  void _onGrossEmptyChanged() {
+    setState(() {
+      final net = _computedNetWeight;
+      // Auto-fill only applies to a single-line entry — with 2+ lines,
+      // net weight is still split across products manually exactly as
+      // today; this is informational only in that case.
+      if (net != null && _lines.length == 1) {
+        _lines[0].weightCtrl.text = net.toStringAsFixed(2);
+        _fetchRate(0);
+      }
+    });
+  }
+
+  Widget _weightDetailsSection() {
+    if (!_showWeightDetails) {
+      return InkWell(
+        onTap: () => setState(() => _showWeightDetails = true),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          child: Row(children: [
+            const Icon(Icons.add_circle_outline, size: 16, color: kTextHint),
+            const SizedBox(width: 6),
+            Text('Add Box / Gross / Empty Weight (optional)',
+                style: TextStyle(fontSize: 12, color: kTextHint, fontWeight: FontWeight.w600)),
+          ]),
+        ),
+      );
+    }
+    final net = _computedNetWeight;
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: kBgPage,
+        borderRadius: BorderRadius.circular(kRadiusInner),
+        border: Border.all(color: kBorderLight),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          const Text('Box / Gross / Empty Weight',
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: kTextSub)),
+          const Spacer(),
+          InkWell(
+            onTap: () => setState(() {
+              _showWeightDetails = false;
+              boxCountCtrl.clear();
+              grossWeightCtrl.clear();
+              emptyWeightCtrl.clear();
+            }),
+            child: const Icon(Icons.close, size: 16, color: kTextHint),
+          ),
+        ]),
+        const SizedBox(height: 8),
+        Row(children: [
+          Expanded(
+            child: _compactField(
+              label: 'Boxes',
+              controller: boxCountCtrl,
+              icon: Icons.inventory_2_outlined,
+              onChanged: () => setState(() {}),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: _compactField(
+              label: 'Gross (kg)',
+              controller: grossWeightCtrl,
+              icon: Icons.scale_outlined,
+              decimal: true,
+              onChanged: _onGrossEmptyChanged,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: _compactField(
+              label: 'Empty (kg)',
+              controller: emptyWeightCtrl,
+              icon: Icons.remove_circle_outline,
+              decimal: true,
+              onChanged: _onGrossEmptyChanged,
+            ),
+          ),
+        ]),
+        if (net != null) ...[
+          const SizedBox(height: 8),
+          Text(
+            'Net = ${_grossWeight!.toStringAsFixed(2)} − ${_emptyWeight!.toStringAsFixed(2)} = ${net.toStringAsFixed(2)} kg'
+                '${_lines.length == 1 ? ' (auto-filled into Delivered Weight below)' : _lines.length > 1 ? ' — split manually per product below' : ''}',
+            style: const TextStyle(fontSize: 11, color: kNavy, fontWeight: FontWeight.w600),
+          ),
+        ],
+      ]),
+    );
+  }
 
   // ── Entry Mode + Payment Mode — compact, secondary, single row ──────────
   Widget _secondaryOptionsRow() {

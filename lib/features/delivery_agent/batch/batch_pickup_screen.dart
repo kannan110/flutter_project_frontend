@@ -9,6 +9,7 @@ import '../../../core/providers/session_provider.dart';
 import '../../../core/providers/ui_mode_provider.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/util/weight_calc.dart';
 
 class BatchPickupScreen extends ConsumerStatefulWidget {
   const BatchPickupScreen({super.key, required this.batchId});
@@ -204,7 +205,9 @@ class _S extends ConsumerState<BatchPickupScreen> {
 
   double get _emptyWtVal => double.tryParse(_emptyWt.text.trim()) ?? 0;
 
-  double get _netWt => (_grossWtVal - _emptyWtVal).clamp(0, double.infinity);
+  // Same shared calculation Quick Entry's optional Box/Gross/Empty
+  // Weight fields now use too — one implementation, not duplicated.
+  double get _netWt => WeightCalc.net(_grossWtVal, _emptyWtVal);
 
   int get _birdCount => int.tryParse(_birds.text.trim()) ?? 0;
 

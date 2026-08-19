@@ -9,6 +9,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../shared/layouts/responsive_layout.dart';
+import '../../../core/util/weight_calc.dart';
 
 // ══════════════════════════════════════════════════════════════════════════════
 // INVOICE DETAIL SCREEN — Phase 4
@@ -279,6 +280,13 @@ class _S extends State<InvoiceDetailScreen> {
     final disc  = (inv['discount_amount']  as num?)?.toDouble() ?? 0;
     final sub   = (inv['subtotal_amount']  as num?)?.toDouble() ?? total;
     final num_  = inv['invoice_number'] as String? ?? 'INVOICE';
+    // Optional Box Count / Gross / Empty Weight — same conditional-display
+    // rule as the on-screen InfoRow block: NULL on every invoice created
+    // before this feature, so old invoices' PDFs render unchanged below.
+    final boxCount   = (inv['box_count']       as num?)?.toInt();
+    final grossWtInv = (inv['gross_weight_kg'] as num?)?.toDouble();
+    final emptyWtInv = (inv['empty_weight_kg'] as num?)?.toDouble();
+    final hasWeightBreakdown = boxCount != null || grossWtInv != null || emptyWtInv != null;
 
     final font     = await PdfGoogleFonts.notoSansRegular();
     final boldFont = await PdfGoogleFonts.notoSansBold();
@@ -385,6 +393,26 @@ class _S extends State<InvoiceDetailScreen> {
             ]),
             pw.SizedBox(height: 16),
 
+            // Optional Box Count / Gross / Empty / Net Weight — only
+            // rendered when at least one was recorded for this delivery.
+            // NULL on every invoice created before this feature and on
+            // any invoice where the trader left these blank, so old
+            // invoices' PDFs are byte-for-byte unchanged below this line.
+            if (hasWeightBreakdown) ...[
+              pw.Container(
+                padding: const pw.EdgeInsets.all(8),
+                decoration: pw.BoxDecoration(color: bgLight, borderRadius: pw.BorderRadius.circular(4)),
+                child: pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceAround, children: [
+                  if (boxCount != null) _pdfWeightStat('Box Count', '$boxCount', grey),
+                  if (grossWtInv != null) _pdfWeightStat('Gross Weight', '${grossWtInv.toStringAsFixed(2)} kg', grey),
+                  if (emptyWtInv != null) _pdfWeightStat('Empty Weight', '${emptyWtInv.toStringAsFixed(2)} kg', grey),
+                  if (grossWtInv != null && emptyWtInv != null)
+                    _pdfWeightStat('Net Weight', '${WeightCalc.net(grossWtInv, emptyWtInv).toStringAsFixed(2)} kg', primary),
+                ]),
+              ),
+              pw.SizedBox(height: 16),
+            ],
+
             // Totals
             pw.Align(
               alignment: pw.Alignment.centerRight,
@@ -444,6 +472,13 @@ class _S extends State<InvoiceDetailScreen> {
             pw.Text(value, style: pw.TextStyle(fontSize: size, color: color,
                 fontWeight: bold ? pw.FontWeight.bold : pw.FontWeight.normal)),
           ]));
+
+  static pw.Widget _pdfWeightStat(String label, String value, PdfColor labelColor) =>
+      pw.Column(children: [
+        pw.Text(label, style: pw.TextStyle(fontSize: 8, color: labelColor)),
+        pw.SizedBox(height: 2),
+        pw.Text(value, style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold)),
+      ]);
 
   // ── Share ─────────────────────────────────────────────────────────────────
   Future<void> _shareWhatsApp() async {
@@ -506,6 +541,14 @@ class _S extends State<InvoiceDetailScreen> {
     final birds  = (inv['bird_count']       as num?)?.toInt() ?? 0;
     final rate   = (inv['price_per_kg']     as num?)?.toDouble() ?? 0;
     final zoneName = inv['zone_name'] as String?;
+    // Optional Box Count / Gross / Empty Weight — NULL on every invoice
+    // created before this feature, and on any invoice where the trader
+    // simply didn't fill these fields in. Only rendered when at least one
+    // is present, so old invoices look exactly as they did before.
+    final boxCount   = (inv['box_count']       as num?)?.toInt();
+    final grossWtInv = (inv['gross_weight_kg'] as num?)?.toDouble();
+    final emptyWtInv = (inv['empty_weight_kg'] as num?)?.toDouble();
+    final hasWeightBreakdown = boxCount != null || grossWtInv != null || emptyWtInv != null;
 
     return Scaffold(
       backgroundColor: kBgPage,
@@ -756,6 +799,20 @@ class _S extends State<InvoiceDetailScreen> {
             InfoRow('Weight', '${kg.toStringAsFixed(3)} kg'),
             InfoRow('Rate', '₹${rate.toStringAsFixed(2)} per kg'),
             if (disc > 0) InfoRow('Discount', '−${Fmt.amount(disc)}'),
+          ],
+
+          // Optional Box Count / Gross / Empty / Net Weight — only shown
+          // when at least one was recorded for this delivery. Absent on
+          // every invoice created before this feature (and on any invoice
+          // where the trader left these blank), so old invoices render
+          // with nothing extra here — exactly as before.
+          if (hasWeightBreakdown) ...[
+            const Divider(height: 18),
+            if (boxCount != null) InfoRow('Box Count', '$boxCount'),
+            if (grossWtInv != null) InfoRow('Gross Weight', '${grossWtInv.toStringAsFixed(2)} kg'),
+            if (emptyWtInv != null) InfoRow('Empty Weight', '${emptyWtInv.toStringAsFixed(2)} kg'),
+            if (grossWtInv != null && emptyWtInv != null)
+              InfoRow('Net Weight', '${WeightCalc.net(grossWtInv, emptyWtInv).toStringAsFixed(2)} kg'),
           ],
 
           // Summary totals
