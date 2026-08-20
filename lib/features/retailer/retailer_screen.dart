@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/providers/session_provider.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_theme.dart';
+import 'retailer_invoice_detail_screen.dart';
 
 class RetailerScreen extends ConsumerStatefulWidget {
   const RetailerScreen({super.key});
@@ -27,6 +28,8 @@ class _RS extends ConsumerState<RetailerScreen>
   String? _retailerId;
   DateTime _from = DateTime.now().subtract(const Duration(days: 29));
   DateTime _to   = DateTime.now();
+  // Ledger — List (card) vs Table view toggle.
+  bool _ledgerTableView = false;
 
   @override
   void initState() {
@@ -74,7 +77,11 @@ class _RS extends ConsumerState<RetailerScreen>
               .order('created_at', ascending: false).limit(50);
           if (mounted) setState(() => _orders = List<Map<String,dynamic>>.from(r as List? ?? []));
         case 2:
-          final l = await _c.rpc('get_retailer_ledger', params: {
+        // Ledger Detail — calls the new get_retailer_ledger_v2 (reuses
+        // get_retailer_statement's logic, retailer-only auth built in).
+        // get_retailer_ledger (old) is untouched, kept for backward
+        // compatibility.
+          final l = await _c.rpc('get_retailer_ledger_v2', params: {
             'p_retailer_id': rid, 'p_from_date': fromStr, 'p_to_date': toStr,
           }).timeout(const Duration(seconds: 10));
           if (mounted) setState(() => _ledgerData = l as Map<String,dynamic>?);
@@ -344,116 +351,247 @@ class _RS extends ConsumerState<RetailerScreen>
           final balance = (o['balance_amount']  as num?)?.toDouble() ?? 0;
           final dt      = DateTime.tryParse(o['created_at'] as String? ?? '');
           final c       = _statusColor(status);
-          return Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(color: kSurface,
-                  borderRadius: BorderRadius.circular(kRadiusCard),
-                  border: Border.all(color: kBorderLight), boxShadow: kCardShadow),
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Row(children: [
-                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text(birds > 0 ? '$birds birds' : '${qty.toStringAsFixed(0)} kg',
-                        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800)),
-                    if (dt != null) Text(DateFormat('d MMM yyyy').format(dt.toLocal()),
-                        style: const TextStyle(fontSize: 10, color: kTextHint)),
-                  ])),
-                  Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(color: c.withValues(alpha: 0.09),
-                          borderRadius: BorderRadius.circular(kRadiusChip),
-                          border: Border.all(color: c.withValues(alpha: 0.25))),
-                      child: Text(status.toUpperCase().replaceAll('_',' '),
-                          style: TextStyle(fontSize: 8, fontWeight: FontWeight.w800, color: c))),
-                ]),
-                const SizedBox(height: 8),
-                Row(children: [
-                  _oStat('Total', Fmt.amount(total), Colors.blue),
-                  _oStat('Paid',  Fmt.amount(paid),  Colors.green),
-                  _oStat('Due',   Fmt.amount(balance), balance > 0 ? Colors.orange : Colors.green),
-                ]),
-                if (balance > 0) ...[
-                  const SizedBox(height: 6),
-                  ClipRRect(borderRadius: BorderRadius.circular(4),
-                      child: LinearProgressIndicator(
-                          value: total > 0 ? (paid/total).clamp(0.0,1.0) : 0,
-                          minHeight: 3, backgroundColor: Colors.grey.shade200,
-                          valueColor: const AlwaysStoppedAnimation(Colors.orange))),
-                ],
-                // Cancel button — only for pending/confirmed (before pickup)
-                if (['pending','confirmed'].contains(status)) ...[
-                  const SizedBox(height: 8),
-                  const Divider(height: 1),
-                  const SizedBox(height: 6),
-                  GestureDetector(
-                      onTap: () => _cancelOrder(o['id'] as String, status),
-                      child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                        const Icon(Icons.cancel_outlined, size: 14, color: kError),
-                        const SizedBox(width: 4),
-                        const Text('Cancel Order',
-                            style: TextStyle(fontSize: 11, color: kError,
-                                fontWeight: FontWeight.w700)),
+          return GestureDetector(
+              onTap: () => _showOrderDetail(o),
+              child: Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(color: kSurface,
+                      borderRadius: BorderRadius.circular(kRadiusCard),
+                      border: Border.all(color: kBorderLight), boxShadow: kCardShadow),
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Row(children: [
+                      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Text(birds > 0 ? '$birds birds' : '${qty.toStringAsFixed(0)} kg',
+                            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800)),
+                        if (dt != null) Text(DateFormat('d MMM yyyy').format(dt.toLocal()),
+                            style: const TextStyle(fontSize: 10, color: kTextHint)),
                       ])),
-                ],
-              ]));
+                      Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(color: c.withValues(alpha: 0.09),
+                              borderRadius: BorderRadius.circular(kRadiusChip),
+                              border: Border.all(color: c.withValues(alpha: 0.25))),
+                          child: Text(status.toUpperCase().replaceAll('_',' '),
+                              style: TextStyle(fontSize: 8, fontWeight: FontWeight.w800, color: c))),
+                    ]),
+                    const SizedBox(height: 8),
+                    Row(children: [
+                      _oStat('Total', Fmt.amount(total), Colors.blue),
+                      _oStat('Paid',  Fmt.amount(paid),  Colors.green),
+                      _oStat('Due',   Fmt.amount(balance), balance > 0 ? Colors.orange : Colors.green),
+                    ]),
+                    if (balance > 0) ...[
+                      const SizedBox(height: 6),
+                      ClipRRect(borderRadius: BorderRadius.circular(4),
+                          child: LinearProgressIndicator(
+                              value: total > 0 ? (paid/total).clamp(0.0,1.0) : 0,
+                              minHeight: 3, backgroundColor: Colors.grey.shade200,
+                              valueColor: const AlwaysStoppedAnimation(Colors.orange))),
+                    ],
+                    // Cancel button — only for pending/confirmed (before pickup)
+                    if (['pending','confirmed'].contains(status)) ...[
+                      const SizedBox(height: 8),
+                      const Divider(height: 1),
+                      const SizedBox(height: 6),
+                      GestureDetector(
+                          onTap: () => _cancelOrder(o['id'] as String, status),
+                          child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                            const Icon(Icons.cancel_outlined, size: 14, color: kError),
+                            const SizedBox(width: 4),
+                            const Text('Cancel Order',
+                                style: TextStyle(fontSize: 11, color: kError,
+                                    fontWeight: FontWeight.w700)),
+                          ])),
+                    ],
+                  ])));
         })),
   ]);
 
   // ─── LEDGER ──────────────────────────────────────────────────────────────
+  // Reuses get_retailer_ledger_v2 — same calculation logic as the Trader
+  // Customer Ledger's get_retailer_statement (cancelled-invoice/payment-
+  // reversal exclusion, real opening balance), with the retailer-only
+  // auth check built into that function. No separate calculation lives
+  // here; this only renders the JSON that RPC returns.
   Widget _tabLedger() {
-    final entries = List<Map<String,dynamic>>.from(_ledgerData?['entries'] as List? ?? []);
+    final opening = (_ledgerData?['opening_balance'] as num?)?.toDouble() ?? 0;
+    final closing = (_ledgerData?['closing_balance'] as num?)?.toDouble() ?? 0;
+    final rows    = List<Map<String,dynamic>>.from(_ledgerData?['rows'] as List? ?? []);
     final summary = _ledgerData?['summary'] as Map<String,dynamic>?;
-    final debit   = (summary?['total_debit']  as num?)?.toDouble() ?? 0;
-    final credit  = (summary?['total_credit'] as num?)?.toDouble() ?? 0;
-    final balance = (summary?['balance']      as num?)?.toDouble() ?? 0;
+    final debit   = (summary?['total_debits']  as num?)?.toDouble() ?? 0;
+    final credit  = (summary?['total_credits'] as num?)?.toDouble() ?? 0;
     return Column(children: [
       _dateRangeBar(),
       Container(decoration: const BoxDecoration(
           gradient: LinearGradient(colors: [kNavy, kNavyMid],
               begin: Alignment.topLeft, end: Alignment.bottomRight)),
           padding: const EdgeInsets.fromLTRB(16,16,16,16),
-          child: Row(children: [
-            _lStat('Billed', Fmt.amount(debit),   Colors.red),
-            _lStat('Paid',   Fmt.amount(credit),  Colors.green),
-            _lStat('Due',    Fmt.amount(balance),  balance > 0 ? Colors.orange : Colors.green),
+          child: Column(children: [
+            Row(children: [
+              _lStat('Opening', Fmt.amount(opening), Colors.white70),
+              _lStat('Billed', Fmt.amount(debit),   Colors.red),
+              _lStat('Paid',   Fmt.amount(credit),  Colors.green),
+            ]),
+            const SizedBox(height: 10),
+            const Divider(color: Color(0xFFB4C6F4), height: 1),
+            const SizedBox(height: 10),
+            Row(children: [
+              _lStat('Closing Balance', Fmt.amount(closing), closing > 0 ? Colors.orange : Colors.green),
+            ]),
           ])),
-      if (entries.isEmpty)
+      // List / Table view toggle.
+      Container(
+          color: kSurface,
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+          alignment: Alignment.centerRight,
+          child: ToggleButtons(
+              constraints: const BoxConstraints(minHeight: 30, minWidth: 64),
+              borderRadius: BorderRadius.circular(8),
+              isSelected: [!_ledgerTableView, _ledgerTableView],
+              onPressed: (i) => setState(() => _ledgerTableView = i == 1),
+              children: const [
+                Padding(padding: EdgeInsets.symmetric(horizontal: 8),
+                    child: Row(mainAxisSize: MainAxisSize.min, children: [
+                      Icon(Icons.view_agenda_outlined, size: 14), SizedBox(width: 4), Text('List', style: TextStyle(fontSize: 11)),
+                    ])),
+                Padding(padding: EdgeInsets.symmetric(horizontal: 8),
+                    child: Row(mainAxisSize: MainAxisSize.min, children: [
+                      Icon(Icons.table_rows_outlined, size: 14), SizedBox(width: 4), Text('Table', style: TextStyle(fontSize: 11)),
+                    ])),
+              ])),
+      if (rows.isEmpty)
         const Expanded(child: EmptyState(icon: Icons.book_outlined, message: 'No ledger entries'))
-      else Expanded(child: ListView.separated(
-          padding: const EdgeInsets.all(12), itemCount: entries.length,
-          separatorBuilder: (_, __) => const SizedBox(height: 4),
-          itemBuilder: (_, i) {
-            final e   = entries[i];
-            final isD = e['entry_type'] == 'debit';
-            final amt = (e['amount'] as num?)?.toDouble() ?? 0;
-            final rb  = (e['running_balance'] as num?)?.toDouble() ?? 0;
-            final dt  = DateTime.tryParse(e['entry_date'] as String? ?? '');
-            final c   = isD ? Colors.red : Colors.green;
-            return Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-                decoration: BoxDecoration(color: kSurface,
-                    borderRadius: BorderRadius.circular(kRadiusCard),
-                    border: Border.all(color: kBorderLight),
-                    boxShadow: kCardShadow),
-                child: Row(children: [
-                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text(isD ? 'Purchase / Bill' : 'Payment',
-                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: c)),
-                    if (e['description'] != null)
-                      Text(e['description'] as String,
-                          style: const TextStyle(fontSize: 9, color: kTextHint),
-                          maxLines: 1, overflow: TextOverflow.ellipsis),
-                  ])),
-                  Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-                    Text('${isD ? "+" : "-"}${Fmt.amount(amt)}',
-                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: c)),
-                    Text('Bal: ${Fmt.amount(rb)}',
-                        style: const TextStyle(fontSize: 9, color: kTextHint)),
-                    if (dt != null) Text(DateFormat('d MMM').format(dt),
-                        style: const TextStyle(fontSize: 9, color: kTextHint)),
-                  ]),
-                ]));
-          })),
+      else Expanded(child: _ledgerTableView ? _ledgerTable(rows, opening, closing) : _ledgerList(rows)),
     ]);
+  }
+
+  Widget _ledgerList(List<Map<String,dynamic>> rows) => ListView.separated(
+      padding: const EdgeInsets.all(12), itemCount: rows.length,
+      separatorBuilder: (_, __) => const SizedBox(height: 4),
+      itemBuilder: (_, i) {
+        final e   = rows[i];
+        final isD = e['entry_type'] == 'debit';
+        final amt = (e['amount'] as num?)?.toDouble() ?? 0;
+        final rb  = (e['running_balance'] as num?)?.toDouble() ?? 0;
+        final dt  = DateTime.tryParse(e['entry_date'] as String? ?? '');
+        final ref = e['ref_number'] as String?;
+        final isInvoice = e['source_type'] == 'invoice' && e['invoice_id'] != null;
+        final c   = isD ? Colors.red : Colors.green;
+        return Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+            decoration: BoxDecoration(color: kSurface,
+                borderRadius: BorderRadius.circular(kRadiusCard),
+                border: Border.all(color: kBorderLight),
+                boxShadow: kCardShadow),
+            child: Row(children: [
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(isD ? 'Purchase / Bill' : 'Payment',
+                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: c)),
+                // Invoice/payment reference — same ref_number the
+                // trader's Customer Ledger already shows (invoice
+                // number, "OB" for opening balance, credit note
+                // number).
+                if (ref != null)
+                  Text('Ref: $ref', style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: kTextSub)),
+                if (e['description'] != null)
+                  Text(e['description'] as String,
+                      style: const TextStyle(fontSize: 9, color: kTextHint),
+                      maxLines: 1, overflow: TextOverflow.ellipsis),
+                // View Invoice — reuses get_invoice_detail via
+                // RetailerInvoiceDetailScreen, no separate rendering.
+                if (isInvoice) ...[
+                  const SizedBox(height: 4),
+                  GestureDetector(
+                      onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                          builder: (_) => RetailerInvoiceDetailScreen(invoiceId: e['invoice_id'] as String))),
+                      child: const Row(mainAxisSize: MainAxisSize.min, children: [
+                        Icon(Icons.receipt_long_outlined, size: 12, color: kNavy),
+                        SizedBox(width: 3),
+                        Text('View Invoice', style: TextStyle(fontSize: 10, color: kNavy, fontWeight: FontWeight.w700)),
+                      ])),
+                ],
+              ])),
+              Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                Text('${isD ? "+" : "-"}${Fmt.amount(amt)}',
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: c)),
+                Text('Bal: ${Fmt.amount(rb)}',
+                    style: const TextStyle(fontSize: 9, color: kTextHint)),
+                // Business date (entry_date) — not created_at.
+                if (dt != null) Text(DateFormat('d MMM').format(dt),
+                    style: const TextStyle(fontSize: 9, color: kTextHint)),
+              ]),
+            ]));
+      });
+
+  // Table view — Date | Ref No | Particulars | Debit | Credit | Running
+  // Balance, with Opening Balance as the first row and Closing Balance
+  // as the last, matching the same convention the Trader Customer
+  // Ledger PDF already uses. Ref No is tappable (View Invoice) when the
+  // row is an invoice entry.
+  Widget _ledgerTable(List<Map<String,dynamic>> rows, double opening, double closing) {
+    return SingleChildScrollView(
+        padding: const EdgeInsets.all(12),
+        scrollDirection: Axis.horizontal,
+        child: DataTable(
+            headingRowHeight: 36, dataRowMinHeight: 40, dataRowMaxHeight: 52,
+            columnSpacing: 18,
+            headingTextStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: kNavy),
+            dataTextStyle: const TextStyle(fontSize: 11, color: kTextMain),
+            columns: const [
+              DataColumn(label: Text('Date')),
+              DataColumn(label: Text('Ref No')),
+              DataColumn(label: Text('Particulars')),
+              DataColumn(label: Text('Debit'), numeric: true),
+              DataColumn(label: Text('Credit'), numeric: true),
+              DataColumn(label: Text('Running Balance'), numeric: true),
+            ],
+            rows: [
+              DataRow(cells: [
+                const DataCell(Text('—')),
+                const DataCell(Text('OPEN', style: TextStyle(fontWeight: FontWeight.w700))),
+                const DataCell(Text('Opening Balance')),
+                const DataCell(Text('—')),
+                const DataCell(Text('—')),
+                DataCell(Text(Fmt.amount(opening), style: const TextStyle(fontWeight: FontWeight.w700))),
+              ]),
+              ...rows.map((e) {
+                final isD = e['entry_type'] == 'debit';
+                final amt = (e['amount'] as num?)?.toDouble() ?? 0;
+                final rb  = (e['running_balance'] as num?)?.toDouble() ?? 0;
+                final dt  = DateTime.tryParse(e['entry_date'] as String? ?? '');
+                final ref = e['ref_number'] as String?;
+                final particulars = (e['description'] as String?) ?? (isD ? 'Purchase / Bill' : 'Payment');
+                final isInvoice = e['source_type'] == 'invoice' && e['invoice_id'] != null;
+                return DataRow(cells: [
+                  DataCell(Text(dt != null ? DateFormat('d MMM yy').format(dt) : '—')),
+                  DataCell(
+                      ref == null ? const Text('—') : isInvoice
+                          ? GestureDetector(
+                          onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                              builder: (_) => RetailerInvoiceDetailScreen(invoiceId: e['invoice_id'] as String))),
+                          child: Row(mainAxisSize: MainAxisSize.min, children: [
+                            Text(ref, style: const TextStyle(color: kNavy, fontWeight: FontWeight.w700,
+                                decoration: TextDecoration.underline)),
+                            const SizedBox(width: 3),
+                            const Icon(Icons.open_in_new, size: 11, color: kNavy),
+                          ]))
+                          : Text(ref)),
+                  DataCell(SizedBox(width: 130, child: Text(particulars, maxLines: 2, overflow: TextOverflow.ellipsis))),
+                  DataCell(Text(isD ? Fmt.amount(amt) : '—', style: const TextStyle(color: Colors.red))),
+                  DataCell(Text(!isD ? Fmt.amount(amt) : '—', style: const TextStyle(color: Colors.green))),
+                  DataCell(Text(Fmt.amount(rb), style: const TextStyle(fontWeight: FontWeight.w700))),
+                ]);
+              }),
+              DataRow(cells: [
+                const DataCell(Text('—')),
+                const DataCell(Text('—')),
+                const DataCell(Text('Closing Balance', style: TextStyle(fontWeight: FontWeight.w800))),
+                const DataCell(Text('—')),
+                const DataCell(Text('—')),
+                DataCell(Text(Fmt.amount(closing),
+                    style: TextStyle(fontWeight: FontWeight.w900, color: closing > 0 ? Colors.orange : Colors.green))),
+              ]),
+            ]));
   }
 
   // ─── COMPLAINTS ──────────────────────────────────────────────────────────
@@ -532,43 +670,45 @@ class _RS extends ConsumerState<RetailerScreen>
           final dt     = DateTime.tryParse(o['order_date'] as String? ?? '');
           final status = o['status'] as String? ?? '—';
           final inv    = o['invoice_number'] as String?;
-          return Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-              decoration: BoxDecoration(color: kSurface,
-                  borderRadius: BorderRadius.circular(kRadiusCard),
-                  border: Border.all(color: kBorderLight), boxShadow: kCardShadow),
-              child: Row(children: [
-                Container(width: 40, height: 40,
-                    decoration: BoxDecoration(color: kNavy.withValues(alpha: 0.08),
-                        borderRadius: BorderRadius.circular(kRadiusChip)),
-                    child: Center(child: Text(dt != null ? DateFormat('d').format(dt) : '—',
-                        style: const TextStyle(fontWeight: FontWeight.w900, color: kPrimary)))),
-                const SizedBox(width: 10),
-                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text('${birds > 0 ? "$birds birds" : "${kg.toStringAsFixed(0)} kg"}'
-                      '${inv != null ? "  |  $inv" : ""}',
-                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
-                  Text('${dt != null ? DateFormat("d MMM yyyy").format(dt) : "—"}  |  '
-                      '${status.toUpperCase().replaceAll("_", " ")}',
-                      style: const TextStyle(fontSize: 10, color: kTextHint)),
-                ])),
-                Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-                  if (billed != null) Text(Fmt.amount(billed),
-                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800)),
-                  if (billed != null && paid < billed)
-                    Text('Due: ${Fmt.amount(billed - paid)}',
-                        style: const TextStyle(fontSize: 10, color: Colors.orange)),
-                  GestureDetector(onTap: () => _showPlaceOrder(reorderFrom: o),
-                      child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                          decoration: BoxDecoration(
-                              color: kNavy.withValues(alpha: 0.08),
-                              borderRadius: BorderRadius.circular(kRadiusChip)),
-                          child: const Text('Reorder',
-                              style: TextStyle(fontSize: 9, color: kNavy,
-                                  fontWeight: FontWeight.w700)))),
-                ]),
-              ]));
+          return GestureDetector(
+              onTap: () => _showOrderDetail(o, historyRow: true),
+              child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  decoration: BoxDecoration(color: kSurface,
+                      borderRadius: BorderRadius.circular(kRadiusCard),
+                      border: Border.all(color: kBorderLight), boxShadow: kCardShadow),
+                  child: Row(children: [
+                    Container(width: 40, height: 40,
+                        decoration: BoxDecoration(color: kNavy.withValues(alpha: 0.08),
+                            borderRadius: BorderRadius.circular(kRadiusChip)),
+                        child: Center(child: Text(dt != null ? DateFormat('d').format(dt) : '—',
+                            style: const TextStyle(fontWeight: FontWeight.w900, color: kPrimary)))),
+                    const SizedBox(width: 10),
+                    Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text('${birds > 0 ? "$birds birds" : "${kg.toStringAsFixed(0)} kg"}'
+                          '${inv != null ? "  |  $inv" : ""}',
+                          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+                      Text('${dt != null ? DateFormat("d MMM yyyy").format(dt) : "—"}  |  '
+                          '${status.toUpperCase().replaceAll("_", " ")}',
+                          style: const TextStyle(fontSize: 10, color: kTextHint)),
+                    ])),
+                    Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                      if (billed != null) Text(Fmt.amount(billed),
+                          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800)),
+                      if (billed != null && paid < billed)
+                        Text('Due: ${Fmt.amount(billed - paid)}',
+                            style: const TextStyle(fontSize: 10, color: Colors.orange)),
+                      GestureDetector(onTap: () => _showPlaceOrder(reorderFrom: o),
+                          child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                              decoration: BoxDecoration(
+                                  color: kNavy.withValues(alpha: 0.08),
+                                  borderRadius: BorderRadius.circular(kRadiusChip)),
+                              child: const Text('Reorder',
+                                  style: TextStyle(fontSize: 9, color: kNavy,
+                                      fontWeight: FontWeight.w700)))),
+                    ]),
+                  ])));
         })),
   ]);
 
@@ -925,6 +1065,133 @@ class _RS extends ConsumerState<RetailerScreen>
       Expanded(child: Text(value, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700))),
     ]),
   );
+
+  // ─── ORDER DETAIL ────────────────────────────────────────────────────────
+  // Shown on tap from both Orders and History rows. Fetches the order's
+  // latest invoice + its delivery directly (RLS already scopes both to
+  // this retailer's own rows — same trust boundary Order/History already
+  // rely on), rather than re-deriving anything client-side. Reorder stays
+  // available here too, same _showPlaceOrder(reorderFrom:) call the row
+  // itself already uses.
+  Future<void> _showOrderDetail(Map<String,dynamic> order, {bool historyRow = false}) async {
+    final orderId = order['id'] as String?;
+    if (orderId == null) return;
+    Map<String,dynamic>? invoice;
+    Map<String,dynamic>? delivery;
+    try {
+      final results = await Future.wait([
+        _c.from('invoices')
+            .select('id,invoice_number,invoice_date,total_amount,collected_amount,'
+            'balance_amount,status,corrected_from_invoice_id')
+            .eq('order_id', orderId)
+            .order('created_at', ascending: false).limit(1).maybeSingle(),
+        _c.from('deliveries')
+            .select('status,delivered_at,delivered_bird_count,delivered_total_weight')
+            .eq('order_id', orderId)
+            .order('created_at', ascending: false).limit(1).maybeSingle(),
+      ]);
+      invoice  = results[0] as Map<String,dynamic>?;
+      delivery = results[1] as Map<String,dynamic>?;
+    } catch (_) {
+      // Non-fatal — order/delivery/invoice may simply not exist yet.
+    }
+    if (!mounted) return;
+
+    final birds  = (order['estimated_birds'] as num?)?.toInt() ?? 0;
+    final qty    = (order['total_quantity'] as num?)?.toDouble() ?? 0;
+    final notes  = (order['notes'] as String?) ?? '';
+    final status = order['status'] as String? ?? '—';
+
+    await showModalBottomSheet(
+        context: context, useRootNavigator: true, isScrollControlled: true,
+        shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+        builder: (ctx) => DraggableScrollableSheet(expand: false,
+            initialChildSize: 0.7, maxChildSize: 0.92,
+            builder: (_, scrollCtrl) => SingleChildScrollView(
+                controller: scrollCtrl,
+                padding: const EdgeInsets.all(20),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Row(children: [
+                    const Expanded(child: Text('Order Details',
+                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800))),
+                    IconButton(icon: const Icon(Icons.close),
+                        onPressed: () => Navigator.of(ctx, rootNavigator: true).pop()),
+                  ]),
+                  _detailRow(Icons.shopping_bag_outlined, 'Quantity',
+                      birds > 0 ? '$birds birds' : '${qty.toStringAsFixed(0)} kg'),
+                  _detailRow(Icons.flag_outlined, 'Status', status.toUpperCase().replaceAll('_',' ')),
+                  if (notes.isNotEmpty) _detailRow(Icons.notes_outlined, 'Remarks', notes),
+                  const SizedBox(height: 10),
+                  // Delivery timeline/status — same deliveries row the
+                  // trader side already reads, RLS already scopes it to
+                  // this retailer.
+                  if (delivery != null) ...[
+                    const Divider(height: 20),
+                    const Text('DELIVERY', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: kNavy, letterSpacing: 0.6)),
+                    const SizedBox(height: 8),
+                    _detailRow(Icons.local_shipping_outlined, 'Delivery Status',
+                        ((delivery['status'] as String?) ?? '—').toUpperCase().replaceAll('_',' ')),
+                    if (delivery['delivered_at'] != null)
+                      _detailRow(Icons.event_available_outlined, 'Delivered',
+                          DateFormat('d MMM yyyy, hh:mm a').format(
+                              DateTime.tryParse(delivery['delivered_at'] as String)?.toLocal() ?? DateTime.now())),
+                    if (delivery['delivered_bird_count'] != null || delivery['delivered_total_weight'] != null)
+                      _detailRow(Icons.scale_outlined, 'Delivered Qty',
+                          '${(delivery['delivered_bird_count'] as num?)?.toInt() ?? 0} birds · '
+                              '${((delivery['delivered_total_weight'] as num?)?.toDouble() ?? 0).toStringAsFixed(1)} kg'),
+                  ],
+                  // Invoice linkage — business date, payment status,
+                  // corrected-invoice reference, and a way through to the
+                  // full invoice (products/rate/payment status), reusing
+                  // get_invoice_detail via RetailerInvoiceDetailScreen —
+                  // no separate invoice-rendering logic here.
+                  if (invoice != null) ...[
+                    const Divider(height: 20),
+                    const Text('INVOICE', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: kNavy, letterSpacing: 0.6)),
+                    const SizedBox(height: 8),
+                    _detailRow(Icons.receipt_outlined, 'Invoice No', invoice['invoice_number'] as String? ?? '—'),
+                    if (invoice['invoice_date'] != null)
+                      _detailRow(Icons.calendar_today_outlined, 'Business Date',
+                          DateFormat('d MMM yyyy').format(DateTime.parse(invoice['invoice_date'] as String))),
+                    _detailRow(Icons.payments_outlined, 'Payment Status',
+                        ((invoice['balance_amount'] as num?) ?? 0) > 0 ? 'Outstanding' : 'Paid'),
+                    _detailRow(Icons.currency_rupee, 'Amount', Fmt.amount((invoice['total_amount'] as num?)?.toDouble() ?? 0)),
+                    if (invoice['corrected_from_invoice_id'] != null)
+                      Container(
+                          margin: const EdgeInsets.symmetric(vertical: 6),
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(color: Colors.amber.withValues(alpha: 0.08),
+                              borderRadius: BorderRadius.circular(kRadiusCard),
+                              border: Border.all(color: Colors.amber.withValues(alpha: 0.3))),
+                          child: const Row(children: [
+                            Icon(Icons.info_outline, size: 14, color: Colors.brown),
+                            SizedBox(width: 8),
+                            Expanded(child: Text(
+                                'This invoice was corrected from an earlier version — the amount shown here is the current, corrected one.',
+                                style: TextStyle(fontSize: 11, color: Colors.brown))),
+                          ])),
+                    const SizedBox(height: 10),
+                    SizedBox(width: double.infinity, height: 44, child: OutlinedButton.icon(
+                        onPressed: () {
+                          Navigator.of(ctx, rootNavigator: true).pop();
+                          Navigator.of(context).push(MaterialPageRoute(
+                              builder: (_) => RetailerInvoiceDetailScreen(invoiceId: invoice!['id'] as String)));
+                        },
+                        icon: const Icon(Icons.description_outlined, size: 16),
+                        label: const Text('View Full Invoice'))),
+                  ],
+                  const SizedBox(height: 14),
+                  SizedBox(width: double.infinity, height: 46, child: ElevatedButton.icon(
+                      onPressed: () {
+                        Navigator.of(ctx, rootNavigator: true).pop();
+                        _showPlaceOrder(reorderFrom: order);
+                      },
+                      icon: const Icon(Icons.replay_outlined, size: 16),
+                      label: const Text('Reorder'),
+                      style: ElevatedButton.styleFrom(backgroundColor: kNavy))),
+                  const SizedBox(height: 20),
+                ]))));
+  }
 
   Future<void> _cancelOrder(String orderId, String status) async {
     final ok = await confirmDialog(context,
