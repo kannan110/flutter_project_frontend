@@ -119,9 +119,9 @@ class _S extends ConsumerState<BatchPickupScreen> {
     try {
       final raw = await _c
           .from('delivery_challans')
-          .select('id,dc_number,dc_date,farmer_name,farm_location,'
-          'bird_count,gross_weight,empty_weight,net_weight,'
-          'crates_count,farm_rate,source_type')
+          .select('id,dc_number,dc_date,farmer_name,farm_location,vehicle_number,'
+          'bird_count,gross_weight,empty_crate_weight,net_weight,'
+          'crates_count,farm_rate,source_type,dc_verified')
           .eq('batch_id', widget.batchId)
           .order('created_at');
       dcs = List<Map<String, dynamic>>.from(raw as List? ?? []);
@@ -273,6 +273,115 @@ class _S extends ConsumerState<BatchPickupScreen> {
           showError(context, 'DC photo upload failed — check connection');
       }
     } catch (_) {}
+  }
+
+  // ── Edit DC (Open Shift) ─────────────────────────────────────────────────
+  // Agent self-service correction — only reachable for a DC that hasn't
+  // been trader-verified yet (edit_dc_open_shift enforces the same check,
+  // plus the shift-still-open check, server-side). Reuses the same
+  // gross/empty/net weight calculation pattern (WeightCalc) already used
+  // elsewhere in this file and in Quick Entry — no separate formula.
+  Future<void> _showEditDcSheet(Map<String, dynamic> dc) async {
+    final dcNumCtrl = TextEditingController(text: dc['dc_number'] as String? ?? '');
+    final farmerCtrl = TextEditingController(text: dc['farmer_name'] as String? ?? '');
+    final vehicleCtrl = TextEditingController(text: dc['vehicle_number'] as String? ?? '');
+    final locationCtrl = TextEditingController(text: dc['farm_location'] as String? ?? '');
+    final cratesCtrl = TextEditingController(text: (dc['crates_count'] as num?)?.toString() ?? '');
+    final grossCtrl = TextEditingController(text: (dc['gross_weight'] as num?)?.toString() ?? '');
+    final emptyCtrl = TextEditingController(text: (dc['empty_crate_weight'] as num?)?.toString() ?? '');
+    final birdsCtrl = TextEditingController(text: (dc['bird_count'] as num?)?.toString() ?? '');
+    final reasonCtrl = TextEditingController();
+    bool submitting = false;
+
+    await showModalBottomSheet(
+        context: context, isScrollControlled: true, useRootNavigator: true,
+        shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+        builder: (ctx) => StatefulBuilder(builder: (ctx, setSheetState) {
+          final gross = double.tryParse(grossCtrl.text.trim()) ?? 0;
+          final empty = double.tryParse(emptyCtrl.text.trim()) ?? 0;
+          final net = WeightCalc.net(gross, empty);
+          return DraggableScrollableSheet(
+              expand: false, initialChildSize: 0.75, maxChildSize: 0.95,
+              builder: (_, scrollCtrl) => SingleChildScrollView(
+                  controller: scrollCtrl,
+                  padding: EdgeInsets.only(
+                      left: 20, right: 20, top: 20,
+                      bottom: MediaQuery.of(ctx).viewInsets.bottom + 20),
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    const Text('Edit DC', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+                    const SizedBox(height: 4),
+                    const Text('Only available while the shift is open and this DC has not yet been verified by the trader.',
+                        style: TextStyle(fontSize: 11, color: kTextHint)),
+                    const SizedBox(height: 16),
+                    TextField(controller: dcNumCtrl, decoration: const InputDecoration(labelText: 'DC Number')),
+                    const SizedBox(height: 10),
+                    TextField(controller: farmerCtrl, decoration: const InputDecoration(labelText: 'Farmer / Source Name')),
+                    const SizedBox(height: 10),
+                    TextField(controller: vehicleCtrl, decoration: const InputDecoration(labelText: 'Vehicle Number')),
+                    const SizedBox(height: 10),
+                    TextField(controller: locationCtrl, decoration: const InputDecoration(labelText: 'Farm Location')),
+                    const SizedBox(height: 10),
+                    Row(children: [
+                      Expanded(child: TextField(controller: cratesCtrl, keyboardType: TextInputType.number,
+                          decoration: const InputDecoration(labelText: 'Crates'))),
+                      const SizedBox(width: 10),
+                      Expanded(child: TextField(controller: birdsCtrl, keyboardType: TextInputType.number,
+                          decoration: const InputDecoration(labelText: 'Bird Count'))),
+                    ]),
+                    const SizedBox(height: 10),
+                    Row(children: [
+                      Expanded(child: TextField(controller: grossCtrl,
+                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                          decoration: const InputDecoration(labelText: 'Gross Weight (kg)'),
+                          onChanged: (_) => setSheetState(() {}))),
+                      const SizedBox(width: 10),
+                      Expanded(child: TextField(controller: emptyCtrl,
+                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                          decoration: const InputDecoration(labelText: 'Empty Weight (kg)'),
+                          onChanged: (_) => setSheetState(() {}))),
+                    ]),
+                    const SizedBox(height: 8),
+                    Text('Net = ${gross.toStringAsFixed(2)} − ${empty.toStringAsFixed(2)} = ${net.toStringAsFixed(2)} kg',
+                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: kNavy)),
+                    const SizedBox(height: 10),
+                    TextField(controller: reasonCtrl, maxLines: 2,
+                        decoration: const InputDecoration(labelText: 'Reason (optional)', alignLabelWithHint: true)),
+                    const SizedBox(height: 16),
+                    SizedBox(width: double.infinity, height: 46, child: ElevatedButton(
+                        onPressed: submitting ? null : () async {
+                          setSheetState(() => submitting = true);
+                          final user = ref.read(appUserProvider).valueOrNull;
+                          try {
+                            await _c.rpc('edit_dc_open_shift', params: {
+                              'p_challan_id': dc['id'],
+                              'p_actor_id': user?.userId,
+                              'p_dc_number': dcNumCtrl.text.trim().isEmpty ? null : dcNumCtrl.text.trim(),
+                              'p_farmer_name': farmerCtrl.text.trim().isEmpty ? null : farmerCtrl.text.trim(),
+                              'p_vehicle_number': vehicleCtrl.text.trim().isEmpty ? null : vehicleCtrl.text.trim(),
+                              'p_farm_location': locationCtrl.text.trim().isEmpty ? null : locationCtrl.text.trim(),
+                              'p_crates_count': int.tryParse(cratesCtrl.text.trim()),
+                              'p_gross_weight': gross > 0 ? gross : null,
+                              'p_empty_weight': empty > 0 ? empty : null,
+                              'p_net_weight': (gross > 0 && empty >= 0) ? net : null,
+                              'p_bird_count': int.tryParse(birdsCtrl.text.trim()),
+                              'p_reason': reasonCtrl.text.trim().isEmpty ? null : reasonCtrl.text.trim(),
+                            }).timeout(const Duration(seconds: 12));
+                            if (mounted) {
+                              Navigator.of(ctx, rootNavigator: true).pop();
+                              showSuccess(context, 'DC updated');
+                              await _load();
+                            }
+                          } catch (e) {
+                            setSheetState(() => submitting = false);
+                            if (mounted) showError(context, e.toString().replaceAll('Exception: ', ''));
+                          }
+                        },
+                        child: submitting
+                            ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                            : const Text('Save Changes'))),
+                    const SizedBox(height: 10),
+                  ])));
+        }));
   }
 
   Future<void> _saveDC() async {
@@ -877,6 +986,7 @@ class _S extends ConsumerState<BatchPickupScreen> {
                       final birds = (ch['bird_count'] as num?)?.toInt() ?? 0;
                       final crates = (ch['crates_count'] as num?)?.toInt() ?? 0;
                       final src = ch['source_type'] as String? ?? 'farm';
+                      final verified = ch['dc_verified'] as bool? ?? false;
                       return Container(
                           margin: const EdgeInsets.only(bottom: 6),
                           padding: const EdgeInsets.all(10),
@@ -903,6 +1013,23 @@ class _S extends ConsumerState<BatchPickupScreen> {
                                           style: const TextStyle(
                                               fontSize: 11, color: kTextSub)),
                                     ])),
+                            // Open Shift — agent can self-correct while the
+                            // shift is still open and the DC hasn't been
+                            // trader-verified yet (edit_dc_open_shift enforces
+                            // both checks server-side too).
+                            if (!verified)
+                              GestureDetector(
+                                  onTap: () => _showEditDcSheet(ch),
+                                  child: Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                      decoration: BoxDecoration(
+                                          color: kPrimary.withValues(alpha: 0.1),
+                                          borderRadius: BorderRadius.circular(6)),
+                                      child: const Row(mainAxisSize: MainAxisSize.min, children: [
+                                        Icon(Icons.edit_outlined, size: 13, color: kPrimary),
+                                        SizedBox(width: 3),
+                                        Text('Edit', style: TextStyle(fontSize: 11, color: kPrimary, fontWeight: FontWeight.w600)),
+                                      ]))),
                           ]));
                     }),
                     Container(

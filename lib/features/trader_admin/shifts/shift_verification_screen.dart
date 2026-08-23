@@ -68,6 +68,17 @@ class _ShiftVerificationScreenState
   final Map<String, TextEditingController> _dcWt    = {};
   final Map<String, TextEditingController> _dcBirds = {};
   final Map<String, TextEditingController> _dcNotes = {};
+  // Non-financial fields — extended for both verify_dc (Before Approval)
+  // and correct_dc_post_approval (After Approval), same controllers
+  // shared between both since the card itself is shared.
+  final Map<String, TextEditingController> _dcNumberCtrl = {};
+  final Map<String, TextEditingController> _dcFarmerCtrl = {};
+  final Map<String, TextEditingController> _dcVehicleCtrl = {};
+  final Map<String, TextEditingController> _dcLocationCtrl = {};
+  final Map<String, TextEditingController> _dcCratesCtrl = {};
+  // Post-approval correction requires its own mandatory-reason field,
+  // separate from the optional verification notes above.
+  final Map<String, TextEditingController> _dcReasonCtrl = {};
 
   // Submitting state per item
   final Set<String> _submitting = {};
@@ -81,7 +92,9 @@ class _ShiftVerificationScreenState
   @override
   void dispose() {
     for (final c in [..._wt.values, ..._birds.values, ..._notes.values,
-      ..._dcWt.values, ..._dcBirds.values, ..._dcNotes.values]) {
+      ..._dcWt.values, ..._dcBirds.values, ..._dcNotes.values,
+      ..._dcNumberCtrl.values, ..._dcFarmerCtrl.values, ..._dcVehicleCtrl.values,
+      ..._dcLocationCtrl.values, ..._dcCratesCtrl.values, ..._dcReasonCtrl.values]) {
       c.dispose();
     }
     super.dispose();
@@ -127,6 +140,12 @@ class _ShiftVerificationScreenState
   Map<String, dynamic> get _shift =>
       ((_data['shift'] as Map?)?.cast<String, dynamic>()) ?? {};
 
+  // After Shift Approval state — gates whether _buildChallanCard shows
+  // the (Before Approval) Verify action or the (After Approval)
+  // Correction action, and whether the mandatory-reason field appears.
+  bool get _isShiftApproved =>
+      (_shift['shift_approval_status'] as String? ?? 'pending') == 'approved';
+
   bool get _verificationComplete =>
       _data['verification_complete'] == true;
 
@@ -164,6 +183,12 @@ class _ShiftVerificationScreenState
             (dc['bird_count'] as num?)?.toString() ?? ''));
     _dcNotes.putIfAbsent(id, () => TextEditingController(
         text: dc['dc_verification_notes'] as String? ?? ''));
+    _dcNumberCtrl.putIfAbsent(id, () => TextEditingController(text: dc['dc_number'] as String? ?? ''));
+    _dcFarmerCtrl.putIfAbsent(id, () => TextEditingController(text: dc['farmer_name'] as String? ?? ''));
+    _dcVehicleCtrl.putIfAbsent(id, () => TextEditingController(text: dc['vehicle_number'] as String? ?? ''));
+    _dcLocationCtrl.putIfAbsent(id, () => TextEditingController(text: dc['farm_location'] as String? ?? ''));
+    _dcCratesCtrl.putIfAbsent(id, () => TextEditingController(text: (dc['crates_count'] as num?)?.toString() ?? ''));
+    _dcReasonCtrl.putIfAbsent(id, () => TextEditingController());
   }
 
   // ── Submit delivery verification ────────────────────────────────────────────
@@ -251,12 +276,21 @@ class _ShiftVerificationScreenState
 
     setState(() => _submitting.add(challanId));
     try {
+      String? nf(Map<String, TextEditingController> m) {
+        final t = m[challanId]?.text.trim() ?? '';
+        return t.isEmpty ? null : t;
+      }
       final res = await _c.rpc('verify_dc', params: {
         'p_challan_id':      challanId,
         'p_verified_by':     user.userId,
         'p_notes':           notes?.isEmpty == true ? null : notes,
         'p_adjusted_weight': adjustedWt,
         'p_confirmed_birds': adjustedBirds,
+        'p_dc_number':       nf(_dcNumberCtrl),
+        'p_farmer_name':     nf(_dcFarmerCtrl),
+        'p_vehicle_number':  nf(_dcVehicleCtrl),
+        'p_farm_location':   nf(_dcLocationCtrl),
+        'p_crates_count':    int.tryParse(_dcCratesCtrl[challanId]?.text.trim() ?? ''),
       });
 
       if (mounted) {
@@ -270,6 +304,67 @@ class _ShiftVerificationScreenState
             ? '✅ DC verified — confirmed ${parts.join(' · ')}'
             : '✅ DC verified';
         showSuccess(context, msg);
+        setState(() => _expandedChallanId = null);
+        await _load();
+      }
+    } catch (e) {
+      if (mounted) showError(context,
+          e.toString().replaceAll('Exception: ', ''));
+    } finally {
+      if (mounted) setState(() => _submitting.remove(challanId));
+    }
+  }
+
+  // ── Submit DC correction — After Shift Approval ─────────────────────────────
+  // Reuses the exact same card/fields as _verifyDC; only reachable when
+  // approvalStatus == 'approved' (see _buildChallanCard). Mandatory
+  // reason, calls correct_dc_post_approval instead of verify_dc.
+  // correct_dc_post_approval itself blocks bird/weight changes if the
+  // batch already has an issued invoice — this screen doesn't need to
+  // duplicate that check, just surface whatever error comes back.
+  Future<void> _correctDCPostApproval(String challanId) async {
+    final user = ref.read(appUserProvider).valueOrNull;
+    if (user == null) return;
+
+    final dc          = _challans.firstWhere((c) => c['id'] == challanId,
+        orElse: () => {});
+    final origWt      = (dc['net_weight']   as num?)?.toDouble() ?? 0;
+    final origBirds   = (dc['bird_count']   as num?)?.toInt()    ?? 0;
+    final adjWt        = double.tryParse(_dcWt[challanId]?.text.trim() ?? '');
+    final adjBirds     = int.tryParse(_dcBirds[challanId]?.text.trim() ?? '');
+    final adjustedWt   = (adjWt    != null && adjWt    != origWt)    ? adjWt    : null;
+    final adjustedBirds= (adjBirds != null && adjBirds != origBirds) ? adjBirds : null;
+    final reason       = _dcReasonCtrl[challanId]?.text.trim();
+
+    if (reason == null || reason.isEmpty) {
+      showError(context, 'A reason is required to correct a DC after shift approval');
+      return;
+    }
+
+    setState(() => _submitting.add(challanId));
+    try {
+      String? nf(Map<String, TextEditingController> m) {
+        final t = m[challanId]?.text.trim() ?? '';
+        return t.isEmpty ? null : t;
+      }
+      final res = await _c.rpc('correct_dc_post_approval', params: {
+        'p_challan_id':      challanId,
+        'p_corrected_by':    user.userId,
+        'p_reason':          reason,
+        'p_adjusted_weight': adjustedWt,
+        'p_confirmed_birds': adjustedBirds,
+        'p_dc_number':       nf(_dcNumberCtrl),
+        'p_farmer_name':     nf(_dcFarmerCtrl),
+        'p_vehicle_number':  nf(_dcVehicleCtrl),
+        'p_farm_location':   nf(_dcLocationCtrl),
+        'p_crates_count':    int.tryParse(_dcCratesCtrl[challanId]?.text.trim() ?? ''),
+      });
+
+      if (mounted) {
+        final recalculated = (res as Map?)?['batch_costing_recalculated'] == true;
+        showSuccess(context, recalculated
+            ? '✅ Corrected — stock and batch costing recalculated'
+            : '✅ DC corrected');
         setState(() => _expandedChallanId = null);
         await _load();
       }
@@ -691,6 +786,31 @@ class _ShiftVerificationScreenState
                   ),
                   const SizedBox(height: 10),
 
+                  // ── Non-financial fields — same correction scope in both
+                  // Before Approval (verify_dc) and After Approval
+                  // (correct_dc_post_approval); never blocked by the
+                  // invoice-safety check, since they don't touch stock or
+                  // billing math.
+                  ExpansionTile(
+                    tilePadding: EdgeInsets.zero,
+                    title: const Text('Edit DC details (number, farmer, vehicle, location, crates)',
+                        style: TextStyle(fontSize: 12, color: kTextSub)),
+                    childrenPadding: EdgeInsets.zero,
+                    children: [
+                      TextField(controller: _dcNumberCtrl[id], decoration: const InputDecoration(labelText: 'DC Number')),
+                      const SizedBox(height: 10),
+                      TextField(controller: _dcFarmerCtrl[id], decoration: const InputDecoration(labelText: 'Farmer / Source Name')),
+                      const SizedBox(height: 10),
+                      TextField(controller: _dcVehicleCtrl[id], decoration: const InputDecoration(labelText: 'Vehicle Number')),
+                      const SizedBox(height: 10),
+                      TextField(controller: _dcLocationCtrl[id], decoration: const InputDecoration(labelText: 'Farm Location')),
+                      const SizedBox(height: 10),
+                      TextField(controller: _dcCratesCtrl[id], keyboardType: TextInputType.number,
+                          decoration: const InputDecoration(labelText: 'Crates Count')),
+                      const SizedBox(height: 10),
+                    ],
+                  ),
+
                   // ── 4. Notes ──────────────────────────────────────────────
                   TextField(
                     controller: _dcNotes[id],
@@ -701,7 +821,22 @@ class _ShiftVerificationScreenState
                       alignLabelWithHint: true,
                     ),
                   ),
-                  const SizedBox(height: 14),
+                  const SizedBox(height: 10),
+
+                  // ── After Shift Approval — mandatory reason ──────────────
+                  if (_isShiftApproved) ...[
+                    TextField(
+                      controller: _dcReasonCtrl[id],
+                      maxLines: 2,
+                      decoration: const InputDecoration(
+                        labelText: 'Reason for correction (required)',
+                        hintText: 'This shift is already approved — explain why this DC needs correcting',
+                        alignLabelWithHint: true,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                  ],
+                  const SizedBox(height: 4),
 
                   Row(children: [
                     Expanded(
@@ -715,17 +850,18 @@ class _ShiftVerificationScreenState
                     Expanded(
                       flex: 2,
                       child: ElevatedButton.icon(
-                        onPressed: isSubmit ? null : () => _verifyDC(id),
+                        onPressed: isSubmit ? null : () =>
+                        _isShiftApproved ? _correctDCPostApproval(id) : _verifyDC(id),
                         icon: isSubmit
                             ? const SizedBox(width: 16, height: 16,
                             child: CircularProgressIndicator(
                                 strokeWidth: 2, color: Colors.white))
-                            : const Icon(Icons.check_rounded, size: 16),
-                        label: const Text('Mark DC as Verified',
-                            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700,
+                            : Icon(_isShiftApproved ? Icons.build_outlined : Icons.check_rounded, size: 16),
+                        label: Text(_isShiftApproved ? 'Correct DC (Post-Approval)' : 'Mark DC as Verified',
+                            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700,
                                 color: Colors.white)),
                         style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.blue),
+                            backgroundColor: _isShiftApproved ? Colors.deepOrange : Colors.blue),
                       ),
                     ),
                   ]),

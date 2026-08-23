@@ -4,8 +4,8 @@ import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../core/providers/session_provider.dart';
 import '../../../../core/theme/app_theme.dart';
-import '../../../../shared/widgets/common/horizontalscroll_wheel.dart';
 import '../../../../core/util/weight_calc.dart';
+import '../../../../shared/widgets/common/horizontalscroll_wheel.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // AGENT QUICK ENTRY (multi-product)  — formerly "Simple Entry"
@@ -178,6 +178,14 @@ class _AgentQuickEntrySheetState extends ConsumerState<AgentQuickEntrySheet> {
   void initState() {
     super.initState();
     _loadData();
+    // Auto-fill Delivered Weight only when the user finishes editing
+    // Gross/Empty Weight (focus lost) — see _applyNetWeightAutoFill.
+    _grossFocusNode.addListener(() {
+      if (!_grossFocusNode.hasFocus) _applyNetWeightAutoFill();
+    });
+    _emptyFocusNode.addListener(() {
+      if (!_emptyFocusNode.hasFocus) _applyNetWeightAutoFill();
+    });
   }
 
   @override
@@ -189,6 +197,8 @@ class _AgentQuickEntrySheetState extends ConsumerState<AgentQuickEntrySheet> {
     boxCountCtrl.dispose();
     grossWeightCtrl.dispose();
     emptyWeightCtrl.dispose();
+    _grossFocusNode.dispose();
+    _emptyFocusNode.dispose();
     super.dispose();
   }
 
@@ -1334,12 +1344,14 @@ class _AgentQuickEntrySheetState extends ConsumerState<AgentQuickEntrySheet> {
     required IconData icon,
     required VoidCallback onChanged,
     bool decimal = false,
+    FocusNode? focusNode,
   }) =>
       Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text(label, style: const TextStyle(fontSize: 10, color: kTextHint)),
         const SizedBox(height: 4),
         TextField(
           controller: controller,
+          focusNode: focusNode,
           textAlign: TextAlign.center,
           keyboardType:
           decimal ? const TextInputType.numberWithOptions(decimal: true) : TextInputType.number,
@@ -1361,17 +1373,30 @@ class _AgentQuickEntrySheetState extends ConsumerState<AgentQuickEntrySheet> {
   // unchanged unless the trader opts in. Reuses the shared WeightCalc,
   // the same calculation batch_pickup_screen.dart's Delivery Challan
   // entry already uses. ─────────────────────────────────────────────────
+  // Focus nodes for Gross/Empty Weight — the auto-fill into Delivered
+  // Weight only fires on focus-LOSS (see below), never mid-keystroke.
+  // Setting a DIFFERENT TextField's controller.text while the user is
+  // actively typing in this field was causing the platform's keyboard/
+  // text-input connection to reattach to whichever field's text just
+  // changed — stealing focus away after a single character. The live
+  // "Net = Gross − Empty" preview line still updates on every keystroke
+  // (it's a plain Text rebuild, not a controller mutation, so it's safe).
+  final FocusNode _grossFocusNode = FocusNode();
+  final FocusNode _emptyFocusNode = FocusNode();
+
   void _onGrossEmptyChanged() {
-    setState(() {
-      final net = _computedNetWeight;
-      // Auto-fill only applies to a single-line entry — with 2+ lines,
-      // net weight is still split across products manually exactly as
-      // today; this is informational only in that case.
-      if (net != null && _lines.length == 1) {
+    // Live preview text only — no controller mutation here.
+    setState(() {});
+  }
+
+  void _applyNetWeightAutoFill() {
+    final net = _computedNetWeight;
+    if (net != null && _lines.length == 1) {
+      setState(() {
         _lines[0].weightCtrl.text = net.toStringAsFixed(2);
         _fetchRate(0);
-      }
-    });
+      });
+    }
   }
 
   Widget _weightDetailsSection() {
@@ -1430,6 +1455,7 @@ class _AgentQuickEntrySheetState extends ConsumerState<AgentQuickEntrySheet> {
               icon: Icons.scale_outlined,
               decimal: true,
               onChanged: _onGrossEmptyChanged,
+              focusNode: _grossFocusNode,
             ),
           ),
           const SizedBox(width: 8),
@@ -1440,6 +1466,7 @@ class _AgentQuickEntrySheetState extends ConsumerState<AgentQuickEntrySheet> {
               icon: Icons.remove_circle_outline,
               decimal: true,
               onChanged: _onGrossEmptyChanged,
+              focusNode: _emptyFocusNode,
             ),
           ),
         ]),

@@ -22,6 +22,11 @@ class _S extends ConsumerState<BatchDetailScreen> {
   Map<String, dynamic>? _batch;
   List<Map<String, dynamic>> _deliveries = [];
   List<Map<String, dynamic>> _challans = [];
+  // DC Correction Lifecycle — the batch's shift approval status
+  // determines which action (Verify/Edit vs. Correct Post-Approval)
+  // each DC card offers. Fetched alongside everything else in _load().
+  Map<String, dynamic>? _shift;
+  bool get _isShiftApproved => (_shift?['shift_approval_status'] as String?) == 'approved';
   List<Map<String, dynamic>> _confirmedOrders = [];
   List<Map<String, dynamic>> _agents = [];
   bool _loading = true,
@@ -68,6 +73,17 @@ class _S extends ConsumerState<BatchDetailScreen> {
           .eq('batch_id', widget.id);
       final ch = await _c.from('delivery_challans')
           .select('*').eq('batch_id', widget.id).order('created_at');
+      // DC Correction Lifecycle — need the shift's approval status to
+      // decide which correction action each DC offers.
+      Map<String, dynamic>? shift;
+      try {
+        final shiftId = b?['shift_id'];
+        if (shiftId != null) {
+          shift = await _c.from('delivery_shifts')
+              .select('id,status,shift_approval_status')
+              .eq('id', shiftId).maybeSingle();
+        }
+      } catch (_) {}
       // Only confirmed (not already in a batch)
       final co = await _c.from('orders')
           .select('id,estimated_birds,total_quantity,retailers(shop_name)')
@@ -112,6 +128,7 @@ class _S extends ConsumerState<BatchDetailScreen> {
         _batch = b;
         _deliveries = List<Map<String, dynamic>>.from(d);
         _challans = List<Map<String, dynamic>>.from(ch);
+        _shift = shift;
         _confirmedOrders = List<Map<String, dynamic>>.from(co);
         _agents = List<Map<String, dynamic>>.from(ag);
         _farms = farms;
@@ -1292,7 +1309,8 @@ class _S extends ConsumerState<BatchDetailScreen> {
               .map((entry) {
             final idx = entry.key;
             final ch = entry.value;
-            return _DcCard(key: ValueKey(ch['id']), challan: ch, index: idx + 1);
+            return _DcCard(key: ValueKey(ch['id']), challan: ch, index: idx + 1,
+                isShiftApproved: _isShiftApproved, onChanged: _load);
           }),
         const SizedBox(height: 14),
 
@@ -1468,10 +1486,13 @@ class _S extends ConsumerState<BatchDetailScreen> {
 
 // ── DC Card — expandable with image ─────────────────────────────────────────
 class _DcCard extends StatefulWidget {
-  const _DcCard({super.key, required this.challan, required this.index});
+  const _DcCard({super.key, required this.challan, required this.index,
+    required this.isShiftApproved, required this.onChanged});
 
   final Map<String, dynamic> challan;
   final int index;
+  final bool isShiftApproved;
+  final VoidCallback onChanged;
 
   @override State<_DcCard> createState() => _DcCardState();
 }
@@ -1600,6 +1621,33 @@ class _DcCardState extends State<_DcCard> {
                             2)}', Colors.green),
                     ])),
 
+                // DC Correction Lifecycle — Before Approval (verify_dc) or
+                // After Approval (correct_dc_post_approval), same shared
+                // sheet, only the target RPC and mandatory-reason
+                // requirement differ. Reuses WeightCalc for the Gross/
+                // Empty → Net computation, same as every other weight
+                // entry point in the app.
+                const SizedBox(height: 8),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: GestureDetector(
+                    onTap: () => _showEditSheet(context),
+                    child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                        decoration: BoxDecoration(
+                            color: (widget.isShiftApproved ? Colors.deepOrange : kPrimary).withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(6)),
+                        child: Row(mainAxisSize: MainAxisSize.min, children: [
+                          Icon(widget.isShiftApproved ? Icons.build_outlined : Icons.edit_outlined,
+                              size: 13, color: widget.isShiftApproved ? Colors.deepOrange : kPrimary),
+                          const SizedBox(width: 4),
+                          Text(widget.isShiftApproved ? 'Correct DC (Post-Approval)' : 'Verify / Edit DC',
+                              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700,
+                                  color: widget.isShiftApproved ? Colors.deepOrange : kPrimary)),
+                        ])),
+                  ),
+                ),
+
                 // Extra info
                 if (ch['farm_location'] != null) ...[
                   const SizedBox(height: 8),
@@ -1726,6 +1774,141 @@ class _DcCardState extends State<_DcCard> {
                           child: const Icon(
                               Icons.close, color: Colors.white, size: 18)))),
             ])));
+  }
+
+  // ── DC Correction Lifecycle — Before/After Approval sheet ────────────────
+  Future<void> _showEditSheet(BuildContext context) async {
+    final ch = widget.challan;
+    final dcNumCtrl = TextEditingController(text: ch['dc_number'] as String? ?? '');
+    final farmerCtrl = TextEditingController(text: ch['farmer_name'] as String? ?? '');
+    final vehicleCtrl = TextEditingController(text: ch['vehicle_number'] as String? ?? '');
+    final locationCtrl = TextEditingController(text: ch['farm_location'] as String? ?? '');
+    final cratesCtrl = TextEditingController(text: (ch['crates_count'] as num?)?.toString() ?? '');
+    final birdsCtrl = TextEditingController(
+        text: ((ch['dc_adjusted_birds'] as num?) ?? (ch['bird_count'] as num?))?.toString() ?? '');
+    final weightCtrl = TextEditingController(
+        text: ((ch['dc_adjusted_weight'] as num?) ?? (ch['net_weight'] as num?))?.toStringAsFixed(2) ?? '');
+    final notesCtrl = TextEditingController();
+    bool submitting = false;
+
+    await showModalBottomSheet(
+        context: context, isScrollControlled: true, useRootNavigator: true,
+        shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+        builder: (ctx) => StatefulBuilder(builder: (ctx, setSheetState) {
+          return DraggableScrollableSheet(
+              expand: false, initialChildSize: 0.75, maxChildSize: 0.95,
+              builder: (_, scrollCtrl) => SingleChildScrollView(
+                  controller: scrollCtrl,
+                  padding: EdgeInsets.only(left: 20, right: 20, top: 20,
+                      bottom: MediaQuery.of(ctx).viewInsets.bottom + 20),
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text(widget.isShiftApproved ? 'Correct DC (Post-Approval)' : 'Verify / Edit DC',
+                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+                    const SizedBox(height: 4),
+                    Text(
+                        widget.isShiftApproved
+                            ? 'This shift is already approved. A reason is required, and stock/batch costing will be recalculated.'
+                            : 'Weight/bird corrections update agent stock and batch balance. Does not affect orders, billing or revenue.',
+                        style: const TextStyle(fontSize: 11, color: kTextHint)),
+                    const SizedBox(height: 16),
+                    TextField(controller: dcNumCtrl, decoration: const InputDecoration(labelText: 'DC Number')),
+                    const SizedBox(height: 10),
+                    TextField(controller: farmerCtrl, decoration: const InputDecoration(labelText: 'Farmer / Source Name')),
+                    const SizedBox(height: 10),
+                    TextField(controller: vehicleCtrl, decoration: const InputDecoration(labelText: 'Vehicle Number')),
+                    const SizedBox(height: 10),
+                    TextField(controller: locationCtrl, decoration: const InputDecoration(labelText: 'Farm Location')),
+                    const SizedBox(height: 10),
+                    Row(children: [
+                      Expanded(child: TextField(controller: cratesCtrl, keyboardType: TextInputType.number,
+                          decoration: const InputDecoration(labelText: 'Crates'))),
+                      const SizedBox(width: 10),
+                      Expanded(child: TextField(controller: birdsCtrl, keyboardType: TextInputType.number,
+                          decoration: const InputDecoration(labelText: 'Confirmed Bird Count'))),
+                    ]),
+                    const SizedBox(height: 10),
+                    TextField(controller: weightCtrl,
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        decoration: const InputDecoration(labelText: 'Confirmed Net Weight (kg)')),
+                    const SizedBox(height: 10),
+                    TextField(controller: notesCtrl, maxLines: 2,
+                        decoration: InputDecoration(
+                            labelText: widget.isShiftApproved ? 'Reason for correction (required)' : 'Verification Notes',
+                            hintText: widget.isShiftApproved
+                                ? 'Explain why this DC needs correcting after approval'
+                                : 'Required if bird count or weight was corrected',
+                            alignLabelWithHint: true)),
+                    const SizedBox(height: 16),
+                    SizedBox(width: double.infinity, height: 46, child: ElevatedButton(
+                        onPressed: submitting ? null : () async {
+                          final userId = Supabase.instance.client.auth.currentUser?.id;
+                          final origBirds = (ch['bird_count'] as num?)?.toInt() ?? 0;
+                          final origWt = (ch['net_weight'] as num?)?.toDouble() ?? 0;
+                          final newBirds = int.tryParse(birdsCtrl.text.trim());
+                          final newWt = double.tryParse(weightCtrl.text.trim());
+                          final adjBirds = (newBirds != null && newBirds != origBirds) ? newBirds : null;
+                          final adjWt = (newWt != null && newWt != origWt) ? newWt : null;
+                          final notes = notesCtrl.text.trim();
+
+                          if (widget.isShiftApproved && notes.isEmpty) {
+                            showError(context, 'A reason is required to correct a DC after shift approval');
+                            return;
+                          }
+                          if (!widget.isShiftApproved && (adjBirds != null || adjWt != null) && notes.isEmpty) {
+                            showError(context, 'Please add a note explaining the correction');
+                            return;
+                          }
+
+                          setSheetState(() => submitting = true);
+                          String? nf(TextEditingController c) => c.text.trim().isEmpty ? null : c.text.trim();
+                          try {
+                            if (widget.isShiftApproved) {
+                              await Supabase.instance.client.rpc('correct_dc_post_approval', params: {
+                                'p_challan_id': ch['id'],
+                                'p_corrected_by': userId,
+                                'p_reason': notes,
+                                'p_adjusted_weight': adjWt,
+                                'p_confirmed_birds': adjBirds,
+                                'p_dc_number': nf(dcNumCtrl),
+                                'p_farmer_name': nf(farmerCtrl),
+                                'p_vehicle_number': nf(vehicleCtrl),
+                                'p_farm_location': nf(locationCtrl),
+                                'p_crates_count': int.tryParse(cratesCtrl.text.trim()),
+                              }).timeout(const Duration(seconds: 12));
+                            } else {
+                              await Supabase.instance.client.rpc('verify_dc', params: {
+                                'p_challan_id': ch['id'],
+                                'p_verified_by': userId,
+                                'p_notes': notes.isEmpty ? null : notes,
+                                'p_adjusted_weight': adjWt,
+                                'p_confirmed_birds': adjBirds,
+                                'p_dc_number': nf(dcNumCtrl),
+                                'p_farmer_name': nf(farmerCtrl),
+                                'p_vehicle_number': nf(vehicleCtrl),
+                                'p_farm_location': nf(locationCtrl),
+                                'p_crates_count': int.tryParse(cratesCtrl.text.trim()),
+                              }).timeout(const Duration(seconds: 12));
+                            }
+                            if (context.mounted) {
+                              Navigator.of(ctx, rootNavigator: true).pop();
+                              showSuccess(context, '✅ DC updated');
+                              widget.onChanged();
+                            }
+                          } catch (e) {
+                            setSheetState(() => submitting = false);
+                            if (context.mounted) showError(context, e.toString().replaceAll('Exception: ', ''));
+                          }
+                        },
+                        style: ElevatedButton.styleFrom(
+                            backgroundColor: widget.isShiftApproved ? Colors.deepOrange : Colors.blue),
+                        child: submitting
+                            ? const SizedBox(width: 20, height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                            : Text(widget.isShiftApproved ? 'Submit Correction' : 'Save',
+                            style: const TextStyle(color: Colors.white)))),
+                    const SizedBox(height: 10),
+                  ])));
+        }));
   }
 
   Widget _row(String l, String v, [Color? c]) =>
