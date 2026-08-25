@@ -107,24 +107,22 @@ class _S extends ConsumerState<PurchaseScreen>
             });
 
         case 1: // Purchases
-          var q = _c
-              .from('purchase_entries')
-              .select('id,dc_number,dc_date,farmer_name,farm_location,'
-              'bird_count,arrival_birds,net_weight_kg,arrival_weight_kg,'
-              'shortage_birds,shortage_kg,purchase_rate_per_kg,purchase_rate_per_bird,'
-              'base_purchase_amount,total_landed_cost,cost_per_kg_landed,'
-              'transport_cost,loading_cost,handling_cost,other_cost,'
-              'total_paid,advance_paid,claim_amount,payment_status,payment_due_date,'
-              'status,locked_at,batch_id,challan_id,farm_id,'
-              'farms(farmer_name,farm_name,credit_days,default_rate_per_kg)')
-              .eq('trader_id', tid)
-              .gte('dc_date', _fromStr)
-              .lte('dc_date', _toStr);
-          if (_filterFarm != null) q = q.eq('farm_id', _filterFarm!);
-          if (_filterStatus != null) q = q.eq('status', _filterStatus!);
-          if (_filterPayStatus != null)
-            q = q.eq('payment_status', _filterPayStatus!);
-          final r = await q.order('dc_date', ascending: false).limit(100);
+        // ROOT CAUSE FIX (Purchase Report duplicate DC audit): this used
+        // to query purchase_entries directly with no awareness of the
+        // batch's status, so a DC belonging to a since-rejected/cancelled
+        // batch stayed visible here forever alongside its correct
+        // re-entry. Now delegates to a filtered RPC (same row shape,
+        // including the nested 'farms' object) instead of duplicating
+        // the cancelled-batch filter logic in Dart/PostgREST syntax.
+          final r = await _c.rpc('get_purchase_entries_list', params: {
+            'p_trader_id': tid,
+            'p_from_date': _fromStr,
+            'p_to_date': _toStr,
+            if (_filterFarm != null) 'p_farm_id': _filterFarm,
+            if (_filterStatus != null) 'p_status': _filterStatus,
+            if (_filterPayStatus != null) 'p_pay_status': _filterPayStatus,
+            'p_limit': 100,
+          });
           final sm2 = await _c.rpc('get_purchase_summary', params: {
             'p_trader_id': tid,
             'p_from_date': _fromStr,
@@ -144,11 +142,13 @@ class _S extends ConsumerState<PurchaseScreen>
               'poultry_companies(company_name)')
               .eq('trader_id', tid)
               .order('farmer_name');
-          final pe = await _c
-              .from('purchase_entries')
-              .select(
-              'farm_id,total_landed_cost,total_paid,claim_amount,payment_status')
-              .eq('trader_id', tid);
+          // ROOT CAUSE FIX (Purchase Report duplicate DC audit): same
+          // cancelled-batch exclusion as the Purchases tab, via a filtered
+          // RPC with the identical row shape, so this client-side
+          // aggregation loop needs no changes.
+          final pe = await _c.rpc('get_farm_purchase_stats', params: {
+            'p_trader_id': tid,
+          });
           final Map<String, Map<String, dynamic>> farmStats = {};
           for (final row
           in List<Map<String, dynamic>>.from(pe as List? ?? [])) {
@@ -222,11 +222,13 @@ class _S extends ConsumerState<PurchaseScreen>
               .toList();
           final peMap = <String, Map<String, dynamic>>{};
           if (batchIds.isNotEmpty) {
-            final peRows = await _c
-                .from('purchase_entries')
-                .select('batch_id,farmer_name,dc_number,dc_date')
-                .inFilter('batch_id', batchIds.cast<String>())
-                .order('created_at');
+            // Defensive: batch_costing rows only ever exist for batches
+            // that reached approve_shift, which a rejected/cancelled batch
+            // never does — so this is currently a no-op filter, added for
+            // robustness against any future cancellation path.
+            final peRows = await _c.rpc('get_purchase_entries_for_batches', params: {
+              'p_batch_ids': batchIds.cast<String>(),
+            });
             for (final pe in (peRows as List? ?? [])) {
               final bid = pe['batch_id'] as String?;
               if (bid != null && !peMap.containsKey(bid)) {

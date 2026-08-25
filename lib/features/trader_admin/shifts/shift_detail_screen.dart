@@ -387,14 +387,37 @@ class _S extends ConsumerState<ShiftDetailScreen> {
     if (reason == null || !mounted) return;
     if (mounted) setState(() => _submitting = true);
     try {
-      await _c.from('delivery_shifts').update({
-        'shift_approval_status': 'rejected',
-        'shift_approval_notes': reason
-      }).eq('id', widget.id);
+      // ROOT CAUSE FIX (DC/Shift Rejection bug audit): was a raw
+      // `UPDATE delivery_shifts` here that only flipped
+      // shift_approval_status — it never reversed stock_ledger entries,
+      // never cancelled the batch, and never excluded the shift's
+      // deliveries from downstream calculations, so a "rejected" shift's
+      // DC/stock/batch stayed fully live and got silently handed back to
+      // the agent's next session by ensure_active_batch_for_agent. Now
+      // calls the backend reject_shift RPC, which finalizes the
+      // rejection the same way approve_shift finalizes an approval —
+      // ledger stays append-only via compensating reversal entries.
+      final user = ref.read(appUserProvider).valueOrNull;
+      final result = await _c.rpc('reject_shift', params: {
+        'p_shift_id':    widget.id,
+        'p_rejected_by': user?.userId,
+        'p_reason':      reason,
+        'p_actor_type':  'trader',
+        'p_entry_mode':  'system',
+      });
+      final r = result as Map<String, dynamic>?;
+      final batchesCancelled = (r?['batches_cancelled'] as num?)?.toInt() ?? 0;
+      final reversedBirds    = (r?['reversed_birds']    as num?)?.toInt() ?? 0;
       _load();
-      if (mounted) showSuccess(context, 'Shift rejected');
+      if (mounted) {
+        showSuccess(context,
+          'Shift rejected ✓\n'
+              '${reversedBirds > 0 ? 'Reversed $reversedBirds birds from stock. ' : ''}'
+              '${batchesCancelled > 0 ? '$batchesCancelled batch(es) cancelled.' : ''}',
+        );
+      }
     } catch (e) {
-      if (mounted) showError(context, e.toString());
+      if (mounted) showError(context, e.toString().replaceAll('Exception: ', ''));
     } finally {
       if (mounted) setState(() => _submitting = false);
     }
