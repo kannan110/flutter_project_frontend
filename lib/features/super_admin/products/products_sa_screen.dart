@@ -109,6 +109,50 @@ class _S extends State<ProductsSaScreen> {
     }
   }
 
+  Future<void> _remove(Map<String,dynamic> p) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Remove this product?'),
+        content: Text(
+          'This permanently removes "${p['name']}" from the master catalog. '
+              'If it has any historical transactions, removal will be blocked and '
+              'you\'ll be asked to Deactivate it instead — deactivating keeps all '
+              'past data intact and simply hides it from future use.',
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Remove', style: TextStyle(color: Colors.red, fontWeight: FontWeight.w700)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    try {
+      await _c.rpc('super_admin_manage_product', params: {
+        'p_action': 'delete', 'p_product_id': p['id'],
+      });
+      if (mounted) {
+        showSuccess(context, 'Product removed ✓');
+        _load();
+      }
+    } catch (e) {
+      final msg = e.toString().replaceAll('Exception: ', '');
+      if (mounted) {
+        if (msg.contains('Cannot delete')) {
+          // Historical data exists — guide the admin to Deactivate instead
+          // rather than just showing a raw blocked-delete error.
+          showError(context, '$msg\n\nUse the toggle switch to deactivate it instead.');
+        } else {
+          showError(context, msg);
+        }
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     // Group by category
@@ -168,6 +212,10 @@ class _S extends State<ProductsSaScreen> {
                     IconButton(
                         icon: const Icon(Icons.edit_outlined, size: 18, color: kPrimary),
                         onPressed: () => _showForm(existing: p)),
+                    IconButton(
+                        icon: const Icon(Icons.delete_outline, size: 18, color: Colors.redAccent),
+                        tooltip: 'Remove',
+                        onPressed: () => _remove(p)),
                     Switch(
                         value: p['is_active'] == true,
                         onChanged: (_) => _toggle(p),

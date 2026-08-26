@@ -102,8 +102,16 @@ Widget _sectionHeader(String text) => Padding(
             letterSpacing: 0.3)),
     const SizedBox(width: 8),
     Expanded(child: Container(height: 1, color: kBorderLight)),
-  ]),
-);
+  ]),);
+
+// Formats an unrecognized category string into a friendly label, e.g.
+// 'DUCK' -> 'Duck', 'Weaks' -> 'Weaks', 'egg' -> 'Egg'. Used as the
+// fallback for any category outside the known broiler/country/quail set.
+String _formatCategoryLabel(String cat) => cat
+    .split(RegExp(r'[_\s]+'))
+    .where((w) => w.isNotEmpty)
+    .map((w) => w[0].toUpperCase() + w.substring(1).toLowerCase())
+    .join(' ');
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TAB 1: ZONE RATES
@@ -1220,11 +1228,28 @@ class _ProductsTabState extends ConsumerState<_ProductsTab> {
     final grouped = <String, List<Map<String, dynamic>>>{};
     for (final p in _products)
       grouped.putIfAbsent(p['category'] as String? ?? 'other', () => []).add(p);
+    // FIX (missing products/categories audit): this used to only ever show
+    // 'broiler'/'country'/'quail' — any other category (e.g. Duck, Egg,
+    // Weaks) was silently unreachable here regardless of whether the
+    // trader had it enabled. Now shows every category actually present.
+    // Known categories keep their friendly emoji label and original
+    // preferred order; anything else falls back to a formatted version of
+    // the raw category string, sorted alphabetically after the known ones.
     final labels = {
       'broiler': '🐔 Broiler',
       'country': '🐓 Country Chicken',
       'quail': '🥚 Quail'
     };
+    const knownOrder = ['broiler', 'country', 'quail'];
+    final allCategories = grouped.keys.toList()
+      ..sort((a, b) {
+        final ai = knownOrder.indexOf(a.toLowerCase());
+        final bi = knownOrder.indexOf(b.toLowerCase());
+        if (ai != -1 && bi != -1) return ai.compareTo(bi);
+        if (ai != -1) return -1;
+        if (bi != -1) return 1;
+        return a.toLowerCase().compareTo(b.toLowerCase());
+      });
     return RefreshIndicator(
       onRefresh: _load,
       color: kNavy,
@@ -1247,9 +1272,9 @@ class _ProductsTabState extends ConsumerState<_ProductsTab> {
                           color: kNavy,
                           fontWeight: FontWeight.w500)))
             ])),
-        for (final cat in ['broiler', 'country', 'quail'])
+        for (final cat in allCategories)
           if ((grouped[cat] ?? []).isNotEmpty) ...[
-            _sectionHeader(labels[cat] ?? cat),
+            _sectionHeader(labels[cat.toLowerCase()] ?? _formatCategoryLabel(cat)),
             Container(
               decoration: BoxDecoration(
                   color: kSurface,
