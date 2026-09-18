@@ -354,15 +354,19 @@ class _LedgerCard extends StatelessWidget {
         child: Row(children: [
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(item['shop_name'] as String? ?? '—',
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
                 style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: kNavy)),
             if (item['owner_name'] != null) ...[
               const SizedBox(height: 2),
               Text(item['owner_name'] as String,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: const TextStyle(fontSize: 12, color: kTextSub)),
             ],
             const SizedBox(height: 6),
-            Row(children: [
-              if (isAtRisk) ...[_chip(riskLabel, riskColor), const SizedBox(width: 6)],
+            Wrap(spacing: 6, runSpacing: 4, crossAxisAlignment: WrapCrossAlignment.center, children: [
+              if (isAtRisk) _chip(riskLabel, riskColor),
               if (days != null)
                 Text('${days}d since payment',
                     style: TextStyle(
@@ -371,18 +375,26 @@ class _LedgerCard extends StatelessWidget {
                     )),
             ]),
           ])),
-          Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-            Text(Fmt.amount(amt),
-                style: TextStyle(
-                  fontSize: 18, fontWeight: FontWeight.w900,
-                  color: amt > 0 ? Colors.orange : Colors.green,
-                )),
-            if (limit > 0)
-              Text('Limit: ${Fmt.amount(limit)}',
-                  style: const TextStyle(fontSize: 11, color: kTextHint)),
-            const SizedBox(height: 4),
-            const Icon(Icons.chevron_right, color: kTextHint, size: 18),
-          ]),
+          const SizedBox(width: 8),
+          ConstrainedBox(
+            constraints: const BoxConstraints(minWidth: 90),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+              Text(Fmt.amount(amt),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 18, fontWeight: FontWeight.w900,
+                    color: amt > 0 ? Colors.orange : Colors.green,
+                  )),
+              if (limit > 0)
+                Text('Limit: ${Fmt.amount(limit)}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 11, color: kTextHint)),
+              const SizedBox(height: 4),
+              const Icon(Icons.chevron_right, color: kTextHint, size: 18),
+            ]),
+          ),
         ]),
       ),
     );

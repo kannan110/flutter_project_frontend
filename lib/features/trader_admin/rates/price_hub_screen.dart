@@ -210,7 +210,7 @@ class _ZoneRatesTabState extends ConsumerState<_ZoneRatesTab> {
                           // missed/wrong rates only, not for modifying
                           // completed business.
                           firstDate: DateTime.now()
-                              .subtract(const Duration(days: 7)),
+                              .subtract(const Duration(days: 20)),
                           lastDate:
                           DateTime.now().add(const Duration(days: 30)));
                       if (p != null) ss(() => selectedDate = p);

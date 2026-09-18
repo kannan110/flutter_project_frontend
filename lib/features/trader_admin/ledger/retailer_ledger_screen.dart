@@ -451,5 +451,4 @@ class _S extends ConsumerState<RetailerLedgerScreen> {
     mobile:  (_) => _buildScaffold(context),
     desktop: (_) => _buildScaffold(context),
   );
-
 }
