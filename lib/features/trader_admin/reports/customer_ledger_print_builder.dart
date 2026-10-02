@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -13,26 +14,30 @@ import 'report_pdf_generator.dart' show ReportPdfGenerator;
 // CustomerLedgerPrintBuilder
 //
 // The ONE reusable builder behind both Full Sheet and Half Sheet printing
-// for Customer Ledger. Only page size, margins, fonts, spacing, and
-// column widths differ between the two — driven entirely by the
-// [PrintSheetSize] parameter, both through the SAME _addLedgerPage /
-// pw.MultiPage code path (AUDIT FIX v2: no separate half-sheet builder,
-// no manual row-chunking or cut-line compositing — see the pageFormat
-// getter below for why). No ledger business logic lives here: row
-// flattening, multi-product grouping, and running-balance math all come
-// from CustomerLedgerTableData.from() (the exact same call every other
+// for Customer Ledger. No ledger business logic lives here: row flattening,
+// multi-product grouping, and running-balance math all come from
+// CustomerLedgerTableData.from() (the exact same call every other
 // Customer Ledger PDF path already uses), so this can never disagree with
 // the on-screen table or the existing Header/Table PDFs on the numbers.
 //
+// FULL SHEET  → one pw.MultiPage on A4 portrait (unchanged).
+//
+// HALF SHEET  → every PDF page is a real A4 PORTRAIT page that holds TWO
+//               stacked "halves". Each half is a complete mini-statement:
+//               company header + logo, BILL TO, table header, rows, footer.
+//               Half 1 sits in the top half of the sheet, half 2 in the
+//               bottom half, a faint dashed cut line marks the exact middle
+//               (148.5mm). If the ledger needs more than two halves, it
+//               continues on the NEXT A4 sheet (halves 3 and 4), and so on.
+//               The printer always receives ONE normal A4 portrait page per
+//               sheet — no dependency on N-up, rotation, or multi-page
+//               placement in the print dialog/driver.
+//
 // This is deliberately separate from ReportPdfGenerator's _table()/
-// _buildDataSetDoc for the TABLE specifically (TableHelper.fromTextArray
-// gives native multi-page header repeat that a hand-built pw.Table
-// doesn't) — but the COMPANY HEADER (logo/name/contact details/BILL TO/
-// CUSTOMER LEDGER block) now calls ReportPdfGenerator's public
+// _buildDataSetDoc — but the COMPANY HEADER (logo/name/contact details/
+// BILL TO/CUSTOMER LEDGER block) calls ReportPdfGenerator's public
 // richCompanyHeader/customerLedgerHeaderRight/billToBlock/fetchLogo
-// directly, rather than maintaining a second, divergence-prone copy of
-// that layout. Full Sheet and Half Sheet both go through this same
-// shared implementation, scaled by [PrintSheetSize].
+// directly, so Full Sheet, Half Sheet and the Table PDF can never diverge.
 //
 // Future Batch Print (All Customers): loop `build()` once per customer's
 // get_retailer_statement() result, same PrintSheetSize each time. The
@@ -47,66 +52,51 @@ enum PrintSheetSize { full, half }
 extension PrintSheetSizeX on PrintSheetSize {
   bool get isHalf => this == PrintSheetSize.half;
 
-  // AUDIT FIX v2 (Half Sheet: A5 → true half-of-A4, as its OWN PDF page —
-  // not two blocks composited onto one A4 canvas): a "half sheet" here is
-  // a genuine PDF page measuring 210mm × 148.5mm — exactly half of an A4
-  // sheet's 297mm height, in the SAME width/orientation as A4 (so the
-  // header/table layout that was tuned for A4's 210mm width keeps its
-  // proportions, unlike the old A5 — 148mm wide, 210mm tall — which was
-  // the same area but the wrong orientation).
-  //
-  // Earlier this session tried compositing two such halves onto one
-  // physical A4 canvas with a hand-drawn cut line, using manually
-  // estimated row-per-half capacity (pw.Page has no auto-pagination).
-  // That surfaced a real bug: on at least one physical printer/driver
-  // (HP LaserJet M1005 via a Chrome print dialog), the SECOND half —
-  // sitting right at the true bottom edge of the physical A4 sheet —
-  // failed to print, most likely due to printer hardware-margin/paper-
-  // size mismatch nibbling content that close to the real page edge.
-  //
-  // Per explicit instruction, each half is now its own separate PDF page
-  // at this half-height pageFormat, going through the exact same
-  // pw.MultiPage code path Full Sheet already uses (_addLedgerPage,
-  // completely unmodified). That means: (a) pagination across halves is
-  // pw.MultiPage's own native, well-tested overflow — no more hand-
-  // estimated capacity constants, no more risk of a row landing wrong;
-  // (b) nothing is ever positioned near a real physical A4 edge, since
-  // every page IS its own physical unit at this format, not a slice
-  // glued to the edge of a bigger one. To land two halves on one
-  // physical A4 sheet of paper, use the print dialog's own "Pages per
-  // sheet: 2" (a.k.a. N-up) option at print time — standard printer/
-  // driver functionality, not something this PDF needs to hand-build.
-  PdfPageFormat get pageFormat => isHalf
-      ? PdfPageFormat(210 * PdfPageFormat.mm, 148.5 * PdfPageFormat.mm)
-      : PdfPageFormat.a4;
+  // Both sizes are A4 portrait. (Half Sheet fits two halves inside it — see
+  // the _half* layout constants in CustomerLedgerPrintBuilder.)
+  PdfPageFormat get pageFormat => PdfPageFormat.a4;
 
-  pw.EdgeInsets get margin => isHalf
-      ? const pw.EdgeInsets.fromLTRB(14, 16, 14, 14)
-      : const pw.EdgeInsets.fromLTRB(24, 26, 24, 22);
+  // Used by Full Sheet's pw.MultiPage. Half Sheet positions its own halves
+  // explicitly and uses zero page margin (see _addHalfSheetPages).
+  pw.EdgeInsets get margin => const pw.EdgeInsets.fromLTRB(24, 26, 24, 22);
 
-  double get companyFontSize    => isHalf ? 10 : 14;
-  double get titleFontSize      => isHalf ? 8.5 : 11;
-  double get identityFontSize   => isHalf ? 7 : 9;
-  double get tableHeaderFontSize=> isHalf ? 6.5 : 8;
-  double get tableCellFontSize  => isHalf ? 6.5 : 9;
-  double get footerFontSize     => isHalf ? 5.5 : 7;
-  double get cellPaddingH       => isHalf ? 3 : 6;
-  double get cellPaddingV       => isHalf ? 2.5 : 5;
-  double get dividerThickness   => isHalf ? 0.75 : 1.2;
+  double get companyFontSize     => isHalf ? 12 : 14;
+  double get titleFontSize       => isHalf ? 9.5 : 11;
+  double get identityFontSize    => isHalf ? 8 : 9;
+  double get tableHeaderFontSize => isHalf ? 7.5 : 8;
+  double get tableCellFontSize   => isHalf ? 8 : 9;
+  double get footerFontSize      => isHalf ? 6.5 : 7;
+  double get cellPaddingH        => isHalf ? 3 : 6;
+  double get cellPaddingV        => isHalf ? 2.2 : 5;
+  double get dividerThickness    => isHalf ? 0.9 : 1.2;
 
-  // Same 9 columns on both sizes — only the relative weighting (and the
-  // font sizes above) change. Nothing here removes or reorders a column,
-  // so multi-product grouping and totals render identically either way.
-  Map<int, pw.TableColumnWidth> get columnWidths => {
-    0: const pw.FlexColumnWidth(0.9),  // Date
-    1: const pw.FlexColumnWidth(1.0),  // Ref No
-    2: const pw.FlexColumnWidth(0.8),  // Type
-    3: pw.FlexColumnWidth(isHalf ? 2.0 : 2.8), // Product / Description
-    4: const pw.FlexColumnWidth(0.7),  // Kg
-    5: const pw.FlexColumnWidth(0.7),  // Rate
-    6: const pw.FlexColumnWidth(1.0),  // Sale
-    7: const pw.FlexColumnWidth(1.0),  // Payment
-    8: pw.FlexColumnWidth(isHalf ? 1.0 : 1.1), // Balance
+  // Same 9 columns on both sizes — nothing is removed or reordered, so
+  // multi-product grouping and totals render identically either way.
+  // Half Sheet uses tighter text-driven widths (narrow Product column, wide
+  // Ref No / amount columns) so Ref No and the rupee amounts fit on ONE line
+  // — Half Sheet rows are fixed-height single-line rows.
+  Map<int, pw.TableColumnWidth> get columnWidths => isHalf
+      ? const {
+    0: pw.FlexColumnWidth(3.3),   // Date
+    1: pw.FlexColumnWidth(8.2),   // Ref No
+    2: pw.FlexColumnWidth(3.7),   // Type
+    3: pw.FlexColumnWidth(15.8),  // Product / Description
+    4: pw.FlexColumnWidth(3.6),   // Kg
+    5: pw.FlexColumnWidth(2.2),   // Rate
+    6: pw.FlexColumnWidth(6.2),   // Sale
+    7: pw.FlexColumnWidth(6.2),   // Payment
+    8: pw.FlexColumnWidth(6.4),   // Balance
+  }
+      : const {
+    0: pw.FlexColumnWidth(0.9),  // Date
+    1: pw.FlexColumnWidth(1.0),  // Ref No
+    2: pw.FlexColumnWidth(0.8),  // Type
+    3: pw.FlexColumnWidth(2.8),  // Product / Description
+    4: pw.FlexColumnWidth(0.7),  // Kg
+    5: pw.FlexColumnWidth(0.7),  // Rate
+    6: pw.FlexColumnWidth(1.0),  // Sale
+    7: pw.FlexColumnWidth(1.0),  // Payment
+    8: pw.FlexColumnWidth(1.1),  // Balance
   };
 }
 
@@ -202,6 +192,49 @@ class CustomerLedgerPrintBuilder {
   static const _subText = PdfColor.fromInt(0xFF6B6B6B);
   static const _border  = PdfColor.fromInt(0xFFDDDDDD);
 
+  // ── HALF SHEET layout constants (points; 1pt = 1/72 inch) ────────────────
+  // A4 = 595.28 × 841.89pt. The sheet is split into two equal slots whose
+  // vertical centre is the exact half line (420.945pt = 148.5mm).
+  //
+  //   y = 0 ─────────────────────────────────────────
+  //        _halfTopMargin (22)
+  //        SLOT 1  (height _halfSlotH = 372)
+  //        gap  ── dashed cut line at y = 420.945 ──
+  //        SLOT 2  (height _halfSlotH = 372)
+  //        _halfTopMargin (22)  ← also the bottom margin (≈7.8mm), kept
+  //                               well clear of the printer's unprintable
+  //                               edge so the lower half is never clipped
+  //   y = 841.89 ────────────────────────────────────
+  static const double _halfTopMargin = 22;
+  static const double _halfSlotH     = 372;
+  static const double _halfSideMargin = 24;
+  static const bool   _halfShowCutLine = true;
+
+  // Row capacity per half. Every Half Sheet table row (and the table
+  // header row) is EXACTLY _halfRowH tall — single line, text shrinks to fit
+  // its column instead of wrapping (see _halfTable) — and the header block
+  // heights are budgeted below, so the number of rows per half is exact. If
+  // you ever see the table touching the footer, raise _halfHeaderEst /
+  // _halfBillEst by a few points; if there is too much empty space above
+  // the footer, lower them.
+  static const double _halfRowH      = 15;   // every table row + table header row
+  static const double _halfHeaderEst = 82;   // company header block (scale 0.8)
+  static const double _halfBillEst   = 46;   // BILL TO block
+  static const double _halfBlockGap  = 5;    // gap between BILL TO and table
+  static const double _halfFooterH   = 12;   // footer line
+  static const double _halfSafety    = 8;    // spare points
+
+  static int get _halfRowsPerSlot {
+    final avail = _halfSlotH -
+        _halfHeaderEst -
+        _halfBillEst -
+        _halfBlockGap -
+        _halfRowH - // the table's own header row
+        _halfFooterH -
+        _halfSafety;
+    return math.max(1, (avail / _halfRowH).floor());
+  }
+
   /// Builds the Full Sheet / Half Sheet PDF document. [data] is the raw,
   /// unmodified get_retailer_statement() response — the exact same map
   /// the Header PDF and Table PDF already consume. Optional pre-loaded
@@ -222,13 +255,9 @@ class CustomerLedgerPrintBuilder {
     final doc = pw.Document(theme: pw.ThemeData.withFont(base: font, bold: bold));
 
     final header = (data['header'] as Map?)?.cast<String, dynamic>() ?? {};
-    // Company Logo — ROOT CAUSE FIX (Full Sheet logo-missing audit): now
-    // calls ReportPdfGenerator.fetchLogo (package:http, cross-platform
-    // including Web) instead of a local dart:io HttpClient copy, which
-    // silently failed on Web (dart:io doesn't exist there) — that's why
-    // the logo never appeared despite traders.logo_url being valid and
-    // the Profile screen showing it correctly (a different, working code
-    // path — Image.network — was never involved in PDF generation at all).
+    // Company Logo — uses ReportPdfGenerator.fetchLogo (package:http,
+    // cross-platform including Web) instead of a dart:io HttpClient copy,
+    // which silently failed on Web.
     final logo = await ReportPdfGenerator.fetchLogo(header['company_logo'] as String?);
 
     _addLedgerPage(
@@ -246,10 +275,10 @@ class CustomerLedgerPrintBuilder {
   }
 
   /// Batch build — ONE combined pw.Document with every retailer in [jobs]
-  /// starting on its own page (each retailer is its own pw.MultiPage, so a
+  /// starting on its own page (each retailer is its own set of pages, so a
   /// retailer whose ledger itself spans multiple pages keeps working
-  /// exactly as it does today — native TableHelper pagination per
-  /// retailer, "Page X of Y" local to that retailer's own pages).
+  /// exactly as it does today — "Page X of Y" local to that retailer's own
+  /// pages).
   ///
   /// Reuses the EXACT same [_addLedgerPage] the single-retailer build()
   /// above uses — same header/BILL TO/table/calculations, so a batch PDF
@@ -271,11 +300,11 @@ class CustomerLedgerPrintBuilder {
   /// — the row-flattening/balance step, and the most likely place a
   /// malformed retailer response would throw — runs eagerly inside
   /// _addLedgerPage, so a bad retailer is caught and isolated here. The
-  /// actual pw.MultiPage layout (its header/footer/build closures) is lazy
-  /// — the pdf package only invokes it during doc.save() — so a failure
-  /// arising purely from PDF layout itself (not the data) would surface
-  /// later, when the caller calls doc.save() to print/save. That case is
-  /// still handled safely, just one level up: printPreparedDocument /
+  /// actual page layout (header/footer/build closures) is lazy — the pdf
+  /// package only invokes it during doc.save() — so a failure arising
+  /// purely from PDF layout itself (not the data) would surface later,
+  /// when the caller calls doc.save() to print/save. That case is still
+  /// handled safely, just one level up: printPreparedDocument /
   /// savePreparedDocument's caller wraps that call in try/catch too, so
   /// the trader gets a clear error rather than a silent or partial file —
   /// it just means nothing is produced that time, rather than isolating
@@ -425,11 +454,11 @@ class CustomerLedgerPrintBuilder {
     return '${name}_CustomerLedger_${DateFormat('yyyyMMdd').format(date)}.pdf';
   }
 
-  /// Appends ONE retailer's ledger to [doc] as its own pw.MultiPage — the
-  /// exact page-construction logic build() has always used, extracted
-  /// unchanged so the single-retailer path and the batch path share one
-  /// implementation and can never drift apart on layout, numbers, or
-  /// styling. Not exposed outside this class.
+  /// Appends ONE retailer's ledger to [doc]. Full Sheet → one pw.MultiPage
+  /// (unchanged). Half Sheet → A4 portrait pages with two stacked halves
+  /// each (see _addHalfSheetPages). Single-retailer and batch paths share
+  /// this one implementation so they can never drift apart on layout,
+  /// numbers, or styling. Not exposed outside this class.
   static void _addLedgerPage(
       pw.Document doc, {
         required Map<String, dynamic> data,
@@ -449,58 +478,256 @@ class CustomerLedgerPrintBuilder {
     final customerName = header['retailer_name'] as String? ?? 'Customer';
     final openingLabel = Fmt.amount(opening);
     final bw = style == ReportPrintStyle.blackAndWhite;
-    // Scale factor for the shared header widgets on Half Sheet's smaller
-    // page — reuses size.identityFontSize's existing ratio (7/9) as the
-    // scale.
-    final headerScale = size.isHalf ? 0.75 : 1.0;
+    // Scale factor for the shared header widgets on Half Sheet, where each
+    // half only has ~131mm of height.
+    final headerScale = size.isHalf ? 0.8 : 1.0;
 
+    // Shared builders so Full and Half produce the identical header/BILL TO
+    // content — only the scale differs.
+    pw.Widget companyHeader() => ReportPdfGenerator.richCompanyHeader(
+      companyName: companyName,
+      phone: header['company_phone'] as String?,
+      address: [header['company_address'], header['company_city']]
+          .where((s) => s != null && (s as String).isNotEmpty).join(', '),
+      email: header['company_email'] as String?,
+      gstNumber: header['company_gst'] as String?,
+      logo: logo,
+      bw: bw,
+      scale: headerScale,
+      right: ReportPdfGenerator.customerLedgerHeaderRight(
+        customerName: customerName,
+        from: fromDate, to: toDate,
+        openingLabel: openingLabel,
+        bw: bw,
+        scale: headerScale,
+      ),
+    );
+
+    // BILL TO — same shared block the Table PDF uses. Any field genuinely
+    // absent for this customer is simply omitted, not shown blank.
+    pw.Widget billTo() => ReportPdfGenerator.billToBlock(
+      customerName: header['retailer_name'] as String? ?? customerName,
+      contactPerson: header['retailer_owner'] as String?,
+      mobile: header['retailer_phone'] as String?,
+      areaOrAddress: (header['retailer_address'] as String?)?.isNotEmpty == true
+          ? header['retailer_address'] as String?
+          : header['retailer_area'] as String?,
+      bw: bw,
+      scale: headerScale,
+    );
+
+    if (size.isHalf) {
+      _addHalfSheetPages(
+        doc,
+        headers: t.headers,
+        rows: t.rows,
+        totals: t.totals,
+        size: size,
+        bw: bw,
+        companyHeader: companyHeader,
+        billTo: billTo,
+      );
+      return;
+    }
+
+    // ── FULL SHEET (unchanged flow) ────────────────────────────────────────
     doc.addPage(pw.MultiPage(
       pageFormat: size.pageFormat,
       margin: size.margin,
       // Repeats on every page — this is what makes the customer header
       // survive a page break, unlike the existing Table PDF's identity
       // block (which lives in page content, not this header slot).
-      header: (_) => ReportPdfGenerator.richCompanyHeader(
-        companyName: companyName,
-        phone: header['company_phone'] as String?,
-        address: [header['company_address'], header['company_city']]
-            .where((s) => s != null && (s as String).isNotEmpty).join(', '),
-        email: header['company_email'] as String?,
-        gstNumber: header['company_gst'] as String?,
-        logo: logo,
-        bw: bw,
-        scale: headerScale,
-        right: ReportPdfGenerator.customerLedgerHeaderRight(
-          customerName: customerName,
-          from: fromDate, to: toDate,
-          openingLabel: openingLabel,
-          bw: bw,
-          scale: headerScale,
-        ),
-      ),
+      header: (_) => companyHeader(),
       // ctx.pageNumber / ctx.pagesCount — native to pw.MultiPage, no
       // manual page counting. Local to THIS retailer's pages only, which
       // is what we want in a batch PDF too (each retailer reads as its
       // own self-contained ledger, "Page 1 of 2" not "Page 47 of 300").
       footer: (ctx) => _printFooter(ctx, size, bw: bw),
       build: (_) => [
-        // BILL TO — same shared block the Table PDF uses, scaled for
-        // Half Sheet. Any field genuinely absent for this customer is
-        // simply omitted, not shown blank.
-        ReportPdfGenerator.billToBlock(
-          customerName: header['retailer_name'] as String? ?? customerName,
-          contactPerson: header['retailer_owner'] as String?,
-          mobile: header['retailer_phone'] as String?,
-          areaOrAddress: (header['retailer_address'] as String?)?.isNotEmpty == true
-              ? header['retailer_address'] as String?
-              : header['retailer_area'] as String?,
-          bw: bw,
-          scale: headerScale,
-        ),
-        pw.SizedBox(height: size.isHalf ? 5 : 8),
+        billTo(),
+        pw.SizedBox(height: 8),
         _printTable(t.headers, t.rows, t.totals, size, bw: bw),
       ],
     ));
+  }
+
+  /// HALF SHEET: splits the ledger rows into "halves" of fixed row capacity,
+  /// then places two halves on each A4 portrait page — top half and bottom
+  /// half — with a dashed cut line at exactly 148.5mm. Every half repeats
+  /// the company header, BILL TO and the table header row, and carries its
+  /// own "Page X of Y" footer. When the ledger needs more than two halves,
+  /// the rest continues on the next A4 sheet.
+  static void _addHalfSheetPages(
+      pw.Document doc, {
+        required List<String> headers,
+        required List<List<String>> rows,
+        required List<String> totals,
+        required PrintSheetSize size,
+        required bool bw,
+        required pw.Widget Function() companyHeader,
+        required pw.Widget Function() billTo,
+      }) {
+    // Opening / data rows + the Total/Closing row, chunked by capacity.
+    final all = <List<String>>[...rows, totals];
+    final cap = _halfRowsPerSlot;
+    final chunks = <List<List<String>>>[];
+    for (var i = 0; i < all.length; i += cap) {
+      chunks.add(all.sublist(i, math.min(i + cap, all.length)));
+    }
+    // Never leave the Total/Closing row alone in its own half: pull the last
+    // data row of the previous half down with it.
+    if (chunks.length > 1 &&
+        chunks.last.length == 1 &&
+        chunks[chunks.length - 2].length > 1) {
+      final prev = chunks[chunks.length - 2];
+      chunks.last.insert(0, prev.removeLast());
+    }
+    final totalHalves = chunks.length;
+
+    // One complete half (header block → table → spacer → footer pinned to
+    // the bottom of the half). Fresh widget instances every call.
+    pw.Widget half(int idx) => pw.SizedBox(
+      height: _halfSlotH,
+      child: pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+        children: [
+          companyHeader(),
+          billTo(),
+          pw.SizedBox(height: _halfBlockGap),
+          _halfTable(headers, chunks[idx], size, bw: bw),
+          pw.Spacer(),
+          _printFooterText(idx + 1, totalHalves, size, bw: bw),
+        ],
+      ),
+    );
+
+    // Space between the two halves; the cut line sits in the exact middle,
+    // i.e. at y = A4 height / 2 = 420.945pt = 148.5mm.
+    final gap = PdfPageFormat.a4.height - 2 * _halfTopMargin - 2 * _halfSlotH;
+    pw.Widget cutGap() => pw.SizedBox(
+      height: gap,
+      child: _halfShowCutLine
+          ? pw.Column(children: [
+        pw.SizedBox(height: gap / 2 - 0.25),
+        pw.Container(
+          height: 0.5,
+          decoration: pw.BoxDecoration(
+            border: pw.Border(
+              top: pw.BorderSide(
+                color: bw ? PdfColors.black : PdfColors.grey500,
+                width: 0.5,
+                style: pw.BorderStyle.dashed,
+              ),
+            ),
+          ),
+        ),
+      ])
+          : pw.SizedBox(height: gap),
+    );
+
+    for (var i = 0; i < totalHalves; i += 2) {
+      final hasSecond = i + 1 < totalHalves;
+      doc.addPage(pw.Page(
+        pageFormat: size.pageFormat, // A4 portrait
+        margin: pw.EdgeInsets.zero,
+        build: (_) => pw.Padding(
+          padding: const pw.EdgeInsets.fromLTRB(
+              _halfSideMargin, _halfTopMargin, _halfSideMargin, 0),
+          child: pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+            mainAxisAlignment: pw.MainAxisAlignment.start,
+            children: [
+              half(i),
+              cutGap(),
+              hasSecond ? half(i + 1) : pw.SizedBox(height: _halfSlotH),
+            ],
+          ),
+        ),
+      ));
+    }
+  }
+
+  // HALF SHEET table. Built by hand (instead of TableHelper.fromTextArray) so
+  // every row is EXACTLY _halfRowH tall: each cell is one line that shrinks
+  // to fit its column (FittedBox.scaleDown) instead of wrapping onto a second
+  // line. That makes rows-per-half exact, so a half can never overflow its
+  // slot — a table taller than its slot is dropped by the pdf package, which
+  // is what made the table and footer vanish in the earlier version (cells
+  // like Ref No and the rupee amounts were wrapping to two lines).
+  static pw.Widget _halfTable(
+      List<String> headers,
+      List<List<String>> data,
+      PrintSheetSize size,
+      {bool bw = false}
+      ) {
+    const aligns = <pw.Alignment>[
+      pw.Alignment.centerLeft,
+      pw.Alignment.centerLeft,
+      pw.Alignment.centerLeft,
+      pw.Alignment.centerLeft,
+      pw.Alignment.centerRight,
+      pw.Alignment.centerRight,
+      pw.Alignment.centerRight,
+      pw.Alignment.centerRight,
+      pw.Alignment.centerRight,
+    ];
+    final headStyle = pw.TextStyle(
+        fontSize: size.tableHeaderFontSize, fontWeight: pw.FontWeight.bold,
+        color: bw ? PdfColors.black : PdfColors.white);
+    final cellStyle = pw.TextStyle(
+        fontSize: size.tableCellFontSize, color: bw ? PdfColors.black : _dark);
+
+    pw.Widget cell(String text, int col, pw.TextStyle style) {
+      // Empty cells (blank Payment, blank Ref No on summary rows, ...) must
+      // NOT go through FittedBox: a zero-width child trips the pdf package's
+      // `width > 0.0` assertion (geometry.dart) and the whole page fails to
+      // build. A plain fixed-height box keeps the row height identical.
+      if (text.trim().isEmpty) return pw.SizedBox(height: _halfRowH);
+      return pw.Container(
+        height: _halfRowH,
+        alignment: aligns[col],
+        padding: pw.EdgeInsets.symmetric(horizontal: size.cellPaddingH),
+        child: pw.FittedBox(
+          fit: pw.BoxFit.scaleDown,
+          child: pw.Text(text, style: style),
+        ),
+      );
+    }
+
+    pw.TableRow row(List<String> r, pw.TextStyle style, {pw.BoxDecoration? decoration}) =>
+        pw.TableRow(
+          decoration: decoration,
+          children: [
+            for (var c = 0; c < aligns.length; c++)
+              cell(c < r.length ? r[c] : '', c, style),
+          ],
+        );
+
+    return pw.Table(
+      border: bw
+          ? pw.TableBorder(
+        top: const pw.BorderSide(color: PdfColors.black, width: 1.0),
+        bottom: const pw.BorderSide(color: PdfColors.black, width: 1.0),
+        left: const pw.BorderSide(color: PdfColors.black, width: 1.0),
+        right: const pw.BorderSide(color: PdfColors.black, width: 1.0),
+        horizontalInside: const pw.BorderSide(color: PdfColors.black, width: 0.4),
+        verticalInside: const pw.BorderSide(color: PdfColors.black, width: 0.4),
+      )
+          : pw.TableBorder.all(color: _border, width: 0.4),
+      columnWidths: size.columnWidths,
+      children: [
+        row(
+          headers,
+          headStyle,
+          decoration: bw
+              ? const pw.BoxDecoration(
+              color: PdfColors.white,
+              border: pw.Border(bottom: pw.BorderSide(color: PdfColors.black, width: 1.0)))
+              : const pw.BoxDecoration(color: _primary),
+        ),
+        for (final r in data) row(r, cellStyle),
+      ],
+    );
   }
 
   /// Opens the native print/save preview sheet.
@@ -525,18 +752,16 @@ class CustomerLedgerPrintBuilder {
     await Printing.layoutPdf(
       onLayout: (fmt) async => doc.save(),
       name: 'Ledger_${name}_${sheetLabel}_${DateFormat('yyyyMMdd').format(fromDate)}.pdf',
-      // FIX (verified against printing 5.14.3's actual signature, which
-      // this project has pinned via pubspec.lock): layoutPdf's `format`
-      // parameter defaults to PdfPageFormat.standard, completely separate
-      // from the pageFormat already baked into `doc` above. Without this,
-      // the print dialog assumes "standard" paper while the real document
-      // is A5/A4/half-A4, which is what produced the blank-space/wrong-
-      // size symptom. dynamicLayout: false stops the OS dialog's own
+      // layoutPdf's `format` parameter defaults to PdfPageFormat.standard,
+      // completely separate from the pageFormat baked into `doc` above.
+      // Without this, the print dialog assumes "standard" paper while the
+      // real document is A4, which produces blank-space/wrong-size
+      // symptoms. dynamicLayout: false stops the OS dialog's own
       // paper-size picker from re-requesting a different format than the
-      // one this builder deliberately generated. Half Sheet's PDF pages
-      // are genuinely half-height (210×148.5mm — see PrintSheetSizeX.
-      // pageFormat), not A4 with content composited onto it, so this
-      // format hint is exactly what gets printed, page for page.
+      // one this builder deliberately generated. Both Full Sheet and Half
+      // Sheet are A4 portrait — Half Sheet already has its two halves laid
+      // out INSIDE each A4 page, so this is exactly what gets printed,
+      // sheet for sheet.
       format: size.pageFormat,
       dynamicLayout: false,
     );
@@ -613,39 +838,36 @@ class CustomerLedgerPrintBuilder {
     await Printing.sharePdf(bytes: bytes, filename: filename);
   }
 
-  // ── Old duplicate header removed (Full Sheet header-consolidation audit)
-  //    — company header + BILL TO now come from ReportPdfGenerator's
-  //    shared richCompanyHeader/customerLedgerHeaderRight/billToBlock,
-  //    called directly from build() above, so Full Sheet, Half Sheet, and
-  //    the Table PDF can never diverge again.
-
   // ── Footer — "Page X of Y" on every page, via native MultiPage context ──
-  static pw.Widget _printFooter(pw.Context ctx, PrintSheetSize size, {bool bw = false}) => pw.Row(
+  // (Full Sheet.)
+  static pw.Widget _printFooter(pw.Context ctx, PrintSheetSize size, {bool bw = false}) =>
+      _printFooterText(ctx.pageNumber, ctx.pagesCount, size, bw: bw);
+
+  // Footer with explicit numbers (used directly by Half Sheet, where each
+  // half is its own "page" of the statement, exactly like Page 1 of 2 /
+  // Page 2 of 2 in a normal printed statement).
+  static pw.Widget _printFooterText(int page, int total, PrintSheetSize size, {bool bw = false}) => pw.Row(
     mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
     children: [
       pw.Text('RoosterHub Trader OS',
           style: pw.TextStyle(fontSize: size.footerFontSize, color: bw ? PdfColors.black : _subText)),
-      pw.Text('Page ${ctx.pageNumber} of ${ctx.pagesCount}',
+      pw.Text('Page $page of $total',
           style: pw.TextStyle(fontSize: size.footerFontSize, color: bw ? PdfColors.black : _subText)),
     ],
   );
 
-  // ── Ledger table — TableHelper.fromTextArray, which (unlike the shared
-  //    _table() used by the existing Header/Table PDFs) natively repeats
-  //    its header row across page breaks. Native pagination only — no row
-  //    counting, no manual page splitting; rows 9-10 of an 8-per-page
-  //    ledger simply flow onto page 2 on their own.
+  // ── Ledger table — TableHelper.fromTextArray. Full Sheet relies on its
+  //    native header-repeat across MultiPage breaks; Half Sheet passes one
+  //    pre-chunked set of rows per half (header row drawn in every half).
   //
   //    Note (Print Style audit): fromTextArray's cellStyle/headerStyle are
   //    static per-call values, not per-row callbacks, so unlike the shared
   //    _table() in report_pdf_generator.dart, this builder cannot bold or
   //    thick-border individual Opening/Summary/Closing rows without a
-  //    larger rewrite to a manually-built pw.Table (which would also need
-  //    to reimplement this builder's native multi-page header repeat by
-  //    hand). Scoped out of this pass — flagged, not silently skipped.
-  //    Right-alignment of numeric columns and header-repeat-per-page are
-  //    already native here via cellAlignments/fromTextArray respectively,
-  //    for both Color and Black & White.
+  //    larger rewrite to a manually-built pw.Table. Scoped out of this
+  //    pass — flagged, not silently skipped. Right-alignment of numeric
+  //    columns is native here via cellAlignments for both Color and
+  //    Black & White.
   static pw.Widget _printTable(
       List<String> headers,
       List<List<String>> rows,
@@ -654,10 +876,10 @@ class CustomerLedgerPrintBuilder {
       {bool bw = false}
       ) => _printTableData(headers, [...rows, totals], size, bw: bw);
 
-  // Styling body factored out from _printTable above so both Full Sheet
-  // and Half Sheet (identical call shape, different [size]) share one
+  // Styling body factored out so Full Sheet and Half Sheet share one
   // TableHelper.fromTextArray configuration — no divergence risk between
-  // the two print sizes' table styling.
+  // the two print sizes' table styling. (Half Sheet's halves use
+  // _halfTable below, which needs fixed-height single-line rows.)
   static pw.Widget _printTableData(
       List<String> headers,
       List<List<String>> data,
