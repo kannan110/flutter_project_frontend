@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/models/dashboard_models.dart';
 import '../../../core/providers/session_provider.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../shared/layouts/responsive_layout.dart';
 
 /// Full reconciliation drill-down opened when trader taps the Live Stock card.
 /// Shows: Opening → DC → Transfers → Returns → Mortality → Current Balance
@@ -71,7 +72,7 @@ class _S extends ConsumerState<StockDetailScreen> {
       final r1 = await _c
           .from('stock_ledger')
           .select('id,entry_date,movement_type,quantity_birds,quantity_kg,'
-          'notes,agent_id,delivery_agents(name),master_products(name)')
+          'notes,agent_id,reference_type,delivery_agents(name),master_products(name)')
           .eq('trader_id', tid)
           .order('created_at', ascending: false)
           .limit(100)
@@ -138,8 +139,8 @@ class _S extends ConsumerState<StockDetailScreen> {
   int    get _liveBalanceBirds => _positions.isNotEmpty ? _positions.first.availableBirds : 0;
   double get _liveBalanceKg    => _positions.isNotEmpty ? _positions.first.availableKg    : 0;
 
-  @override
-  Widget build(BuildContext context) => Scaffold(
+
+  Widget _buildScaffold(BuildContext context) => Scaffold(
       backgroundColor: kBgGrey,
       appBar: AppBar(
           backgroundColor: Colors.white,
@@ -519,15 +520,28 @@ class _S extends ConsumerState<StockDetailScreen> {
     };
 
     Widget movRow(Map<String,dynamic> row) {
-      final mt    = row['movement_type'] as String? ?? '';
-      final birds = (row['quantity_birds'] as num?)?.toInt()    ?? 0;
-      final kg    = (row['quantity_kg']    as num?)?.toDouble() ?? 0;
-      final date  = DateTime.tryParse(row['entry_date'] as String? ?? '');
-      final agent = (row['delivery_agents'] as Map?)?['name'] as String?;
-      final notes = row['notes'] as String?;
-      final isIn  = inTypes.contains(mt);
-      final c     = typeColor(mt);
-      final sub   = agent ?? (notes?.isNotEmpty == true ? notes! : null);
+      final mt      = row['movement_type'] as String? ?? '';
+      final birds   = (row['quantity_birds'] as num?)?.toInt()    ?? 0;
+      final kg      = (row['quantity_kg']    as num?)?.toDouble() ?? 0;
+      final date    = DateTime.tryParse(row['entry_date'] as String? ?? '');
+      final agent   = (row['delivery_agents'] as Map?)?['name'] as String?;
+      final notes   = row['notes'] as String?;
+      final refType = row['reference_type'] as String?;
+      final isIn    = inTypes.contains(mt);
+      final c       = typeColor(mt);
+
+      // UI-only: transferred_in/out rows can come from either an agent-
+      // initiated transfer (reference_type='bird_transfer') or a trader-
+      // initiated delivery reassignment (reference_type='reassignment').
+      // Both intentionally write identical movement_type/quantities to
+      // stock_ledger (so every total elsewhere in the app stays correct) —
+      // this only makes the underlying cause visible here in the audit row.
+      final isTransferType = mt == 'transferred_in' || mt == 'transferred_out';
+      final kindLabel = isTransferType
+          ? (refType == 'reassignment' ? 'Reassignment' : 'Transfer')
+          : null;
+      final kindColor = kindLabel == 'Reassignment' ? Colors.deepOrange : c;
+      final sub = agent ?? (notes?.isNotEmpty == true ? notes! : null);
 
       // Colored left-accent card using ClipRRect + Row pattern
       // (Flutter forbids borderRadius with non-uniform border colors)
@@ -553,7 +567,24 @@ class _S extends ConsumerState<StockDetailScreen> {
                         children: [
                           Text(typeLabel(mt),
                               style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: c)),
-                          if (sub != null) ...[
+                          if (isTransferType) ...[
+                            const SizedBox(height: 3),
+                            Text(kindLabel!,
+                                style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800,
+                                    color: kindColor, letterSpacing: 0.4)),
+                            if (agent != null) ...[
+                              const SizedBox(height: 2),
+                              Text('Agent: $agent',
+                                  maxLines: 1, overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(fontSize: 10, color: kTextHint)),
+                            ],
+                            if (notes != null && notes.isNotEmpty) ...[
+                              const SizedBox(height: 2),
+                              Text(notes,
+                                  maxLines: 2, overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(fontSize: 10, color: kTextHint)),
+                            ],
+                          ] else if (sub != null) ...[
                             const SizedBox(height: 2),
                             Text(sub,
                                 maxLines: 1, overflow: TextOverflow.ellipsis,
@@ -609,6 +640,12 @@ class _S extends ConsumerState<StockDetailScreen> {
       ],
     ]);
   }
+
+  @override
+  Widget build(BuildContext context) => ResponsiveLayout(
+    mobile:  (_) => _buildScaffold(context),
+    desktop: (_) => _buildScaffold(context),
+  );
 }
 
 // ── Data class for stock flow rows ───────────────────────────────────────────

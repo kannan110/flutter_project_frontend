@@ -15,7 +15,10 @@ dependencies:
   intl: ^0.19.0
   image_picker: ^1.1.2
   flutter_blue_plus: ^1.32.12        # Keep for future BLE features
-  flutter_bluetooth_serial: ^0.4.0   # Bluetooth Classic for weighing scale (SPP)
+
+  flutter_bluetooth_serial:
+    path: local_packages/flutter_bluetooth_serial   # Bluetooth Classic for weighing scale (SPP)
+
   sqflite: ^2.3.0                    # Local SQLite - offline crash-safe storage
   path: ^1.9.0                       # Path utils for sqflite
   path_provider: ^2.1.2              # App/downloads directory

@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/providers/session_provider.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../shared/layouts/responsive_layout.dart';
 
 class DailyReportScreen extends ConsumerStatefulWidget {
   const DailyReportScreen({super.key});
@@ -141,6 +142,16 @@ class _S extends ConsumerState<DailyReportScreen> {
     return map.values.toList()..sort((a, b) => (b['total_loss'] as double).compareTo(a['total_loss'] as double));
   }
 
+  // ★ FIXED: daily_report_summary never returns a 'net_profit' key (only
+  // gross_revenue/returns_amount/net_revenue/farm_cost/total_expenses) — the
+  // three read sites below were always pulling null → showing ₹0. Computed
+  // here per this screen's own stated formula: Gross Revenue − Farm Cost −
+  // Delivery Expenses.
+  double _netProfit(Map<String,dynamic> d) =>
+      ((d['gross_revenue'] as num?)?.toDouble() ?? 0)
+          - ((d['farm_cost'] as num?)?.toDouble() ?? 0)
+          - ((d['total_expenses'] as num?)?.toDouble() ?? 0);
+
   String _buildShareText() {
     if (_d == null) return '';
     final d = _d!;
@@ -151,7 +162,7 @@ class _S extends ConsumerState<DailyReportScreen> {
     buf.writeln('Cash Collected: ₹${(d['cash_collected'] as num?)?.toStringAsFixed(0) ?? 0}');
     buf.writeln('Farm Cost:      ₹${(d['farm_cost'] as num?)?.toStringAsFixed(0) ?? 0}');
     buf.writeln('Expenses:       ₹${(d['total_expenses'] as num?)?.toStringAsFixed(0) ?? 0}');
-    buf.writeln('Net Profit:     ₹${(d['net_profit'] as num?)?.toStringAsFixed(0) ?? 0}\n');
+    buf.writeln('Net Profit:     ₹${_netProfit(d).toStringAsFixed(0)}\n');
     buf.writeln('📦 *STOCK*');
     buf.writeln('Purchased: ${d['birds_purchased'] ?? 0} birds · ${(d['kg_purchased'] as num?)?.toStringAsFixed(0) ?? 0} kg');
     buf.writeln('Delivered: ${d['birds_delivered'] ?? 0} birds · ${(d['kg_delivered'] as num?)?.toStringAsFixed(0) ?? 0} kg');
@@ -184,8 +195,7 @@ class _S extends ConsumerState<DailyReportScreen> {
     return buf.toString();
   }
 
-  @override
-  Widget build(BuildContext context) => Scaffold(
+  Widget _buildScaffold(BuildContext context) => Scaffold(
     backgroundColor: kBgPage,
     appBar: AppBar(
       backgroundColor: kSurface,
@@ -250,7 +260,7 @@ class _S extends ConsumerState<DailyReportScreen> {
   Widget _buildSummary() {
     final d = _d!;
     final distanceData = _deliveries.fold(0.0, (s, _) => s);
-    return ListView(padding: const EdgeInsets.all(16), children: [
+    return ListView(padding: const EdgeInsets.fromLTRB(16, 16, 16, kBottomNavClearance), children: [
       // Header
       Container(padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
@@ -285,8 +295,8 @@ class _S extends ConsumerState<DailyReportScreen> {
             Fmt.amount((d['total_expenses']  as num?)?.toDouble() ?? 0), Colors.red),
         const Divider(height: 14),
         _rowInfo('Net Profit', 'Gross Revenue − Farm Cost − Delivery Expenses',
-            Fmt.amount((d['net_profit']      as num?)?.toDouble() ?? 0),
-            ((d['net_profit'] as num?)?.toDouble() ?? 0) >= 0 ? kPrimary : Colors.red),
+            Fmt.amount(_netProfit(d)),
+            _netProfit(d) >= 0 ? kPrimary : Colors.red),
         _rowInfo('Total Outstanding', 'All unpaid retailer balances (ledger)',
             Fmt.amount((d['total_outstanding'] as num?)?.toDouble() ?? 0), Colors.orange),
       ])),
@@ -324,7 +334,7 @@ class _S extends ConsumerState<DailyReportScreen> {
       return const EmptyState(icon: Icons.local_shipping_outlined, message: 'No deliveries today');
     }
     return ListView.separated(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, kBottomNavClearance),
         itemCount: _deliveries.length,
         separatorBuilder: (_, __) => const SizedBox(height: 8),
         itemBuilder: (_, i) {
@@ -383,7 +393,7 @@ class _S extends ConsumerState<DailyReportScreen> {
     final highLoss     = _deliveries.where((d) => d['is_high_loss'] == true).toList();
     final lossPct      = totalDc > 0 ? (totalLoss / totalDc * 100) : 0;
 
-    return ListView(padding: const EdgeInsets.all(16), children: [
+    return ListView(padding: const EdgeInsets.fromLTRB(16, 16, 16, kBottomNavClearance), children: [
       Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
@@ -444,7 +454,7 @@ class _S extends ConsumerState<DailyReportScreen> {
     if (_agents.isEmpty) {
       return const EmptyState(icon: Icons.delivery_dining_outlined, message: 'No agent data today');
     }
-    return ListView(padding: const EdgeInsets.all(16), children: [
+    return ListView(padding: const EdgeInsets.fromLTRB(16, 16, 16, kBottomNavClearance), children: [
       const SectionHeader('AGENT PERFORMANCE TODAY'),
       ..._agents.map((a) {
         final dcWt    = (a['dc_weight'] as double);
@@ -514,4 +524,10 @@ class _S extends ConsumerState<DailyReportScreen> {
     Text(v, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: c)),
     Text(l, style: const TextStyle(fontSize: 10, color: kTextHint)),
   ]));
+  @override
+  Widget build(BuildContext context) => ResponsiveLayout(
+    mobile:  (_) => _buildScaffold(context),
+    desktop: (_) => _buildScaffold(context),
+  );
+
 }

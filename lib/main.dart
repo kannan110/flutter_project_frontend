@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:rooster_trader/shared/widgets/common/horizontalscroll_wheel.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'core/config/supabase_config.dart';
 import 'core/router/app_router.dart';
@@ -46,6 +47,7 @@ class RoosterTraderApp extends ConsumerWidget {
     title:                    'Rooster Commerce OS',
     debugShowCheckedModeBanner: false,
     theme:                    AppTheme.light,
+    scrollBehavior:           const AppScrollBehavior(),
     routerConfig:             ref.watch(appRouterProvider),
   );
 }

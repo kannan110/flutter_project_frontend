@@ -122,6 +122,12 @@ class TraderNavigation {
               badge:      pendingApprovals > 0 ? pendingApprovals : null,
             ),
             NavItem(
+              label:      'Inventory Dashboard',
+              icon:       Icons.warehouse_outlined,
+              activeIcon: Icons.warehouse_rounded,
+              route:      R.inventoryDashboard,
+            ),
+            NavItem(
               label:      'Stock',
               icon:       Icons.inventory_2_outlined,
               activeIcon: Icons.inventory_2_rounded,
@@ -153,12 +159,6 @@ class TraderNavigation {
               route:      R.invoices,
             ),
             NavItem(
-              label:      'Rates',
-              icon:       Icons.price_change_outlined,
-              activeIcon: Icons.price_change_rounded,
-              route:      R.rates,
-            ),
-            NavItem(
               label:      'Reconciliation',
               icon:       Icons.balance_outlined,
               activeIcon: Icons.balance_rounded,
@@ -169,6 +169,18 @@ class TraderNavigation {
               icon:       Icons.today_outlined,
               activeIcon: Icons.today_rounded,
               route:      R.dayClosure,
+            ),
+            NavItem(
+              label:      'P&L',
+              icon:       Icons.trending_up_outlined,
+              activeIcon: Icons.trending_up_rounded,
+              route:      R.pnlStatement,
+            ),
+            NavItem(
+              label:      'Cash Flow',
+              icon:       Icons.water_drop_outlined,
+              activeIcon: Icons.water_drop_rounded,
+              route:      R.cashFlowStatement,
             ),
           ],
         ),
@@ -215,6 +227,18 @@ class TraderNavigation {
               route:      R.shifts,
             ),
             NavItem(
+              label:      'Pricing',
+              icon:       Icons.local_offer_outlined,
+              activeIcon: Icons.local_offer_rounded,
+              route:      R.pricingHub,
+            ),
+            NavItem(
+              label:      'Rate History',
+              icon:       Icons.history_outlined,
+              activeIcon: Icons.history_rounded,
+              route:      R.zoneRateHistory,
+            ),
+            NavItem(
               label:      'Pricing Rules',
               icon:       Icons.rule_outlined,
               activeIcon: Icons.rule_rounded,
@@ -237,7 +261,7 @@ class TraderNavigation {
               label:      'Reports',
               icon:       Icons.summarize_outlined,
               activeIcon: Icons.summarize_rounded,
-              route:      R.reportsHub,
+              route:      R.reportsHome,
             ),
             NavItem(
               label:      'Alerts',
@@ -303,6 +327,12 @@ class TraderNavigation {
           badge:      pendingApprovals > 0 ? pendingApprovals : null,
         ),
         NavItem(
+          label:      'Inventory Dashboard',
+          icon:       Icons.warehouse_outlined,
+          activeIcon: Icons.warehouse_rounded,
+          route:      R.inventoryDashboard,
+        ),
+        NavItem(
           label:      'Stock',
           icon:       Icons.inventory_2_outlined,
           activeIcon: Icons.inventory_2_rounded,
@@ -330,7 +360,7 @@ class TraderNavigation {
           label:      'Reports',
           icon:       Icons.summarize_outlined,
           activeIcon: Icons.summarize_rounded,
-          route:      R.reportsHub,
+          route:      R.reportsHome,
         ),
         NavItem(
           label:      'Alerts',

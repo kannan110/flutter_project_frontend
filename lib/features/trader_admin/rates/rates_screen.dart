@@ -207,7 +207,7 @@ class _S extends ConsumerState<RatesScreen> {
         : _products.isEmpty
         ? const EmptyState(icon: Icons.price_change_outlined, message: 'No products configured')
         : ListView.separated(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, kBottomNavClearance),
         itemCount: _products.length,
         separatorBuilder: (_, __) => const SizedBox(height: 10),
         itemBuilder: (_, i) {
@@ -249,8 +249,20 @@ class _S extends ConsumerState<RatesScreen> {
                     rate != null
                         ? Text('${Fmt.amount(rate)}/kg',
                         style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w900, color: kPrimary))
-                        : const Text('Not set',
-                        style: TextStyle(fontSize: 13, color: Colors.orange)),
+                        : GestureDetector(
+                      onTap: () => _setRate(p),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: Colors.orange.shade50,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.orange.shade200),
+                        ),
+                        child: const Text('Set Rate →',
+                            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700,
+                                color: Colors.orange)),
+                      ),
+                    ),
                   ]),
                   const SizedBox(width: 6),
                   IconButton(

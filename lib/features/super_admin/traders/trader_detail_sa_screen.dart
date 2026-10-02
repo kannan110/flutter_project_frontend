@@ -363,6 +363,7 @@ class _S extends State<TraderDetailSaScreen> with SingleTickerProviderStateMixin
       ('money_collection', 'Money Collection',   f?['money_collection']),
       ('partial_delivery', 'Partial Delivery',   f?['partial_delivery']),
       ('crate_tracking',   'Crate Tracking',     f?['crate_tracking']),
+      ('supervisor_module','Supervisor Module (Collection Agent)', f?['supervisor_module']),
     ];
 
     return ListView(padding: const EdgeInsets.all(16), children: [

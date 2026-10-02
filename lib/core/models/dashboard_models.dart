@@ -1,4 +1,3 @@
-
 class StockPosition {
   final String productId;
   final String productName;
@@ -179,6 +178,77 @@ class DashboardData {
   // ── Per-agent reconciliation status (new) ────────────────────────────────
   final List<AgentStockStatus> agentStatus;
 
+  // ── Session A intelligence fields ─────────────────────────────────────────
+  // stockSurvivalDays: MIN(available_birds / 7d_avg_daily) across products.
+  //   null = no delivery data in last 7 days (infinite stock / no consumption).
+  //   < 1  = urgent — buy today.  1-3 = buy soon.  > 3 = hold.
+  final double? stockSurvivalDays;
+
+  // todayPurchaseCost: SUM(dc.net_weight × dc.farm_rate) for today's DCs.
+  //   Used to compute gross margin: todayCollected − todayPurchaseCost.
+  final double todayPurchaseCost;
+
+  // todayRate / yesterdayRate: from rate_history — for rate-movement chip.
+  //   Both nullable — null when no rate has been set yet.
+  final double? todayRate;
+  final double? yesterdayRate;
+
+  // delayedDeliveries: delivery_batches in active status not updated in 3h+.
+  //   Shows as 5th OpsBoard column. Drives dispatch urgency.
+  final int delayedDeliveries;
+
+  // creditUtilisationPct: SUM(outstanding) / SUM(credit_limit) × 100.
+  //   Drives credit exposure bar in _CollectionIntelligencePanel.
+  final double creditUtilisationPct;
+
+  // overLimitCount: retailers whose outstanding > their credit_limit.
+  final int overLimitCount;
+
+  // agingStockBatches: batches in assigned/picked_up state, created 2+ days ago.
+  //   Quality risk — triggers alert in _LiveStockPanel.
+  final int agingStockBatches;
+
+  // ── Phase 4 UI: Business Health fields ─────────────────────────────────────
+  // All sourced from dashboard_summary's v_part3, which itself only CALLS
+  // get_pnl_statement / get_cash_flow_statement / get_payable_aging for
+  // CURRENT_DATE — no calculation happens in Flutter or in this model.
+  // null = cost-pending (batch not yet costed) or no rate data; never a
+  // silently-wrong zero.
+  final double? todayPurchaseCostActual;   // COGS for today, null if any line pending
+  final double todayExpenseTotal;          // trip + fixed expenses today
+  final double todayMortalityLossAmount;
+  final double todayShrinkageLossAmount;
+  final double? todayGrossProfit;          // null if any line cost-pending
+  final double? todayNetProfit;            // null if any line cost-pending
+  final int todayLinesCostPending;
+  final double todayCashIn;
+  final double todayCashOut;
+  final double todayNetCashMovement;
+  final double totalSupplierPayable;
+
+  // ── Phase 5: per-kg KPIs (from dashboard_summary.today_per_kg) ──────────
+  // All nullable — null until at least one batch is calculated today.
+  final double? todayCostPerKg;
+  final double? todaySellingPricePerKg;
+  final double? todayGrossProfitPerKg;
+  final double? todayNetProfitPerKg;
+  final double? todayExpensePerKg;
+  final double? todayLossPerKg;
+
+  // ── Phase 5: margin % (from get_pnl_statement via dashboard_summary) ─────
+  final double? todayGrossMarginPct;
+  final double? todayNetMarginPct;
+  final double? todayExpensePct;
+
+  // ── Phase 5: expense breakdown ────────────────────────────────────────────
+  final double todayTripExpenses;
+  final double todayTraderExpenses;
+  final double todayFixedExpenses;
+
+  // ── Phase 5: total loss ₹ and weight variance ─────────────────────────────
+  final double todayTotalLossAmount;
+  final double todayUnexplainedLossAmount;
+
   const DashboardData({
     this.pendingOrders=0, this.activeDeliveries=0, this.todayDelivered=0,
     this.pendingApprovals=0, this.pendingReturns=0,
@@ -199,6 +269,45 @@ class DashboardData {
     this.todayApprovedLossKg=0, this.todayPendingShifts=0,
     this.todayDcWeightTotal=0, this.todayMortalityBirds=0,
     this.agentStatus=const [],
+    // Session A intelligence fields — all safe defaults
+    this.stockSurvivalDays,          // null = no consumption data
+    this.todayPurchaseCost=0,
+    this.todayRate,                  // null = no rate set
+    this.yesterdayRate,              // null = no prior rate
+    this.delayedDeliveries=0,
+    this.creditUtilisationPct=0,
+    this.overLimitCount=0,
+    this.agingStockBatches=0,
+    // Phase 4 UI: Business Health fields — all safe defaults
+    this.todayPurchaseCostActual,
+    this.todayExpenseTotal=0,
+    this.todayMortalityLossAmount=0,
+    this.todayShrinkageLossAmount=0,
+    this.todayGrossProfit,
+    this.todayNetProfit,
+    this.todayLinesCostPending=0,
+    this.todayCashIn=0,
+    this.todayCashOut=0,
+    this.todayNetCashMovement=0,
+    this.totalSupplierPayable=0,
+    // Phase 5: per-kg KPIs
+    this.todayCostPerKg,
+    this.todaySellingPricePerKg,
+    this.todayGrossProfitPerKg,
+    this.todayNetProfitPerKg,
+    this.todayExpensePerKg,
+    this.todayLossPerKg,
+    // Phase 5: margins
+    this.todayGrossMarginPct,
+    this.todayNetMarginPct,
+    this.todayExpensePct,
+    // Phase 5: expense breakdown
+    this.todayTripExpenses=0,
+    this.todayTraderExpenses=0,
+    this.todayFixedExpenses=0,
+    // Phase 5: loss ₹
+    this.todayTotalLossAmount=0,
+    this.todayUnexplainedLossAmount=0,
   });
 
   factory DashboardData.fromMap(Map<String,dynamic> m) => DashboardData(
@@ -250,7 +359,71 @@ class DashboardData {
     agentStatus: ((m['agent_status'] as List?) ?? [])
         .map((a) => AgentStockStatus.fromMap(a as Map<String,dynamic>))
         .toList(),
+    // Session A intelligence fields
+    stockSurvivalDays:      (m['stock_survival_days']     as num?)?.toDouble(),
+    todayPurchaseCost:      (m['today_purchase_cost']     as num?)?.toDouble() ?? 0,
+    todayRate:              (m['today_rate']              as num?)?.toDouble(),
+    yesterdayRate:          (m['yesterday_rate']          as num?)?.toDouble(),
+    delayedDeliveries:      (m['delayed_deliveries']      as num?)?.toInt()    ?? 0,
+    creditUtilisationPct:   (m['credit_utilisation_pct']  as num?)?.toDouble() ?? 0,
+    overLimitCount:         (m['over_limit_count']        as num?)?.toInt()    ?? 0,
+    agingStockBatches:      (m['aging_stock_batches']     as num?)?.toInt()    ?? 0,
+    // Phase 4 UI: Business Health fields — sourced from dashboard_summary's
+    // v_part3, which itself only calls existing get_pnl_statement /
+    // get_cash_flow_statement / get_payable_aging. No calculation here.
+    todayPurchaseCostActual: (m['today_purchase_cost_actual'] as num?)?.toDouble(),
+    todayExpenseTotal:       (m['today_expense_total']        as num?)?.toDouble() ?? 0,
+    todayMortalityLossAmount:(m['today_mortality_loss_amount'] as num?)?.toDouble() ?? 0,
+    todayShrinkageLossAmount:(m['today_shrinkage_loss_amount'] as num?)?.toDouble() ?? 0,
+    todayGrossProfit:        (m['today_gross_profit']          as num?)?.toDouble(),
+    todayNetProfit:          (m['today_net_profit']            as num?)?.toDouble(),
+    todayLinesCostPending:   (m['today_lines_cost_pending']    as num?)?.toInt()    ?? 0,
+    todayCashIn:             (m['today_cash_in']               as num?)?.toDouble() ?? 0,
+    todayCashOut:            (m['today_cash_out']              as num?)?.toDouble() ?? 0,
+    todayNetCashMovement:    (m['today_net_cash_movement']     as num?)?.toDouble() ?? 0,
+    totalSupplierPayable:    (m['total_supplier_payable']      as num?)?.toDouble() ?? 0,
+    // Phase 5: per-kg KPIs — sourced from dashboard_summary.today_per_kg nested map
+    todayCostPerKg:          ((m['today_per_kg'] as Map?)?['cost_per_kg']           as num?)?.toDouble(),
+    todaySellingPricePerKg:  ((m['today_per_kg'] as Map?)?['selling_price_per_kg']  as num?)?.toDouble(),
+    todayGrossProfitPerKg:   ((m['today_per_kg'] as Map?)?['gross_profit_per_kg']   as num?)?.toDouble(),
+    todayNetProfitPerKg:     ((m['today_per_kg'] as Map?)?['net_profit_per_kg']     as num?)?.toDouble(),
+    todayExpensePerKg:       ((m['today_per_kg'] as Map?)?['expense_per_kg']        as num?)?.toDouble(),
+    todayLossPerKg:          ((m['today_per_kg'] as Map?)?['loss_per_kg']           as num?)?.toDouble(),
+    // Phase 5: margins
+    todayGrossMarginPct:     (m['today_gross_margin_pct']  as num?)?.toDouble(),
+    todayNetMarginPct:       (m['today_net_margin_pct']    as num?)?.toDouble(),
+    todayExpensePct:         (m['today_expense_pct']       as num?)?.toDouble(),
+    // Phase 5: expense breakdown
+    todayTripExpenses:       (m['today_trip_expenses']     as num?)?.toDouble() ?? 0,
+    todayTraderExpenses:     (m['today_trader_expenses']   as num?)?.toDouble() ?? 0,
+    todayFixedExpenses:      (m['today_fixed_expenses']    as num?)?.toDouble() ?? 0,
+    // Phase 5: loss ₹
+    todayTotalLossAmount:    (m['today_total_loss_amount']        as num?)?.toDouble() ?? 0,
+    todayUnexplainedLossAmount: (m['today_unexplained_loss_amount'] as num?)?.toDouble() ?? 0,
   );
 
   bool get isDayClosed => dayStatus == 'closed' || dayStatus == 'locked';
+
+  // ── Session A computed getters ─────────────────────────────────────────────
+  // rateDelta: positive = rate went up, negative = rate went down, null = no data
+  double? get rateDelta => (todayRate != null && yesterdayRate != null)
+      ? todayRate! - yesterdayRate!
+      : null;
+
+  // tradingSignal: derived from stockSurvivalDays + rateDelta
+  //   'buy_urgent' — survival < 1 day
+  //   'buy_soon'   — survival 1-3 days
+  //   'sell_fast'  — rate falling + stock > 3 days
+  //   'hold'       — stock healthy, rate stable or rising
+  //   'no_data'    — survival is null (no consumption recorded)
+  String get tradingSignal {
+    if (stockSurvivalDays == null) return 'no_data';
+    if (stockSurvivalDays! < 1)   return 'buy_urgent';
+    if (stockSurvivalDays! < 3)   return 'buy_soon';
+    if ((rateDelta ?? 0) < 0)     return 'sell_fast';
+    return 'hold';
+  }
+
+  // todayGrossMargin: collected today minus purchase cost today
+  double get todayGrossMargin => todayCollected - todayPurchaseCost;
 }

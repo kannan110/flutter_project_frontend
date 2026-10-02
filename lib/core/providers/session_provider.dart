@@ -8,7 +8,7 @@ void _log(String m) => print('[Session] $m');
 final supabaseProvider = Provider<SupabaseClient>((_) => Supabase.instance.client);
 
 final appUserProvider = StateNotifierProvider<AppUserNotifier, AsyncValue<AppUser?>>(
-  (ref) => AppUserNotifier(ref.watch(supabaseProvider)),
+      (ref) => AppUserNotifier(ref.watch(supabaseProvider)),
 );
 
 class AppUserNotifier extends StateNotifier<AsyncValue<AppUser?>> {
@@ -119,6 +119,30 @@ class AppUserNotifier extends StateNotifier<AsyncValue<AppUser?>> {
         _log('agentId=$agentId');
       }
 
+      // Supervisor / Collection Agent module (Plug & Play) — resolve for
+      // BOTH the supervisor themselves (agentId-equivalent: which
+      // supervisor_profiles row is this?) and for trader_admin (needs the
+      // module-enabled flag too, purely to show/hide "Create Supervisor"
+      // in Settings — no other role needs this field at all).
+      String? supervisorId;
+      var supervisorModuleEnabled = false;
+      if (traderId != null && (role == UserRole.supervisor || role == UserRole.traderAdmin)) {
+        try {
+          final tf = await _c.from('trader_features')
+              .select('supervisor_module').eq('trader_id', traderId)
+              .maybeSingle().timeout(const Duration(seconds: 5));
+          supervisorModuleEnabled = (tf?['supervisor_module'] as bool?) ?? false;
+        } catch (e) { _log('trader_features fetch non-fatal: $e'); }
+      }
+      if (role == UserRole.supervisor && traderId != null) {
+        final s = await _c.from('supervisor_profiles')
+            .select('id').eq('user_id', user.id)
+            .eq('trader_id', traderId).eq('is_active', true)
+            .maybeSingle().timeout(const Duration(seconds: 5));
+        supervisorId = s?['id'] as String?;
+        _log('supervisorId=$supervisorId');
+      }
+
       // Resolve retailer session
       String? retailerId;
       String? shopName;
@@ -149,6 +173,8 @@ class AppUserNotifier extends StateNotifier<AsyncValue<AppUser?>> {
         traderStatus:        traderStatus,
         approvalStatus:      approvalStatus,
         isSuperAdmin:        isSa,
+        supervisorId:            supervisorId,
+        supervisorModuleEnabled: supervisorModuleEnabled,
       ));
       _log('Session OK ✓ role=${role.dbValue}');
     } catch (e, st) {

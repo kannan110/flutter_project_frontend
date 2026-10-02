@@ -116,7 +116,7 @@ class _S extends ConsumerState<ShiftOpenScreen> {
   // SMART MODE VIEWS
   // ══════════════════════════════════════════════════════════════════════════
   Widget _alreadyOpenView() => Padding(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.fromLTRB(24, 24, 24, kBottomNavClearance),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Container(
             padding: const EdgeInsets.all(16),
@@ -155,7 +155,7 @@ class _S extends ConsumerState<ShiftOpenScreen> {
   // SIMPLE MODE — SHIFT ALREADY OPEN
   // ══════════════════════════════════════════════════════════════════════════
   Widget _buildSimpleAlreadyOpenView() => SingleChildScrollView(
-    padding: const EdgeInsets.all(24),
+    padding: const EdgeInsets.fromLTRB(24, 24, 24, kBottomNavClearance),
     child: Column(children: [
       // Hero card
       Container(
@@ -231,7 +231,7 @@ class _S extends ConsumerState<ShiftOpenScreen> {
   // SIMPLE MODE — OPEN NEW SHIFT
   // ══════════════════════════════════════════════════════════════════════════
   Widget _buildSimpleOpenNewView() => SingleChildScrollView(
-    padding: const EdgeInsets.all(24),
+    padding: const EdgeInsets.fromLTRB(24, 24, 24, kBottomNavClearance),
     child: Column(children: [
       // Hero icon
       const Text('🚀', style: TextStyle(fontSize: 64)),
@@ -392,7 +392,7 @@ class _S extends ConsumerState<ShiftOpenScreen> {
   );
 
   Widget _openNewView() => SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.fromLTRB(24, 24, 24, kBottomNavClearance),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         const Icon(Icons.directions_car_outlined, size: 60, color: kPrimary),
         const SizedBox(height: 16),

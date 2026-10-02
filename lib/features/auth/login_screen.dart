@@ -26,7 +26,7 @@ class _S extends ConsumerState<LoginScreen> {
   }
 
   // ── ALL LOGIC PRESERVED EXACTLY ───────────────────────────────────────────
-  void _reset() => setState(() { _step = 0; _err = null; _agentSignUpMode = false; _emailCtrl.clear(); _passCtrl.clear(); _confirmCtrl.clear(); });
+  void _reset() => setState(() { _step = 0; _err = null; _agentSignUpMode = false; _supervisorSignUpMode = false; _emailCtrl.clear(); _passCtrl.clear(); _confirmCtrl.clear(); });
 
   Future<void> _signIn() async {
     final email = _emailCtrl.text.trim();
@@ -52,6 +52,7 @@ class _S extends ConsumerState<LoginScreen> {
   }
 
   bool _agentSignUpMode = false;
+  bool _supervisorSignUpMode = false;
 
   Future<void> _agentSignUpSubmit() async {
     final email = _emailCtrl.text.trim();
@@ -79,6 +80,47 @@ class _S extends ConsumerState<LoginScreen> {
         try {
           await Supabase.instance.client.auth.signInWithPassword(email: email, password: pass);
           if (mounted) { showSuccess(context, 'Account found! Now link your agent name.'); setState(() { _busy = false; }); context.go(R.agentLink); }
+        } catch (_) {
+          if (mounted) setState(() { _err = 'Account may already exist. Try sign in or wait a moment and retry.'; _busy = false; });
+        }
+      } else if (msg.contains('already registered') || msg.contains('already exists')) {
+        setState(() { _err = 'Email already registered. Go back and Sign In instead.'; _busy = false; });
+      } else {
+        setState(() { _err = e.message; _busy = false; });
+      }
+    } catch (_) {
+      if (mounted) setState(() { _err = 'Connection failed. Check your internet.'; _busy = false; });
+    }
+  }
+
+  // Mirrors _agentSignUpSubmit exactly — only the destination screen
+  // after signup differs (supervisor-link vs agent-link).
+  Future<void> _supervisorSignUpSubmit() async {
+    final email = _emailCtrl.text.trim();
+    final pass  = _passCtrl.text;
+    if (email.isEmpty) { setState(() => _err = 'Enter your email address'); return; }
+    if (pass.length < 6) { setState(() => _err = 'Password must be at least 6 characters'); return; }
+    if (_confirmCtrl.text != pass) { setState(() => _err = 'Passwords do not match'); return; }
+    if (mounted) setState(() { _busy = true; _err = null; });
+    try {
+      final res = await Supabase.instance.client.auth.signUp(email: email, password: pass);
+      if (!mounted) return;
+      if (res.user != null) {
+        if (mounted) {
+          showSuccess(context, 'Account created! Now link your supervisor name.');
+          setState(() { _supervisorSignUpMode = false; _busy = false; });
+          await Future.delayed(const Duration(milliseconds: 600));
+          if (mounted) context.go(R.supervisorLink);
+        }
+      } else {
+        setState(() { _err = 'Account may already exist. Try Sign In instead.'; _busy = false; });
+      }
+    } on AuthException catch (e) {
+      final msg = e.message.toLowerCase();
+      if (msg.contains('rate limit') || msg.contains('too many') || msg.contains('over_email')) {
+        try {
+          await Supabase.instance.client.auth.signInWithPassword(email: email, password: pass);
+          if (mounted) { showSuccess(context, 'Account found! Now link your supervisor name.'); setState(() { _busy = false; }); context.go(R.supervisorLink); }
         } catch (_) {
           if (mounted) setState(() { _err = 'Account may already exist. Try sign in or wait a moment and retry.'; _busy = false; });
         }
@@ -152,8 +194,10 @@ class _S extends ConsumerState<LoginScreen> {
                     _buildTraderRegister()
                   else if (_step == 4)
                       _buildRetailerLogin()
-                    else
-                      _buildAgentSection(),
+                    else if (_step == 5)
+                        _buildSupervisorSection()
+                      else
+                        _buildAgentSection(),
               ]),
             ),
 
@@ -188,6 +232,12 @@ class _S extends ConsumerState<LoginScreen> {
         subtitle: 'I deliver chicken to shops\nI use the app during my shift',
         color: Colors.blue.shade700,
         onTap: () => setState(() { _step = 3; _err = null; })),
+    const SizedBox(height: 14),
+
+    _roleCard(icon: '💰', title: 'I am a Supervisor',
+        subtitle: 'I collect cash from retailers\nI record payments for my trader',
+        color: Colors.teal.shade700,
+        onTap: () => setState(() { _step = 5; _err = null; })),
     const SizedBox(height: 24),
 
     Row(mainAxisAlignment: MainAxisAlignment.center, children: [
@@ -477,6 +527,136 @@ class _S extends ConsumerState<LoginScreen> {
             onSubmitted: (_) => _agentSignUpSubmit()),
         const SizedBox(height: 22),
         _submitBtn('Create My Account', _agentSignUpSubmit),
+        const SizedBox(height: 10),
+        Center(child: Text('Min 6 characters for password',
+            style: TextStyle(fontSize: 11, color: kTextHint))),
+      ]);
+
+  // ── Supervisor section — mirrors the Delivery Agent section exactly ────────
+  Widget _buildSupervisorSection() =>
+      _supervisorSignUpMode ? _buildSupervisorSignUp() : _buildSupervisorSignIn();
+
+  Widget _buildSupervisorSignIn() => Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _backBtn(),
+        const SizedBox(height: 16),
+        const Row(children: [
+          Icon(Icons.payments_outlined, color: kNavy, size: 24),
+          SizedBox(width: 8),
+          Text('Supervisor',
+              style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: kNavy)),
+        ]),
+        const SizedBox(height: 6),
+        const Text('Sign in with your registered email and password.',
+            style: TextStyle(fontSize: 13, color: kTextSub)),
+        const SizedBox(height: 20),
+        if (_err != null) _errBox(_err!),
+        _emailField(),
+        const SizedBox(height: 12),
+        _passField(),
+        const SizedBox(height: 22),
+        _submitBtn('Sign In', _signIn),
+        const SizedBox(height: 20),
+        const Divider(color: kBorderLight),
+        const SizedBox(height: 16),
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color:        Colors.teal.shade50,
+            borderRadius: BorderRadius.circular(kRadiusCard),
+            border:       Border.all(color: Colors.teal.withValues(alpha: 0.25)),
+          ),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              Icon(Icons.person_add_outlined, size: 16, color: Colors.teal.shade700),
+              const SizedBox(width: 6),
+              Text('First time here?',
+                  style: TextStyle(fontWeight: FontWeight.w800, color: Colors.teal.shade700, fontSize: 13)),
+            ]),
+            const SizedBox(height: 10),
+            const Text(
+                '① Your trader adds your name in the Supervisors screen\n'
+                    '② Create your account here (one time only)\n'
+                    '③ Link your name using the Company Code',
+                style: TextStyle(fontSize: 12, color: Colors.teal, height: 1.7)),
+            const SizedBox(height: 14),
+            Row(children: [
+              Expanded(child: ElevatedButton.icon(
+                  onPressed: () => setState(() { _supervisorSignUpMode = true; _err = null; }),
+                  icon: const Icon(Icons.person_add, size: 16),
+                  label: const Text('Create Account',
+                      style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.teal.shade700,
+                    minimumSize:     const Size(0, 46),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(kRadiusChip)),
+                  ))),
+              const SizedBox(width: 10),
+              Expanded(child: OutlinedButton.icon(
+                  onPressed: () => context.go(R.supervisorLink),
+                  icon: const Icon(Icons.link, size: 16),
+                  label: const Text('Link Account',
+                      style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13)),
+                  style: OutlinedButton.styleFrom(
+                    side:            BorderSide(color: Colors.teal.shade700),
+                    foregroundColor: Colors.teal.shade700,
+                    minimumSize:     const Size(0, 46),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(kRadiusChip)),
+                  ))),
+            ]),
+          ]),
+        ),
+      ]);
+
+  Widget _buildSupervisorSignUp() => Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        GestureDetector(
+            onTap: () => setState(() { _supervisorSignUpMode = false; _err = null; }),
+            child: const Row(mainAxisSize: MainAxisSize.min, children: [
+              Icon(Icons.arrow_back_ios_rounded, size: 14, color: kTextSub),
+              Text('Back to Sign In', style: TextStyle(fontSize: 13, color: kTextSub)),
+            ])),
+        const SizedBox(height: 16),
+        const Row(children: [
+          Icon(Icons.person_add_rounded, color: kNavy, size: 24),
+          SizedBox(width: 8),
+          Text('Create Supervisor Account',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: kNavy)),
+        ]),
+        const SizedBox(height: 6),
+        const Text('Create your login account (do this only once).',
+            style: TextStyle(fontSize: 13, color: kTextSub)),
+        const SizedBox(height: 18),
+        Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color:        Colors.amber.shade50,
+              borderRadius: BorderRadius.circular(kRadiusCard),
+              border:       Border.all(color: Colors.amber.withValues(alpha: 0.3)),
+            ),
+            child: const Text(
+                '📋 After creating your account:\nTap "Link Account" → enter Company Code + your name to connect to your trader.',
+                style: TextStyle(fontSize: 12, color: Colors.brown, height: 1.5))),
+        const SizedBox(height: 18),
+        if (_err != null) _errBox(_err!),
+        _emailField(),
+        const SizedBox(height: 12),
+        _passField(),
+        const SizedBox(height: 12),
+        TextField(
+            controller:      _confirmCtrl,
+            obscureText:     true,
+            textInputAction: TextInputAction.done,
+            decoration: const InputDecoration(
+                labelText:  'Confirm Password',
+                prefixIcon: Icon(Icons.lock_outline, size: 20, color: kNavy)),
+            onSubmitted: (_) => _supervisorSignUpSubmit()),
+        const SizedBox(height: 22),
+        _submitBtn('Create My Account', _supervisorSignUpSubmit),
         const SizedBox(height: 10),
         Center(child: Text('Min 6 characters for password',
             style: TextStyle(fontSize: 11, color: kTextHint))),

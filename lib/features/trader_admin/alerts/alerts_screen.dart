@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/providers/session_provider.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../shared/layouts/responsive_layout.dart';
 
 class AlertsScreen extends ConsumerStatefulWidget {
   const AlertsScreen({super.key});
@@ -38,6 +39,7 @@ class _S extends ConsumerState<AlertsScreen> {
     'stock_low' => Colors.orange,
     'shift_not_closed' || 'cash_mismatch' => Colors.blue,
     'mismatch' => Colors.purple,
+    'expense_overclaim' => Colors.orange,
     _ => Colors.grey,
   };
   IconData _icon(String t) => switch(t) {
@@ -46,13 +48,14 @@ class _S extends ConsumerState<AlertsScreen> {
     'stock_low' => Icons.inventory_2_outlined,
     'shift_not_closed' => Icons.schedule_outlined,
     'cash_mismatch' => Icons.account_balance_outlined,
+    'expense_overclaim' => Icons.receipt_long_outlined,
     _ => Icons.notifications_outlined,
   };
 
   @override
   Widget build(BuildContext context) {
     final tid = ref.read(appUserProvider).valueOrNull?.traderId;
-    return Scaffold(
+    final _scaffold = Scaffold(
       backgroundColor: kBgPage,
       appBar: AppBar(
         backgroundColor: kSurface,
@@ -72,7 +75,7 @@ class _S extends ConsumerState<AlertsScreen> {
       ),
       body: _loading ? const LoadingList() : _alerts.isEmpty
           ? const EmptyState(icon: Icons.notifications_none_outlined, message: "All clear! No alerts.", sub: "You're up to date")
-          : ListView.separated(padding: const EdgeInsets.all(16), itemCount: _alerts.length,
+          : ListView.separated(padding: const EdgeInsets.fromLTRB(16, 16, 16, kBottomNavClearance), itemCount: _alerts.length,
           separatorBuilder: (_, __) => const SizedBox(height: 8),
           itemBuilder: (_, i) {
             final a = _alerts[i];
@@ -102,5 +105,6 @@ class _S extends ConsumerState<AlertsScreen> {
                     ])));
           }),
     );
+    return ResponsiveLayout(mobile: (_) => _scaffold, desktop: (_) => _scaffold);
   }
 }

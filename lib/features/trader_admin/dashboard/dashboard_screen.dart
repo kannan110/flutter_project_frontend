@@ -3,14 +3,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart' hide TextDirection;
+import 'package:rooster_trader/features/trader_admin/expenses/trader_expense_sheet.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/models/dashboard_models.dart';
 import '../../../core/providers/session_provider.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../shared/layouts/responsive_layout.dart';
-import '../../../shared/layouts/trader_shell.dart' show shellBadgesProvider;
-import '../dashboard/trader_shell.dart' hide shellBadgesProvider;
+import '../../../shared/layouts/trader_shell.dart' hide shellBadgesProvider;
+import '../dashboard/trader_shell.dart';
 
 // ── Language provider ─────────────────────────────────────────────────────────
 final langProvider = StateProvider<String>((ref) => 'en');
@@ -33,7 +34,7 @@ const _kOrangeLt = Color(0xFFFFFBEB);
 const _kRed = Color(0xFFDC2626);
 const _kRedLt = Color(0xFFFEF2F2);
 const _kIndigo = Color(0xFF4F46E5);
-const _kViolet = Color(0xFF7C3AED);
+const _kColorsViolet = Color(0xFF7C3AED);
 const _kTeal = Color(0xFF0D9488);
 
 const _kShadow = [
@@ -56,6 +57,18 @@ class _S extends ConsumerState<DashboardScreen> {
   DashboardData? _data;
   List<StockPosition> _stock = [];
   List<Map<String, dynamic>> _recentOrders = [];
+  List<Map<String, dynamic>> _dashboardAging   = [];  // from get_dashboard_aging
+  List<Map<String, dynamic>> _topRetailers     = [];  // from get_top_retailers_today
+  List<Map<String, dynamic>> _revenueTrend     = [];  // from get_7day_revenue_trend
+  // ★ Business Health — Current Stock Value by Product. Purely rendered
+  // from get_business_health_by_product_v1 — every cost/value figure comes
+  // from the shared Valuation Engine (Traced → Effective Stock Point Cost
+  // → Existing Average Cost → MWAC → Pending), nothing computed here.
+  // Filtered to enabled AND currently-stocked products only (kg > 0) —
+  // this main dashboard is a top-level summary, not the per-product deep
+  // dive (that's Inventory Dashboard, which still shows every product
+  // regardless of current stock level).
+  List<Map<String, dynamic>> _stockValueByProduct = [];
   bool _loading = true;
   String? _error;
 
@@ -64,7 +77,6 @@ class _S extends ConsumerState<DashboardScreen> {
     _load();
   }
 
-  // ── ALL BUSINESS LOGIC PRESERVED EXACTLY ─────────────────────────────────
   Future<void> _load() async {
     final tid = ref
         .read(appUserProvider)
@@ -76,49 +88,87 @@ class _S extends ConsumerState<DashboardScreen> {
       _error = null;
     });
     try {
-      final dashRes = await Supabase.instance.client
-          .rpc('dashboard_summary', params: {'p_trader_id': tid});
-      final stockRes = await Supabase.instance.client
-          .rpc('get_available_stock', params: {'p_trader_id': tid});
+      final results = await Future.wait([
+        Supabase.instance.client
+            .rpc('dashboard_summary', params: {'p_trader_id': tid}),
+        Supabase.instance.client
+            .rpc('get_available_stock', params: {'p_trader_id': tid}),
+        Supabase.instance.client
+            .rpc('get_dashboard_aging', params: {'p_trader_id': tid})
+            .timeout(const Duration(seconds: 8)),
+        Supabase.instance.client
+            .rpc('get_top_retailers_today', params: {'p_trader_id': tid})
+            .timeout(const Duration(seconds: 8)),
+        Supabase.instance.client
+            .rpc('get_7day_revenue_trend', params: {'p_trader_id': tid})
+            .timeout(const Duration(seconds: 8)),
+      ]);
+
       List<Map<String, dynamic>> recentOrders = [];
       try {
         final r = await Supabase.instance.client
             .from('orders')
             .select(
-            'id,status,estimated_birds,total_quantity,total_amount,created_at,retailers(shop_name)')
+            'id,status,estimated_birds,total_quantity,total_amount,created_at,'
+                'retailers(shop_name),deliveries(delivery_agents(name))')
             .eq('trader_id', tid)
             .order('created_at', ascending: false)
             .limit(10);
         recentOrders = List<Map<String, dynamic>>.from(r as List? ?? []);
       } catch (_) {}
+
+      // ★ Business Health — Current Stock Value by Product. Isolated in
+      // its own try/catch (matching recentOrders above) so a failure here
+      // never breaks the rest of the dashboard — it just shows nothing.
+      List<Map<String, dynamic>> bhRows = [];
+      try {
+        final bh = await Supabase.instance.client
+            .rpc('get_business_health_by_product_v1', params: {'p_trader_id': tid})
+            .timeout(const Duration(seconds: 8));
+        // ★ Presentation-only filter (which rows to show), not a
+        // calculation — every value in each row already came from the
+        // backend untouched.
+        bhRows = List<Map<String, dynamic>>.from((bh as Map?)?['rows'] as List? ?? [])
+            .where((r) => ((r['current_stock_kg'] as num?) ?? 0) > 0)
+            .toList();
+      } catch (_) {}
+
       if (!mounted) return;
-      final dm = dashRes as Map<String, dynamic>?;
-      final sl = stockRes as List?;
+
+      final dm  = results[0] as Map<String, dynamic>?;
+      final sl  = results[1] as List?;
+      final ag  = results[2] as List?;
+      final tr  = results[3] as List?;
+      final rt  = results[4] as List?;
+
       setState(() {
-        _data = dm != null ? DashboardData.fromMap(dm) : const DashboardData();
-        _stock = (sl ?? []).map((s) =>
+        _data         = dm != null ? DashboardData.fromMap(dm) : const DashboardData();
+        _stock        = (sl ?? []).map((s) =>
             StockPosition.fromMap(s as Map<String, dynamic>)).toList();
+        _dashboardAging = List<Map<String, dynamic>>.from(ag ?? []);
+        _topRetailers   = List<Map<String, dynamic>>.from(tr ?? []);
+        _revenueTrend   = List<Map<String, dynamic>>.from(rt ?? []);
         _recentOrders = recentOrders;
-        _loading = false;
+        _stockValueByProduct = bhRows;
+        _loading      = false;
       });
+
       if (mounted && _data != null) {
         ref.read(shellBadgesProvider.notifier).update((s) =>
             s.copyWith(
               pendingApprovals: _data!.pendingApprovals,
-              unreadAlerts: _data!.unreadAlerts,
-              pendingOrders: _data!.pendingOrders,
+              unreadAlerts:     _data!.unreadAlerts,
+              pendingOrders:    _data!.pendingOrders,
             ));
       }
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _error = e.toString().replaceAll('Exception: ', '');
+        _error   = e.toString().replaceAll('Exception: ', '');
         _loading = false;
       });
     }
   }
-
-  Future<void> _updateStatus(String s) async {} // preserved
 
   @override
   Widget build(BuildContext context) {
@@ -128,14 +178,12 @@ class _S extends ConsumerState<DashboardScreen> {
     final lang = ref.watch(langProvider);
     final t = (String k) => _L.g(lang, k);
     return ResponsiveLayout(
-      mobile: (_) => _buildMobileScaffold(user, lang, t),
+      mobile:  (_) => _buildMobileScaffold(user, lang, t),
+      tablet:  (_) => _buildTabletScaffold(user, lang, t),
       desktop: (_) => _buildDesktopLayout(user, lang, t),
     );
   }
 
-  // ══════════════════════════════════════════════════════════════════════════
-  // ENTERPRISE DESKTOP DASHBOARD — Operations Command Center
-  // ══════════════════════════════════════════════════════════════════════════
   Widget _buildDesktopLayout(dynamic user, String lang,
       String Function(String) t) {
     if (_loading) return const Center(child: SizedBox(
@@ -149,39 +197,44 @@ class _S extends ConsumerState<DashboardScreen> {
     return ColoredBox(
       color: _kPageBg,
       child: Column(children: [
-        // ── Command Header ──────────────────────────────────────────────────
         _CommandHeader(user: user, data: d, onRefresh: _load, now: now),
-        // ── Body ────────────────────────────────────────────────────────────
         Expanded(child: SingleChildScrollView(
           padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
           child: Column(
               crossAxisAlignment: CrossAxisAlignment.start, children: [
-
-            // ── Row 1: 5 metric panels ──────────────────────────────────────
             _MetricStrip(data: d, stock: _stock),
             const SizedBox(height: 20),
-
-            // ── Row 2: Operations Board ────────────────────────────────────
+            _BusinessHealthCard(
+              data: d,
+              stockValueByProduct: _stockValueByProduct,
+              onPnl: () => context.push(R.pnlStatement),
+              onCashFlow: () => context.push(R.cashFlowStatement),
+            ),
+            const SizedBox(height: 20),
             _OpsBoard(data: d, onNavigate: (r) => context.go(r)),
             const SizedBox(height: 20),
-
-            // ── Row 3: Main 3-col grid ──────────────────────────────────────
             Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              // Left: Revenue Trend + Live Stock
               Expanded(flex: 7, child: Column(children: [
-                _RevenueTrendPanel(data: d),
+                _RevenueTrendPanel(data: d, trend: _revenueTrend),
                 const SizedBox(height: 16),
                 _LiveStockPanel(stock: _stock, data: d),
               ])),
               const SizedBox(width: 16),
-              // Right: Agent Leaderboard + Financial Health + Alerts
               Expanded(flex: 4, child: Column(children: [
-                _AgentLeaderboard(agents: d.agentStatus,
+                _NavigatorAgentShift(agents: d.agentStatus,
                     onTap: () => context.go(R.agents)),
                 const SizedBox(height: 16),
-                _FinancialHealth(data: d,
+                _CollectionIntelligencePanel(
+                    data: d,
+                    aging: _dashboardAging,
                     onLedger: () => context.go(R.ledger),
                     onClosure: () => context.go(R.dayClosure)),
+                if (_topRetailers.isNotEmpty) ...[
+                  const SizedBox(height: 16),
+                  _TopRetailersToday(
+                      retailers: _topRetailers,
+                      onViewAll: () => context.go(R.retailers)),
+                ],
                 if (d.unreadAlerts > 0 || d.remainingBirds < 50) ...[
                   const SizedBox(height: 16),
                   _AlertsPanel(data: d, stock: _stock,
@@ -190,8 +243,6 @@ class _S extends ConsumerState<DashboardScreen> {
               ])),
             ]),
             const SizedBox(height: 20),
-
-            // ── Row 4: Recent Orders full-width table ───────────────────────
             _RecentOrdersTable(
               orders: _recentOrders,
               onViewAll: () => context.go(R.orders),
@@ -203,9 +254,6 @@ class _S extends ConsumerState<DashboardScreen> {
     );
   }
 
-  // ══════════════════════════════════════════════════════════════════════════
-  // MOBILE — preserved exactly from before, no changes
-  // ══════════════════════════════════════════════════════════════════════════
   Widget _buildMobileScaffold(dynamic user, String lang,
       String Function(String) t) {
     if (_loading) return const Scaffold(backgroundColor: kBgPage,
@@ -214,27 +262,285 @@ class _S extends ConsumerState<DashboardScreen> {
     if (_error != null)
       return Scaffold(backgroundColor: kBgPage, body: _errorView());
 
+    final d       = _data!;
+    final agents  = d.agentStatus;
+    final survDays = d.stockSurvivalDays;
+    final totalBirds = _stock.isEmpty ? d.remainingBirds
+        : _stock.fold(0, (s, p) => s + p.availableBirds);
+
+    final stockColor = survDays == null ? kNavy
+        : survDays < 1 ? kError
+        : survDays < 3 ? kWarning
+        : kSuccess;
+
+    final List<({IconData icon, String label, Color color, VoidCallback onTap})> priorityActions = [
+      if (d.pendingApprovals > 0)
+        (icon: Icons.verified_outlined, label: 'Approve (${d.pendingApprovals})',
+        color: kWarning, onTap: () => context.go(R.approvals)),
+      if (d.pendingOrders > 0)
+        (icon: Icons.shopping_cart_outlined, label: 'Orders (${d.pendingOrders})',
+        color: Colors.blue, onTap: () => context.go(R.orders)),
+      if (d.activeDeliveries > 0)
+        (icon: Icons.local_shipping_outlined, label: 'Dispatch (${d.activeDeliveries})',
+        color: Colors.indigo, onTap: () => context.go(R.dispatch)),
+      if (d.delayedDeliveries > 0)
+        (icon: Icons.timer_off_outlined, label: 'Delayed (${d.delayedDeliveries})',
+        color: kError, onTap: () => context.go(R.dispatch)),
+      if (d.allClear)
+        (icon: Icons.lock_clock_outlined, label: 'Close Day',
+        color: kSuccess, onTap: () => context.go(R.dayClosure)),
+      (icon: Icons.add_circle_outlined, label: t('new_order'),
+      color: Colors.orange.shade700, onTap: () => context.go(R.orderCreate)),
+    ].take(3).toList();
+
+    final topActions = _allActions(t).take(6).toList();
+
     return Scaffold(
       backgroundColor: kBgPage,
       body: RefreshIndicator(
         onRefresh: _load, color: kNavy, strokeWidth: 2.5,
         child: CustomScrollView(slivers: [
           SliverToBoxAdapter(child: _mobileHeader(user, lang, t)),
-          SliverPadding(padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
-              sliver: SliverList.list(children: _buildAlerts(t)
-                  .map((w) =>
-                  Padding(padding: const EdgeInsets.only(bottom: 8), child: w))
-                  .toList())),
-          SliverToBoxAdapter(child: _summaryCard(t)),
+          if (_buildAlerts(t).isNotEmpty)
+            SliverPadding(padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+                sliver: SliverList.list(children: _buildAlerts(t)
+                    .map((w) => Padding(
+                    padding: const EdgeInsets.only(bottom: 8), child: w))
+                    .toList())),
+          SliverToBoxAdapter(child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(colors: [kNavy, kNavyMid],
+                    begin: Alignment.topLeft, end: Alignment.bottomRight),
+                borderRadius: BorderRadius.circular(kRadiusHero),
+                boxShadow: [BoxShadow(color: kNavy.withValues(alpha: 0.35),
+                    blurRadius: 24, offset: const Offset(0, 8))],
+              ),
+              padding: const EdgeInsets.fromLTRB(24, 20, 24, 22),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(children: [
+                      const Text("TODAY'S PULSE", style: TextStyle(fontSize: 10,
+                          fontWeight: FontWeight.w900, color: Color(0xFFB4C6F4),
+                          letterSpacing: 0.8)),
+                      const Spacer(),
+                      if (d.todayRate != null) Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Row(mainAxisSize: MainAxisSize.min, children: [
+                          Icon(
+                            (d.rateDelta ?? 0) > 0
+                                ? Icons.arrow_upward_rounded
+                                : (d.rateDelta ?? 0) < 0
+                                ? Icons.arrow_downward_rounded
+                                : Icons.remove_rounded,
+                            size: 10,
+                            color: (d.rateDelta ?? 0) > 0
+                                ? const Color(0xFF86EFAC)
+                                : (d.rateDelta ?? 0) < 0
+                                ? const Color(0xFFFCA5A5)
+                                : const Color(0xFFB4C6F4),
+                          ),
+                          const SizedBox(width: 3),
+                          Text('₹${d.todayRate!.toStringAsFixed(0)}/kg',
+                              style: const TextStyle(fontSize: 10,
+                                  fontWeight: FontWeight.w700,
+                                  color: Colors.white)),
+                        ]),
+                      ),
+                      const SizedBox(width: 8),
+                      GestureDetector(onTap: _load,
+                          child: const Icon(Icons.refresh_rounded,
+                              color: Color(0xFFB4C6F4), size: 16)),
+                    ]),
+                    const SizedBox(height: 20),
+                    Row(children: [
+                      _pulseItem(
+                        icon: Icons.currency_rupee_rounded,
+                        value: Fmt.amount(d.todayRevenue > 0
+                            ? d.todayRevenue : d.todayCollected),
+                        label: 'Revenue',
+                        onTap: () => context.go(R.ledger),
+                        urgent: false,
+                      ),
+                      _pulseItem(
+                        icon: Icons.inventory_2_rounded,
+                        value: '$totalBirds',
+                        label: survDays != null
+                            ? '${survDays.toStringAsFixed(1)}d left'
+                            : 'Birds',
+                        onTap: () => context.push(R.stockDetail),
+                        urgent: survDays != null && survDays < 3,
+                        urgentColor: stockColor,
+                      ),
+                      _pulseItem(
+                        icon: Icons.account_balance_wallet_outlined,
+                        value: Fmt.amount(d.totalOutstanding),
+                        label: 'Outstanding',
+                        onTap: () => context.go(R.ledger),
+                        urgent: d.overLimitCount > 0,
+                      ),
+                    ]),
+                  ]),
+            ),
+          )),
+          SliverToBoxAdapter(child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            child: _BusinessHealthCard(
+              data: d,
+              stockValueByProduct: _stockValueByProduct,
+              onPnl: () => context.push(R.pnlStatement),
+              onCashFlow: () => context.push(R.cashFlowStatement),
+            ),
+          )),
+          SliverToBoxAdapter(child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Padding(padding: EdgeInsets.only(bottom: 10),
+                      child: Row(children: [
+                        Icon(Icons.bolt_rounded, color: kGold, size: 16),
+                        SizedBox(width: 6),
+                        Text('PRIORITY ACTIONS', style: TextStyle(fontSize: 11,
+                            fontWeight: FontWeight.w900, color: kNavy,
+                            letterSpacing: 0.6)),
+                      ])),
+                  Row(children: priorityActions.asMap().entries.map((e) {
+                    final a = e.value;
+                    return Expanded(child: Padding(
+                      padding: EdgeInsets.only(left: e.key > 0 ? 8 : 0),
+                      child: GestureDetector(
+                        onTap: a.onTap,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              vertical: 12, horizontal: 8),
+                          decoration: BoxDecoration(
+                            color: a.color.withValues(alpha: 0.08),
+                            borderRadius: BorderRadius.circular(kRadiusCard),
+                            border: Border.all(
+                                color: a.color.withValues(alpha: 0.25)),
+                          ),
+                          child: Column(mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(a.icon, color: a.color, size: 22),
+                                const SizedBox(height: 6),
+                                Text(a.label, textAlign: TextAlign.center,
+                                    style: TextStyle(fontSize: 10,
+                                        fontWeight: FontWeight.w800, color: a.color),
+                                    maxLines: 2, overflow: TextOverflow.ellipsis),
+                              ]),
+                        ),
+                      ),
+                    ));
+                  }).toList()),
+                ]),
+          )),
+          if (agents.isNotEmpty) SliverToBoxAdapter(child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            child: Container(
+              decoration: BoxDecoration(
+                color: kSurface,
+                borderRadius: BorderRadius.circular(kRadiusCard),
+                border: Border.all(color: kBorderLight.withValues(alpha: 0.5)),
+                boxShadow: kCardShadow,
+              ),
+              child: Column(children: [
+                Padding(padding: const EdgeInsets.fromLTRB(18, 14, 18, 10),
+                    child: Row(children: [
+                      const Icon(Icons.groups_rounded, color: kGold, size: 16),
+                      const SizedBox(width: 8),
+                      const Text('LIVE DISPATCH', style: TextStyle(
+                          fontSize: 11, fontWeight: FontWeight.w900,
+                          color: kNavy, letterSpacing: 0.6)),
+                      const Spacer(),
+                      GestureDetector(onTap: () => context.go(R.dispatch),
+                          child: const Text('VIEW ALL', style: TextStyle(
+                              fontSize: 10, fontWeight: FontWeight.w900,
+                              color: kGold, letterSpacing: 0.5))),
+                    ])),
+                const Divider(height: 1, color: kBorderLight),
+                ...agents.take(4).toList().asMap().entries.map((e) {
+                  final i = e.key;
+                  final a = e.value;
+                  final delayed = a.pendingDeliveries > 0
+                      && !a.hasOpenShift;
+                  return Container(
+                    padding: const EdgeInsets.fromLTRB(18, 12, 18, 12),
+                    decoration: i < (agents.take(4).length - 1)
+                        ? BoxDecoration(border: Border(bottom: BorderSide(
+                        color: kBorderLight.withValues(alpha: 0.5))))
+                        : null,
+                    child: Row(children: [
+                      Container(width: 8, height: 8,
+                          decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: a.hasOpenShift ? kSuccess
+                                  : delayed ? kError : kTextHint)),
+                      const SizedBox(width: 10),
+                      Expanded(child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(a.agentName, style: const TextStyle(fontSize: 13,
+                                fontWeight: FontWeight.w800, color: kNavy),
+                                maxLines: 1, overflow: TextOverflow.ellipsis),
+                            Text(a.hasOpenShift ? 'On Shift' : 'Closed',
+                                style: TextStyle(fontSize: 10,
+                                    fontWeight: FontWeight.w600,
+                                    color: a.hasOpenShift ? kSuccess : kTextHint)),
+                          ])),
+                      if (a.todayDcKg > 0) Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Text('${a.todayDcKg.toStringAsFixed(0)} kg',
+                                style: const TextStyle(fontSize: 12,
+                                    fontWeight: FontWeight.w800, color: kNavy)),
+                            const Text('loaded', style: TextStyle(
+                                fontSize: 9, color: kTextHint)),
+                          ])
+                      else Text('${a.liveStockBirds} birds',
+                          style: const TextStyle(fontSize: 12,
+                              fontWeight: FontWeight.w700, color: kTextSub)),
+                    ]),
+                  );
+                }),
+              ]),
+            ),
+          )),
+          SliverToBoxAdapter(child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Padding(padding: EdgeInsets.only(bottom: 12),
+                      child: Row(children: [
+                        Icon(Icons.apps_rounded, color: kGold, size: 16),
+                        SizedBox(width: 6),
+                        Text('QUICK ACCESS', style: TextStyle(fontSize: 11,
+                            fontWeight: FontWeight.w900, color: kNavy,
+                            letterSpacing: 0.6)),
+                      ])),
+                  GridView.builder(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: 2,
+                        mainAxisSpacing: 10,
+                        crossAxisSpacing: 10,
+                        childAspectRatio: 2.4),
+                    itemCount: topActions.length,
+                    itemBuilder: (_, i) => _qaBtn(topActions[i]),
+                  ),
+                ]),
+          )),
           SliverToBoxAdapter(child: _stockSection(t)),
           SliverToBoxAdapter(child: _financialSection(t)),
-          SliverToBoxAdapter(child: _qaSection(t)),
-          if ((_data?.agentStatus ?? []).isNotEmpty)
-            SliverToBoxAdapter(child: _agentSection()),
-          if ((_data?.todayDelivered ?? 0) > 0)
+          if ((d.todayDelivered) > 0)
             SliverToBoxAdapter(child: _reconSection(t)),
-          if ((_data?.todayReturnsBirds ?? 0) > 0 ||
-              (_data?.pendingReturns ?? 0) > 0)
+          if (d.todayReturnsBirds > 0 || d.pendingReturns > 0)
             SliverToBoxAdapter(child: _returnsSection(t)),
           SliverToBoxAdapter(child: _allClearSection(t)),
           const SliverToBoxAdapter(child: SizedBox(height: 110)),
@@ -243,7 +549,224 @@ class _S extends ConsumerState<DashboardScreen> {
     );
   }
 
-  // ── Mobile helpers — ALL PRESERVED EXACTLY ───────────────────────────────
+  Widget _pulseItem({
+    required IconData icon,
+    required String value,
+    required String label,
+    required VoidCallback onTap,
+    required bool urgent,
+    Color? urgentColor,
+  }) {
+    final c = urgent ? (urgentColor ?? kError) : kGoldLight;
+    return Expanded(child: GestureDetector(onTap: onTap,
+        child: Column(children: [
+          Container(width: 40, height: 40,
+              decoration: BoxDecoration(
+                  color: urgent
+                      ? c.withValues(alpha: 0.25)
+                      : Colors.white.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: c.withValues(alpha: 0.35))),
+              child: Icon(icon, color: c, size: 20)),
+          const SizedBox(height: 8),
+          Text(value, style: TextStyle(fontSize: 22,
+              fontWeight: FontWeight.w900, color: urgent ? c : Colors.white,
+              letterSpacing: -0.4)),
+          Text(label, style: const TextStyle(fontSize: 9,
+              fontWeight: FontWeight.w700, color: Color(0xFFB4C6F4),
+              letterSpacing: -0.2), maxLines: 1,
+              overflow: TextOverflow.ellipsis),
+        ])));
+  }
+
+  Widget _buildTabletScaffold(dynamic user, String lang,
+      String Function(String) t) {
+    if (_loading) return const Scaffold(backgroundColor: kBgPage,
+        body: Center(
+            child: CircularProgressIndicator(color: kNavy, strokeWidth: 2.5)));
+    if (_error != null)
+      return Scaffold(backgroundColor: kBgPage, body: _errorView());
+
+    final d = _data!;
+
+    return Scaffold(
+      backgroundColor: kBgPage,
+      body: RefreshIndicator(
+        onRefresh: _load, color: kNavy, strokeWidth: 2.5,
+        child: CustomScrollView(slivers: [
+          SliverToBoxAdapter(child: _mobileHeader(user, lang, t)),
+          SliverToBoxAdapter(child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            child: IntrinsicHeight(child: Row(children: [
+              _tabletMetric(
+                label: 'Live Birds',
+                value: '${_stock.isEmpty ? d.remainingBirds
+                    : _stock.fold(0, (s, p) => s + p.availableBirds)}',
+                sub: d.stockSurvivalDays != null
+                    ? '${d.stockSurvivalDays!.toStringAsFixed(1)} days'
+                    : 'No rate data',
+                icon: Icons.inventory_2_rounded,
+                color: d.stockSurvivalDays != null && d.stockSurvivalDays! < 3
+                    ? kError : kSuccess,
+                onTap: () => context.push(R.stockDetail),
+              ),
+              const SizedBox(width: 12),
+              _tabletMetric(
+                label: 'Revenue Today',
+                value: Fmt.amount(d.todayRevenue > 0
+                    ? d.todayRevenue : d.todayCollected),
+                sub: d.todayRate != null
+                    ? '₹${d.todayRate!.toStringAsFixed(0)}/kg'
+                    : '—',
+                icon: Icons.currency_rupee_rounded,
+                color: Colors.blue,
+                onTap: () => context.go(R.ledger),
+              ),
+              const SizedBox(width: 12),
+              _tabletMetric(
+                label: 'Outstanding',
+                value: Fmt.amount(d.totalOutstanding),
+                sub: d.overLimitCount > 0
+                    ? '${d.overLimitCount} over limit'
+                    : '${d.creditUtilisationPct.toStringAsFixed(0)}% credit used',
+                icon: Icons.account_balance_wallet_outlined,
+                color: d.overLimitCount > 0 ? kError : Colors.orange.shade700,
+                onTap: () => context.go(R.ledger),
+              ),
+            ])),
+          )),
+          SliverToBoxAdapter(child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            child: _BusinessHealthCard(
+              data: d,
+              stockValueByProduct: _stockValueByProduct,
+              onPnl: () => context.push(R.pnlStatement),
+              onCashFlow: () => context.push(R.cashFlowStatement),
+            ),
+          )),
+          SliverToBoxAdapter(child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            child: _OpsBoard(data: d, onNavigate: (r) => context.go(r)),
+          )),
+          SliverToBoxAdapter(child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Expanded(flex: 5, child: Column(children: [
+                _LiveStockPanel(stock: _stock, data: d),
+                const SizedBox(height: 12),
+                _NavigatorAgentShift(agents: d.agentStatus,
+                    onTap: () => context.go(R.agents)),
+              ])),
+              const SizedBox(width: 12),
+              Expanded(flex: 5, child: Column(children: [
+                _CollectionIntelligencePanel(
+                    data: d,
+                    aging: _dashboardAging,
+                    onLedger: () => context.go(R.ledger),
+                    onClosure: () => context.go(R.dayClosure)),
+                if (_topRetailers.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  _TopRetailersToday(
+                      retailers: _topRetailers,
+                      onViewAll: () => context.go(R.retailers)),
+                ],
+                if (d.unreadAlerts > 0 || d.remainingBirds < 50) ...[
+                  const SizedBox(height: 12),
+                  _AlertsPanel(data: d, stock: _stock,
+                      onTap: () => context.go(R.alerts)),
+                ],
+              ])),
+            ]),
+          )),
+          SliverToBoxAdapter(child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Padding(padding: EdgeInsets.only(bottom: 12),
+                      child: Row(children: [
+                        Icon(Icons.bolt_rounded, color: kGold, size: 18),
+                        SizedBox(width: 8),
+                        Text('QUICK ACTIONS', style: TextStyle(fontSize: 12,
+                            fontWeight: FontWeight.w900, color: kNavy,
+                            letterSpacing: 0.6)),
+                      ])),
+                  GridView.builder(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: 4,
+                        mainAxisSpacing: 12,
+                        crossAxisSpacing: 12,
+                        childAspectRatio: 2.8),
+                    itemCount: _allActions(t).length,
+                    itemBuilder: (_, i) => _qaBtn(_allActions(t)[i]),
+                  ),
+                ]),
+          )),
+          SliverToBoxAdapter(child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 110),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final targetTableWidth = math.max(930.0, constraints.maxWidth);
+                return SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: SizedBox(
+                    width: targetTableWidth,
+                    child: _RecentOrdersTable(
+                      orders: _recentOrders,
+                      onViewAll: () => context.go(R.orders),
+                      onOrder: (id) => context.push(R.orderDetailPath(id)),
+                    ),
+                  ),
+                );
+              },
+            ),
+          )),
+        ]),
+      ),
+    );
+  }
+
+  Widget _tabletMetric({
+    required String label,
+    required String value,
+    required String sub,
+    required IconData icon,
+    required Color color,
+    required VoidCallback onTap,
+  }) => Expanded(child: GestureDetector(onTap: onTap,
+      child: Container(
+        constraints: const BoxConstraints(minHeight: 80),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: kSurface,
+          borderRadius: BorderRadius.circular(kRadiusCard),
+          border: Border.all(color: color.withValues(alpha: 0.2)),
+          boxShadow: kCardShadow,
+        ),
+        child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+          Container(width: 48, height: 48,
+              decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(12)),
+              child: Icon(icon, color: color, size: 24)),
+          const SizedBox(width: 12),
+          Expanded(child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center, children: [
+            Text(label, style: const TextStyle(fontSize: 10,
+                fontWeight: FontWeight.w700, color: kTextHint,
+                letterSpacing: 0.5)),
+            const SizedBox(height: 2),
+            Text(value, style: TextStyle(fontSize: 18,
+                fontWeight: FontWeight.w900, color: color,
+                letterSpacing: -0.3),
+                maxLines: 1, overflow: TextOverflow.ellipsis),
+            Text(sub, style: const TextStyle(fontSize: 10, color: kTextHint)),
+          ])),
+        ]),
+      )));
+
   Widget _mobileHeader(dynamic user, String lang, String Function(String) t) {
     final alerts = _data?.unreadAlerts ?? 0;
     return Padding(
@@ -327,87 +850,6 @@ class _S extends ConsumerState<DashboardScreen> {
     );
   }
 
-  Widget _summaryCard(String Function(String) t) {
-    final d = _data;
-    return Padding(padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
-        child: Container(decoration: BoxDecoration(
-            gradient: const LinearGradient(colors: [kNavy, kNavyMid],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight),
-            borderRadius: BorderRadius.circular(kRadiusHero),
-            boxShadow: [
-              BoxShadow(color: kNavy.withValues(alpha: 0.35),
-                  blurRadius: 24,
-                  offset: const Offset(0, 8))
-            ]),
-            padding: const EdgeInsets.fromLTRB(24, 22, 24, 24),
-            child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Row(children: [
-                const Icon(
-                    Icons.dashboard_rounded, color: kGoldLight, size: 16),
-                const SizedBox(width: 8),
-                const Text("TODAY'S SUMMARY", style: TextStyle(fontSize: 10,
-                    fontWeight: FontWeight.w900,
-                    color: Color(0xFFB4C6F4),
-                    letterSpacing: 0.8)),
-                const Spacer(),
-                GestureDetector(onTap: _load,
-                    child: const Icon(
-                        Icons.refresh_rounded, color: Color(0xFFB4C6F4),
-                        size: 16))
-              ]),
-              const SizedBox(height: 20),
-              Row(mainAxisAlignment: MainAxisAlignment.spaceAround, children: [
-                _summaryStatItem(icon: Icons.receipt_long_rounded,
-                    value: '${d?.pendingOrders ?? 0}',
-                    label: t('orders'),
-                    onTap: () => context.go(R.orders),
-                    urgent: (d?.pendingOrders ?? 0) > 0),
-                _summaryStatItem(icon: Icons.local_shipping_rounded,
-                    value: '${d?.activeDeliveries ?? 0}',
-                    label: t('dispatch'),
-                    onTap: () => context.go(R.dispatch)),
-                _summaryStatItem(icon: Icons.verified_user_rounded,
-                    value: '${d?.pendingApprovals ?? 0}',
-                    label: t('approve'),
-                    onTap: () => context.go(R.approvals),
-                    urgent: (d?.pendingApprovals ?? 0) > 0),
-                _summaryStatItem(icon: Icons.support_agent_rounded,
-                    value: '${d?.activeAgents ?? 0}',
-                    label: t('agents'),
-                    onTap: () => context.go(R.agents)),
-              ]),
-            ])));
-  }
-
-  Widget _summaryStatItem(
-      {required IconData icon, required String value, required String label, required VoidCallback onTap, bool urgent = false}) =>
-      GestureDetector(onTap: onTap,
-          child: Column(children: [
-            Container(width: 46,
-                height: 46,
-                decoration: BoxDecoration(
-                    color: urgent ? kError.withValues(alpha: 0.35) : Colors
-                        .white.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                        color: urgent ? kError.withValues(alpha: 0.5) : Colors
-                            .white.withValues(alpha: 0.12))),
-                child: Icon(
-                    icon, color: urgent ? const Color(0xFFFFB4AC) : kGoldLight,
-                    size: 22)),
-            const SizedBox(height: 8),
-            Text(value, style: TextStyle(fontSize: 26,
-                fontWeight: FontWeight.w900,
-                color: urgent ? const Color(0xFFFFB4AC) : Colors.white,
-                letterSpacing: -0.5)),
-            Text(label, style: const TextStyle(fontSize: 9,
-                fontWeight: FontWeight.w900,
-                color: Color(0xFFB4C6F4),
-                letterSpacing: -0.2))
-          ]));
-
   Widget _stockSection(String Function(String) t) {
     final agents = _data?.agentStatus ?? [];
     final totalBirds = _stock.isEmpty ? 0 : _stock.fold(
@@ -461,7 +903,13 @@ class _S extends ConsumerState<DashboardScreen> {
                                 fontSize: 8,
                                 fontWeight: FontWeight.w900,
                                 color: kTextHint,
-                                letterSpacing: 0.8))
+                                letterSpacing: 0.8)),
+                            const SizedBox(height: 2),
+                            Text(
+                                '${_stock.fold(0.0, (s, p) => s + p.availableKg).toStringAsFixed(2)} Kg',
+                                style: const TextStyle(fontSize: 12,
+                                    fontWeight: FontWeight.w800,
+                                    color: kTextSub)),
                           ]),
                         ])),
                     const SizedBox(width: 20),
@@ -623,141 +1071,6 @@ class _S extends ConsumerState<DashboardScreen> {
                         borderRadius: BorderRadius.circular(99)))
               ]));
 
-  Widget _qaSection(String Function(String) t) {
-    final actions = _allActions(t);
-    return Padding(padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          const Padding(padding: EdgeInsets.only(bottom: 14),
-              child: Row(children: [
-                Icon(Icons.bolt_rounded, color: kGold, size: 18),
-                SizedBox(width: 8),
-                Text('QUICK ACTIONS', style: TextStyle(fontSize: 12,
-                    fontWeight: FontWeight.w900,
-                    color: kNavy,
-                    letterSpacing: 0.6))
-              ])),
-          GridView.builder(shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 2,
-                  mainAxisSpacing: 12,
-                  crossAxisSpacing: 12,
-                  childAspectRatio: 2.6),
-              itemCount: actions.length,
-              itemBuilder: (_, i) => _qaBtn(actions[i])),
-        ]));
-  }
-
-  Widget _agentSection() {
-    final agents = _data?.agentStatus ?? [];
-    if (agents.isEmpty) return const SizedBox.shrink();
-    return Padding(padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-        child: Container(decoration: BoxDecoration(color: kSurface,
-            borderRadius: BorderRadius.circular(kRadiusCard),
-            border: Border.all(color: kBorderLight.withValues(alpha: 0.5)),
-            boxShadow: kCardShadow),
-            child: Column(children: [
-              Padding(padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
-                  child: Row(children: [
-                    const Icon(Icons.groups_rounded, color: kGold, size: 18),
-                    const SizedBox(width: 8),
-                    const Text('AGENT PERFORMANCE', style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w900,
-                        color: kNavy,
-                        letterSpacing: 0.6)),
-                    const Spacer(),
-                    GestureDetector(onTap: () => context.go(R.shifts),
-                        child: const Text('VIEW ALL', style: TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w900,
-                            color: kGold,
-                            letterSpacing: 0.5)))
-                  ])),
-              Padding(padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
-                  child: Row(children: const[
-                    Expanded(flex: 4,
-                        child: Text('AGENT NAME', style: TextStyle(fontSize: 9,
-                            fontWeight: FontWeight.w900,
-                            color: kTextHint,
-                            letterSpacing: 0.8))),
-                    SizedBox(width: 60,
-                        child: Text('DC', textAlign: TextAlign.center,
-                            style: TextStyle(fontSize: 9,
-                                fontWeight: FontWeight.w900,
-                                color: kTextHint,
-                                letterSpacing: 0.8))),
-                    SizedBox(width: 60,
-                        child: Text('STOCK', textAlign: TextAlign.right,
-                            style: TextStyle(fontSize: 9,
-                                fontWeight: FontWeight.w900,
-                                color: kTextHint,
-                                letterSpacing: 0.8)))
-                  ])),
-              const Divider(
-                  height: 1, color: kBorderLight, indent: 20, endIndent: 20),
-              ...agents
-                  .asMap()
-                  .entries
-                  .map((e) {
-                final i = e.key;
-                final a = e.value;
-                return Container(
-                    padding: const EdgeInsets.fromLTRB(20, 14, 20, 14),
-                    decoration: BoxDecoration(
-                        border: i < agents.length - 1 ? Border(
-                            bottom: BorderSide(color: kBorderLight.withValues(
-                                alpha: 0.5))) : null),
-                    child: Row(children: [
-                      Expanded(flex: 4,
-                          child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(a.agentName, style: const TextStyle(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w900,
-                                    color: kNavy),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis),
-                                Row(children: [
-                                  Container(width: 6,
-                                      height: 6,
-                                      decoration: BoxDecoration(
-                                          shape: BoxShape.circle,
-                                          color: a.hasOpenShift ? const Color(
-                                              0xFF22C55E) : kTextHint)),
-                                  const SizedBox(width: 4),
-                                  Text(a.hasOpenShift ? 'SHIFT OPEN' : 'CLOSED',
-                                      style: TextStyle(fontSize: 9,
-                                          fontWeight: FontWeight.w900,
-                                          color: a.hasOpenShift ? const Color(
-                                              0xFF16A34A) : kTextHint,
-                                          letterSpacing: 0.4))
-                                ])
-                              ])),
-                      SizedBox(width: 60, child: Center(child: Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 8, vertical: 3),
-                          decoration: BoxDecoration(
-                              color: a.todayDcBirds > 0 ? kGoldBg : kBgGrey,
-                              borderRadius: BorderRadius.circular(6)),
-                          child: Text(a.todayDcBirds > 0 ? 'MAIN' : 'NONE',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(fontSize: 8,
-                                  fontWeight: FontWeight.w900,
-                                  color: a.todayDcBirds > 0
-                                      ? kWarning
-                                      : kTextHint))))),
-                      SizedBox(width: 60, child: Text('${a.liveStockBirds}',
-                          textAlign: TextAlign.right, style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w900,
-                              color: a.liveStockBirds > 0 ? kNavy : kTextHint)))
-                    ]));
-              }),
-            ])));
-  }
-
   Widget _reconSection(String Function(String) t) {
     final d = _data;
     if (d == null) return const SizedBox.shrink();
@@ -891,7 +1204,7 @@ class _S extends ConsumerState<DashboardScreen> {
                           fontWeight: FontWeight.w800,
                           color: kGoldLight))))
             ])));
-    }
+  }
 
   Widget _agentOwnershipRow(AgentStockStatus a) {
     final hasStock = a.liveStockBirds > 0;
@@ -923,7 +1236,6 @@ class _S extends ConsumerState<DashboardScreen> {
         ]));
   }
 
-  // Shared helpers
   List<Widget> _buildAlerts(String Function(String) t) {
     final d = _data;
     final out = <Widget>[];
@@ -977,6 +1289,17 @@ class _S extends ConsumerState<DashboardScreen> {
         _QA(Icons.add_circle, t('new_order'), Colors.orange,
             const Color(0xFFFFF7ED), () => context.go(R.orderCreate),
             wide: true),
+        // ★ NEW: Stock Point Sale — direct counter/POS sale from in-house
+        // stock. Distinct storefront icon (Icons.store_outlined is already
+        // used by 'customers' above) and a dedicated green so it reads
+        // immediately differently from the orange delivery-workflow tile
+        // right beside it.
+        _QA(Icons.storefront, t('stock_point_sale'), const Color(0xFF16A34A),
+            const Color(0xFFF0FDF4), () => context.push(R.inHouseSale)),
+        // Stock Point Management Phase 2 — separate gold accent so it
+        // doesn't blend with the green Stock Point Sale tile right above it.
+        _QA(Icons.dashboard_outlined, t('inventory_dashboard'), const Color(0xFF8D6E00),
+            const Color(0xFFFFF8E1), () => context.push(R.inventoryDashboard)),
         _QA(Icons.list_alt_outlined, t('orders'), Colors.blue,
             const Color(0xFFEFF6FF), () => context.go(R.orders)),
         _QA(Icons.fact_check_rounded, t('approve'), kSuccess,
@@ -989,8 +1312,8 @@ class _S extends ConsumerState<DashboardScreen> {
             const Color(0xFFFAF5FF), () => context.go(R.ledger)),
         _QA(Icons.receipt_long_outlined, t('invoices'), Colors.amber.shade800,
             const Color(0xFFFFFBEB), () => context.go(R.invoices)),
-        _QA(Icons.price_change_outlined, t('rate'), const Color(0xFF0D9488),
-            const Color(0xFFECFDF5), () => context.go(R.rates)),
+        _QA(Icons.local_offer_outlined, t('rate'), const Color(0xFF0D9488),
+            const Color(0xFFECFDF5), () => context.go(R.pricingHub)),
         _QA(Icons.store_outlined, t('customers'), const Color(0xFF0284C7),
             const Color(0xFFF0F9FF), () => context.go(R.retailers)),
         _QA(Icons.delivery_dining_outlined, t('agents'),
@@ -1051,7 +1374,6 @@ class _S extends ConsumerState<DashboardScreen> {
 // ENTERPRISE DESKTOP COMPONENTS
 // ─────────────────────────────────────────────────────────────────────────────
 
-// ── Command Header ────────────────────────────────────────────────────────────
 class _CommandHeader extends StatelessWidget {
   const _CommandHeader({required this.user, required this.data,
     required this.onRefresh, required this.now});
@@ -1070,6 +1392,20 @@ class _CommandHeader extends StatelessWidget {
     final dayStr = DateFormat('EEE, d MMM y').format(now);
     final timeStr = DateFormat('hh:mm a').format(now);
 
+    final rate      = data.todayRate;
+    final delta     = data.rateDelta;
+    final rateUp    = (delta ?? 0) > 0;
+    final rateDown  = (delta ?? 0) < 0;
+
+    final signal = data.tradingSignal;
+    final (sigLabel, sigColor, sigIcon) = switch (signal) {
+      'buy_urgent' => ('BUY NOW',   _kRed,                    Icons.arrow_upward_rounded),
+      'buy_soon'   => ('BUY SOON',  _kOrange,                  Icons.trending_up_rounded),
+      'sell_fast'  => ('SELL FAST', _kBlue,                    Icons.bolt_rounded),
+      'hold'       => ('HOLD',      _kGreen,                   Icons.check_circle_outline),
+      _            => ('NO DATA',   _kText3,                   Icons.help_outline_rounded),
+    };
+
     return Container(
       decoration: const BoxDecoration(
         color: _kPanel,
@@ -1077,7 +1413,6 @@ class _CommandHeader extends StatelessWidget {
       ),
       padding: const EdgeInsets.fromLTRB(24, 0, 24, 0),
       child: Row(children: [
-        // Greeting
         Expanded(child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisAlignment: MainAxisAlignment.center,
@@ -1092,12 +1427,65 @@ class _CommandHeader extends StatelessWidget {
                       fontWeight: FontWeight.w500)),
             ])),
 
-        // Day status
+        if (rate != null) ...[
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: rateUp ? _kGreenLt : rateDown ? _kRedLt : const Color(0xFFF8FAFC),
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(color: rateUp
+                  ? _kGreen.withValues(alpha: 0.3)
+                  : rateDown
+                  ? _kRed.withValues(alpha: 0.3)
+                  : _kBorder),
+            ),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              Icon(
+                rateUp   ? Icons.arrow_upward_rounded
+                    : rateDown ? Icons.arrow_downward_rounded
+                    : Icons.remove_rounded,
+                size: 13,
+                color: rateUp ? _kGreen : rateDown ? _kRed : _kText3,
+              ),
+              const SizedBox(width: 4),
+              Text('₹${rate.toStringAsFixed(0)}/kg',
+                  style: TextStyle(
+                    fontSize: 13, fontWeight: FontWeight.w700,
+                    color: rateUp ? _kGreen : rateDown ? _kRed : _kText1,
+                  )),
+              if (delta != null && delta != 0) ...[
+                const SizedBox(width: 3),
+                Text('${rateUp ? "+" : ""}${delta.toStringAsFixed(0)}',
+                    style: TextStyle(
+                        fontSize: 10, fontWeight: FontWeight.w600,
+                        color: rateUp ? _kGreen : _kRed)),
+              ],
+            ]),
+          ),
+          const SizedBox(width: 8),
+        ],
+
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          decoration: BoxDecoration(
+            color: sigColor.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(6),
+            border: Border.all(color: sigColor.withValues(alpha: 0.3)),
+          ),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            Icon(sigIcon, size: 13, color: sigColor),
+            const SizedBox(width: 5),
+            Text(sigLabel,
+                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800,
+                    color: sigColor, letterSpacing: 0.4)),
+          ]),
+        ),
+        const SizedBox(width: 12),
+
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
           decoration: BoxDecoration(
-            color: data.isDayClosed
-                ? _kRedLt : _kGreenLt,
+            color: data.isDayClosed ? _kRedLt : _kGreenLt,
             borderRadius: BorderRadius.circular(6),
             border: Border.all(
                 color: data.isDayClosed
@@ -1115,12 +1503,11 @@ class _CommandHeader extends StatelessWidget {
           ]),
         ),
         const SizedBox(width: 12),
-        // Refresh
         _HdrBtn(
             icon: Icons.refresh_rounded, onTap: onRefresh, tooltip: 'Refresh'),
         const SizedBox(width: 4),
       ]),
-      height: 60,
+      height: 64,
     );
   }
 }
@@ -1160,7 +1547,6 @@ class _HdrBtnState extends State<_HdrBtn> {
                       child: Icon(widget.icon, size: 18, color: _kText2)))));
 }
 
-// ── Metric Strip — 5 premium gradient panels ──────────────────────────────────
 class _MetricStrip extends StatelessWidget {
   const _MetricStrip({required this.data, required this.stock});
 
@@ -1176,7 +1562,7 @@ class _MetricStrip extends StatelessWidget {
       _MetricDef(
         label: 'Live Birds',
         value: _fmt(totalBirds),
-        sub: '${stock.isEmpty ? 0 : stock.first.availableBirds} Available',
+        sub: '${_fmt(stock.fold(0, (s, p) => s + p.agentBirds))} with agents',
         icon: Icons.egg_alt_outlined,
         grad: [const Color(0xFFDC2626), const Color(0xFFB91C1C)],
         trend: null,
@@ -1273,9 +1659,7 @@ class _MetricPanel extends StatelessWidget {
               child: Icon(def.icon, color: Colors.white, size: 18),
             ),
             const Spacer(),
-            // Sparkline placeholder — 5 points
-            SizedBox(width: 48, height: 24,
-                child: CustomPaint(painter: _SparkPainter())),
+            const SizedBox(width: 48, height: 24),
           ]),
           const SizedBox(height: 12),
           Text(def.value,
@@ -1294,29 +1678,394 @@ class _MetricPanel extends StatelessWidget {
       );
 }
 
-class _SparkPainter extends CustomPainter {
+// ─────────────────────────────────────────────────────────────────────────────
+// BUSINESS HEALTH CARD  (Phase 4 UI)
+// Answers: Revenue / Purchase Cost / Expense / Mortality Loss / Shrinkage Loss /
+// Gross Profit / Net Profit / Outstanding / Supplier Payable / Cash Position
+// — all for TODAY. Every figure is read directly from DashboardData, which is
+// itself populated from dashboard_summary's v_part3 (a thin wrapper that only
+// CALLS get_pnl_statement / get_cash_flow_statement / get_payable_aging).
+// No calculation happens in this widget.
+// ─────────────────────────────────────────────────────────────────────────────
+class _BusinessHealthCard extends StatelessWidget {
+  const _BusinessHealthCard({
+    required this.data,
+    required this.onPnl,
+    required this.onCashFlow,
+    this.stockValueByProduct = const [],
+  });
+
+  final DashboardData data;
+  final VoidCallback onPnl;
+  final VoidCallback onCashFlow;
+  // ★ Current Stock Value by Product — enabled + currently-stocked
+  // products only. Every field in each row is read verbatim from
+  // get_business_health_by_product_v1; nothing here computes a cost or
+  // a value. Empty list (default) simply hides this sub-section — every
+  // existing call site of this widget continues to work unchanged.
+  final List<Map<String, dynamic>> stockValueByProduct;
+
   @override
-  void paint(Canvas canvas, Size size) {
-    final rng = [0.4, 0.7, 0.5, 0.9, 0.65, 0.8, 1.0];
-    final paint = Paint()
-      ..color = Colors.white.withOpacity(0.5)
-      ..strokeWidth = 1.5
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round;
-    final path = Path();
-    for (int i = 0; i < rng.length; i++) {
-      final x = size.width * i / (rng.length - 1);
-      final y = size.height * (1 - rng[i]);
-      i == 0 ? path.moveTo(x, y) : path.lineTo(x, y);
-    }
-    canvas.drawPath(path, paint);
+  Widget build(BuildContext context) {
+    final d = data;
+    final costPending = d.todayLinesCostPending > 0;
+    final revenue = d.todayRevenue > 0 ? d.todayRevenue : d.todayCollected;
+    final hasPerKg = d.todayCostPerKg != null;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: kSurface,
+        borderRadius: BorderRadius.circular(kRadiusCard),
+        border: Border.all(color: kBorderLight),
+        boxShadow: kCardShadow,
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        // ── Header ──────────────────────────────────────────────────────────
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
+          child: Row(children: [
+            const Icon(Icons.monitor_heart_outlined, color: kGold, size: 16),
+            const SizedBox(width: 8),
+            const Text('BUSINESS HEALTH — TODAY',
+                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900,
+                    color: kNavy, letterSpacing: 0.6)),
+            const Spacer(),
+            GestureDetector(
+              onTap: () async {
+                final added = await showTraderExpenseSheet(context);
+                if (added) onPnl(); // refresh triggers dashboard reload
+              },
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                    color: Colors.orange.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.orange.withValues(alpha: 0.3))),
+                child: const Row(children: [
+                  Icon(Icons.add, size: 11, color: Colors.orange),
+                  SizedBox(width: 3),
+                  Text('Expense', style: TextStyle(fontSize: 10,
+                      fontWeight: FontWeight.w800, color: Colors.orange)),
+                ]),
+              ),
+            ),
+            const SizedBox(width: 8),
+            GestureDetector(
+              onTap: onPnl,
+              child: const Text('FULL P&L', style: TextStyle(fontSize: 10,
+                  fontWeight: FontWeight.w900, color: kGold, letterSpacing: 0.5)),
+            ),
+          ]),
+        ),
+
+        // ── Pending banner ───────────────────────────────────────────────────
+        if (costPending)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(color: Colors.orange.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8)),
+              child: Row(children: [
+                const Icon(Icons.info_outline, size: 13, color: Colors.orange),
+                const SizedBox(width: 6),
+                Expanded(child: Text(
+                    '${d.todayLinesCostPending} line${d.todayLinesCostPending == 1 ? '' : 's'} '
+                        'not yet costed — Gross/Net Profit pending',
+                    style: const TextStyle(fontSize: 10, color: Colors.orange,
+                        fontWeight: FontWeight.w600))),
+              ]),
+            ),
+          ),
+
+        // ── Row 1: Revenue & Purchase Cost ───────────────────────────────────
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+          child: Column(children: [
+            Row(children: [
+              Expanded(child: _healthTile('Revenue', Fmt.amount(revenue),
+                  kSuccess, Icons.trending_up_outlined)),
+              const SizedBox(width: 8),
+              Expanded(child: _healthTile('Purchase Cost',
+                  d.todayPurchaseCostActual == null ? 'Pending'
+                      : Fmt.amount(d.todayPurchaseCostActual!),
+                  Colors.blue, Icons.shopping_cart_outlined)),
+            ]),
+            const SizedBox(height: 8),
+
+            // ── Row 2: Outstanding & Supplier Payable ─────────────────────
+            Row(children: [
+              Expanded(child: _healthTile('Outstanding', Fmt.amount(d.totalOutstanding),
+                  Colors.deepOrange, Icons.account_balance_wallet_outlined)),
+              const SizedBox(width: 8),
+              Expanded(child: _healthTile('Supplier Payable',
+                  Fmt.amount(d.totalSupplierPayable), Colors.brown,
+                  Icons.agriculture_outlined)),
+            ]),
+            const SizedBox(height: 8),
+
+            // ── Row 3: Expenses (with breakdown) & Cash ───────────────────
+            Row(children: [
+              Expanded(child: _expenseTile(d)),
+              const SizedBox(width: 8),
+              Expanded(child: GestureDetector(
+                onTap: onCashFlow,
+                child: _healthTile('Cash Position',
+                    Fmt.amount(d.todayCashIn - d.todayCashOut),
+                    (d.todayCashIn - d.todayCashOut) >= 0 ? kSuccess : kError,
+                    Icons.water_drop_outlined),
+              )),
+            ]),
+            const SizedBox(height: 8),
+
+            // ── Row 4: Loss tiles ─────────────────────────────────────────
+            Row(children: [
+              Expanded(child: _healthTile('Mortality Loss',
+                  Fmt.amount(d.todayMortalityLossAmount), kError,
+                  Icons.health_and_safety_outlined)),
+              const SizedBox(width: 8),
+              Expanded(child: _healthTile('Transit Shrinkage',
+                  Fmt.amount(d.todayShrinkageLossAmount),
+                  const Color(0xFF6A1B9A), Icons.compress_outlined)),
+            ]),
+            if (d.todayUnexplainedLossAmount > 0) ...[
+              const SizedBox(height: 8),
+              Row(children: [
+                Expanded(child: _healthTile('Weight Variance',
+                    Fmt.amount(d.todayUnexplainedLossAmount),
+                    Colors.deepPurple, Icons.balance_outlined)),
+                const SizedBox(width: 8),
+                Expanded(child: _healthTile('Total Loss ₹',
+                    Fmt.amount(d.todayTotalLossAmount), kError,
+                    Icons.crisis_alert_outlined)),
+              ]),
+            ],
+          ]),
+        ),
+
+        // ── Gross / Net Profit row ───────────────────────────────────────────
+        Container(
+          margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: d.todayNetProfit == null
+                ? Colors.orange.withValues(alpha: 0.08)
+                : d.todayNetProfit! >= 0
+                ? kSuccess.withValues(alpha: 0.08)
+                : kError.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(kRadiusInner),
+          ),
+          child: Row(children: [
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('Gross Profit',
+                  style: TextStyle(fontSize: 10,
+                      color: d.todayGrossProfit == null ? Colors.orange.shade800 : kTextSub)),
+              Text(d.todayGrossProfit == null ? 'Pending' : Fmt.amount(d.todayGrossProfit!),
+                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800,
+                      color: d.todayGrossProfit == null ? Colors.orange.shade800 : kTextMain)),
+              if (d.todayGrossMarginPct != null)
+                Text('${d.todayGrossMarginPct!.toStringAsFixed(1)}% margin',
+                    style: const TextStyle(fontSize: 9, color: kTextSub)),
+            ])),
+            Container(width: 1, height: 40, color: kBorderLight),
+            const SizedBox(width: 12),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('Net Profit', style: TextStyle(fontSize: 10,
+                  color: d.todayNetProfit == null ? Colors.orange.shade800
+                      : d.todayNetProfit! >= 0 ? kSuccess : kError)),
+              Text(d.todayNetProfit == null ? 'Pending' : Fmt.amount(d.todayNetProfit!),
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900,
+                      color: d.todayNetProfit == null ? Colors.orange.shade800
+                          : d.todayNetProfit! >= 0 ? kSuccess : kError)),
+              if (d.todayNetMarginPct != null)
+                Text('${d.todayNetMarginPct!.toStringAsFixed(1)}% net margin',
+                    style: TextStyle(fontSize: 9,
+                        color: d.todayNetMarginPct! >= 0 ? kSuccess : kError)),
+            ])),
+          ]),
+        ),
+
+        // ── Per-KG strip (only when batch costing is available today) ────────
+        if (hasPerKg)
+          Container(
+            margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: kNavy.withValues(alpha: 0.04),
+              borderRadius: BorderRadius.circular(kRadiusInner),
+              border: Border.all(color: kNavy.withValues(alpha: 0.08)),
+            ),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              const Row(children: [
+                Icon(Icons.straighten_outlined, size: 11, color: kNavy),
+                SizedBox(width: 4),
+                Text('PER KG  —  Today\'s Averages',
+                    style: TextStyle(fontSize: 9, fontWeight: FontWeight.w900,
+                        color: kNavy, letterSpacing: 0.5)),
+              ]),
+              const SizedBox(height: 10),
+              Row(children: [
+                _kgPill('Cost/kg',    d.todayCostPerKg,           Colors.blue),
+                _kgPill('Sell/kg',    d.todaySellingPricePerKg,   kSuccess),
+                _kgPill('Profit/kg',  d.todayNetProfitPerKg,
+                    (d.todayNetProfitPerKg ?? 0) >= 0 ? kSuccess : kError),
+              ]),
+              const SizedBox(height: 6),
+              Row(children: [
+                _kgPill('Expense/kg', d.todayExpensePerKg,        Colors.orange),
+                _kgPill('Loss/kg',    d.todayLossPerKg,           kError),
+                _kgPill('G.Margin',
+                    d.todayGrossMarginPct != null
+                        ? d.todayGrossMarginPct! / 100 : null,
+                    Colors.purple, suffix: '%',
+                    format: (v) => '${(v * 100).toStringAsFixed(1)}%'),
+              ]),
+            ]),
+          )
+        else
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            child: Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                  color: Colors.grey.shade50,
+                  borderRadius: BorderRadius.circular(kRadiusInner),
+                  border: Border.all(color: Colors.grey.shade200)),
+              child: const Row(children: [
+                Icon(Icons.straighten_outlined, size: 12, color: kTextSub),
+                SizedBox(width: 6),
+                Text('Per-KG metrics available after first batch is approved today',
+                    style: TextStyle(fontSize: 10, color: kTextSub)),
+              ]),
+            ),
+          ),
+
+        // ── Current Stock Value by Product (enabled + stocked only) ──────────
+        // Purely rendered from get_business_health_by_product_v1 — no
+        // calculation happens here. Hidden entirely when there's nothing
+        // currently stocked, rather than showing an empty section.
+        if (stockValueByProduct.isNotEmpty) ...[
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+            child: Row(children: [
+              const Icon(Icons.inventory_2_outlined, size: 11, color: kNavy),
+              const SizedBox(width: 4),
+              const Text('CURRENT STOCK VALUE  —  By Product',
+                  style: TextStyle(fontSize: 9, fontWeight: FontWeight.w900,
+                      color: kNavy, letterSpacing: 0.5)),
+            ]),
+          ),
+          ...stockValueByProduct.map((r) {
+            final kg = (r['current_stock_kg'] as num?)?.toDouble() ?? 0;
+            final costPerKg = (r['cost_per_kg'] as num?)?.toDouble();
+            final stockValue = (r['current_stock_value'] as num?)?.toDouble();
+            final marketRate = (r['market_rate_per_kg'] as num?)?.toDouble();
+            final marketValue = (r['market_value'] as num?)?.toDouble();
+            final isPending = r['is_pending_cost'] == true;
+            return Container(
+              margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: isPending ? Colors.orange.withValues(alpha: 0.05) : kNavy.withValues(alpha: 0.03),
+                borderRadius: BorderRadius.circular(kRadiusInner),
+                border: Border.all(color: isPending ? Colors.orange.withValues(alpha: 0.2) : kNavy.withValues(alpha: 0.08)),
+              ),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Row(children: [
+                  Expanded(child: Text(r['product_name'] as String? ?? '—',
+                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800))),
+                  Text('${kg.toStringAsFixed(0)} kg', style: const TextStyle(fontSize: 11, color: kTextSub)),
+                ]),
+                const SizedBox(height: 6),
+                Row(children: [
+                  _kgPill('Cost/kg', costPerKg, isPending ? Colors.orange : Colors.blue,
+                      format: (v) => '₹${v.toStringAsFixed(0)}'),
+                  _kgPill('Stock Value', stockValue, isPending ? Colors.orange : kSuccess,
+                      format: (v) => Fmt.amount(v)),
+                  _kgPill('Mkt Value', marketValue, kNavy,
+                      format: (v) => Fmt.amount(v)),
+                ]),
+                if (marketRate != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Text("Today's Market Rate: ₹${marketRate.toStringAsFixed(0)}/kg",
+                        style: const TextStyle(fontSize: 9.5, color: kTextSub)),
+                  ),
+              ]),
+            );
+          }),
+        ],
+      ]),
+    );
   }
 
-  @override bool shouldRepaint(_) => false;
+  // ── Expense tile with breakdown ────────────────────────────────────────────
+  Widget _expenseTile(DashboardData d) {
+    final hasBreakdown = d.todayTripExpenses + d.todayTraderExpenses + d.todayFixedExpenses > 0;
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+          color: Colors.orange.withValues(alpha: 0.07),
+          borderRadius: BorderRadius.circular(kRadiusInner)),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        const Icon(Icons.receipt_long_outlined, size: 14, color: Colors.orange),
+        const SizedBox(height: 4),
+        Text(Fmt.amount(d.todayExpenseTotal),
+            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w900,
+                color: Colors.orange), maxLines: 1, overflow: TextOverflow.ellipsis),
+        const Text('Total Expenses',
+            style: TextStyle(fontSize: 9, color: kTextSub)),
+        if (hasBreakdown) ...[
+          const SizedBox(height: 4),
+          if (d.todayTripExpenses > 0)
+            Text('Agent: ${Fmt.amount(d.todayTripExpenses)}',
+                style: const TextStyle(fontSize: 8, color: kTextSub)),
+          if (d.todayTraderExpenses > 0)
+            Text('Trader: ${Fmt.amount(d.todayTraderExpenses)}',
+                style: const TextStyle(fontSize: 8, color: Colors.orange)),
+          if (d.todayFixedExpenses > 0)
+            Text('Fixed: ${Fmt.amount(d.todayFixedExpenses)}',
+                style: const TextStyle(fontSize: 8, color: kTextSub)),
+        ],
+      ]),
+    );
+  }
+
+  // ── Per-kg pill ────────────────────────────────────────────────────────────
+  Widget _kgPill(String label, double? value, Color c,
+      {String suffix = '/kg', String Function(double)? format}) =>
+      Expanded(child: Container(
+        margin: const EdgeInsets.only(right: 5),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+        decoration: BoxDecoration(
+            color: c.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(6),
+            border: Border.all(color: c.withValues(alpha: 0.2))),
+        child: Column(children: [
+          Text(value == null ? '—'
+              : format != null ? format(value)
+              : '${Fmt.amount(value)}$suffix',
+              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: c),
+              textAlign: TextAlign.center),
+          Text(label, style: const TextStyle(fontSize: 8, color: kTextSub),
+              textAlign: TextAlign.center),
+        ]),
+      ));
+
+  Widget _healthTile(String label, String value, Color c, IconData icon) => Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(color: c.withValues(alpha: 0.07),
+          borderRadius: BorderRadius.circular(kRadiusInner)),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Icon(icon, size: 14, color: c),
+        const SizedBox(height: 4),
+        Text(value, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w900, color: c),
+            maxLines: 1, overflow: TextOverflow.ellipsis),
+        Text(label, style: const TextStyle(fontSize: 9, color: kTextSub),
+            maxLines: 1, overflow: TextOverflow.ellipsis),
+      ]));
 }
 
-// ── Operations Board ──────────────────────────────────────────────────────────
 class _OpsBoard extends StatelessWidget {
   const _OpsBoard({required this.data, required this.onNavigate});
 
@@ -1334,6 +2083,11 @@ class _OpsBoard extends StatelessWidget {
           Icons.local_shipping_outlined, R.dispatch),
       _OpsCol('Delivered Today', data.todayDelivered, _kGreen,
           Icons.check_circle_outline, R.approvals),
+      _OpsCol('Delayed >3h',
+          data.delayedDeliveries,
+          data.delayedDeliveries > 0 ? _kRed : _kText3,
+          Icons.timer_off_outlined,
+          R.dispatch),
     ];
 
     return Container(
@@ -1344,7 +2098,6 @@ class _OpsBoard extends StatelessWidget {
         boxShadow: _kShadow,
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        // Header
         Padding(
           padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
           child: Row(children: [
@@ -1358,7 +2111,6 @@ class _OpsBoard extends StatelessWidget {
         ),
         const Divider(height: 1, color: _kBorder),
 
-        // 4 columns
         IntrinsicHeight(
           child: Row(
             children: cols
@@ -1437,81 +2189,123 @@ class _OpsBoardCol extends StatelessWidget {
       );
 }
 
-// ── Revenue Trend Panel (area chart simulation) ───────────────────────────────
 class _RevenueTrendPanel extends StatelessWidget {
-  const _RevenueTrendPanel({required this.data});
+  const _RevenueTrendPanel({required this.data, required this.trend});
 
   final DashboardData data;
+  final List<Map<String, dynamic>> trend;
 
   @override
-  Widget build(BuildContext context) =>
-      Container(
-        decoration: BoxDecoration(
-          color: _kPanel,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: _kBorder),
-          boxShadow: _kShadow,
-        ),
-        padding: const EdgeInsets.all(20),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(children: [
-            const Text('SALES & REVENUE TREND',
-                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800,
-                    color: _kText1, letterSpacing: 0.8)),
-            const Spacer(),
-            _ChipFilter('This Week'),
-          ]),
-          const SizedBox(height: 4),
-          Row(children: [
-            _Legend(color: _kBlue, label: 'Revenue (₹)'),
-            const SizedBox(width: 16),
-            _Legend(color: _kText3, label: 'Sold (kg)'),
-          ]),
-          const SizedBox(height: 16),
+  Widget build(BuildContext context) {
+    // ── Parse live 7-day series (day_date, revenue, kg_delivered) ────────────
+    final revenueList = <double>[];
+    final kgList = <double>[];
+    final dateList = <DateTime?>[];
+    for (final row in trend) {
+      revenueList.add((row['revenue'] as num?)?.toDouble() ?? 0.0);
+      kgList.add((row['kg_delivered'] as num?)?.toDouble() ?? 0.0);
+      dateList.add(DateTime.tryParse(row['day_date'] as String? ?? ''));
+    }
+    final hasData = trend.isNotEmpty &&
+        (revenueList.any((v) => v > 0) || kgList.any((v) => v > 0));
+
+    final maxRev = revenueList.isEmpty
+        ? 0.0
+        : revenueList.reduce((a, b) => a > b ? a : b);
+    final maxKg = kgList.isEmpty ? 0.0 : kgList.reduce((a, b) => a > b ? a : b);
+    final revFractions =
+    revenueList.map((v) => maxRev > 0 ? v / maxRev : 0.0).toList();
+    final kgFractions =
+    kgList.map((v) => maxKg > 0 ? v / maxKg : 0.0).toList();
+
+    // ── Y-axis labels: real amounts, plain rupee formatting (no K/L) ─────────
+    const tickCount = 5;
+    final yAxisLabels = List.generate(tickCount, (i) {
+      final v = maxRev * (tickCount - 1 - i) / (tickCount - 1);
+      return v <= 0 ? '₹0' : Fmt.amount(v);
+    });
+
+    return Container(
+      decoration: BoxDecoration(
+        color: _kPanel,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: _kBorder),
+        boxShadow: _kShadow,
+      ),
+      padding: const EdgeInsets.all(20),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          const Text('SALES & REVENUE TREND',
+              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800,
+                  color: _kText1, letterSpacing: 0.8)),
+          const Spacer(),
+          const _ChipFilter('Last 7 Days'),
+        ]),
+        const SizedBox(height: 4),
+        Row(children: [
+          _Legend(color: _kBlue, label: 'Revenue (₹)'),
+          const SizedBox(width: 16),
+          _Legend(color: _kText3, label: 'Sold (kg)'),
+        ]),
+        const SizedBox(height: 16),
+        if (!hasData)
+          Container(
+            height: 160,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+                color: const Color(0xFFF8FAFC),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: _kBorder)),
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              const Icon(Icons.show_chart_rounded, size: 22, color: _kText3),
+              const SizedBox(height: 6),
+              const Text('No sales recorded in the last 7 days',
+                  style: TextStyle(fontSize: 12, color: _kText3,
+                      fontWeight: FontWeight.w600)),
+            ]),
+          )
+        else ...[
           SizedBox(height: 160, child: CustomPaint(
             size: const Size(double.infinity, 160),
             painter: _AreaChartPainter(
               primaryColor: _kBlue,
               secondaryColor: _kText3,
+              revenueFractions: revFractions,
+              kgFractions: kgFractions,
+              yAxisLabels: yAxisLabels,
             ),
           )),
           const SizedBox(height: 8),
           Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-            for (final d in [
-              '9 May',
-              '10 May',
-              '11 May',
-              '12 May',
-              '13 May',
-              '14 May',
-              '15 May'
-            ])
-              Text(d, style: const TextStyle(fontSize: 9, color: _kText3)),
+            for (final dt in dateList)
+              Text(dt != null ? DateFormat('d MMM').format(dt) : '—',
+                  style: const TextStyle(fontSize: 9, color: _kText3)),
           ]),
-          const SizedBox(height: 16),
-          // Today revenue summary
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-                color: const Color(0xFFF8FAFC),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: _kBorder)),
-            child: Row(children: [
-              _MiniStat(
-                  'Today\'s Revenue', Fmt.amount(data.todayCollected), _kBlue),
-              _Divider(),
-              _MiniStat('Cash Collected', Fmt.amount(data.todayCashCollected),
-                  _kGreen),
-              _Divider(),
-              _MiniStat('UPI Collected', Fmt.amount(data.todayUpiCollected),
-                  _kIndigo),
-              _Divider(),
-              _MiniStat(
-                  'Outstanding', Fmt.amount(data.totalOutstanding), _kOrange),
-            ]),
-          ),
-        ]),
-      );
+        ],
+        const SizedBox(height: 16),
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+              color: const Color(0xFFF8FAFC),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: _kBorder)),
+          child: Row(children: [
+            _MiniStat(
+                'Today\'s Revenue', Fmt.amount(data.todayCollected), _kBlue),
+            _Divider(),
+            _MiniStat('Cash Collected', Fmt.amount(data.todayCashCollected),
+                _kGreen),
+            _Divider(),
+            _MiniStat('UPI Collected', Fmt.amount(data.todayUpiCollected),
+                _kIndigo),
+            _Divider(),
+            _MiniStat(
+                'Outstanding', Fmt.amount(data.totalOutstanding), _kOrange),
+          ]),
+        ),
+      ]),
+    );
+  }
 }
 
 class _ChipFilter extends StatelessWidget {
@@ -1527,13 +2321,8 @@ class _ChipFilter extends StatelessWidget {
             color: const Color(0xFFF1F5F9),
             borderRadius: BorderRadius.circular(6),
             border: Border.all(color: _kBorder)),
-        child: Row(children: [
-          Text(label, style: const TextStyle(fontSize: 11, color: _kText2,
-              fontWeight: FontWeight.w500)),
-          const SizedBox(width: 4),
-          const Icon(
-              Icons.keyboard_arrow_down_rounded, size: 14, color: _kText3),
-        ]),
+        child: Text(label, style: const TextStyle(fontSize: 11, color: _kText2,
+            fontWeight: FontWeight.w500)),
       );
 }
 
@@ -1580,28 +2369,30 @@ class _Divider extends StatelessWidget {
 }
 
 class _AreaChartPainter extends CustomPainter {
-  const _AreaChartPainter(
-      {required this.primaryColor, required this.secondaryColor});
+  const _AreaChartPainter({
+    required this.primaryColor,
+    required this.secondaryColor,
+    required this.revenueFractions,
+    required this.kgFractions,
+    required this.yAxisLabels,
+  });
 
   final Color primaryColor, secondaryColor;
+  final List<double> revenueFractions;
+  final List<double> kgFractions;
+  final List<String> yAxisLabels;
 
   @override
   void paint(Canvas canvas, Size size) {
-    // Revenue line (simulated — 7 points)
-    final rev = [0.3, 0.55, 0.45, 0.72, 0.68, 0.85, 0.78];
-    final sol = [0.2, 0.40, 0.35, 0.58, 0.52, 0.65, 0.60];
+    _drawAreaLine(canvas, size, revenueFractions, primaryColor);
+    _drawLine(canvas, size, kgFractions, secondaryColor);
 
-    _drawAreaLine(canvas, size, rev, primaryColor);
-    _drawLine(canvas, size, sol, secondaryColor);
-
-    // Y-axis labels
-    final labels = ['₹5L', '₹4L', '₹3L', '₹2L', '₹1L', '₹0'];
     final tp = TextPainter(textDirection: TextDirection.ltr);
-    for (int i = 0; i < labels.length; i++) {
-      tp.text = TextSpan(text: labels[i],
+    for (int i = 0; i < yAxisLabels.length; i++) {
+      tp.text = TextSpan(text: yAxisLabels[i],
           style: const TextStyle(fontSize: 8, color: _kText3));
       tp.layout();
-      tp.paint(canvas, Offset(0, size.height * i / (labels.length - 1) - 6));
+      tp.paint(canvas, Offset(0, size.height * i / (yAxisLabels.length - 1) - 6));
     }
   }
 
@@ -1636,7 +2427,6 @@ class _AreaChartPainter extends CustomPainter {
     canvas.drawPath(area, ap);
     canvas.drawPath(path, lp);
 
-    // Dots
     final dp = Paint()
       ..color = color
       ..style = PaintingStyle.fill;
@@ -1665,10 +2455,10 @@ class _AreaChartPainter extends CustomPainter {
     canvas.drawPath(path, lp);
   }
 
-  @override bool shouldRepaint(_) => false;
+  @override bool shouldRepaint(_AreaChartPainter o) =>
+      o.revenueFractions != revenueFractions || o.kgFractions != kgFractions;
 }
 
-// ── Live Stock Panel ──────────────────────────────────────────────────────────
 class _LiveStockPanel extends StatelessWidget {
   const _LiveStockPanel({required this.stock, required this.data});
 
@@ -1679,16 +2469,25 @@ class _LiveStockPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     final totalBirds = stock.isEmpty ? data.remainingBirds
         : stock.fold(0, (s, p) => s + p.availableBirds);
-    final availBirds = stock.isEmpty ? 0 : stock.first.availableBirds;
-    final inTransit = data.agentStatus.fold(0, (s, a) => s + a.liveStockBirds);
-    final soldToday = data.todayDelivered;
-    final mortality = data.todayMortalityBirdsLedger;
+    final availBirds = stock.fold(0, (s, p) => s + p.availableBirds);
+    final inTransit  = data.agentStatus.fold(0, (s, a) => s + a.liveStockBirds);
+    final soldToday  = data.todayDelivered;
+    final mortality  = data.todayMortalityBirdsLedger;
+    final survival   = data.stockSurvivalDays;
+
+    final ringColor = survival == null
+        ? _kGreen
+        : survival < 1
+        ? _kRed
+        : survival < 3
+        ? _kOrange
+        : _kGreen;
 
     final items = [
-      ('Available', availBirds, 93.2, _kGreen),
-      ('In Transit', inTransit, 6.8, _kBlue),
-      ('Sold Today', soldToday, 0, _kOrange),
-      ('Mortality', mortality, 0, _kRed),
+      ('Available',  availBirds, _kGreen),
+      ('In Transit', inTransit,  _kBlue),
+      ('Sold Today', soldToday,  _kOrange),
+      ('Mortality',  mortality,  _kRed),
     ];
 
     return Container(
@@ -1714,7 +2513,6 @@ class _LiveStockPanel extends StatelessWidget {
         ]),
         const SizedBox(height: 16),
         Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
-          // Donut
           SizedBox(width: 140, height: 140,
             child: Stack(alignment: Alignment.center, children: [
               Transform.rotate(angle: -math.pi / 2,
@@ -1722,7 +2520,7 @@ class _LiveStockPanel extends StatelessWidget {
                       painter: _DonutPainter(
                         fraction: totalBirds > 0
                             ? (availBirds / totalBirds).clamp(0.0, 1.0) : 0.0,
-                        ringColor: _kGreen,
+                        ringColor:  ringColor,
                         trackColor: const Color(0xFFF1F5F9),
                         strokeWidth: 14,
                       ))),
@@ -1731,22 +2529,35 @@ class _LiveStockPanel extends StatelessWidget {
                     style: const TextStyle(
                         fontSize: 22, fontWeight: FontWeight.w800,
                         color: _kText1, letterSpacing: -0.5)),
-                const Text('Total Birds',
-                    style: TextStyle(fontSize: 10,
-                        color: _kText3,
+                const Text('Birds',
+                    style: TextStyle(fontSize: 9, color: _kText3,
                         fontWeight: FontWeight.w500)),
+                const SizedBox(height: 2),
+                Text(
+                    '${stock.fold(0.0, (s, p) => s + p.availableKg).toStringAsFixed(2)} Kg',
+                    style: const TextStyle(fontSize: 10, color: _kText3,
+                        fontWeight: FontWeight.w700)),
+                if (survival != null) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                      survival < 1
+                          ? '< 1 day'
+                          : '${survival.toStringAsFixed(1)}d',
+                      style: TextStyle(
+                          fontSize: 11, fontWeight: FontWeight.w800,
+                          color: ringColor)),
+                ],
               ]),
             ]),
           ),
           const SizedBox(width: 24),
-          // Legend
           Expanded(child: Column(children: items.map((item) =>
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 6),
                 child: Row(children: [
                   Container(width: 10, height: 10,
                       decoration: BoxDecoration(
-                          shape: BoxShape.circle, color: item.$4)),
+                          shape: BoxShape.circle, color: item.$3)),
                   const SizedBox(width: 8),
                   Expanded(child: Text(item.$1,
                       style: const TextStyle(fontSize: 13, color: _kText2,
@@ -1759,16 +2570,34 @@ class _LiveStockPanel extends StatelessWidget {
               )).toList())),
         ]),
         const SizedBox(height: 12),
-        Text('Updated just now',
-            style: const TextStyle(fontSize: 11, color: _kText3)),
+        if (data.agingStockBatches > 0)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: _kRedLt,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: _kRed.withValues(alpha: 0.3)),
+            ),
+            child: Row(children: [
+              const Icon(Icons.warning_amber_rounded, color: _kRed, size: 14),
+              const SizedBox(width: 8),
+              Expanded(child: Text(
+                  '${data.agingStockBatches} batch${data.agingStockBatches > 1 ? "es" : ""} '
+                      'with stock older than 2 days — quality risk',
+                  style: const TextStyle(fontSize: 11, color: _kRed,
+                      fontWeight: FontWeight.w600))),
+            ]),
+          )
+        else
+          Text('Updated just now',
+              style: const TextStyle(fontSize: 11, color: _kText3)),
       ]),
     );
   }
 }
 
-// ── Agent Leaderboard ─────────────────────────────────────────────────────────
-class _AgentLeaderboard extends StatelessWidget {
-  const _AgentLeaderboard({required this.agents, required this.onTap});
+class _NavigatorAgentShift extends StatelessWidget {
+  const _NavigatorAgentShift({required this.agents, required this.onTap});
 
   final List<AgentStockStatus> agents;
   final VoidCallback onTap;
@@ -1816,7 +2645,6 @@ class _AgentRow extends StatelessWidget {
         decoration: const BoxDecoration(
             border: Border(bottom: BorderSide(color: _kBorder))),
         child: Row(children: [
-          // Avatar
           Container(
             width: 36, height: 36,
             decoration: BoxDecoration(
@@ -1838,9 +2666,21 @@ class _AgentRow extends StatelessWidget {
                 Text(agent.agentName, style: const TextStyle(fontSize: 13,
                     fontWeight: FontWeight.w600, color: _kText1),
                     maxLines: 1, overflow: TextOverflow.ellipsis),
-                Text('${agent.todayDeliveredBirds} Deliveries',
+                Text('${agent.todayDeliveredBirds} birds',
                     style: const TextStyle(fontSize: 11, color: _kText3)),
               ])),
+          if (agent.todayDcKg > 0)
+            Padding(
+              padding: const EdgeInsets.only(right: 10),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text('${agent.todayDcKg.toStringAsFixed(0)} kg',
+                        style: const TextStyle(fontSize: 12,
+                            fontWeight: FontWeight.w700, color: _kText1)),
+                    const Text('loaded',
+                        style: TextStyle(fontSize: 9, color: _kText3)),
+                  ]),
+            ),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
             decoration: BoxDecoration(
@@ -1859,112 +2699,321 @@ class _AgentRow extends StatelessWidget {
       );
 }
 
-// ── Financial Health ──────────────────────────────────────────────────────────
-class _FinancialHealth extends StatelessWidget {
-  const _FinancialHealth({required this.data,
-    required this.onLedger, required this.onClosure});
+class _CollectionIntelligencePanel extends StatelessWidget {
+  const _CollectionIntelligencePanel({
+    required this.data,
+    required this.aging,
+    required this.onLedger,
+    required this.onClosure,
+  });
 
   final DashboardData data;
+  final List<Map<String, dynamic>> aging;
   final VoidCallback onLedger, onClosure;
 
   @override
-  Widget build(BuildContext context) =>
-      Container(
-        decoration: BoxDecoration(
-          color: _kPanel,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: _kBorder),
-          boxShadow: _kShadow,
+  Widget build(BuildContext context) {
+    final bucketMap = <String, Map<String, dynamic>>{};
+    for (final row in aging) {
+      bucketMap[row['bucket'] as String? ?? ''] = row;
+    }
+
+    final bucketDefs = [
+      ('critical', _kRed,                  'Critical  >30d'),
+      ('overdue',  const Color(0xFFEA580C), 'Overdue  16–30d'),
+      ('due_soon', _kOrange,               'Due Soon  8–15d'),
+      ('current',  _kGreen,               'Current  0–7d'),
+    ];
+
+    return Container(
+      decoration: BoxDecoration(
+        color: _kPanel,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: _kBorder),
+        boxShadow: _kShadow,
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(18, 16, 18, 12),
+          child: Row(children: [
+            const Text('COLLECTION INTELLIGENCE',
+                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800,
+                    color: _kText1, letterSpacing: 0.8)),
+            const Spacer(),
+            InkWell(onTap: onLedger,
+                child: const Text('View All',
+                    style: TextStyle(fontSize: 11, color: _kBlue,
+                        fontWeight: FontWeight.w600))),
+          ]),
         ),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(18, 16, 18, 12),
-            child: Row(children: [
-              const Text('COLLECTIONS SUMMARY',
-                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800,
-                      color: _kText1, letterSpacing: 0.8)),
-              const Spacer(),
-              InkWell(onTap: onLedger,
-                  child: const Text('View All',
-                      style: TextStyle(fontSize: 11, color: _kBlue,
-                          fontWeight: FontWeight.w600))),
-            ]),
-          ),
-          const Divider(height: 1, color: _kBorder),
-          Padding(padding: const EdgeInsets.all(18), child: Column(children: [
-            // Half donut for collection rate
-            _CollRow(icon: Icons.currency_rupee_rounded,
-                color: _kGreen,
-                label: "Today's Collection",
-                value: Fmt.amount(data.todayCollected)),
-            const SizedBox(height: 10),
-            _CollRow(icon: Icons.hourglass_empty_rounded,
-                color: _kOrange,
-                label: 'Pending Collection',
-                value: Fmt.amount(data.totalOutstanding)),
-            const Divider(height: 20, color: _kBorder),
-            _CollRow(icon: Icons.money_rounded,
-                color: _kIndigo,
-                label: 'Cash In Hand',
-                value: Fmt.amount(data.todayCashCollected)),
-            const SizedBox(height: 10),
-            // Overdue customers — using open shifts as proxy
-            _CollRow(icon: Icons.people_outline,
-                color: _kRed,
-                label: 'Overdue Customers',
-                value: '${(data.openShifts * 2).clamp(0, 99)}',
-                isCount: true),
-            if (data.allClear) ...[
-              const Divider(height: 20, color: _kBorder),
-              GestureDetector(
-                onTap: onClosure,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(vertical: 11),
-                  decoration: BoxDecoration(
-                    color: _kNavBg,
-                    borderRadius: BorderRadius.circular(8),
+        const Divider(height: 1, color: _kBorder),
+        Padding(padding: const EdgeInsets.all(16), child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start, children: [
+
+          Row(children: [
+            Expanded(child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(children: [
+                Text('Credit used: ${data.creditUtilisationPct.toStringAsFixed(0)}%',
+                    style: const TextStyle(fontSize: 11,
+                        fontWeight: FontWeight.w700, color: _kText1)),
+                if (data.overLimitCount > 0) ...[
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 7, vertical: 2),
+                    decoration: BoxDecoration(
+                        color: _kRedLt,
+                        borderRadius: BorderRadius.circular(4),
+                        border: Border.all(
+                            color: _kRed.withValues(alpha: 0.3))),
+                    child: Text('${data.overLimitCount} over limit',
+                        style: const TextStyle(fontSize: 9,
+                            fontWeight: FontWeight.w800, color: _kRed)),
                   ),
-                  child: const Center(child: Text('Close Day →',
-                      style: TextStyle(fontSize: 13, fontWeight: FontWeight
-                          .w700,
-                          color: Colors.white))),
+                ],
+              ]),
+              const SizedBox(height: 6),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(3),
+                child: LinearProgressIndicator(
+                  value: (data.creditUtilisationPct / 100).clamp(0.0, 1.0),
+                  minHeight: 6,
+                  backgroundColor: _kBorder,
+                  valueColor: AlwaysStoppedAnimation(
+                    data.creditUtilisationPct >= 90
+                        ? _kRed
+                        : data.creditUtilisationPct >= 70
+                        ? _kOrange
+                        : _kGreen,
+                  ),
                 ),
               ),
-            ],
-          ])),
-        ]),
-      );
+            ])),
+          ]),
+          const SizedBox(height: 14),
+          const Divider(height: 1, color: _kBorder),
+          const SizedBox(height: 12),
+
+          ...bucketDefs.map((def) {
+            final bucket = bucketMap[def.$1];
+            final count  = (bucket?['retailer_count'] as num?)?.toInt()    ?? 0;
+            final amount = (bucket?['total_amount']   as num?)?.toDouble() ?? 0;
+            if (count == 0) return const SizedBox.shrink();
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Row(children: [
+                Container(width: 3, height: 32,
+                    decoration: BoxDecoration(
+                        color: def.$2,
+                        borderRadius: BorderRadius.circular(2))),
+                const SizedBox(width: 10),
+                Expanded(child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text(def.$3, style: TextStyle(fontSize: 10,
+                      fontWeight: FontWeight.w700, color: def.$2)),
+                  Text('$count retailer${count > 1 ? "s" : ""}',
+                      style: const TextStyle(
+                          fontSize: 10, color: _kText3)),
+                ])),
+                Text(Fmt.amount(amount),
+                    style: TextStyle(fontSize: 13,
+                        fontWeight: FontWeight.w800, color: def.$2)),
+              ]),
+            );
+          }),
+
+          const SizedBox(height: 8),
+          const Divider(height: 1, color: _kBorder),
+          const SizedBox(height: 10),
+
+              () {
+            final critical = bucketMap['critical'];
+            final topName  = critical?['top_shop_name']   as String?;
+            final topAmt   = (critical?['top_outstanding'] as num?)?.toDouble() ?? 0;
+            final topDays  = (critical?['top_days']        as num?)?.toInt()    ?? 0;
+            if (topName == null) {
+              return Column(children: [
+                _IRow(icon: Icons.currency_rupee_rounded, color: _kGreen,
+                    label: "Today's Collection",
+                    value: Fmt.amount(data.todayCollected)),
+                const SizedBox(height: 8),
+                _IRow(icon: Icons.hourglass_empty_rounded, color: _kOrange,
+                    label: 'Total Outstanding',
+                    value: Fmt.amount(data.totalOutstanding)),
+              ]);
+            }
+            return Column(
+                crossAxisAlignment: CrossAxisAlignment.start, children: [
+              const Text('CALL TODAY',
+                  style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800,
+                      color: _kText3, letterSpacing: 0.6)),
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                    color: _kRedLt,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                        color: _kRed.withValues(alpha: 0.2))),
+                child: Row(children: [
+                  Container(width: 32, height: 32,
+                      decoration: BoxDecoration(
+                          color: _kRed.withValues(alpha: 0.12),
+                          shape: BoxShape.circle),
+                      child: const Icon(Icons.phone_outlined,
+                          color: _kRed, size: 16)),
+                  const SizedBox(width: 10),
+                  Expanded(child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text(topName, style: const TextStyle(fontSize: 13,
+                        fontWeight: FontWeight.w700, color: _kText1),
+                        maxLines: 1, overflow: TextOverflow.ellipsis),
+                    Text('$topDays days overdue',
+                        style: const TextStyle(
+                            fontSize: 10, color: _kRed,
+                            fontWeight: FontWeight.w600)),
+                  ])),
+                  Text(Fmt.amount(topAmt),
+                      style: const TextStyle(fontSize: 14,
+                          fontWeight: FontWeight.w900, color: _kRed)),
+                ]),
+              ),
+            ]);
+          }(),
+
+          if (data.allClear) ...[
+            const SizedBox(height: 12),
+            GestureDetector(
+              onTap: onClosure,
+              child: Container(
+                padding: const EdgeInsets.symmetric(vertical: 11),
+                decoration: BoxDecoration(
+                    color: _kNavBg,
+                    borderRadius: BorderRadius.circular(8)),
+                child: const Center(child: Text('Close Day →',
+                    style: TextStyle(fontSize: 13,
+                        fontWeight: FontWeight.w700, color: Colors.white))),
+              ),
+            ),
+          ],
+        ])),
+      ]),
+    );
+  }
 }
 
-class _CollRow extends StatelessWidget {
-  const _CollRow({required this.icon, required this.color,
-    required this.label, required this.value, this.isCount = false});
-
+class _IRow extends StatelessWidget {
+  const _IRow({required this.icon, required this.color,
+    required this.label, required this.value});
   final IconData icon;
   final Color color;
   final String label, value;
-  final bool isCount;
-
   @override
-  Widget build(BuildContext c) =>
-      Row(children: [
-        Container(width: 34, height: 34,
-            decoration: BoxDecoration(color: color.withValues(alpha: 0.08),
-                borderRadius: BorderRadius.circular(8)),
-            child: Icon(icon, color: color, size: 16)),
-        const SizedBox(width: 10),
-        Expanded(child: Text(label,
-            style: const TextStyle(
-                fontSize: 12, color: _kText2, fontWeight: FontWeight.w500))),
-        Text(isCount ? value : value,
-            style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700,
-                color: isCount && int.tryParse(value) != null &&
-                    int.parse(value) > 0
-                    ? _kRed : _kText1)),
-      ]);
+  Widget build(BuildContext c) => Row(children: [
+    Container(width: 32, height: 32,
+        decoration: BoxDecoration(color: color.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(8)),
+        child: Icon(icon, color: color, size: 15)),
+    const SizedBox(width: 10),
+    Expanded(child: Text(label, style: const TextStyle(
+        fontSize: 12, color: _kText2, fontWeight: FontWeight.w500))),
+    Text(value, style: const TextStyle(
+        fontSize: 13, fontWeight: FontWeight.w700, color: _kText1)),
+  ]);
 }
 
-// ── Alerts Panel ──────────────────────────────────────────────────────────────
+class _TopRetailersToday extends StatelessWidget {
+  const _TopRetailersToday({required this.retailers, required this.onViewAll});
+
+  final List<Map<String, dynamic>> retailers;
+  final VoidCallback onViewAll;
+
+  @override
+  Widget build(BuildContext context) {
+    if (retailers.isEmpty) return const SizedBox.shrink();
+    final maxRev = (retailers.first['revenue_today'] as num?)?.toDouble() ?? 1;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: _kPanel,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: _kBorder),
+        boxShadow: _kShadow,
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(18, 16, 18, 12),
+          child: Row(children: [
+            const Text('TOP RETAILERS TODAY',
+                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800,
+                    color: _kText1, letterSpacing: 0.8)),
+            const Spacer(),
+            InkWell(onTap: onViewAll,
+                child: const Text('View All',
+                    style: TextStyle(fontSize: 11, color: _kBlue,
+                        fontWeight: FontWeight.w600))),
+          ]),
+        ),
+        const Divider(height: 1, color: _kBorder),
+        ...retailers.take(5).toList().asMap().entries.map((e) {
+          final i   = e.key;
+          final r   = e.value;
+          final rev = (r['revenue_today']   as num?)?.toDouble() ?? 0;
+          final ord = (r['order_count']     as num?)?.toInt()    ?? 0;
+          final col = (r['collection_rate'] as num?)?.toDouble() ?? 0;
+          final pct = maxRev > 0 ? (rev / maxRev).clamp(0.0, 1.0) : 0.0;
+
+          return Container(
+            padding: const EdgeInsets.fromLTRB(18, 10, 18, 10),
+            decoration: i < retailers.length - 1
+                ? const BoxDecoration(
+                border: Border(bottom: BorderSide(color: _kBorder)))
+                : null,
+            child: Column(children: [
+              Row(children: [
+                Container(width: 22, height: 22,
+                    decoration: BoxDecoration(
+                        color: i == 0 ? _kNavBg : const Color(0xFFF1F5F9),
+                        shape: BoxShape.circle),
+                    child: Center(child: Text('${i + 1}',
+                        style: TextStyle(fontSize: 10,
+                            fontWeight: FontWeight.w800,
+                            color: i == 0
+                                ? const Color(0xFFE9C176)
+                                : _kText3)))),
+                const SizedBox(width: 10),
+                Expanded(child: Text(r['shop_name'] as String? ?? '—',
+                    style: const TextStyle(fontSize: 13,
+                        fontWeight: FontWeight.w600, color: _kText1),
+                    maxLines: 1, overflow: TextOverflow.ellipsis)),
+                Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                  Text(Fmt.amount(rev),
+                      style: const TextStyle(fontSize: 13,
+                          fontWeight: FontWeight.w800, color: _kText1)),
+                  Text('$ord order${ord != 1 ? "s" : ""} · ${col.toStringAsFixed(0)}% collected',
+                      style: const TextStyle(fontSize: 10, color: _kText3)),
+                ]),
+              ]),
+              const SizedBox(height: 6),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(2),
+                child: LinearProgressIndicator(
+                  value: pct,
+                  minHeight: 3,
+                  backgroundColor: _kBorder,
+                  valueColor: AlwaysStoppedAnimation(
+                      i == 0 ? _kBlue : _kBlue.withValues(alpha: 0.4)),
+                ),
+              ),
+            ]),
+          );
+        }),
+      ]),
+    );
+  }
+}
+
 class _AlertsPanel extends StatelessWidget {
   const _AlertsPanel({required this.data, required this.stock,
     required this.onTap});
@@ -1979,9 +3028,17 @@ class _AlertsPanel extends StatelessWidget {
         : stock.fold(0, (s, p) => s + p.availableBirds);
 
     final alerts = <(Color, IconData, String, String)>[];
-    if (totalBirds < 500 && totalBirds >= 0)
+    if (totalBirds < 500 && totalBirds >= 0) {
+      final lowStock = stock.isEmpty
+          ? null
+          : stock.reduce(
+              (a, b) => a.availableBirds <= b.availableBirds ? a : b);
+      final stockLabel = lowStock != null
+          ? '${lowStock.productName} stock'
+          : 'Live stock';
       alerts.add((_kOrange, Icons.inventory_outlined,
-      'Low Stock Alert', 'Broiler Live stock is below 1000 birds'));
+      'Low Stock Alert', '$stockLabel is below 500 birds'));
+    }
     if (data.totalOutstanding > 50000)
       alerts.add((_kRed, Icons.account_balance_wallet_outlined,
       'Payment Overdue', 'Outstanding exceeds ₹50,000'));
@@ -1989,7 +3046,7 @@ class _AlertsPanel extends StatelessWidget {
       alerts.add((_kBlue, Icons.local_shipping_outlined,
       'Dispatch Delay', '${data.activeDeliveries} orders pending dispatch'));
     if (data.todayMortalityBirdsLedger > 0)
-      alerts.add((_kViolet, Icons.warning_amber_outlined,
+      alerts.add((_kColorsViolet, Icons.warning_amber_outlined,
       'Mortality Today', '${data.todayMortalityBirdsLedger} birds'));
 
     if (alerts.isEmpty) return const SizedBox.shrink();
@@ -2049,7 +3106,6 @@ class _AlertsPanel extends StatelessWidget {
   }
 }
 
-// ── Recent Orders Table ───────────────────────────────────────────────────────
 class _RecentOrdersTable extends StatefulWidget {
   const _RecentOrdersTable({required this.orders,
     required this.onViewAll, required this.onOrder});
@@ -2064,6 +3120,8 @@ class _RecentOrdersTable extends StatefulWidget {
 
 class _RecentOrdersTableState extends State<_RecentOrdersTable> {
   String _statusFilter = 'All Status';
+  final TextEditingController _searchCtrl = TextEditingController();
+  String _searchQuery = '';
   final List<String> _statuses = [
     'All Status',
     'pending',
@@ -2072,10 +3130,47 @@ class _RecentOrdersTableState extends State<_RecentOrdersTable> {
     'delivered'
   ];
 
+  @override
+  void initState() {
+    super.initState();
+    _searchCtrl.addListener(() {
+      setState(() => _searchQuery = _searchCtrl.text.trim().toLowerCase());
+    });
+  }
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
+  }
+
   List<Map<String, dynamic>> get _filtered {
-    if (_statusFilter == 'All Status') return widget.orders;
-    return widget.orders.where((o) =>
-    (o['status'] as String? ?? '') == _statusFilter).toList();
+    var rows = widget.orders;
+    if (_statusFilter != 'All Status') {
+      rows = rows.where((o) =>
+      (o['status'] as String? ?? '') == _statusFilter).toList();
+    }
+    if (_searchQuery.isNotEmpty) {
+      rows = rows.where((o) {
+        final shopName = ((o['retailers'] as Map?)?['shop_name']
+        as String? ?? '').toLowerCase();
+        final orderId = (o['id'] as String? ?? '').toLowerCase();
+        return shopName.contains(_searchQuery) ||
+            orderId.contains(_searchQuery);
+      }).toList();
+    }
+    return rows;
+  }
+
+  // ── Extract the delivery agent name for an order, if one is assigned ──────
+  String? _agentFor(Map<String, dynamic> o) {
+    final deliveries = o['deliveries'] as List? ?? [];
+    for (final d in deliveries) {
+      final agent = (d as Map?)?['delivery_agents'];
+      final name = agent is Map ? agent['name'] as String? : null;
+      if (name != null && name.isNotEmpty) return name;
+    }
+    return null;
   }
 
   Color _statusColor(String s) =>
@@ -2099,7 +3194,6 @@ class _RecentOrdersTableState extends State<_RecentOrdersTable> {
         boxShadow: _kShadow,
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        // Table toolbar
         Padding(
           padding: const EdgeInsets.fromLTRB(18, 16, 18, 12),
           child: Row(children: [
@@ -2107,15 +3201,15 @@ class _RecentOrdersTableState extends State<_RecentOrdersTable> {
                 style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800,
                     color: _kText1, letterSpacing: 0.8)),
             const SizedBox(width: 12),
-            // Search box
             Container(
               width: 220, height: 32,
               decoration: BoxDecoration(
                   color: const Color(0xFFF8FAFC),
                   borderRadius: BorderRadius.circular(6),
                   border: Border.all(color: _kBorder)),
-              child: const TextField(
-                decoration: InputDecoration(
+              child: TextField(
+                controller: _searchCtrl,
+                decoration: const InputDecoration(
                   hintText: 'Search orders...',
                   hintStyle: TextStyle(fontSize: 12, color: _kText3),
                   prefixIcon: Icon(
@@ -2125,18 +3219,16 @@ class _RecentOrdersTableState extends State<_RecentOrdersTable> {
                   focusedBorder: InputBorder.none,
                   contentPadding: EdgeInsets.symmetric(vertical: 8),
                 ),
-                style: TextStyle(fontSize: 12, color: _kText1),
+                style: const TextStyle(fontSize: 12, color: _kText1),
               ),
             ),
             const SizedBox(width: 8),
-            // Status filter
             _DropFilter(
               value: _statusFilter,
               options: _statuses,
               onChanged: (v) => setState(() => _statusFilter = v),
             ),
             const Spacer(),
-            // Showing count
             Text('Showing ${rows.length} of ${widget.orders.length} orders',
                 style: const TextStyle(fontSize: 11, color: _kText3)),
             const SizedBox(width: 12),
@@ -2151,7 +3243,6 @@ class _RecentOrdersTableState extends State<_RecentOrdersTable> {
                             color: Colors.white)))),
           ]),
         ),
-        // Column headers
         Container(
           decoration: const BoxDecoration(
             gradient: LinearGradient(colors: [_kNavBg, Color(0xFF1E293B)]),
@@ -2168,7 +3259,6 @@ class _RecentOrdersTableState extends State<_RecentOrdersTable> {
             _TH('Action', 60, center: true),
           ]),
         ),
-        // Data rows
         if (rows.isEmpty)
           const Padding(padding: EdgeInsets.all(32),
               child: Center(child: Text('No orders found',
@@ -2203,37 +3293,18 @@ class _RecentOrdersTableState extends State<_RecentOrdersTable> {
               amount: amt,
               status: status,
               statusColor: sc,
+              agent: _agentFor(o) ?? '—',
               time: timeStr,
               onTap: () => widget.onOrder(o['id'] as String? ?? ''),
             );
           }),
-        // Footer
         Container(
           padding: const EdgeInsets.fromLTRB(18, 12, 18, 12),
           decoration: const BoxDecoration(
               border: Border(top: BorderSide(color: _kBorder))),
           child: Row(children: [
-            Text(
-                'Showing 1 to ${rows.length} of ${widget.orders.length} orders',
+            Text('Showing latest ${widget.orders.length} orders',
                 style: const TextStyle(fontSize: 11, color: _kText3)),
-            const Spacer(),
-            // Pagination pills
-            ...['‹', '1', '2', '3', '…', '26', '›'].map((l) =>
-                Padding(
-                  padding: const EdgeInsets.only(left: 4),
-                  child: Container(
-                    width: 30, height: 30,
-                    decoration: BoxDecoration(
-                      color: l == '1' ? _kNavBg : const Color(0xFFF8FAFC),
-                      borderRadius: BorderRadius.circular(6),
-                      border: Border.all(color: _kBorder),
-                    ),
-                    child: Center(child: Text(l,
-                        style: TextStyle(
-                            fontSize: 12, fontWeight: FontWeight.w600,
-                            color: l == '1' ? Colors.white : _kText2))),
-                  ),
-                )),
           ]),
         ),
       ]),
@@ -2262,10 +3333,10 @@ class _OrderRow extends StatefulWidget {
   const _OrderRow({required this.index, required this.orderId,
     required this.shopName, required this.birds, required this.weight,
     required this.amount, required this.status, required this.statusColor,
-    required this.time, required this.onTap});
+    required this.agent, required this.time, required this.onTap});
 
   final int index;
-  final String orderId, shopName, status, time;
+  final String orderId, shopName, status, agent, time;
   final int birds;
   final double weight, amount;
   final Color statusColor;
@@ -2318,8 +3389,9 @@ class _OrderRowState extends State<_OrderRow> {
                     style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700,
                         color: widget.statusColor)),
               ))),
-              const SizedBox(width: 120, child: Text('—',
-                  style: TextStyle(fontSize: 12, color: _kText3))),
+              SizedBox(width: 120, child: Text(widget.agent,
+                  style: const TextStyle(fontSize: 12, color: _kText2),
+                  maxLines: 1, overflow: TextOverflow.ellipsis)),
               SizedBox(width: 90, child: Text(widget.time,
                   style: const TextStyle(fontSize: 12, color: _kText3))),
               SizedBox(width: 60,
@@ -2361,7 +3433,6 @@ class _DropFilter extends StatelessWidget {
       );
 }
 
-// ── Donut painter (shared with mobile) ───────────────────────────────────────
 class _DonutPainter extends CustomPainter {
   const _DonutPainter({required this.fraction, required this.ringColor,
     required this.trackColor, required this.strokeWidth});
@@ -2388,7 +3459,6 @@ class _DonutPainter extends CustomPainter {
       o.fraction != fraction || o.ringColor != ringColor;
 }
 
-// ── QA helper ─────────────────────────────────────────────────────────────────
 class _QA {
   const _QA(this.icon, this.label, this.color, this.bg, this.onTap,
       {this.wide = false});
@@ -2400,13 +3470,14 @@ class _QA {
   final bool wide;
 }
 
-// ── Language helper ───────────────────────────────────────────────────────────
 class _L {
   static String g(String lang, String k) => _t[lang]?[k] ?? _t['en']![k] ?? k;
   static const _t = {
     'en': {
       'today': 'Today Overview',
       'new_order': 'New Order',
+      'stock_point_sale': 'Stock Point Sale',
+      'inventory_dashboard': 'Inventory Dashboard',
       'orders': 'Orders',
       'approve': 'Approve',
       'dispatch': 'Dispatch',
@@ -2434,6 +3505,7 @@ class _L {
     'ta': {
       'today': 'இன்றைய நிலை',
       'new_order': 'புது ஆர்டர்',
+      'stock_point_sale': 'கடை விற்பனை',
       'orders': 'ஆர்டர்',
       'approve': 'அனுமதி',
       'dispatch': 'அனுப்பு',

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/providers/session_provider.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../shared/layouts/responsive_layout.dart';
 
 class CratesScreen extends ConsumerStatefulWidget {
   const CratesScreen({super.key});
@@ -68,15 +69,14 @@ class _S extends ConsumerState<CratesScreen> {
     } catch (e) { if (mounted) showError(context, e.toString()); }
   }
 
-  @override
-  Widget build(BuildContext context) => Scaffold(
+  Widget _buildScaffold(BuildContext context) => Scaffold(
     backgroundColor: kBgPage,
     appBar: AppBar(backgroundColor: kSurface, title: const Text('Crate Management'), actions: [
       IconButton(icon: const Icon(Icons.settings_outlined), onPressed: _setInventory, tooltip: 'Set inventory'),
       IconButton(icon: const Icon(Icons.refresh), onPressed: _load),
     ]),
     body: _loading ? const LoadingList() : _summary == null ? const EmptyState(icon: Icons.inventory_2_outlined, message: 'No crate data')
-        : RefreshIndicator(onRefresh: _load, child: ListView(padding: const EdgeInsets.all(16), children: [
+        : RefreshIndicator(onRefresh: _load, child: ListView(padding: const EdgeInsets.fromLTRB(16, 16, 16, kBottomNavClearance), children: [
       GridView.count(crossAxisCount: 3, shrinkWrap: true, physics: const NeverScrollableScrollPhysics(),
           crossAxisSpacing: 10, mainAxisSpacing: 10, childAspectRatio: 1.2, children: [
             KpiCard('Total', '${_summary!['total_crates'] ?? 0}', Icons.inventory_2_outlined, kPrimary),
@@ -114,4 +114,10 @@ class _S extends ConsumerState<CratesScreen> {
       ],
     ])),
   );
+  @override
+  Widget build(BuildContext context) => ResponsiveLayout(
+    mobile:  (_) => _buildScaffold(context),
+    desktop: (_) => _buildScaffold(context),
+  );
+
 }

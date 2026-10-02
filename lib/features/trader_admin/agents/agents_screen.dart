@@ -15,9 +15,29 @@ class AgentsScreen extends ConsumerStatefulWidget {
 class _S extends ConsumerState<AgentsScreen> {
   final _c = Supabase.instance.client;
   List<Map<String,dynamic>> _agents = [];
+  List<Map<String,dynamic>> _filtered = [];
   bool _loading = true;
+  final _searchCtrl = TextEditingController();
 
-  @override void initState() { super.initState(); _load(); }
+  void _applySearch(String q) {
+    if (!mounted) return;
+    final lower = q.trim().toLowerCase();
+    setState(() => _filtered = lower.isEmpty
+        ? List.from(_agents)
+        : _agents.where((a) =>
+            (a['name'] as String? ?? '').toLowerCase().contains(lower) ||
+            (a['phone'] as String? ?? '').toLowerCase().contains(lower) ||
+            (a['vehicle_no'] as String? ?? '').toLowerCase().contains(lower),
+          ).toList());
+  }
+
+  @override void initState() {
+    super.initState();
+    _load();
+    _searchCtrl.addListener(() => _applySearch(_searchCtrl.text));
+  }
+
+  @override void dispose() { _searchCtrl.dispose(); super.dispose(); }
 
   Future<void> _load() async {
     final tid = ref.read(appUserProvider).valueOrNull?.traderId;
@@ -27,7 +47,7 @@ class _S extends ConsumerState<AgentsScreen> {
       final data = await _c.from('delivery_agents')
           .select('id,name,phone,vehicle_no,vehicle_type,is_active,auth_user_id,notes')
           .eq('trader_id', tid).order('name');
-      if (mounted) setState(() { _agents = List<Map<String,dynamic>>.from(data); _loading = false; });
+      if (mounted) setState(() { _agents = List<Map<String,dynamic>>.from(data); _loading = false; _applySearch(_searchCtrl.text); });
     } catch (_) { if (mounted) setState(() => _loading = false); }
   }
 
@@ -112,6 +132,7 @@ class _S extends ConsumerState<AgentsScreen> {
   Widget build(BuildContext context) {
     final companyCode = ref.watch(appUserProvider).valueOrNull?.companyCode ?? '—';
     final unlinked = _agents.where((a) => a['auth_user_id'] == null).length;
+    final showList = _filtered;
 
     return Scaffold(
       backgroundColor: kBgPage,
@@ -120,6 +141,9 @@ class _S extends ConsumerState<AgentsScreen> {
           onPressed: () => context.push(R.agentCreate),
           icon: const Icon(Icons.person_add_outlined),
           label: const Text('Add Agent')),
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
+      // Reserve space so FAB clears the parent TraderShell glass bottom nav
+      bottomNavigationBar: const SizedBox(height: 80),
       body: Column(children: [
 
         // Company code bar
@@ -150,14 +174,25 @@ class _S extends ConsumerState<AgentsScreen> {
                   ])),
             ])),
         const Divider(height: 1),
+        Container(
+          color: Colors.white,
+          padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+          child: AppSearchBar(
+            controller: _searchCtrl,
+            hint: 'Search by name, phone, vehicle…',
+            onChanged: _applySearch,
+            onClear: () { _searchCtrl.clear(); _applySearch(''); },
+          ),
+        ),
+        const Divider(height: 1),
 
         Expanded(child: _loading ? const LoadingList() : _agents.isEmpty
             ? EmptyState(icon: Icons.delivery_dining_outlined, message: 'No agents yet', sub: 'Add your delivery agents and share the Company Code with them', onAction: () => context.push(R.agentCreate), actionLabel: 'Add Agent')
             : RefreshIndicator(onRefresh: _load, child: ListView.separated(
-            padding: const EdgeInsets.all(16), itemCount: _agents.length,
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 100), itemCount: showList.length,
             separatorBuilder: (_, __) => const SizedBox(height: 10),
             itemBuilder: (_, i) {
-              final a      = _agents[i];
+              final a      = showList[i];
               final linked = a['auth_user_id'] != null;
               final active = a['is_active'] as bool? ?? true;
               final name   = a['name'] as String;

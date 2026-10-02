@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:rooster_trader/core/theme/app_theme.dart';
+import 'package:rooster_trader/shared/layouts/responsive_layout.dart';
 
 // ── MetricCard ─────────────────────────────────────────────────────────────
 class MetricCard extends StatelessWidget {
@@ -48,14 +49,26 @@ class MetricCard extends StatelessWidget {
           mainAxisSize:       MainAxisSize.min,
           children: [
             Text(label,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
                     fontSize: 12, color: kTextSub, fontWeight: FontWeight.w500)),
             const SizedBox(height: 2),
-            Text(value,
-                style: TextStyle(
-                    fontSize: 18, fontWeight: FontWeight.w800, color: color)),
+            // FittedBox lets large rupee values (e.g. ₹12,34,567) shrink to
+            // fit the available width on one line instead of wrapping
+            // character-by-character on narrow mobile cards.
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerLeft,
+              child: Text(value,
+                  maxLines: 1,
+                  style: TextStyle(
+                      fontSize: 18, fontWeight: FontWeight.w800, color: color)),
+            ),
             if (sub != null)
               Text(sub!,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: const TextStyle(fontSize: 11, color: kTextHint)),
           ],
         )),
@@ -67,19 +80,46 @@ class MetricCard extends StatelessWidget {
 }
 
 // ── MetricStrip ────────────────────────────────────────────────────────────
+//
+// Desktop/tablet: cards share the row equally via Expanded (plenty of width).
+// Mobile: forcing 3-4 cards into equal Expanded columns leaves too little
+// width for icon + label + value, causing character-by-character text
+// wrapping. Instead, give each card a comfortable fixed width and let the
+// strip scroll horizontally — same information, fully readable, no data lost.
 class MetricStrip extends StatelessWidget {
   const MetricStrip({super.key, required this.metrics, this.padding});
   final List<Widget> metrics;
   final EdgeInsets?  padding;
 
+  static const double _mobileCardWidth = 172;
+
   @override
-  Widget build(BuildContext context) => Padding(
-    padding: padding ?? EdgeInsets.zero,
-    child: Row(children: [
+  Widget build(BuildContext context) {
+    final isDesktop = context.isDesktop;
+
+    final Widget row = isDesktop
+        ? Row(children: [
       for (int i = 0; i < metrics.length; i++) ...[
         Expanded(child: metrics[i]),
         if (i < metrics.length - 1) const SizedBox(width: 8),
       ],
-    ]),
-  );
+    ])
+        : Row(children: [
+      for (int i = 0; i < metrics.length; i++) ...[
+        SizedBox(width: _mobileCardWidth, child: metrics[i]),
+        if (i < metrics.length - 1) const SizedBox(width: 8),
+      ],
+    ]);
+
+    return Padding(
+      padding: padding ?? EdgeInsets.zero,
+      child: isDesktop
+          ? row
+          : SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        physics: const BouncingScrollPhysics(),
+        child: row,
+      ),
+    );
+  }
 }

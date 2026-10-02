@@ -76,6 +76,43 @@ const kRadiusChip  = 14.0;   // action pills, chips
 const kRadiusInner = 10.0;   // internal containers
 const kRadiusBtn   = 14.0;   // action buttons
 
+// ── Scroll clearance for shell-hosted screens ─────────────────────────────
+// Both TraderShell and AgentShell use extendBody:true (required for glass
+// blur). MediaQuery.padding.bottom inside body widgets only reflects the
+// system safe area (~34 px) — NOT the glass nav height (~65 px). Any scroll
+// list with bottom padding < 80 px will have its last rows permanently hidden.
+// Use kBottomNavClearance as the bottom value on every main scroll list
+// or SingleChildScrollView that lives inside either shell.
+const kBottomNavClearance = 100.0;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// REPORTS MODULE — ONE TYPOGRAPHY SYSTEM, ONE SPACING SCALE
+// Additive only — nothing above this is renamed or removed. Introduced to
+// replace the ad hoc per-widget font sizes (11/12/13/14px mixed across
+// dozens of independently-written report methods) with one enforced scale,
+// per the "one typography system, one spacing system" design-consistency
+// requirement. Every report screen should read from these, not literal
+// TextStyle(fontSize: N) calls.
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Type scale — six roles, nothing else. Two weights only (600/800) plus
+// 900 reserved for the single most important number on a given screen.
+const kTypeScreenTitle   = TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: kTextMain);
+const kTypeSectionTitle  = TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: kNavy, letterSpacing: 0.5);
+const kTypeKpiPrimary    = TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: kNavy, height: 1.1);
+const kTypeKpiSecondary  = TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: kTextMain, height: 1.1);
+const kTypeKpiLabel      = TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: kTextHint);
+const kTypeBody          = TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: kTextMain);
+const kTypeCaption       = TextStyle(fontSize: 11, fontWeight: FontWeight.w500, color: kTextHint);
+
+// Spacing scale — 4/8/12/16/24. Nothing in between; if a gap doesn't fit
+// one of these, round to the nearest rather than inventing a new value.
+const kSpXs = 4.0;
+const kSpSm = 8.0;
+const kSpMd = 12.0;
+const kSpLg = 16.0;
+const kSpXl = 24.0;
+
 // ── Status colours helper ─────────────────────────────────────────────────
 class SC {
   static Color order(String s) => switch (s) {
@@ -646,25 +683,413 @@ void showError(BuildContext ctx, String msg) =>
 // Fmt — formatting helpers used across all screens
 // Preserved exactly — DO NOT modify these methods
 // ═══════════════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════════
+// SearchableRetailerPicker
+// Replaces DropdownButtonFormField<Map> for retailer / shop selection.
+// Shows a tappable display tile; tap opens a searchable bottom sheet.
+// Matches InputDecoration styling of the rest of the form.
+//
+// Usage:
+//   SearchableRetailerPicker(
+//     items: _retailers,           // List<Map<String,dynamic>>
+//     labelKey: 'shop_name',       // key to display as primary label
+//     subKey: 'phone',             // optional subtitle key
+//     hint: 'Select customer',
+//     value: _selRetailer,
+//     onChanged: (v) => setState(() => _selRetailer = v),
+//     validator: (v) => v == null ? 'Select a customer' : null,
+//     allowNone: false,            // true adds "All / None" option at top
+//     noneLabel: 'All Retailers',
+//   )
+// ═══════════════════════════════════════════════════════════════════════════
+
+class SearchableRetailerPicker extends StatefulWidget {
+  const SearchableRetailerPicker({
+    super.key,
+    required this.items,
+    required this.labelKey,
+    required this.hint,
+    required this.onChanged,
+    this.value,
+    this.subKey,
+    this.validator,
+    this.allowNone = false,
+    this.noneLabel = 'All',
+    this.prefixIcon,
+    this.sheetTitle,
+  });
+
+  final List<Map<String, dynamic>> items;
+  final String                     labelKey;
+  final String?                    subKey;
+  final String                     hint;
+  final Map<String, dynamic>?      value;
+  final ValueChanged<Map<String, dynamic>?> onChanged;
+  final String? Function(Map<String, dynamic>?)? validator;
+  final bool                       allowNone;
+  final String                     noneLabel;
+  final Widget?                    prefixIcon;
+  final String?                    sheetTitle;
+
+  @override
+  State<SearchableRetailerPicker> createState() =>
+      _SearchableRetailerPickerState();
+}
+
+class _SearchableRetailerPickerState extends State<SearchableRetailerPicker> {
+  String? _errorText;
+
+  String? _validate(Map<String, dynamic>? v) {
+    final err = widget.validator?.call(v);
+    if (mounted) setState(() => _errorText = err);
+    return err;
+  }
+
+  Future<void> _open() async {
+    final ctrl = TextEditingController();
+    final result = await showModalBottomSheet<Map<String, dynamic>?>(
+      context: context,
+      useRootNavigator: true,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => _PickerSheet(
+        ctrl: ctrl,
+        items: widget.items,
+        labelKey: widget.labelKey,
+        subKey: widget.subKey,
+        selectedId: widget.value?['id'] as String?,
+        allowNone: widget.allowNone,
+        noneLabel: widget.noneLabel,
+        title: widget.sheetTitle ?? 'Select ${widget.hint}',
+      ),
+    );
+    // result == null means dismissed without selection (no change)
+    // result == const {} means "None" was chosen
+    if (!mounted) return;
+    if (result != null) {
+      final chosen = result.isEmpty ? null : result;
+      widget.onChanged(chosen);
+      _validate(chosen);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final label = widget.value?[widget.labelKey] as String?;
+    final sub   = widget.subKey != null
+        ? (widget.value?[widget.subKey!] as String?)
+        : null;
+    final hasValue = label != null;
+    final hasError = _errorText != null;
+
+    return FormField<Map<String, dynamic>>(
+      initialValue: widget.value,
+      validator: (_) => _validate(widget.value),
+      builder: (field) {
+        return GestureDetector(
+          onTap: _open,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 14, vertical: 14),
+                decoration: BoxDecoration(
+                  color: kSurface,
+                  borderRadius: BorderRadius.circular(kRadiusInner),
+                  border: Border.all(
+                    color: hasError
+                        ? kError
+                        : hasValue
+                        ? kNavy.withValues(alpha: 0.6)
+                        : kBorder,
+                    width: hasError || hasValue ? 1.5 : 1.0,
+                  ),
+                ),
+                child: Row(children: [
+                  if (widget.prefixIcon != null) ...[
+                    widget.prefixIcon!,
+                    const SizedBox(width: 10),
+                  ],
+                  Expanded(
+                    child: hasValue
+                        ? Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(label,
+                            style: const TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w600,
+                                color: kTextMain)),
+                        if (sub != null)
+                          Text(sub,
+                              style: const TextStyle(
+                                  fontSize: 11, color: kTextHint)),
+                      ],
+                    )
+                        : Text(widget.hint,
+                        style: const TextStyle(
+                            fontSize: 15, color: kTextHint)),
+                  ),
+                  if (hasValue)
+                    GestureDetector(
+                      onTap: () {
+                        widget.onChanged(null);
+                        _validate(null);
+                      },
+                      child: const Padding(
+                        padding: EdgeInsets.only(left: 6),
+                        child: Icon(Icons.close_rounded,
+                            size: 16, color: kTextHint),
+                      ),
+                    )
+                  else
+                    const Icon(Icons.keyboard_arrow_down_rounded,
+                        color: kTextHint, size: 20),
+                ]),
+              ),
+              if (hasError)
+                Padding(
+                  padding: const EdgeInsets.only(top: 6, left: 14),
+                  child: Text(_errorText!,
+                      style: const TextStyle(
+                          fontSize: 12, color: kError)),
+                ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _PickerSheet extends StatefulWidget {
+  const _PickerSheet({
+    required this.ctrl,
+    required this.items,
+    required this.labelKey,
+    required this.title,
+    this.subKey,
+    this.selectedId,
+    this.allowNone = false,
+    this.noneLabel = 'All',
+  });
+
+  final TextEditingController      ctrl;
+  final List<Map<String, dynamic>> items;
+  final String                     labelKey;
+  final String?                    subKey;
+  final String?                    selectedId;
+  final bool                       allowNone;
+  final String                     noneLabel;
+  final String                     title;
+
+  @override
+  State<_PickerSheet> createState() => _PickerSheetState();
+}
+
+class _PickerSheetState extends State<_PickerSheet> {
+  List<Map<String, dynamic>> _filtered = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _filtered = List.from(widget.items);
+    widget.ctrl.addListener(_onSearch);
+  }
+
+  @override
+  void dispose() {
+    widget.ctrl.removeListener(_onSearch);
+    super.dispose();
+  }
+
+  void _onSearch() {
+    final q = widget.ctrl.text.trim().toLowerCase();
+    setState(() {
+      _filtered = q.isEmpty
+          ? List.from(widget.items)
+          : widget.items.where((item) {
+        final label =
+        (item[widget.labelKey] as String? ?? '').toLowerCase();
+        final sub = widget.subKey != null
+            ? (item[widget.subKey!] as String? ?? '').toLowerCase()
+            : '';
+        return label.contains(q) || sub.contains(q);
+      }).toList();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final height = MediaQuery.of(context).size.height * 0.65;
+    return Container(
+      height: height,
+      decoration: const BoxDecoration(
+        color: kSurface,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      child: Column(children: [
+        // Handle
+        Container(
+          margin: const EdgeInsets.only(top: 10, bottom: 4),
+          width: 38, height: 4,
+          decoration: BoxDecoration(
+              color: kBorderLight,
+              borderRadius: BorderRadius.circular(2)),
+        ),
+        // Title
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 6, 20, 12),
+          child: Row(children: [
+            Expanded(
+              child: Text(widget.title,
+                  style: const TextStyle(
+                      fontSize: 16, fontWeight: FontWeight.w800,
+                      color: kNavy)),
+            ),
+            IconButton(
+              icon: const Icon(Icons.close, size: 20, color: kTextHint),
+              onPressed: () => Navigator.of(context, rootNavigator: true).pop(),
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(),
+            ),
+          ]),
+        ),
+        // Search bar
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+          child: AppSearchBar(
+            controller: widget.ctrl,
+            hint: 'Search…',
+            onChanged: (_) {},
+          ),
+        ),
+        const Divider(height: 1),
+        // None option
+        if (widget.allowNone)
+          ListTile(
+            dense: true,
+            leading: const Icon(Icons.clear_rounded,
+                size: 18, color: kTextHint),
+            title: Text(widget.noneLabel,
+                style: const TextStyle(fontSize: 14, color: kTextSub)),
+            onTap: () =>
+                Navigator.of(context, rootNavigator: true).pop({}),
+          ),
+        // List
+        Expanded(
+          child: _filtered.isEmpty
+              ? Center(
+            child: Text(
+                widget.ctrl.text.isEmpty
+                    ? 'No items found'
+                    : 'No match for "${widget.ctrl.text}"',
+                style: const TextStyle(
+                    fontSize: 14, color: kTextHint)),
+          )
+              : ListView.separated(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            itemCount: _filtered.length,
+            separatorBuilder: (_, __) =>
+            const Divider(height: 1, indent: 54),
+            itemBuilder: (_, i) {
+              final item = _filtered[i];
+              final id    = item['id'] as String?;
+              final label = item[widget.labelKey] as String? ?? '—';
+              final sub   = widget.subKey != null
+                  ? (item[widget.subKey!] as String?)
+                  : null;
+              final isSelected = id != null && id == widget.selectedId;
+              return ListTile(
+                dense: true,
+                leading: Container(
+                  width: 34, height: 34,
+                  decoration: BoxDecoration(
+                    color: isSelected
+                        ? kNavy
+                        : kNavy.withValues(alpha: 0.07),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Center(
+                    child: Text(
+                      label.isNotEmpty
+                          ? label[0].toUpperCase()
+                          : '?',
+                      style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w800,
+                          color: isSelected
+                              ? Colors.white
+                              : kNavy),
+                    ),
+                  ),
+                ),
+                title: Text(label,
+                    style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: kTextMain)),
+                subtitle: sub != null
+                    ? Text(sub,
+                    style: const TextStyle(
+                        fontSize: 11, color: kTextHint))
+                    : null,
+                trailing: isSelected
+                    ? const Icon(Icons.check_circle_rounded,
+                    color: kNavy, size: 18)
+                    : null,
+                onTap: () => Navigator.of(context,
+                    rootNavigator: true).pop(item),
+              );
+            },
+          ),
+        ),
+      ]),
+    );
+  }
+}
+
+
 class Fmt {
   /// Plain Indian rupee format — no K/L abbreviations
   /// ₹85,400  |  ₹1,22,600  |  ₹45,00,000
   static String amount(double v) {
-    final rounded = v.toStringAsFixed(0);
+    final rounded = v.toStringAsFixed(2);
     return '₹${_indianCommas(rounded)}';
   }
 
+  /// Same Indian-comma grouping as [amount], without the ₹ prefix — for
+  /// dense grids (e.g. ledger tables) where repeating the currency symbol
+  /// on every cell would be visual noise. Still NO K/L abbreviations.
+  static String plainAmount(double v) {
+    final sign = v < 0 ? '-' : '';
+    final rounded = v.abs().toStringAsFixed(0);
+    return '$sign${_indianCommas(rounded)}';
+  }
+
   static String _indianCommas(String n) {
-    if (n.length <= 3) return n;
-    // Last 3 digits, then groups of 2
-    final last3 = n.substring(n.length - 3);
-    final rest   = n.substring(0, n.length - 3);
-    final buf    = StringBuffer();
+    // Preserve decimal part (if any)
+    final parts = n.split('.');
+    final whole = parts[0];
+    final decimal = parts.length > 1 ? '.${parts[1]}' : '';
+
+    if (whole.length <= 3) return '$whole$decimal';
+
+    final last3 = whole.substring(whole.length - 3);
+    final rest = whole.substring(0, whole.length - 3);
+
+    final buf = StringBuffer();
     for (int i = 0; i < rest.length; i++) {
-      if (i > 0 && (rest.length - i) % 2 == 0) buf.write(',');
+      if (i > 0 && (rest.length - i) % 2 == 0) {
+        buf.write(',');
+      }
       buf.write(rest[i]);
     }
-    return '${buf.toString()},${last3}';
+
+    return '${buf.toString()},$last3$decimal';
   }
 
   /// 760.5 → "760.5 kg"
