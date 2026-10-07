@@ -24,7 +24,8 @@ import 'report_pdf_generator.dart' show ReportPdfGenerator;
 //
 // HALF SHEET  → every PDF page is a real A4 PORTRAIT page that holds TWO
 //               stacked "halves". Each half is a complete mini-statement:
-//               company header + logo, BILL TO, table header, rows, footer.
+//               company header + logo, period dates, customer name and
+//               opening balance, table header, rows, footer.
 //               Half 1 sits in the top half of the sheet, half 2 in the
 //               bottom half, a faint dashed cut line marks the exact middle
 //               (148.5mm). If the ledger needs more than two halves, it
@@ -210,24 +211,34 @@ class CustomerLedgerPrintBuilder {
   static const double _halfSideMargin = 24;
   static const bool   _halfShowCutLine = true;
 
+  // HALF SHEET MODE
+  //   false (default) → ONE half per A4 portrait page, placed in the TOP half
+  //     of the page; the bottom half of the page stays blank. Use this when
+  //     the paper in the printer tray is a sheet that has been physically cut
+  //     exactly in half (210 × 148.5mm): the printer still receives a normal
+  //     A4 job, prints the top 148.5mm onto the half-sheet, ejects it, and the
+  //     NEXT page (the next half of the ledger) prints on the next half-sheet.
+  //   true → TWO halves stacked on one full A4 page with a dashed cut line
+  //     (for printing on an uncut A4 sheet and cutting it afterwards).
+  static const bool _halfTwoPerA4 = false;
+
   // Row capacity per half. Every Half Sheet table row (and the table
   // header row) is EXACTLY _halfRowH tall — single line, text shrinks to fit
   // its column instead of wrapping (see _halfTable) — and the header block
   // heights are budgeted below, so the number of rows per half is exact. If
   // you ever see the table touching the footer, raise _halfHeaderEst /
-  // _halfBillEst by a few points; if there is too much empty space above
-  // the footer, lower them.
+  // _halfHeaderContentH by a few points; if there is too much empty space
+  // above the footer, lower them.
   static const double _halfRowH      = 15;   // every table row + table header row
-  static const double _halfHeaderEst = 82;   // company header block (scale 0.8)
-  static const double _halfBillEst   = 46;   // BILL TO block
-  static const double _halfBlockGap  = 5;    // gap between BILL TO and table
+  static const double _halfHeaderContentH = 66; // header row (company | dates | customer)
+  static const double _halfHeaderEst = 74;   // header row + 3 + 1.2 divider + 3
+  static const double _halfBlockGap  = 6;    // gap between header and table
   static const double _halfFooterH   = 12;   // footer line
   static const double _halfSafety    = 8;    // spare points
 
   static int get _halfRowsPerSlot {
     final avail = _halfSlotH -
         _halfHeaderEst -
-        _halfBillEst -
         _halfBlockGap -
         _halfRowH - // the table's own header row
         _halfFooterH -
@@ -524,8 +535,21 @@ class CustomerLedgerPrintBuilder {
         totals: t.totals,
         size: size,
         bw: bw,
-        companyHeader: companyHeader,
-        billTo: billTo,
+        header: () => _halfHeader(
+          companyName: companyName,
+          phone: header['company_phone'] as String?,
+          address: [header['company_address'], header['company_city']]
+              .where((s) => s != null && (s as String).isNotEmpty).join(', '),
+          email: header['company_email'] as String?,
+          gstNumber: header['company_gst'] as String?,
+          logo: logo,
+          customerName: customerName,
+          from: fromDate,
+          to: toDate,
+          openingLabel: openingLabel,
+          size: size,
+          bw: bw,
+        ),
       );
       return;
     }
@@ -554,7 +578,8 @@ class CustomerLedgerPrintBuilder {
   /// HALF SHEET: splits the ledger rows into "halves" of fixed row capacity,
   /// then places two halves on each A4 portrait page — top half and bottom
   /// half — with a dashed cut line at exactly 148.5mm. Every half repeats
-  /// the company header, BILL TO and the table header row, and carries its
+  /// the Half Sheet header (company, period dates, customer, opening
+  /// balance) and the table header row, and carries its
   /// own "Page X of Y" footer. When the ledger needs more than two halves,
   /// the rest continues on the next A4 sheet.
   static void _addHalfSheetPages(
@@ -564,8 +589,7 @@ class CustomerLedgerPrintBuilder {
         required List<String> totals,
         required PrintSheetSize size,
         required bool bw,
-        required pw.Widget Function() companyHeader,
-        required pw.Widget Function() billTo,
+        required pw.Widget Function() header,
       }) {
     // Opening / data rows + the Total/Closing row, chunked by capacity.
     final all = <List<String>>[...rows, totals];
@@ -591,8 +615,7 @@ class CustomerLedgerPrintBuilder {
       child: pw.Column(
         crossAxisAlignment: pw.CrossAxisAlignment.stretch,
         children: [
-          companyHeader(),
-          billTo(),
+          header(),
           pw.SizedBox(height: _halfBlockGap),
           _halfTable(headers, chunks[idx], size, bw: bw),
           pw.Spacer(),
@@ -625,8 +648,9 @@ class CustomerLedgerPrintBuilder {
           : pw.SizedBox(height: gap),
     );
 
-    for (var i = 0; i < totalHalves; i += 2) {
-      final hasSecond = i + 1 < totalHalves;
+    final perSheet = _halfTwoPerA4 ? 2 : 1;
+    for (var i = 0; i < totalHalves; i += perSheet) {
+      final hasSecond = _halfTwoPerA4 && i + 1 < totalHalves;
       doc.addPage(pw.Page(
         pageFormat: size.pageFormat, // A4 portrait
         margin: pw.EdgeInsets.zero,
@@ -636,10 +660,15 @@ class CustomerLedgerPrintBuilder {
           child: pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.stretch,
             mainAxisAlignment: pw.MainAxisAlignment.start,
-            children: [
+            children: _halfTwoPerA4
+                ? [
               half(i),
               cutGap(),
               hasSecond ? half(i + 1) : pw.SizedBox(height: _halfSlotH),
+            ]
+                : [
+              // One half per page, in the top 148.5mm only.
+              half(i),
             ],
           ),
         ),
@@ -647,13 +676,139 @@ class CustomerLedgerPrintBuilder {
     }
   }
 
+  // HALF SHEET header (replaces the shared company header + BILL TO box on
+  // Half Sheet only; Full Sheet still uses ReportPdfGenerator's widgets):
+  //   left   → logo + company name and contact details
+  //   centre → statement period "<from> - <to>" at the top centre
+  //   right  → CUSTOMER LEDGER, customer name (bold, larger), opening
+  //            balance (bold, larger), generated time
+  // followed by a divider line. No BILL TO box. Texts are wrapped in
+  // FittedBox(scaleDown) so long names shrink instead of wrapping, which
+  // keeps the header height fixed (_halfHeaderContentH).
+  static pw.Widget _halfHeader({
+    required String companyName,
+    String? phone,
+    String? address,
+    String? email,
+    String? gstNumber,
+    required pw.MemoryImage? logo,
+    required String customerName,
+    required DateTime from,
+    required DateTime to,
+    required String openingLabel,
+    required PrintSheetSize size,
+    bool bw = false,
+  }) {
+    final ink = bw ? PdfColors.black : _dark;
+    final sub = bw ? PdfColors.black : _subText;
+    final dateFmt = DateFormat('d MMM yyyy');
+
+    pw.Widget fit(String text, pw.TextStyle style, pw.Alignment al) => pw.FittedBox(
+      fit: pw.BoxFit.scaleDown,
+      alignment: al,
+      child: pw.Text(text, style: style),
+    );
+
+    bool has(String? v) => v != null && v.trim().isNotEmpty;
+    final detailStyle = pw.TextStyle(fontSize: 7, color: sub);
+
+    final left = pw.Row(
+      crossAxisAlignment: pw.CrossAxisAlignment.start,
+      children: [
+        if (logo != null)
+          pw.Padding(
+            padding: const pw.EdgeInsets.only(right: 6),
+            child: pw.Image(logo, width: 32, height: 32, fit: pw.BoxFit.contain),
+          ),
+        pw.Expanded(
+          child: pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
+            children: [
+              if (has(companyName))
+                fit(
+                  companyName.trim(),
+                  pw.TextStyle(
+                      fontSize: size.companyFontSize,
+                      fontWeight: pw.FontWeight.bold,
+                      color: ink),
+                  pw.Alignment.centerLeft,
+                ),
+              pw.SizedBox(height: 2),
+              if (has(phone)) pw.Text(phone!.trim(), style: detailStyle),
+              if (has(address)) pw.Text(address!.trim(), style: detailStyle),
+              if (has(email)) pw.Text(email!.trim(), style: detailStyle),
+              if (has(gstNumber)) pw.Text('GSTIN: ${gstNumber!.trim()}', style: detailStyle),
+            ],
+          ),
+        ),
+      ],
+    );
+
+    final centre = pw.Align(
+      alignment: pw.Alignment.topCenter,
+      child: fit(
+        '${dateFmt.format(from)} - ${dateFmt.format(to)}',
+        pw.TextStyle(fontSize: 8.5, fontWeight: pw.FontWeight.bold, color: ink),
+        pw.Alignment.center,
+      ),
+    );
+
+    final right = pw.Column(
+      crossAxisAlignment: pw.CrossAxisAlignment.end,
+      children: [
+        pw.Text('CUSTOMER LEDGER',
+            style: pw.TextStyle(fontSize: 9.5, fontWeight: pw.FontWeight.bold, color: ink)),
+        pw.SizedBox(height: 2),
+        fit(
+          'Customer : ${customerName.trim().isEmpty ? 'Customer' : customerName.trim()}',
+          pw.TextStyle(fontSize: 11.5, fontWeight: pw.FontWeight.bold, color: ink),
+          pw.Alignment.centerRight,
+        ),
+        pw.SizedBox(height: 2),
+        fit(
+          'Opening Balance : $openingLabel',
+          pw.TextStyle(fontSize: 10.5, fontWeight: pw.FontWeight.bold, color: ink),
+          pw.Alignment.centerRight,
+        ),
+        pw.SizedBox(height: 2),
+        pw.Text(
+          'Generated: ${DateFormat('d MMM yyyy, HH:mm').format(DateTime.now())}',
+          style: pw.TextStyle(fontSize: 6.5, color: sub),
+        ),
+      ],
+    );
+
+    return pw.Column(
+      mainAxisSize: pw.MainAxisSize.min,
+      crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+      children: [
+        pw.SizedBox(
+          height: _halfHeaderContentH,
+          child: pw.Row(
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
+            children: [
+              pw.Expanded(flex: 22, child: left),
+              pw.Expanded(flex: 11, child: centre),
+              pw.Expanded(flex: 17, child: right),
+            ],
+          ),
+        ),
+        pw.SizedBox(height: 3),
+        pw.Container(height: 1.2, color: ink),
+        pw.SizedBox(height: 3),
+      ],
+    );
+  }
+
   // HALF SHEET table. Built by hand (instead of TableHelper.fromTextArray) so
   // every row is EXACTLY _halfRowH tall: each cell is one line that shrinks
   // to fit its column (FittedBox.scaleDown) instead of wrapping onto a second
   // line. That makes rows-per-half exact, so a half can never overflow its
   // slot — a table taller than its slot is dropped by the pdf package, which
-  // is what made the table and footer vanish in the earlier version (cells
-  // like Ref No and the rupee amounts were wrapping to two lines).
+  // is what made the table and footer vanish in an earlier version.
+  //
+  // Emphasis: the Opening Balance row's balance cell, the whole Period
+  // Summary row and the whole Closing Balance row are bold.
   static pw.Widget _halfTable(
       List<String> headers,
       List<List<String>> data,
@@ -671,17 +826,19 @@ class CustomerLedgerPrintBuilder {
       pw.Alignment.centerRight,
       pw.Alignment.centerRight,
     ];
+    final ink = bw ? PdfColors.black : _dark;
     final headStyle = pw.TextStyle(
         fontSize: size.tableHeaderFontSize, fontWeight: pw.FontWeight.bold,
         color: bw ? PdfColors.black : PdfColors.white);
-    final cellStyle = pw.TextStyle(
-        fontSize: size.tableCellFontSize, color: bw ? PdfColors.black : _dark);
+    final cellStyle = pw.TextStyle(fontSize: size.tableCellFontSize, color: ink);
+    final boldStyle = pw.TextStyle(
+        fontSize: size.tableCellFontSize, fontWeight: pw.FontWeight.bold, color: ink);
 
     pw.Widget cell(String text, int col, pw.TextStyle style) {
-      // Empty cells (blank Payment, blank Ref No on summary rows, ...) must
-      // NOT go through FittedBox: a zero-width child trips the pdf package's
-      // `width > 0.0` assertion (geometry.dart) and the whole page fails to
-      // build. A plain fixed-height box keeps the row height identical.
+      // Empty cells must NOT go through FittedBox: a zero-width child trips
+      // the pdf package's `width > 0.0` assertion (geometry.dart) and the
+      // whole page fails to build. A plain fixed-height box keeps the row
+      // height identical.
       if (text.trim().isEmpty) return pw.SizedBox(height: _halfRowH);
       return pw.Container(
         height: _halfRowH,
@@ -694,14 +851,33 @@ class CustomerLedgerPrintBuilder {
       );
     }
 
-    pw.TableRow row(List<String> r, pw.TextStyle style, {pw.BoxDecoration? decoration}) =>
+    pw.TableRow row(
+        List<String> r,
+        pw.TextStyle Function(int col) styleFor, {
+          pw.BoxDecoration? decoration,
+        }) =>
         pw.TableRow(
           decoration: decoration,
           children: [
             for (var c = 0; c < aligns.length; c++)
-              cell(c < r.length ? r[c] : '', c, style),
+              cell(c < r.length ? r[c] : '', c, styleFor(c)),
           ],
         );
+
+    String product(List<String> r) => r.length > 3 ? r[3].trim().toLowerCase() : '';
+    String type(List<String> r) => r.length > 2 ? r[2].trim().toLowerCase() : '';
+    bool isOpening(List<String> r) => product(r) == 'opening balance';
+    bool isSummary(List<String> r) =>
+        type(r) == 'summary' || product(r).startsWith('period summary');
+    bool isClosing(List<String> r) => product(r).contains('closing balance');
+
+    pw.TableRow bodyRow(List<String> r) {
+      if (isSummary(r) || isClosing(r)) return row(r, (_) => boldStyle);
+      if (isOpening(r)) {
+        return row(r, (c) => c == aligns.length - 1 ? boldStyle : cellStyle);
+      }
+      return row(r, (_) => cellStyle);
+    }
 
     return pw.Table(
       border: bw
@@ -718,14 +894,14 @@ class CustomerLedgerPrintBuilder {
       children: [
         row(
           headers,
-          headStyle,
+          (_) => headStyle,
           decoration: bw
               ? const pw.BoxDecoration(
               color: PdfColors.white,
               border: pw.Border(bottom: pw.BorderSide(color: PdfColors.black, width: 1.0)))
               : const pw.BoxDecoration(color: _primary),
         ),
-        for (final r in data) row(r, cellStyle),
+        for (final r in data) bodyRow(r),
       ],
     );
   }
