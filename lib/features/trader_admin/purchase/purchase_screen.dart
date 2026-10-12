@@ -80,7 +80,7 @@ class _S extends ConsumerState<PurchaseScreen>
   String get _toStr => DateFormat('yyyy-MM-dd').format(_to);
 
   Future<void> _load() async {
-    final tid = ref.read(appUserProvider).valueOrNull?.agentId;
+    final tid = ref.read(appUserProvider).valueOrNull?.traderId;
     if (tid == null || !mounted) return;
     if (mounted) setState(() => _loading = true);
     try {
@@ -138,8 +138,8 @@ class _S extends ConsumerState<PurchaseScreen>
           final r = await _c
               .from('farms')
               .select('id,farmer_name,farm_name,phone,location,credit_days,'
-              'default_rate_per_kg,is_active,cmpany_id,updated_at,'
-              'poultry_companies(cmpany_name)')
+              'default_rate_per_kg,is_active,company_id,updated_at,'
+              'poultry_companies(company_name)')
               .eq('trader_id', tid)
               .order('farmer_name');
           // ROOT CAUSE FIX (Purchase Report duplicate DC audit): same
@@ -3115,7 +3115,7 @@ class _S extends ConsumerState<PurchaseScreen>
     TextEditingController(text: farm['bank_account'] as String? ?? '');
     final bankIfscCtrl =
     TextEditingController(text: farm['bank_ifsc'] as String? ?? '');
-    String? selectedCompanyId = farm['cmpny_id'] as String?;
+    String? selectedCompanyId = farm['company_id'] as String?;
 
     showModalBottomSheet(
         context: context,
