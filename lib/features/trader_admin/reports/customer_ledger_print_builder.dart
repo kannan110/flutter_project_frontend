@@ -79,14 +79,14 @@ extension PrintSheetSizeX on PrintSheetSize {
   Map<int, pw.TableColumnWidth> get columnWidths => isHalf
       ? const {
     0: pw.FlexColumnWidth(3.3),   // Date
-    1: pw.FlexColumnWidth(8.2),   // Ref No
+    1: pw.FlexColumnWidth(7.6),   // Ref No
     2: pw.FlexColumnWidth(3.7),   // Type
-    3: pw.FlexColumnWidth(15.8),  // Product / Description
-    4: pw.FlexColumnWidth(3.6),   // Kg
+    3: pw.FlexColumnWidth(13.6),  // Product / Description
+    4: pw.FlexColumnWidth(4.4),   // Kg
     5: pw.FlexColumnWidth(2.2),   // Rate
-    6: pw.FlexColumnWidth(6.2),   // Sale
-    7: pw.FlexColumnWidth(6.2),   // Payment
-    8: pw.FlexColumnWidth(6.4),   // Balance
+    6: pw.FlexColumnWidth(7.2),   // Sale
+    7: pw.FlexColumnWidth(6.6),   // Payment
+    8: pw.FlexColumnWidth(7.6),   // Balance
   }
       : const {
     0: pw.FlexColumnWidth(0.9),  // Date
@@ -800,6 +800,32 @@ class CustomerLedgerPrintBuilder {
     );
   }
 
+  // HALF SHEET display-only cleanup (front-end only, no data change):
+  //  • Product column: drop the word "Remarks" (and its colon),
+  //    "Broiler · Remarks:angeripalayam" → "Broiler · angeripalayam"
+  //  • Kg column: always show 2 decimals (40 → 40.00, 43 → 43.00)
+  static List<String> _halfCleanRow(List<String> r) {
+    final out = List<String>.from(r);
+
+    if (out.length > 3) {
+      out[3] = out[3]
+          .replaceAll(RegExp(r'remarks\s*:?\s*', caseSensitive: false), '')
+          .replaceAll(RegExp(r'\s*[·•\-]\s*$'), '') // no dangling separator if remarks was empty
+          .trim();
+    }
+
+    if (out.length > 4) {
+      final raw = out[4].trim();
+      final v = double.tryParse(raw.replaceAll(',', ''));
+      if (raw.isNotEmpty && v != null) {
+        out[4] = raw.contains(',')
+            ? NumberFormat('#,##0.00').format(v)
+            : v.toStringAsFixed(2);
+      }
+    }
+    return out;
+  }
+
   // HALF SHEET table. Built by hand (instead of TableHelper.fromTextArray) so
   // every row is EXACTLY _halfRowH tall: each cell is one line that shrinks
   // to fit its column (FittedBox.scaleDown) instead of wrapping onto a second
@@ -808,7 +834,8 @@ class CustomerLedgerPrintBuilder {
   // is what made the table and footer vanish in an earlier version.
   //
   // Emphasis: the Opening Balance row's balance cell, the whole Period
-  // Summary row and the whole Closing Balance row are bold.
+  // Summary row and the whole Closing Balance row are bold, and their
+  // numbers are shown bigger than every other cell.
   static pw.Widget _halfTable(
       List<String> headers,
       List<List<String>> data,
@@ -833,6 +860,9 @@ class CustomerLedgerPrintBuilder {
     final cellStyle = pw.TextStyle(fontSize: size.tableCellFontSize, color: ink);
     final boldStyle = pw.TextStyle(
         fontSize: size.tableCellFontSize, fontWeight: pw.FontWeight.bold, color: ink);
+    final bigStyle = pw.TextStyle(
+        fontSize: size.tableCellFontSize + 2.5, // bigger than every other cell
+        fontWeight: pw.FontWeight.bold, color: ink);
 
     pw.Widget cell(String text, int col, pw.TextStyle style) {
       // Empty cells must NOT go through FittedBox: a zero-width child trips
@@ -871,10 +901,15 @@ class CustomerLedgerPrintBuilder {
         type(r) == 'summary' || product(r).startsWith('period summary');
     bool isClosing(List<String> r) => product(r).contains('closing balance');
 
-    pw.TableRow bodyRow(List<String> r) {
-      if (isSummary(r) || isClosing(r)) return row(r, (_) => boldStyle);
+    pw.TableRow bodyRow(List<String> raw) {
+      final r = _halfCleanRow(raw);
+      // Summary & Closing rows: label stays bold, all numbers big + bold
+      if (isSummary(r) || isClosing(r)) {
+        return row(r, (c) => c >= 4 ? bigStyle : boldStyle);
+      }
+      // Opening row: balance value big + bold
       if (isOpening(r)) {
-        return row(r, (c) => c == aligns.length - 1 ? boldStyle : cellStyle);
+        return row(r, (c) => c == aligns.length - 1 ? bigStyle : cellStyle);
       }
       return row(r, (_) => cellStyle);
     }

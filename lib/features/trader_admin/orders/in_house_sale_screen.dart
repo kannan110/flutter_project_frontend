@@ -60,7 +60,7 @@ class _S extends ConsumerState<InHouseSaleScreen> {
   final _productScrollCtrl = ScrollController();
 
   // ── Payment ───────────────────────────────────────────────────────────
-  String _paymentMode = 'cash';
+  String _paymentMode = 'credit';
   // Business Date — defaults to today, editable, never future. Lets the
   // trader record a stock point sale that actually happened a few days
   // ago (e.g. catching up on pending entries) so it lands on the correct
@@ -676,7 +676,7 @@ class _S extends ConsumerState<InHouseSaleScreen> {
       ]);
 
   Widget _paymentRow() {
-    final modes = _isWalkIn ? ['cash', 'upi', 'bank'] : ['cash', 'upi', 'bank', 'credit'];
+    final modes = _isWalkIn ? ['upi', 'bank', 'cash'] : ['credit', 'upi', 'bank', 'cash'];
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
