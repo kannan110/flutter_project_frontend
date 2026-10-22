@@ -288,6 +288,8 @@ class _S extends ConsumerState<ReturnCreateScreen> {
         'p_reason': combinedReason,
         'p_processed_by': uid,
         'p_items': items,
+        'p_stock_credited': true,
+        'p_credit_note_amount': _grandTotalCredit,
         // This screen is the Trader Return flow (trader verifies and
         // approves) — returned stock goes in-house, never to the delivery
         // agent. A future Delivery Agent Return screen reuses this exact

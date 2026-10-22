@@ -929,6 +929,12 @@ class _TRS extends State<_TraderRegisterCard> {
           if (v != u) _codeCtrl.value = TextEditingValue(text: u, selection: TextSelection.collapsed(offset: u.length));
         }),
     const SizedBox(height: 12),
+    TextField(controller: _personCtrl, textCapitalization: TextCapitalization.words,
+        textInputAction: TextInputAction.next,
+        decoration: const InputDecoration(labelText: 'Contact Person',
+            hintText: 'e.g. Selvan',
+            prefixIcon: Icon(Icons.person_outline, size: 20, color: kNavy))),
+    const SizedBox(height: 12),
     Row(children: [
       Expanded(child: TextField(controller: _phoneCtrl, keyboardType: TextInputType.phone,
           decoration: const InputDecoration(labelText: 'Phone',
