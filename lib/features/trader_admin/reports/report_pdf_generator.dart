@@ -155,7 +155,94 @@ class ReportPdfGenerator {
           style: pw.TextStyle(fontSize: 9 * scale, fontWeight: pw.FontWeight.bold, color: textColor)),
     ]);
   }
+  // ─── RETAILER PURCHASE "SALES SHEET" (reference: Sales Document) ─────────
+  // ONE place that computes the sheet figures. The screen and every PDF path
+  // read these same items, so they can never disagree.
+  static List<ReportSummaryItem> retailerPurchaseSheetSummary({
+    required String agentName,
+    required double? purchasedKg,
+    required double soldKg,
+  }) {
+    final balance = purchasedKg == null ? null : purchasedKg - soldKg;
+    final lossPct = (purchasedKg == null || purchasedKg <= 0)
+        ? null
+        : (balance! / purchasedKg * 100);
+    return [
+      ReportSummaryItem('Agent', agentName),
+      ReportSummaryItem('Purchased KGS', purchasedKg == null ? '—' : purchasedKg.toStringAsFixed(3)),
+      ReportSummaryItem('Sold KGS', soldKg.toStringAsFixed(3)),
+      ReportSummaryItem('Balance KGS', balance == null ? '—' : balance.toStringAsFixed(3)),
+      ReportSummaryItem('Wt Loss in %', lossPct == null ? '—' : '${lossPct.toStringAsFixed(2)} %'),
+    ];
+  }
 
+  // Non-null only when the Retailer Purchase screen attached its sheet
+  // figures (see above). No other report supplies 'Purchased KGS'.
+  static Map<String, String>? _sheetFromSummary(List<ReportSummaryItem> items) {
+    final m = {for (final i in items) i.label: i.value};
+    return m.containsKey('Purchased KGS') ? m : null;
+  }
+
+  // Top block: company, title, AGENT (left), DATE in bold (right).
+  static pw.Widget _sheetHeader(String company, String agent, DateTime from, DateTime to,
+      {bool bw = false}) {
+    final ink = bw ? PdfColors.black : _dark;
+    final f = DateFormat('dd/MM/yyyy');
+    final sameDay = from.year == to.year && from.month == to.month && from.day == to.day;
+    final date = sameDay ? f.format(to) : '${f.format(from)} - ${f.format(to)}';
+    return pw.Column(children: [
+      pw.Center(child: pw.Text(company.toUpperCase(),
+          style: pw.TextStyle(fontSize: 15, fontWeight: pw.FontWeight.bold, color: ink))),
+      pw.SizedBox(height: 2),
+      pw.Center(child: pw.Text('RETAILER PURCHASE',
+          style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold, color: ink,
+              decoration: pw.TextDecoration.underline))),
+      pw.SizedBox(height: 10),
+      pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [
+        pw.Text('AGENT :  $agent',
+            style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold, color: ink)),
+        pw.Text('DATE :  $date',
+            style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold, color: ink)),
+      ]),
+      pw.SizedBox(height: 6),
+      pw.Divider(color: ink, thickness: 1),
+      pw.SizedBox(height: 6),
+    ]);
+  }
+
+  // Bottom block: Purchased / Sold / Balance / Wt Loss %.
+  static pw.Widget _sheetTotals(Map<String, String> m, {bool bw = false}) {
+    final ink = bw ? PdfColors.black : _dark;
+    pw.Widget line(String label, String key, {bool rule = false, bool strong = false}) =>
+        pw.Container(
+          width: 250,
+          padding: const pw.EdgeInsets.symmetric(vertical: 3),
+          decoration: rule
+              ? pw.BoxDecoration(border: pw.Border(bottom: pw.BorderSide(color: ink, width: 0.6)))
+              : null,
+          child: pw.Row(children: [
+            pw.SizedBox(
+                width: 105,
+                child: pw.Text(label,
+                    style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold, color: ink))),
+            pw.Text(':  ', style: pw.TextStyle(fontSize: 10, color: ink)),
+            pw.Expanded(
+                child: pw.Text(m[key] ?? '—',
+                    textAlign: pw.TextAlign.right,
+                    style: pw.TextStyle(
+                        fontSize: strong ? 12 : 10, fontWeight: pw.FontWeight.bold, color: ink))),
+          ]),
+        );
+    return pw.Padding(
+      padding: const pw.EdgeInsets.only(top: 12),
+      child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
+        line('PURCHASED KGS', 'Purchased KGS'),
+        line('SOLD KGS', 'Sold KGS', rule: true),
+        line('BALANCE KGS', 'Balance KGS', rule: true),
+        line('WT LOSS IN %', 'Wt Loss in %', strong: true),
+      ]),
+    );
+  }
   // ─── Generic entry: build a PDF from a ReportDataSet ─────────────────────
   // This is the NEW canonical path — every report Card View, Table View,
   // and PDF now come from the exact same ReportDataSet, so they can never
@@ -171,7 +258,8 @@ class ReportPdfGenerator {
     final from = dataSet.fromDate ?? DateTime.now();
     final to   = dataSet.toDate   ?? DateTime.now();
     final bw   = dataSet.printStyle == ReportPrintStyle.blackAndWhite;
-
+    // Retailer Purchase sales-sheet layout (null for every other report).
+    final sheet = _sheetFromSummary(dataSet.summary);
     // ── Customer Ledger Enhancement: rich business-document header ──────
     // Only applies when this ReportDataSet carries the raw
     // get_retailer_statement() response (customerLedgerData) alongside a
@@ -188,7 +276,9 @@ class ReportPdfGenerator {
     doc.addPage(pw.MultiPage(
         pageFormat: dataSet.landscape ? PdfPageFormat.a4.landscape : PdfPageFormat.a4,
         margin: const pw.EdgeInsets.all(28),
-        header: (_) => useRichHeader
+        header: (_) => sheet != null
+            ? _sheetHeader(companyName, sheet['Agent'] ?? 'All Agents', from, to, bw: bw)
+            : useRichHeader
             ? richCompanyHeader(
           companyName: (ledgerHeader['company_name'] as String?) ?? companyName,
           phone: ledgerHeader['company_phone'] as String?,
@@ -228,8 +318,7 @@ class ReportPdfGenerator {
             ),
             pw.SizedBox(height: 8),
           ],
-          if (dataSet.customerIdentity == null && dataSet.summary.isNotEmpty) ...[
-            _secTitle('SUMMARY'),
+          if (dataSet.customerIdentity == null && dataSet.summary.isNotEmpty && sheet == null) ...[            _secTitle('SUMMARY'),
             _kpiRow(dataSet.summary
                 .map((s) => _KpiCell(s.label, s.value, _primary))
                 .toList(), bw: bw),
@@ -248,6 +337,7 @@ class ReportPdfGenerator {
               columnFlex: dataSet.columnFlex,
               style: dataSet.printStyle,
             ),
+                      if (sheet != null) _sheetTotals(sheet, bw: bw),
         ]));
     return doc;
   }
@@ -1256,14 +1346,23 @@ class ReportPdfGenerator {
   // ══════════════════════════════════════════════════════════════════════════
   // 10. RETAILER PURCHASE
   // ══════════════════════════════════════════════════════════════════════════
-  static void _retailerPurchasePdf(pw.Document doc, Map s, Map data,
+    static void _retailerPurchasePdf(pw.Document doc, Map s, Map data,
       String label, String company, DateTime from, DateTime to) {
     final retailers = _rowList(data['retailers']);
     final daily     = _rowList(data['daily']);
+    // Sales-sheet figures. Agent name and purchased kg are attached by the screen.
+    final sheet = {
+      for (final i in retailerPurchaseSheetSummary(
+        agentName: (data['sheet_agent'] as String?) ?? 'All Agents',
+        purchasedKg: (data['sheet_purchased_kg'] as num?)?.toDouble(),
+        soldKg: retailers.fold<double>(0, (sum, r) => sum + _d(r, 'total_kg')),
+      ))
+        i.label: i.value,
+    };
     doc.addPage(pw.MultiPage(
         pageFormat: PdfPageFormat.a4,
         margin: const pw.EdgeInsets.all(28),
-        header: (_) => _header(company, label, from, to),
+        header: (_) => _sheetHeader(company, sheet['Agent'] ?? 'All Agents', from, to),
         footer: (_) => _footer(),
         build: (_) => [
           _kpiRow([
@@ -1279,9 +1378,6 @@ class ReportPdfGenerator {
                 rows: retailers.map((r)=>[
                   _str(r,'shop_name'),_str(r,'phone'),'${_i(r,"orders")}',
                   _f0(r,'total_kg'),_amt(r,'billed'),_amt(r,'collected'),_amt(r,'outstanding')]).toList(),
-                // Grand Total — summed from the same `retailers` rows this
-                // table renders (no separate/duplicate calculation),
-                // reusing _table()'s existing totals: support.
                 totals: [
                   'TOTAL',
                   '',
@@ -1302,6 +1398,7 @@ class ReportPdfGenerator {
                 '₹${_d(d,"rate").toStringAsFixed(2)}',
                 _amt(d,'billed'),_amt(d,'collected')]).toList(),
               bold: [5]),
+          _sheetTotals(sheet),
         ]));
   }
 

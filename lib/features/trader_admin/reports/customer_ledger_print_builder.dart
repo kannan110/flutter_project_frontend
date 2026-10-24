@@ -608,21 +608,44 @@ class CustomerLedgerPrintBuilder {
     }
     final totalHalves = chunks.length;
 
-    // One complete half (header block → table → spacer → footer pinned to
-    // the bottom of the half). Fresh widget instances every call.
-    pw.Widget half(int idx) => pw.SizedBox(
-      height: _halfSlotH,
-      child: pw.Column(
-        crossAxisAlignment: pw.CrossAxisAlignment.stretch,
-        children: [
-          header(),
-          pw.SizedBox(height: _halfBlockGap),
-          _halfTable(headers, chunks[idx], size, bw: bw),
-          pw.Spacer(),
-          _printFooterText(idx + 1, totalHalves, size, bw: bw),
-        ],
-      ),
-    );
+    // One complete half (header block → table → closing block / spacer →
+    // footer pinned to the bottom of the half). Fresh widget instances every
+    // call. On the LAST half, the Closing Balance row is taken out of the
+    // table and shown as a big block filling all the space between the
+    // table and the footer.
+    pw.Widget half(int idx) {
+      final isLast = idx == totalHalves - 1;
+      var tableRows = chunks[idx];
+      List<String>? closingRow;
+
+      if (isLast && tableRows.isNotEmpty) {
+        final lastRow = tableRows.last;
+        final label = lastRow.length > 3 ? lastRow[3].toLowerCase() : '';
+        if (label.contains('closing balance')) {
+          closingRow = lastRow;
+          tableRows = tableRows.sublist(0, tableRows.length - 1);
+        }
+      }
+
+      return pw.SizedBox(
+        height: _halfSlotH,
+        child: pw.Column(
+          crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+          children: [
+            header(),
+            pw.SizedBox(height: _halfBlockGap),
+            _halfTable(headers, tableRows, size, bw: bw),
+            if (closingRow != null) ...[
+              pw.SizedBox(height: 4),
+              pw.Expanded(child: _halfClosingBlock(closingRow, bw: bw)),
+              pw.SizedBox(height: 4),
+            ] else
+              pw.Spacer(),
+            _printFooterText(idx + 1, totalHalves, size, bw: bw),
+          ],
+        ),
+      );
+    }
 
     // Space between the two halves; the cut line sits in the exact middle,
     // i.e. at y = A4 height / 2 = 420.945pt = 148.5mm.
@@ -824,6 +847,37 @@ class CustomerLedgerPrintBuilder {
       }
     }
     return out;
+  }
+
+  // HALF SHEET: Closing Balance shown big, filling all the remaining space
+  // below the table (last half only). FittedBox(scaleDown) keeps it inside
+  // the available height even when the half is nearly full.
+  static pw.Widget _halfClosingBlock(List<String> row, {bool bw = false}) {
+    final ink = bw ? PdfColors.black : _dark;
+    final amount = (row.isNotEmpty && row.last.trim().isNotEmpty) ? row.last.trim() : '-';
+
+    return pw.Container(
+      alignment: pw.Alignment.center,
+      padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: pw.BoxDecoration(
+        border: pw.Border.all(color: bw ? PdfColors.black : _primary, width: 1.2),
+      ),
+      child: pw.FittedBox(
+        fit: pw.BoxFit.scaleDown,
+        child: pw.Row(
+          mainAxisSize: pw.MainAxisSize.min,
+          crossAxisAlignment: pw.CrossAxisAlignment.center,
+          children: [
+            pw.Text('Closing Balance :  ',
+                style: pw.TextStyle(
+                    fontSize: 16, fontWeight: pw.FontWeight.bold, color: ink)),
+            pw.Text(amount,
+                style: pw.TextStyle(
+                    fontSize: 34, fontWeight: pw.FontWeight.bold, color: ink)),
+          ],
+        ),
+      ),
+    );
   }
 
   // HALF SHEET table. Built by hand (instead of TableHelper.fromTextArray) so

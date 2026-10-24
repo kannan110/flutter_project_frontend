@@ -169,6 +169,9 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
   String? _ledgerMovementType;
   String? _ledgerValuationSource;
   String _ledgerSearch = '';
+    // Retailer Purchase sales-sheet: DC-loaded kg (Purchased KGS) for the current
+  // dates + agent, from the shrinkage report. null = not available.
+  double? _rpPurchasedKg;
 
   static const _kLedgerMovementTypes = [
     'returned_in','shift_close_return','transferred_out','theft',
@@ -322,7 +325,8 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
       }
       final res = await _c.rpc(rpcName, params: p)
           .timeout(const Duration(seconds: 20));
-      if (mounted) setState(() => _data = res as Map<String,dynamic>?);
+      final purchased = _sel.key == 'retailer_purchase' ? await _fetchPurchasedKg(tid) : null;
+      if (mounted) setState(() { _data = res as Map<String,dynamic>?; _rpPurchasedKg = purchased; });
     } catch (e) {
       if (mounted) setState(() => _error = e.toString().replaceAll('Exception:','').trim());
     } finally {
@@ -1263,13 +1267,106 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
           tots:['TOTAL',Fmt.amount(bil),Fmt.amount(col),Fmt.amount(pen)], hi:[1,2,3]),
     ]);
   }
+  // ═══ RETAILER PURCHASE: sales-sheet pieces (agent, bold date, totals) ═══
+  String get _selectedAgentName {
+    if (_agentId == null) return 'All Agents';
+    final a = _agents.firstWhere((x) => x['id'] == _agentId, orElse: () => const {});
+    return (a['name'] as String?) ?? 'All Agents';
+  }
 
+  /// Purchased KGS = DC loaded kg of closed shifts, same dates and same agent as the report.
+  Future<double?> _fetchPurchasedKg(String tid) async {
+    try {
+      final res = await _c.rpc('get_report_data', params: {
+        'p_trader_id': tid,
+        'p_from_date': DateFormat('yyyy-MM-dd').format(_from),
+        'p_to_date':   DateFormat('yyyy-MM-dd').format(_to),
+        'p_report':    'shrinkage',
+        if (_agentId != null) 'p_agent_id': _agentId,
+      }).timeout(const Duration(seconds: 20));
+      final s = ((res as Map?)?['summary'] as Map?) ?? const {};
+      return (s['total_dc_kg'] as num?)?.toDouble();
+    } catch (_) {
+      return null; // report still loads; the block shows "—"
+    }
+  }
+
+  // Same helper the PDFs use, so screen and PDF always agree.
+  List<ReportSummaryItem> _rpSheetItems() => ReportPdfGenerator.retailerPurchaseSheetSummary(
+    agentName: _selectedAgentName,
+    purchasedKg: _rpPurchasedKg,
+    soldKg: _rows('retailers').fold<double>(0, (sum, r) => sum + _d(r, 'total_kg')),
+  );
+
+  // Top block: AGENT (left), DATE in bold (right).
+  Widget _rpSheetHeader() {
+    final f = DateFormat('dd/MM/yyyy');
+    final date = DateUtils.isSameDay(_from, _to) ? f.format(_to) : '${f.format(_from)} - ${f.format(_to)}';
+    return Container(
+      margin: const EdgeInsets.fromLTRB(kSpMd, kSpMd, kSpMd, 0),
+      padding: const EdgeInsets.all(kSpMd),
+      decoration: BoxDecoration(
+          color: kSurface,
+          borderRadius: BorderRadius.circular(kRadiusCard),
+          border: Border.all(color: kBorderLight)),
+      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text('AGENT', style: kTypeCaption),
+          const SizedBox(height: 2),
+          Text(_selectedAgentName,
+              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: kNavy),
+              maxLines: 2, overflow: TextOverflow.ellipsis),
+        ])),
+        const SizedBox(width: 12),
+        Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+          Text('DATE', style: kTypeCaption),
+          const SizedBox(height: 2),
+          Text(date, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w900, color: kNavy)),
+        ]),
+      ]),
+    );
+  }
+
+  // Bottom block: Purchased / Sold / Balance / Wt Loss %.
+  Widget _rpSheetTotals(List<ReportSummaryItem> items) {
+    String v(String label) => items.firstWhere((i) => i.label == label).value;
+    Widget line(String label, String value, {bool rule = false, bool strong = false}) => Container(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      decoration: BoxDecoration(
+          border: rule ? const Border(bottom: BorderSide(color: kBorder)) : null),
+      child: Row(children: [
+        Expanded(child: Text(label,
+            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: kTextSub))),
+        Text(value,
+            style: TextStyle(fontSize: strong ? 18 : 15, fontWeight: FontWeight.w900, color: kNavy)),
+      ]),
+    );
+    return Container(
+      margin: const EdgeInsets.fromLTRB(kSpMd, kSpMd, kSpMd, 0),
+      padding: const EdgeInsets.symmetric(horizontal: kSpMd, vertical: kSpSm),
+      decoration: BoxDecoration(
+          color: kSurface,
+          borderRadius: BorderRadius.circular(kRadiusCard),
+          border: Border.all(color: kBorderLight)),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        line('PURCHASED KGS', v('Purchased KGS')),
+        line('SOLD KGS', v('Sold KGS'), rule: true),
+        line('BALANCE KGS', v('Balance KGS'), rule: true),
+        line('WT LOSS IN %', v('Wt Loss in %'), strong: true),
+        const SizedBox(height: 4),
+        Text('Purchased KGS = DC loaded kg of closed shifts for the selected dates/agent. Sold KGS = total kg of the tables above.',
+            style: kTypeCaption),
+      ]),
+    );
+  }
   // ═══════════════════════════════════════════════════════════════════════════
   // 10. RETAILER PURCHASE
   // ═══════════════════════════════════════════════════════════════════════════
   Widget _rRetailerPurchase() {
     final s = _s(); final ret = _rows('retailers'); final day = _rows('daily');
+    final sheet = _rpSheetItems();
     return _scroll([
+      _rpSheetHeader(),
       _kpiGrid([
         _kpi2('Orders',    '${_i(s,"total_orders")}',                              Colors.blue,   Icons.shopping_cart_outlined),
         _kpi2('Total kg',  '${_d(s,"total_kg").toStringAsFixed(0)}',               Colors.teal,   Icons.scale_outlined),
@@ -1282,12 +1379,6 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
             ret.map((r)=>[_str(r,'shop_name'),_str(r,'phone'),'${_i(r,"orders")}',
               '${_d(r,"total_kg").toStringAsFixed(0)}',Fmt.amount(_d(r,'billed')),
               Fmt.amount(_d(r,'collected')),Fmt.amount(_d(r,'outstanding'))]).toList(),
-            // Grand Total — summed from the same `ret` rows the table
-            // itself renders (no separate/duplicate calculation), reusing
-            // _tbl()'s existing tots: support (same mechanism the Day-wise
-            // Collection table above already uses) so Screen, Card view,
-            // Print, and this table's own PDF/Share all read one totals
-            // row from the one ReportDataSet.
             tots: [
               'TOTAL',
               '',
@@ -1304,7 +1395,11 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
           day.map((d)=>[_fd(d['order_date']),_sh(_str(d,'shop_name'),10),
             '${_d(d,"kg").toStringAsFixed(0)}','${_i(d,"birds")}',
             '${_d(d,"rate").toStringAsFixed(2)}',Fmt.amount(_d(d,'billed')),Fmt.amount(_d(d,'collected'))]).toList(),
-          hi:[5]),
+          hi:[5],
+          // carries the sales-sheet figures so this table's PDF / Print / Share
+          // prints the reference layout (agent, bold date, totals block)
+          summary: sheet),
+      _rpSheetTotals(sheet),
     ]);
   }
 
@@ -1581,6 +1676,17 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
           fromDate: _from,
           toDate: _to,
           agentFilterName: null,
+        );
+        return;
+      }
+            if (_sel.key == 'retailer_purchase') {
+        await ReportPdfGenerator.generateAndShow(
+          context:     context,
+          reportData:  {..._data!, 'sheet_agent': _selectedAgentName, 'sheet_purchased_kg': _rpPurchasedKg},
+          reportLabel: _sel.label,
+          companyName: company,
+          fromDate:    _from,
+          toDate:      _to,
         );
         return;
       }
@@ -1908,6 +2014,10 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
     } else {
       final s = _s();
       s.forEach((k,v)=>buf.writeln('${k.replaceAll("_"," ").toUpperCase()}: $v'));
+      if (_sel.key == 'retailer_purchase') {
+        buf.writeln('');
+        for (final i in _rpSheetItems()) { buf.writeln('${i.label}: ${i.value}'); }
+      }
     }
     buf.writeln('');
     buf.writeln('Rooster Trader v2');
