@@ -544,6 +544,7 @@ class CustomerLedgerPrintBuilder {
           gstNumber: header['company_gst'] as String?,
           logo: logo,
           customerName: customerName,
+          customerMobile: header['retailer_phone'] as String?,
           from: fromDate,
           to: toDate,
           openingLabel: openingLabel,
@@ -636,11 +637,12 @@ class CustomerLedgerPrintBuilder {
             pw.SizedBox(height: _halfBlockGap),
             _halfTable(headers, tableRows, size, bw: bw),
             if (closingRow != null) ...[
-              pw.SizedBox(height: 4),
-              pw.Expanded(child: _halfClosingBlock(closingRow, bw: bw)),
-              pw.SizedBox(height: 4),
-            ] else
-              pw.Spacer(),
+              // Closing Balance sits right below the table at a fixed,
+              // header-like height. It no longer expands to fill the space.
+              pw.SizedBox(height: 2),
+              _halfClosingBlock(closingRow, bw: bw),
+            ],
+            pw.Spacer(),
             _printFooterText(idx + 1, totalHalves, size, bw: bw),
           ],
         ),
@@ -716,6 +718,7 @@ class CustomerLedgerPrintBuilder {
     String? gstNumber,
     required pw.MemoryImage? logo,
     required String customerName,
+    String? customerMobile,
     required DateTime from,
     required DateTime to,
     required String openingLabel,
@@ -776,24 +779,42 @@ class CustomerLedgerPrintBuilder {
       ),
     );
 
+    // Customer mobile (bold, under the customer name) — only when the customer
+    // has one. In that case the 3 gaps tighten from 2pt to 1pt and the header
+    // block grows by 4pt so the extra line never overflows (rows per half are
+    // unchanged — the 4pt comes out of the spare points). No mobile → exactly
+    // the same layout as before.
+    final mobile = (customerMobile ?? '').trim();
+    final hasMobile = mobile.isNotEmpty;
+    final rGap = hasMobile ? 1.0 : 2.0;
+    final contentH = hasMobile ? _halfHeaderContentH + 4 : _halfHeaderContentH;
+
     final right = pw.Column(
       crossAxisAlignment: pw.CrossAxisAlignment.end,
       children: [
         pw.Text('CUSTOMER LEDGER',
             style: pw.TextStyle(fontSize: 9.5, fontWeight: pw.FontWeight.bold, color: ink)),
-        pw.SizedBox(height: 2),
+        pw.SizedBox(height: rGap),
         fit(
           'Customer : ${customerName.trim().isEmpty ? 'Customer' : customerName.trim()}',
           pw.TextStyle(fontSize: 11.5, fontWeight: pw.FontWeight.bold, color: ink),
           pw.Alignment.centerRight,
         ),
-        pw.SizedBox(height: 2),
+        if (hasMobile) ...[
+          pw.SizedBox(height: rGap),
+          fit(
+            'Mobile : $mobile',
+            pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold, color: ink),
+            pw.Alignment.centerRight,
+          ),
+        ],
+        pw.SizedBox(height: rGap),
         fit(
           'Opening Balance : $openingLabel',
           pw.TextStyle(fontSize: 10.5, fontWeight: pw.FontWeight.bold, color: ink),
           pw.Alignment.centerRight,
         ),
-        pw.SizedBox(height: 2),
+        pw.SizedBox(height: rGap),
         pw.Text(
           'Generated: ${DateFormat('d MMM yyyy, HH:mm').format(DateTime.now())}',
           style: pw.TextStyle(fontSize: 6.5, color: sub),
@@ -806,7 +827,7 @@ class CustomerLedgerPrintBuilder {
       crossAxisAlignment: pw.CrossAxisAlignment.stretch,
       children: [
         pw.SizedBox(
-          height: _halfHeaderContentH,
+          height: contentH,
           child: pw.Row(
             crossAxisAlignment: pw.CrossAxisAlignment.start,
             children: [
@@ -849,31 +870,35 @@ class CustomerLedgerPrintBuilder {
     return out;
   }
 
-  // HALF SHEET: Closing Balance shown big, filling all the remaining space
-  // below the table (last half only). FittedBox(scaleDown) keeps it inside
-  // the available height even when the half is nearly full.
+    // HALF SHEET: Closing Balance shown right below the table (last half only),
+  // bold and header-sized. Fixed height (_halfClosingH), so it never grows to
+  // fill the leftover space. FittedBox(scaleDown) keeps long amounts on one line.
+  static const double _halfClosingH = 18;
+
   static pw.Widget _halfClosingBlock(List<String> row, {bool bw = false}) {
     final ink = bw ? PdfColors.black : _dark;
     final amount = (row.isNotEmpty && row.last.trim().isNotEmpty) ? row.last.trim() : '-';
 
     return pw.Container(
-      alignment: pw.Alignment.center,
-      padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      height: _halfClosingH,
+      alignment: pw.Alignment.centerRight,
+      padding: const pw.EdgeInsets.symmetric(horizontal: 6),
       decoration: pw.BoxDecoration(
-        border: pw.Border.all(color: bw ? PdfColors.black : _primary, width: 1.2),
+        border: pw.Border.all(color: bw ? PdfColors.black : _primary, width: 1.0),
       ),
       child: pw.FittedBox(
         fit: pw.BoxFit.scaleDown,
+        alignment: pw.Alignment.centerRight,
         child: pw.Row(
           mainAxisSize: pw.MainAxisSize.min,
           crossAxisAlignment: pw.CrossAxisAlignment.center,
           children: [
             pw.Text('Closing Balance :  ',
                 style: pw.TextStyle(
-                    fontSize: 16, fontWeight: pw.FontWeight.bold, color: ink)),
+                    fontSize: 13, fontWeight: pw.FontWeight.bold, color: ink)),
             pw.Text(amount,
                 style: pw.TextStyle(
-                    fontSize: 34, fontWeight: pw.FontWeight.bold, color: ink)),
+                    fontSize: 15, fontWeight: pw.FontWeight.bold, color: ink)),
           ],
         ),
       ),
