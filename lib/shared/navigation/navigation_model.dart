@@ -85,7 +85,7 @@ class TraderNavigation {
   }) =>
       [
         // ── Primary ─────────────────────────────────────────────────────────
-        NavSection(
+        const NavSection(
           title: null,
           items: [
             NavItem(
@@ -108,7 +108,7 @@ class TraderNavigation {
               route:      R.orders,
               badge:      pendingOrders > 0 ? pendingOrders : null,
             ),
-            NavItem(
+            const NavItem(
               label:      'Dispatch',
               icon:       Icons.local_shipping_outlined,
               activeIcon: Icons.local_shipping_rounded,
@@ -121,19 +121,19 @@ class TraderNavigation {
               route:      R.approvals,
               badge:      pendingApprovals > 0 ? pendingApprovals : null,
             ),
-            NavItem(
+            const NavItem(
               label:      'Inventory Dashboard',
               icon:       Icons.warehouse_outlined,
               activeIcon: Icons.warehouse_rounded,
               route:      R.inventoryDashboard,
             ),
-            NavItem(
+            const NavItem(
               label:      'Stock',
               icon:       Icons.inventory_2_outlined,
               activeIcon: Icons.inventory_2_rounded,
               route:      R.stock,
             ),
-            NavItem(
+            const NavItem(
               label:      'Returns',
               icon:       Icons.assignment_return_outlined,
               activeIcon: Icons.assignment_return_rounded,
@@ -143,7 +143,7 @@ class TraderNavigation {
         ),
 
         // ── Finance ─────────────────────────────────────────────────────────
-        NavSection(
+        const NavSection(
           title: 'FINANCE',
           items: [
             NavItem(
@@ -186,7 +186,7 @@ class TraderNavigation {
         ),
 
         // ── People ──────────────────────────────────────────────────────────
-        NavSection(
+        const NavSection(
           title: 'PEOPLE',
           items: [
             NavItem(
@@ -211,7 +211,7 @@ class TraderNavigation {
         ),
 
         // ── Tracking ────────────────────────────────────────────────────────
-        NavSection(
+        const NavSection(
           title: 'TRACKING',
           items: [
             NavItem(
@@ -251,13 +251,13 @@ class TraderNavigation {
         NavSection(
           title: 'INSIGHTS',
           items: [
-            NavItem(
+            const NavItem(
               label:      'Analytics',
               icon:       Icons.bar_chart_outlined,
               activeIcon: Icons.bar_chart_rounded,
               route:      R.analytics,
             ),
-            NavItem(
+            const NavItem(
               label:      'Reports',
               icon:       Icons.summarize_outlined,
               activeIcon: Icons.summarize_rounded,
@@ -274,7 +274,7 @@ class TraderNavigation {
         ),
 
         // ── Config ──────────────────────────────────────────────────────────
-        NavSection(
+        const NavSection(
           title: 'ACCOUNT',
           items: [
             NavItem(
@@ -300,7 +300,7 @@ class TraderNavigation {
     int pendingOrders    = 0,
   }) =>
       [
-        NavItem(
+        const NavItem(
           label:      'Home',
           icon:       Icons.dashboard_outlined,
           activeIcon: Icons.dashboard_rounded,
@@ -313,7 +313,7 @@ class TraderNavigation {
           route:      R.orders,
           badge:      pendingOrders > 0 ? pendingOrders : null,
         ),
-        NavItem(
+        const NavItem(
           label:      'Dispatch',
           icon:       Icons.local_shipping_outlined,
           activeIcon: Icons.local_shipping_rounded,
@@ -326,37 +326,37 @@ class TraderNavigation {
           route:      R.approvals,
           badge:      pendingApprovals > 0 ? pendingApprovals : null,
         ),
-        NavItem(
+        const NavItem(
           label:      'Inventory Dashboard',
           icon:       Icons.warehouse_outlined,
           activeIcon: Icons.warehouse_rounded,
           route:      R.inventoryDashboard,
         ),
-        NavItem(
+        const NavItem(
           label:      'Stock',
           icon:       Icons.inventory_2_outlined,
           activeIcon: Icons.inventory_2_rounded,
           route:      R.stock,
         ),
-        NavItem(
+        const NavItem(
           label:      'Ledger',
           icon:       Icons.account_balance_wallet_outlined,
           activeIcon: Icons.account_balance_wallet_rounded,
           route:      R.ledger,
         ),
-        NavItem(
+        const NavItem(
           label:      'Retailers',
           icon:       Icons.storefront_outlined,
           activeIcon: Icons.storefront_rounded,
           route:      R.retailers,
         ),
-        NavItem(
+        const NavItem(
           label:      'Agents',
           icon:       Icons.directions_bike_outlined,
           activeIcon: Icons.directions_bike_rounded,
           route:      R.agents,
         ),
-        NavItem(
+        const NavItem(
           label:      'Reports',
           icon:       Icons.summarize_outlined,
           activeIcon: Icons.summarize_rounded,
@@ -369,7 +369,7 @@ class TraderNavigation {
           route:      R.alerts,
           badge:      unreadAlerts > 0 ? unreadAlerts : null,
         ),
-        NavItem(
+        const NavItem(
           label:      'Settings',
           icon:       Icons.settings_outlined,
           activeIcon: Icons.settings_rounded,

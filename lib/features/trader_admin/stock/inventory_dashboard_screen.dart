@@ -422,7 +422,7 @@ class _InventoryDashboardScreenState extends ConsumerState<InventoryDashboardScr
         borderRadius: BorderRadius.circular(8),
         onTap: () => _openEffectiveCostScreen(),
         child: Row(children: [
-          Icon(Icons.calculate_outlined, size: 14, color: kTextHint),
+          const Icon(Icons.calculate_outlined, size: 14, color: kTextHint),
           const SizedBox(width: 6),
           Expanded(child: Text(
             avgCost == null
@@ -528,7 +528,7 @@ class _InventoryDashboardScreenState extends ConsumerState<InventoryDashboardScr
     }
 
     if (alerts.isEmpty) {
-      return _card(child: Row(children: const [
+      return _card(child: const Row(children: [
         Icon(Icons.check_circle_outline, color: Colors.green, size: 20),
         SizedBox(width: 8),
         Text('All clear — nothing needs attention right now.',

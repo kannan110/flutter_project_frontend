@@ -72,9 +72,9 @@ class _S extends State<CreditNoteDetailScreen> {
     final font = await PdfGoogleFonts.notoSansRegular();
     final boldFont = await PdfGoogleFonts.notoSansBold();
     final doc = pw.Document(theme: pw.ThemeData.withFont(base: font, bold: boldFont));
-    final purple = PdfColor.fromInt(0xFF6A1B9A);
-    final grey = PdfColor.fromInt(0xFF616161);
-    final bgLight = PdfColor.fromInt(0xFFF5F5F5);
+    const purple = PdfColor.fromInt(0xFF6A1B9A);
+    const grey = PdfColor.fromInt(0xFF616161);
+    const bgLight = PdfColor.fromInt(0xFFF5F5F5);
 
     doc.addPage(pw.Page(
       pageFormat: PdfPageFormat.a4,
@@ -85,10 +85,10 @@ class _S extends State<CreditNoteDetailScreen> {
               style: pw.TextStyle(fontSize: 20, fontWeight: pw.FontWeight.bold, color: purple)),
           pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.end, children: [
             pw.Text(cn['credit_number'] as String? ?? '—',
-                style: pw.TextStyle(fontSize: 12, color: grey)),
+                style: const pw.TextStyle(fontSize: 12, color: grey)),
             if (date != null)
               pw.Text('Date: ${DateFormat('d MMM y').format(date)}',
-                  style: pw.TextStyle(fontSize: 10, color: grey)),
+                  style: const pw.TextStyle(fontSize: 10, color: grey)),
           ]),
         ]),
         pw.SizedBox(height: 12),
@@ -103,10 +103,10 @@ class _S extends State<CreditNoteDetailScreen> {
             pw.Text(retailer?['shop_name'] as String? ?? '—',
                 style: pw.TextStyle(fontSize: 13, fontWeight: pw.FontWeight.bold)),
             if (retailer?['phone'] != null)
-              pw.Text('Phone: ${retailer!['phone']}', style: pw.TextStyle(fontSize: 10, color: grey)),
+              pw.Text('Phone: ${retailer!['phone']}', style: const pw.TextStyle(fontSize: 10, color: grey)),
             if (invoice != null)
               pw.Text('Against Invoice: ${invoice['invoice_number']}',
-                  style: pw.TextStyle(fontSize: 10, color: grey)),
+                  style: const pw.TextStyle(fontSize: 10, color: grey)),
           ]),
         ),
         pw.SizedBox(height: 16),
@@ -116,7 +116,7 @@ class _S extends State<CreditNoteDetailScreen> {
           2: const pw.FlexColumnWidth(1.5),
           3: const pw.FlexColumnWidth(2),
         }, children: [
-          pw.TableRow(decoration: pw.BoxDecoration(color: purple), children:
+          pw.TableRow(decoration: const pw.BoxDecoration(color: purple), children:
           ['Birds', 'Weight (kg)', 'Rate', 'Amount (₹)'].map((h) => pw.Padding(
               padding: const pw.EdgeInsets.all(6),
               child: pw.Text(h,
@@ -131,7 +131,7 @@ class _S extends State<CreditNoteDetailScreen> {
         ]),
         pw.SizedBox(height: 16),
         if (ret?['reason'] != null)
-          pw.Text('Reason: ${ret!['reason']}', style: pw.TextStyle(fontSize: 11, color: grey)),
+          pw.Text('Reason: ${ret!['reason']}', style: const pw.TextStyle(fontSize: 11, color: grey)),
         pw.SizedBox(height: 20),
         pw.Align(
           alignment: pw.Alignment.centerRight,

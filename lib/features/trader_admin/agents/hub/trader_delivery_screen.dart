@@ -6,7 +6,6 @@ import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../core/models/dashboard_models.dart';
 import '../../../../core/providers/session_provider.dart';
-import '../../../../core/router/app_router.dart';
 import '../../../../core/theme/app_theme.dart';
 import 'entry_mode_selector.dart';
 
@@ -109,7 +108,9 @@ class _TraderDeliveryScreenState
       _birdsCtrl, _weightCtrl, _rcvBirdsCtrl, _rcvWtCtrl,
       _mortCtrl, _rejCtrl, _retBirdsCtrl, _retWtCtrl,
       _shrinkCtrl, _crateDropCtrl, _crateBackCtrl, _cashCtrl, _notesCtrl,
-    ]) c.dispose();
+    ]) {
+      c.dispose();
+    }
     super.dispose();
   }
 
@@ -255,8 +256,11 @@ class _TraderDeliveryScreenState
       } catch (e) {
         if (mounted) {
           setState(() {
-            if (isMortality) _uploadingMortality = false;
-            else             _uploadingDelivery  = false;
+            if (isMortality) {
+              _uploadingMortality = false;
+            } else {
+              _uploadingDelivery  = false;
+            }
           });
           showError(context,
               'Upload failed: ${e.toString().replaceAll('Exception: ', '')}');
@@ -547,7 +551,7 @@ class _TraderDeliveryScreenState
       final isPartialResult =
           (res as Map<String, dynamic>?)?['is_partial'] == true;
       final birdsRemaining =
-          (res as Map<String, dynamic>?)?['birds_remaining'] as int? ?? 0;
+          (res)?['birds_remaining'] as int? ?? 0;
 
       if (isPartialResult) {
         showSuccess(context,
@@ -804,7 +808,7 @@ class _TraderDeliveryScreenState
                     _transferAgentName = null;
                   }
                 }),
-                activeColor: Colors.orange,
+                activeThumbColor: Colors.orange,
                 secondary: Icon(
                     _isPartial
                         ? Icons.splitscreen_outlined

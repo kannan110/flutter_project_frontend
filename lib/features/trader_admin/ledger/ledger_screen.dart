@@ -10,7 +10,6 @@ import '../../../shared/widgets/cards/metric_card.dart';
 import '../../../shared/widgets/common/async_state_view.dart';
 import '../../../shared/widgets/common/status_chip.dart';
 import '../../../shared/widgets/filters/filter_bar.dart';
-import '../../../shared/widgets/filters/search_bar.dart' hide ListToolbar;
 import '../../../shared/widgets/tables/app_table.dart';
 
 class LedgerScreen extends ConsumerStatefulWidget {
@@ -272,20 +271,20 @@ class _S extends ConsumerState<LedgerScreen> {
       rowDecoration: (r) {
         final status = r['risk_status'] as String? ?? 'healthy';
         Color? tint;
-        if (status == 'over_limit' || status == 'overdue_30d')
+        if (status == 'over_limit' || status == 'overdue_30d') {
           tint = Colors.red.withValues(alpha: 0.03);
-        else if (status == 'near_limit' || status == 'overdue_15d')
+        } else if (status == 'near_limit' || status == 'overdue_15d')
           tint = Colors.orange.withValues(alpha: 0.03);
         return BoxDecoration(
           color:  tint ?? Colors.transparent,
           border: const Border(bottom: BorderSide(color: kBorder, width: 0.5)),
         );
       },
-      emptyWidget: AsyncStateView(
+      emptyWidget: const AsyncStateView(
         loading: false, empty: true,
         emptyIcon: Icons.account_balance_wallet_outlined,
         emptyMessage: 'No retailers found',
-        child: const SizedBox.shrink(),
+        child: SizedBox.shrink(),
       ),
     );
   }

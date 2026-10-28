@@ -47,13 +47,15 @@ class _S extends ConsumerState<SupervisorDashboardScreen> {
       final total = plist.fold<double>(0, (s, p) => s + ((p['amount'] as num?)?.toDouble() ?? 0));
       final distinctRetailers = plist.map((p) => p['retailer_id']).toSet().length;
 
-      if (mounted) setState(() {
+      if (mounted) {
+        setState(() {
         _assignedCount = rlist.length;
         _pendingRetailers = pending;
         _collectedToday = total;
         _customersCollectedToday = distinctRetailers;
         _loading = false;
       });
+      }
     } catch (e) {
       if (mounted) { setState(() => _loading = false); showError(context, e.toString()); }
     }

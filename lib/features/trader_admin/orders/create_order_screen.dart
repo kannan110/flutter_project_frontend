@@ -134,7 +134,9 @@ class _S extends ConsumerState<CreateOrderScreen> {
     _scrollCtrl.dispose();
     _customerScrollCtrl.dispose();
     _productScrollCtrl.dispose();
-    for (final l in _lines) l.dispose();
+    for (final l in _lines) {
+      l.dispose();
+    }
     super.dispose();
   }
 
@@ -217,7 +219,9 @@ class _S extends ConsumerState<CreateOrderScreen> {
       _lastOrder = null;
       _loadingCustomerContext = true;
     });
-    for (int i = 0; i < _lines.length; i++) _fetchRate(i);
+    for (int i = 0; i < _lines.length; i++) {
+      _fetchRate(i);
+    }
 
     final tid = ref.read(appUserProvider).valueOrNull?.traderId;
     try {
@@ -285,7 +289,9 @@ class _S extends ConsumerState<CreateOrderScreen> {
     final items = List<Map<String, dynamic>>.from(_lastOrder?['items'] ?? []);
     if (items.isEmpty) return;
     _beginEditingIfNeeded();
-    for (final l in _lines) l.dispose();
+    for (final l in _lines) {
+      l.dispose();
+    }
     final newLines = <_OrderLine>[];
     for (final it in items) {
       final line = _OrderLine();
@@ -303,7 +309,9 @@ class _S extends ConsumerState<CreateOrderScreen> {
       _lines = newLines;
       _activeIdx = 0;
     });
-    for (int i = 0; i < _lines.length; i++) _fetchRate(i);
+    for (int i = 0; i < _lines.length; i++) {
+      _fetchRate(i);
+    }
   }
 
   // ── Rate (unchanged from v1) ────────────────────────────────────────────
@@ -443,7 +451,9 @@ class _S extends ConsumerState<CreateOrderScreen> {
 
   void _clearAllLines() {
     _beginEditingIfNeeded();
-    for (final l in _lines) l.dispose();
+    for (final l in _lines) {
+      l.dispose();
+    }
     setState(() {
       _lines = [_OrderLine()];
       _activeIdx = 0;
@@ -489,7 +499,7 @@ class _S extends ConsumerState<CreateOrderScreen> {
       useRootNavigator: true,
       builder: (c) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kRadiusCard)),
-        title: Row(children: const [
+        title: const Row(children: [
           Icon(Icons.info_outline, color: Colors.orange, size: 20),
           SizedBox(width: 8),
           Text('Possible Duplicate Order', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
@@ -636,7 +646,9 @@ class _S extends ConsumerState<CreateOrderScreen> {
           // Reset the working form right away — customer stays selected,
           // since most traders place several orders in a row for the same
           // shop. The sheet below shows what was just created.
-          for (final l in _lines) l.dispose();
+          for (final l in _lines) {
+            l.dispose();
+          }
           _lines = [_OrderLine()];
           _activeIdx = 0;
         });
@@ -650,7 +662,9 @@ class _S extends ConsumerState<CreateOrderScreen> {
   }
 
   void _resetForNewOrder() {
-    for (final l in _lines) l.dispose();
+    for (final l in _lines) {
+      l.dispose();
+    }
     _notesCtrl.clear();
     _remarksCtrl.clear();
     setState(() {
@@ -1427,9 +1441,9 @@ class _S extends ConsumerState<CreateOrderScreen> {
                           decoration: BoxDecoration(color: Colors.green.shade50, shape: BoxShape.circle),
                           child: const Icon(Icons.check, size: 32, color: Colors.green))),
                   const SizedBox(height: 14),
-                  Center(
+                  const Center(
                       child: Text('Order created',
-                          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700))),
+                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700))),
                   const SizedBox(height: 4),
                   Center(
                       child: Text(

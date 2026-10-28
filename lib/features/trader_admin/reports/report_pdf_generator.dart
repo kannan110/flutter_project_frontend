@@ -308,7 +308,7 @@ class ReportPdfGenerator {
           // ledgerHeader); the plain-header fallback path is unaffected.
           if (useRichHeader) ...[
             billToBlock(
-              customerName: ledgerHeader!['retailer_name'] as String? ?? dataSet.customerIdentity!.customerName,
+              customerName: ledgerHeader['retailer_name'] as String? ?? dataSet.customerIdentity!.customerName,
               contactPerson: ledgerHeader['retailer_owner'] as String?,
               mobile: ledgerHeader['retailer_phone'] as String?,
               areaOrAddress: (ledgerHeader['retailer_address'] as String?)?.isNotEmpty == true
@@ -327,7 +327,7 @@ class ReportPdfGenerator {
           if (dataSet.customerIdentity == null) _secTitle('DETAILS (${dataSet.rowCount} rows)'),
           if (dataSet.isEmpty)
             pw.Text('No data for the selected range.',
-                style: pw.TextStyle(fontSize: 9, color: _subText))
+                style: const pw.TextStyle(fontSize: 9, color: _subText))
           else
             _table(
               headers: dataSet.headers,
@@ -512,7 +512,7 @@ class ReportPdfGenerator {
               style: pw.TextStyle(fontSize: 13, fontWeight: pw.FontWeight.bold, color: _dark)),
           if (retailerOwner != null || retailerPhone != null)
             pw.Text([retailerOwner, retailerPhone].where((s) => s != null && s.isNotEmpty).join('  ·  '),
-                style: pw.TextStyle(fontSize: 9, color: _subText)),
+                style: const pw.TextStyle(fontSize: 9, color: _subText)),
           pw.SizedBox(height: 10),
           _kpiRow([
             _KpiCell('Opening Balance', '₹${_fmtAmt(opening)}', _primary),
@@ -524,7 +524,7 @@ class ReportPdfGenerator {
           _secTitle('TRANSACTIONS (${tableRows.length})'),
           if (tableRows.isEmpty)
             pw.Text('No transactions for the selected period.',
-                style: pw.TextStyle(fontSize: 9, color: _subText))
+                style: const pw.TextStyle(fontSize: 9, color: _subText))
           else
             _table(headers: tableHeaders, rows: tableRows, bold: const [5]),
         ]));
@@ -740,18 +740,18 @@ class ReportPdfGenerator {
           mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
           children: [
             pw.Text('Rooster Trader PTOS v2  —  Confidential',
-                style: pw.TextStyle(fontSize: 7, color: _subText)),
+                style: const pw.TextStyle(fontSize: 7, color: _subText)),
             pw.Text('This report is system-generated',
-                style: pw.TextStyle(fontSize: 7, color: _subText)),
+                style: const pw.TextStyle(fontSize: 7, color: _subText)),
           ]);
     }
     return pw.Row(
         mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
         children: [
           pw.Text('RoosterHub Trader OS',
-              style: pw.TextStyle(fontSize: 7, color: _subText)),
+              style: const pw.TextStyle(fontSize: 7, color: _subText)),
           pw.Text('Generated ${DateFormat("d MMM yyyy, HH:mm").format(DateTime.now())}',
-              style: pw.TextStyle(fontSize: 7, color: _subText)),
+              style: const pw.TextStyle(fontSize: 7, color: _subText)),
         ]);
   }
 
@@ -932,7 +932,7 @@ class ReportPdfGenerator {
   // Reconciliation row (waterfall style)
   static pw.Widget _reconRow(String label, String value, PdfColor c) => pw.Container(
       padding: const pw.EdgeInsets.symmetric(vertical: 6, horizontal: 10),
-      decoration: pw.BoxDecoration(border: pw.Border(bottom: pw.BorderSide(color: _border))),
+      decoration: const pw.BoxDecoration(border: pw.Border(bottom: pw.BorderSide(color: _border))),
       child: pw.Row(children: [
         pw.Container(width: 3, height: 14, color: c, margin: const pw.EdgeInsets.only(right: 8)),
         pw.Expanded(child: pw.Text(label, style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold, color: c))),
@@ -962,15 +962,15 @@ class ReportPdfGenerator {
             _KpiCell('DC Birds',   '${_i(s,"total_birds_dc")} birds', _blue),
             _KpiCell('Gross Wt',   '${_f1(s,"total_gross_wt")} kg',   _blue),
             _KpiCell('Tare Wt',    '${_f1(s,"total_tare_wt")} kg',    _subText),
-            _KpiCell('Net Del Wt', '${_f1(s,"total_net_wt")} kg',     PdfColor.fromInt(0xFF00695C)),
+            _KpiCell('Net Del Wt', '${_f1(s,"total_net_wt")} kg',     const PdfColor.fromInt(0xFF00695C)),
           ]),
           pw.SizedBox(height: 4),
           pw.Container(
               padding: const pw.EdgeInsets.all(8),
-              color: PdfColor.fromInt(0xFF00695C).shade(0.92),
+              color: const PdfColor.fromInt(0xFF00695C).shade(0.92),
               child: pw.Text(
                   'Net Delivery Weight  =  Gross Weight  -  Cage/Tare Weight',
-                  style: pw.TextStyle(fontSize: 8, color: PdfColor.fromInt(0xFF00695C), fontWeight: pw.FontWeight.bold))),
+                  style: pw.TextStyle(fontSize: 8, color: const PdfColor.fromInt(0xFF00695C), fontWeight: pw.FontWeight.bold))),
           _secTitle('DAILY BREAKDOWN'),
           _table(
               headers: ['Date','DC Birds','Gross Wt kg','Tare Wt kg','Net Del Wt kg','Revenue (₹)','Collected (₹)','Pending (₹)'],
@@ -1006,7 +1006,7 @@ class ReportPdfGenerator {
                 _reconRow('Opening Stock',    '${_i(s,"opening")} birds',                             _subText),
                 _reconRow('+ DC Loaded',       '${_i(s,"dc_loaded")} birds  |  ${_f0(s,"dc_loaded_kg")} kg', _blue),
                 _reconRow('- Delivered',       '${_i(s,"delivered")} birds  |  ${_f0(s,"delivered_kg")} kg', _green),
-                _reconRow('+ Returned',        '${_i(s,"returned")} birds  |  ${_f0(s,"returned_kg")} kg',   PdfColor.fromInt(0xFF00695C)),
+                _reconRow('+ Returned',        '${_i(s,"returned")} birds  |  ${_f0(s,"returned_kg")} kg',   const PdfColor.fromInt(0xFF00695C)),
                 _reconRow('- Mortality',       '${_i(s,"mortality")} birds  |  ${_f0(s,"mortality_kg")} kg', _red),
                 _reconRow('- Transferred Out', '${_i(s,"transferred_out")} birds',                    _orange),
                 _reconRow('- Shrinkage',       '${_f2(s,"shrinkage_kg")} kg',                         _purple),
@@ -1053,7 +1053,7 @@ class ReportPdfGenerator {
                     style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold, color: _purple)),
                 pw.SizedBox(height: 3),
                 pw.Text('Shrinkage  =  DC Loaded kg  -  Delivered Net kg  -  Returned kg  -  Mortality kg',
-                    style: pw.TextStyle(fontSize: 9, color: _purple)),
+                    style: const pw.TextStyle(fontSize: 9, color: _purple)),
               ])),
           pw.SizedBox(height: 8),
           _kpiRow([
@@ -1104,7 +1104,7 @@ class ReportPdfGenerator {
           rows.isEmpty
               ? pw.Padding(padding: const pw.EdgeInsets.all(20),
               child: pw.Text('No mortality recorded in this period.',
-                  style: pw.TextStyle(fontSize: 11, color: _subText)))
+                  style: const pw.TextStyle(fontSize: 11, color: _subText)))
               : pw.Column(children: [
             _secTitle('MORTALITY RECORDS'),
             _table(
@@ -1133,15 +1133,15 @@ class ReportPdfGenerator {
         build: (_) => [
           pw.Container(
               padding: const pw.EdgeInsets.all(8),
-              color: PdfColor.fromInt(0xFF00695C).shade(0.92),
+              color: const PdfColor.fromInt(0xFF00695C).shade(0.92),
               child: pw.Text('Net Delivery Weight  =  Gross Weight  -  Cage/Tare Weight  (Actual bird weight at retailer)',
-                  style: pw.TextStyle(fontSize: 8, color: PdfColor.fromInt(0xFF00695C), fontWeight: pw.FontWeight.bold))),
+                  style: pw.TextStyle(fontSize: 8, color: const PdfColor.fromInt(0xFF00695C), fontWeight: pw.FontWeight.bold))),
           pw.SizedBox(height: 8),
           _kpiRow([
             _KpiCell('Deliveries', '${_i(s,"total_deliveries")}',           _blue),
             _KpiCell('Gross Wt',   '${_f0(s,"total_gross_wt")} kg',         _subText),
             _KpiCell('Tare Wt',    '${_f0(s,"total_tare_wt")} kg',          _subText),
-            _KpiCell('Net Del Wt', '${_f0(s,"total_net_del_wt")} kg',       PdfColor.fromInt(0xFF00695C)),
+            _KpiCell('Net Del Wt', '${_f0(s,"total_net_del_wt")} kg',       const PdfColor.fromInt(0xFF00695C)),
           ]),
           _secTitle('DELIVERY RECORDS  (Gross - Tare = Net Delivery Weight)'),
           _table(
@@ -1485,9 +1485,9 @@ class ReportPdfGenerator {
             pw.Container(
               margin: const pw.EdgeInsets.only(bottom: 8),
               padding: const pw.EdgeInsets.all(8),
-              color: PdfColor.fromInt(0xFFFFA726).shade(0.9),
+              color: const PdfColor.fromInt(0xFFFFA726).shade(0.9),
               child: pw.Text('Some lines are not yet costed — Gross/Net Profit shown as Pending.',
-                  style: pw.TextStyle(fontSize: 8, color: PdfColor.fromInt(0xFFE65100))),
+                  style: const pw.TextStyle(fontSize: 8, color: PdfColor.fromInt(0xFFE65100))),
             ),
           _secTitle('PROFIT & LOSS STATEMENT'),
           pw.Container(
@@ -1501,16 +1501,16 @@ class ReportPdfGenerator {
                 _reconRow('- Fixed Expenses', _amt(s,'fixed_expenses'),        _subText),
                 pw.Container(
                     padding: const pw.EdgeInsets.all(14),
-                    color: netProfit == null ? PdfColor.fromInt(0xFFFFA726).shade(0.9)
+                    color: netProfit == null ? const PdfColor.fromInt(0xFFFFA726).shade(0.9)
                         : netProfit.toDouble() >= 0 ? _green.shade(0.88) : _red.shade(0.9),
                     child: pw.Row(children: [
                       pw.Expanded(child: pw.Text('= Net Profit',
                           style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold,
-                              color: netProfit == null ? PdfColor.fromInt(0xFFE65100)
+                              color: netProfit == null ? const PdfColor.fromInt(0xFFE65100)
                                   : netProfit.toDouble() >= 0 ? _green : _red))),
                       pw.Text(netProfit == null ? 'Pending' : '₹${_fmtAmt(netProfit.toDouble())}',
                           style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold,
-                              color: netProfit == null ? PdfColor.fromInt(0xFFE65100)
+                              color: netProfit == null ? const PdfColor.fromInt(0xFFE65100)
                                   : netProfit.toDouble() >= 0 ? _green : _red)),
                     ])),
               ])),
@@ -1518,7 +1518,7 @@ class ReportPdfGenerator {
           _kpiRow([
             _KpiCell('Revenue', _amt(s,'revenue'), _green),
             _KpiCell('Gross Profit', grossProfit == null ? 'Pending' : '₹${_fmtAmt(grossProfit.toDouble())}',
-                grossProfit == null ? PdfColor.fromInt(0xFFE65100) : _green),
+                grossProfit == null ? const PdfColor.fromInt(0xFFE65100) : _green),
           ]),
           _secTitle('PERIOD BREAKDOWN'),
           _table(
@@ -1661,8 +1661,8 @@ class ReportPdfGenerator {
           ...s.entries.map((e) => pw.Padding(
               padding: const pw.EdgeInsets.only(bottom: 4),
               child: pw.Row(children: [
-                pw.Expanded(child: pw.Text('${e.key}:', style: pw.TextStyle(fontSize: 10, color: _subText))),
-                pw.Text('${e.value}', style: pw.TextStyle(fontSize: 10)),
+                pw.Expanded(child: pw.Text('${e.key}:', style: const pw.TextStyle(fontSize: 10, color: _subText))),
+                pw.Text('${e.value}', style: const pw.TextStyle(fontSize: 10)),
               ]))),
         ])));
   }

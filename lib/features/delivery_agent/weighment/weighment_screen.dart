@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_bluetooth_serial/flutter_bluetooth_serial.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -113,7 +112,7 @@ class _WS extends ConsumerState<WeighmentScreen> {
   String _mode = 'LOAD'; // 'LOAD' | 'EMPTY' | 'DONE'
   int _totalBirds = 0;
   int _nextSeqNo = 1;
-  bool _saving = false;
+  final bool _saving = false;
   String? _deletingPk; // pk of row being deleted (for loading state)
   String? _editingPk; // pk of row being edited
 
@@ -232,12 +231,13 @@ class _WS extends ConsumerState<WeighmentScreen> {
         cancelOnError: false,
       );
 
-      if (mounted)
+      if (mounted) {
         setState(() {
           _connected = true;
           _connecting = false;
           _selectedDevice = device;
         });
+      }
       if (mounted) showSuccess(context, '✓ Scale connected: ${device.name}');
     } on TimeoutException catch (e) {
       if (mounted) {
@@ -271,12 +271,13 @@ class _WS extends ConsumerState<WeighmentScreen> {
     } catch (_) {}
     _connection = null;
     _btBuffer = '';
-    if (mounted)
+    if (mounted) {
       setState(() {
         _connected = false;
         _selectedDevice = null;
         _liveWeight = 0;
       });
+    }
   }
 
   /// Parse SLE scale serial output — handles common formats:
@@ -1309,7 +1310,7 @@ class _WS extends ConsumerState<WeighmentScreen> {
               color: active ? c : kTextHint)));
 
   Widget _buildTable() {
-    if (_rows.isEmpty)
+    if (_rows.isEmpty) {
       return Center(
           child: Column(mainAxisSize: MainAxisSize.min, children: [
             const Icon(Icons.scale_outlined, size: 48, color: kTextHint),
@@ -1321,6 +1322,7 @@ class _WS extends ConsumerState<WeighmentScreen> {
                 style: const TextStyle(color: kTextSub, fontSize: 13),
                 textAlign: TextAlign.center),
           ]));
+    }
 
     return ListView(padding: const EdgeInsets.all(12), children: [
       // Session locked banner
@@ -1674,15 +1676,15 @@ class _WS extends ConsumerState<WeighmentScreen> {
           title: const Text('Weighment',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
         ),
-        body: Center(
+        body: const Center(
           child: Column(mainAxisSize: MainAxisSize.min, children: [
-            const Icon(Icons.lock, size: 56, color: Colors.green),
-            const SizedBox(height: 16),
-            const Text('Weighment Submitted',
+            Icon(Icons.lock, size: 56, color: Colors.green),
+            SizedBox(height: 16),
+            Text('Weighment Submitted',
                 style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
-            const SizedBox(height: 8),
+            SizedBox(height: 8),
             Text('This delivery weighment has been submitted and is locked.',
-                style: const TextStyle(fontSize: 14, color: kTextSub)),
+                style: TextStyle(fontSize: 14, color: kTextSub)),
           ]),
         ),
       );
@@ -1931,7 +1933,7 @@ class _WS extends ConsumerState<WeighmentScreen> {
                 style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
                 decoration: InputDecoration(
                   labelText: 'Weight (kg)',
-                  hintText: _connected ? '${_liveWeight.toStringAsFixed(3)}' : '0.000',
+                  hintText: _connected ? _liveWeight.toStringAsFixed(3) : '0.000',
                   suffixText: 'kg',
                   filled: true,
                   fillColor: const Color(0xFFF5F5F5),

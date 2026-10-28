@@ -32,11 +32,13 @@ class _S extends ConsumerState<SupervisorListScreen> {
 
   void _applySearch(String q) {
     final lower = q.trim().toLowerCase();
-    if (mounted) setState(() => _filtered = lower.isEmpty
+    if (mounted) {
+      setState(() => _filtered = lower.isEmpty
         ? List.from(_supervisors)
         : _supervisors.where((s) =>
     (s['name'] as String? ?? '').toLowerCase().contains(lower) ||
         (s['mobile'] as String? ?? '').toLowerCase().contains(lower)).toList());
+    }
   }
 
   @override void initState() {
@@ -81,7 +83,8 @@ class _S extends ConsumerState<SupervisorListScreen> {
         collectedToday[uid] = (collectedToday[uid] ?? 0) + ((p['amount'] as num?)?.toDouble() ?? 0);
       }
 
-      if (mounted) setState(() {
+      if (mounted) {
+        setState(() {
         _supervisors = List<Map<String, dynamic>>.from(sups as List? ?? []);
         _assignedCount = assignedCount;
         _totalOutstanding = totalOutstanding;
@@ -89,6 +92,7 @@ class _S extends ConsumerState<SupervisorListScreen> {
         _loading = false;
         _applySearch(_searchCtrl.text);
       });
+      }
     } catch (e) {
       if (mounted) { setState(() => _loading = false); showError(context, e.toString()); }
     }
@@ -220,7 +224,7 @@ class _S extends ConsumerState<SupervisorListScreen> {
                           style: const TextStyle(fontSize: 11, color: kTextHint)),
                     ])),
                     Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-                      Text('Today', style: const TextStyle(fontSize: 10, color: kTextHint)),
+                      const Text('Today', style: TextStyle(fontSize: 10, color: kTextHint)),
                       Text(Fmt.amount(today.toDouble()), style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800,
                           color: today > 0 ? Colors.green.shade700 : kTextSub)),
                     ]),

@@ -25,8 +25,9 @@ class SplashScreen extends ConsumerWidget {
       data: (user) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (!context.mounted) return;
-          if (user == null)                    context.go(R.login);
-          else if (user.isSuperAdmin)          context.go(R.superAdmin);
+          if (user == null) {
+            context.go(R.login);
+          } else if (user.isSuperAdmin)          context.go(R.superAdmin);
           else if (user.isDeliveryAgent)       context.go(R.agentHome);
           else if (user.isUnlinked)            context.go(R.traderSetup);
           else                                 context.go(R.dashboard);

@@ -79,7 +79,11 @@ class _S extends State<TraderDetailSaScreen> with SingleTickerProviderStateMixin
             backgroundColor: const Color(0xFF1A1A2E),
             foregroundColor: Colors.white,
             leading: IconButton(icon: const Icon(Icons.arrow_back),
-                onPressed: () { if (context.canPop()) context.pop(); else context.go(R.saTraders); }),
+                onPressed: () { if (context.canPop()) {
+                  context.pop();
+                } else {
+                  context.go(R.saTraders);
+                } }),
             title: Text(t?['company_name'] as String? ?? 'Trader',
                 style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
             actions: [
@@ -407,7 +411,7 @@ class _S extends State<TraderDetailSaScreen> with SingleTickerProviderStateMixin
                   value: currentVal,
                   onChanged: _saving ? null : (v) => _action('set_feature',
                       extra: {'p_feature_key': key, 'p_feature_val': v}),
-                  activeColor: kPrimary),
+                  activeThumbColor: kPrimary),
             ]));
       }),
       const SizedBox(height: 16),
@@ -544,7 +548,7 @@ class _S extends State<TraderDetailSaScreen> with SingleTickerProviderStateMixin
                   decoration: const InputDecoration(labelText: 'Amount (₹) *', prefixText: '₹')),
               const SizedBox(height: 10),
               DropdownButtonFormField<String>(
-                  value: mode,
+                  initialValue: mode,
                   decoration: const InputDecoration(labelText: 'Payment Mode'),
                   items: ['manual','upi','bank','card'].map((m) =>
                       DropdownMenuItem(value: m, child: Text(m))).toList(),

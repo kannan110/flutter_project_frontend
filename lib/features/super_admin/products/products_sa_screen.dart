@@ -59,7 +59,7 @@ class _S extends State<ProductsSaScreen> {
                             hintText: 'e.g. Broiler, Country'))),
                     const SizedBox(width: 12),
                     Expanded(child: DropdownButtonFormField<String>(
-                        value: unit,
+                        initialValue: unit,
                         decoration: const InputDecoration(labelText: 'Unit'),
                         items: ['kg','birds','dozen'].map((u) =>
                             DropdownMenuItem(value: u, child: Text(u))).toList(),
@@ -219,7 +219,7 @@ class _S extends State<ProductsSaScreen> {
                     Switch(
                         value: p['is_active'] == true,
                         onChanged: (_) => _toggle(p),
-                        activeColor: kNavy),
+                        activeThumbColor: kNavy),
                   ]),
                 ])))
           ]

@@ -832,10 +832,10 @@ class _ReportTableState extends State<ReportTable> {
     return Container(
       height: widget.rowHeight + 4,
       width: useFlex ? totalWidth : null,
-      decoration: BoxDecoration(
+      decoration: const BoxDecoration(
         color: kBgGrey,
-        borderRadius: const BorderRadius.vertical(bottom: Radius.circular(6)),
-        border: const Border(top: BorderSide(color: kNavy, width: 1.5)),
+        borderRadius: BorderRadius.vertical(bottom: Radius.circular(6)),
+        border: Border(top: BorderSide(color: kNavy, width: 1.5)),
       ),
       child: Row(children: [
         for (var c = 0; c < totals.length; c++)

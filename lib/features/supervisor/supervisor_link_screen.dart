@@ -118,10 +118,10 @@ class _SupervisorLinkState extends ConsumerState<SupervisorLinkScreen> {
               decoration: BoxDecoration(color: kErrorBg, borderRadius: BorderRadius.circular(kRadiusCard),
                   border: Border.all(color: kError.withValues(alpha: 0.3))),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Row(children: [
-                  const Icon(Icons.error_outline, color: kError, size: 20),
-                  const SizedBox(width: 8),
-                  const Expanded(child: Text('Not signed in!',
+                const Row(children: [
+                  Icon(Icons.error_outline, color: kError, size: 20),
+                  SizedBox(width: 8),
+                  Expanded(child: Text('Not signed in!',
                       style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: kError))),
                 ]),
                 const SizedBox(height: 8),
@@ -203,10 +203,10 @@ class _SupervisorLinkState extends ConsumerState<SupervisorLinkScreen> {
               decoration: BoxDecoration(color: Colors.orange.withValues(alpha: 0.07),
                   borderRadius: BorderRadius.circular(kRadiusCard),
                   border: Border.all(color: Colors.orange.withValues(alpha: 0.25))),
-              child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                const Icon(Icons.warning_amber_rounded, color: Colors.amber, size: 16),
-                const SizedBox(width: 8),
-                const Expanded(child: Text(
+              child: const Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Icon(Icons.warning_amber_rounded, color: Colors.amber, size: 16),
+                SizedBox(width: 8),
+                Expanded(child: Text(
                     'Spelling must match EXACTLY what your trader entered — including capitals.',
                     style: TextStyle(fontSize: 12, color: Colors.orange, height: 1.4))),
               ])),

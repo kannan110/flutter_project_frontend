@@ -206,12 +206,14 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
         .select('id,name').eq('is_active', true).order('name');
     final sv = await _c.from('supervisor_profiles')
         .select('id,name').eq('trader_id',tid).eq('is_active',true).order('name');
-    if (mounted) setState(() {
+    if (mounted) {
+      setState(() {
       _agents    = List<Map<String,dynamic>>.from(ag as List? ?? []);
       _retailers = List<Map<String,dynamic>>.from(rt as List? ?? []);
       _ledgerProducts = List<Map<String,dynamic>>.from(pr as List? ?? []);
       _supervisors = List<Map<String,dynamic>>.from(sv as List? ?? []);
     });
+    }
   }
 
   /// Customer Ledger's retailer scope — every active retailer, narrowed to
@@ -337,7 +339,7 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
   // ─── BUILD ────────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
-    final _scaffold = Scaffold(
+    final scaffold = Scaffold(
         backgroundColor: kBgPage,
         appBar: AppBar(
             backgroundColor: kSurface, elevation: 0,
@@ -378,7 +380,7 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
               : _buildReport()),
         ]));
 
-    return ResponsiveLayout(mobile: (_) => _scaffold, desktop: (_) => _scaffold);
+    return ResponsiveLayout(mobile: (_) => scaffold, desktop: (_) => scaffold);
   }
 
   // ─── REPORT GRID (2 rows, wraps properly — no overflow) ──────────────────
@@ -718,7 +720,7 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
       ).toList();
     }
 
-    List<String> _rowOf(Map r) => [
+    List<String> rowOf(Map r) => [
       '${_fd(r['entry_date'])} ${_time(r['created_at'])}',
       _str(r,'reference_no'),
       _label(_str(r,'movement_type')),
@@ -751,7 +753,7 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
       Fmt.amount(_d(s,'closing_inventory_value')), '—', 'Carried forward',
     ];
 
-    final tableRows = [openingRow, ...rows.map(_rowOf), closingRow];
+    final tableRows = [openingRow, ...rows.map(rowOf), closingRow];
 
     return _scroll([
       _banner('Stock Point: $stockPoint  ·  Chronological, opening balance first / closing balance last.', _cStockPoint),
@@ -964,9 +966,9 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
           rows.map((r){
             final lp=_d(r,'loss_percent');
             return [_fd(r['shift_date']),_str(r,'agent_name'),'${_i(r,"dc_total_birds")}',
-              '${_d(r,"dc_total_weight_kg").toStringAsFixed(1)}','${_d(r,"delivered_weight_kg").toStringAsFixed(1)}',
-              '${_d(r,"returned_weight_kg").toStringAsFixed(1)}','${_d(r,"mortality_weight_kg").toStringAsFixed(1)}',
-              '${_d(r,"shrinkage_kg").toStringAsFixed(2)}','${lp.toStringAsFixed(2)}%'];
+              (_d(r,"dc_total_weight_kg").toStringAsFixed(1)),(_d(r,"delivered_weight_kg").toStringAsFixed(1)),
+              (_d(r,"returned_weight_kg").toStringAsFixed(1)),(_d(r,"mortality_weight_kg").toStringAsFixed(1)),
+              (_d(r,"shrinkage_kg").toStringAsFixed(2)),'${lp.toStringAsFixed(2)}%'];
           }).toList(),
           hi:[7,8], warnC:8, warnT:2.0),
     ]);
@@ -992,7 +994,7 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
         _tbl(['Date','Agent','Shop','DC Birds','Delivered','Dead','Mort kg','Weak','Rejected'],
             rows.map((r)=>[_fd(r['del_date']),_str(r,'agent_name'),_sh(_str(r,'shop_name'),12),
               '${_i(r,"dc_birds")}','${_i(r,"del_birds")}','${_i(r,"mortality_birds")}',
-              '${_d(r,"mortality_weight_kg").toStringAsFixed(1)}','${_i(r,"weak_birds")}','${_i(r,"rejected_birds")}']).toList(),
+              (_d(r,"mortality_weight_kg").toStringAsFixed(1)),'${_i(r,"weak_birds")}','${_i(r,"rejected_birds")}']).toList(),
             hi:[5,6], warnC:5, warnT:5),
       ],
     ]);
@@ -1018,8 +1020,8 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
             final shop = _sh(_str(r,'shop_name'),10) + (remarks == null || remarks.isEmpty ? '' : '\n📝 $remarks');
             return [_fd(r['del_date']),_str(r,'agent_name'),shop,
               _sh(_str(r,'dc_number'),8),
-              '${_d(r,"gross_weight").toStringAsFixed(0)}','${_d(r,"tare_weight").toStringAsFixed(0)}',
-              '${_d(r,"net_del_weight").toStringAsFixed(0)}',
+              (_d(r,"gross_weight").toStringAsFixed(0)),(_d(r,"tare_weight").toStringAsFixed(0)),
+              (_d(r,"net_del_weight").toStringAsFixed(0)),
               '${_i(r,"dc_birds")}','${_i(r,"del_birds")}','${_i(r,"mortality_birds")}',
               Fmt.amount(_d(r,'collected_amount'))];
           }).toList(),
@@ -1066,17 +1068,17 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
               Row(children: [
                 _st('Deliveries','${_i(a,"deliveries")}'),
                 _st('Birds','${_i(a,"del_birds")}'),
-                _st('Net kg','${_d(a,"del_weight").toStringAsFixed(0)}'),
+                _st('Net kg',_d(a,"del_weight").toStringAsFixed(0)),
                 _st('Mortality','${_i(a,"mortality")}'),
-                _st('Shrink kg','${_d(a,"shrinkage_kg").toStringAsFixed(2)}'),
+                _st('Shrink kg',_d(a,"shrinkage_kg").toStringAsFixed(2)),
                 _st('Cash',Fmt.amount(_d(a,'cash_collected'))),
               ]),
             ]));
       }),
       _sec('DAILY TREND'),
       _tbl(['Date','Del Birds','Net kg','Mortality','Shrink kg','Collected'],
-          daily.map((d)=>[_fd(d['dt']),'${_i(d,"del_birds")}','${_d(d,"del_weight").toStringAsFixed(0)}',
-            '${_i(d,"mortality")}','${_d(d,"shrinkage").toStringAsFixed(2)}',Fmt.amount(_d(d,'collected'))]).toList()),
+          daily.map((d)=>[_fd(d['dt']),'${_i(d,"del_birds")}',(_d(d,"del_weight").toStringAsFixed(0)),
+            '${_i(d,"mortality")}',(_d(d,"shrinkage").toStringAsFixed(2)),Fmt.amount(_d(d,'collected'))]).toList()),
     ]);
   }
 
@@ -1126,7 +1128,7 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
                 Row(children: [
                   _st('Cash',     Fmt.amount(_d(s,'total_cash_collected'))),
                   _st('Expenses', Fmt.amount(_d(s,'total_expenses'))),
-                  _st('KM',       '${_d(s,"distance_km").toStringAsFixed(0)}'),
+                  _st('KM',       _d(s,"distance_km").toStringAsFixed(0)),
                   _st('Crates',   '${_i(s,"crates_taken")} → ${_i(s,"crates_returned")}'),
                   _st('Orders',   '${_i(s,"total_orders")}'),
                 ]),
@@ -1201,8 +1203,8 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
       ],
       _sec('EXPENSE DETAILS'),
       if (filteredRows.isEmpty)
-        Padding(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-            child: Text('No expenses recorded for this filter.', style: const TextStyle(color: kTextHint, fontSize: 13))),
+        const Padding(padding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            child: Text('No expenses recorded for this filter.', style: TextStyle(color: kTextHint, fontSize: 13))),
       if (filteredRows.isNotEmpty)
         _tbl(['Date','Type','Category','Remarks','Created By','Payment Mode','Amount'],
             filteredRows.map((r)=>[
@@ -1223,12 +1225,12 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
         _sec('BY AGENT'),
         _tbl(['Agent','Shifts','Diesel','Allowance','Total Exp','KM'],
             byA.map((a)=>[_str(a,'agent_name'),'${_i(a,"shifts")}',Fmt.amount(_d(a,'diesel')),
-              Fmt.amount(_d(a,'allowance')),Fmt.amount(_d(a,'total_expenses')),'${_d(a,"km_driven").toStringAsFixed(0)}']).toList(),
+              Fmt.amount(_d(a,'allowance')),Fmt.amount(_d(a,'total_expenses')),(_d(a,"km_driven").toStringAsFixed(0))]).toList(),
             hi:[4]),
         _sec('DAILY EXPENSES'),
         _tbl(['Date','Agent','Diesel','Allowance','Total','KM'],
             day.map((d)=>[_fd(d['dt']),_str(d,'agent_name'),Fmt.amount(_d(d,'diesel_cost')),
-              Fmt.amount(_d(d,'allowance')),Fmt.amount(_d(d,'total_expenses')),'${_d(d,"distance_km").toStringAsFixed(0)}']).toList(),
+              Fmt.amount(_d(d,'allowance')),Fmt.amount(_d(d,'total_expenses')),(_d(d,"distance_km").toStringAsFixed(0))]).toList(),
             hi:[4]),
       ],
     ]);
@@ -1311,7 +1313,7 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
           border: Border.all(color: kBorderLight)),
       child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text('AGENT', style: kTypeCaption),
+          const Text('AGENT', style: kTypeCaption),
           const SizedBox(height: 2),
           Text(_selectedAgentName,
               style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: kNavy),
@@ -1319,7 +1321,7 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
         ])),
         const SizedBox(width: 12),
         Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-          Text('DATE', style: kTypeCaption),
+          const Text('DATE', style: kTypeCaption),
           const SizedBox(height: 2),
           Text(date, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w900, color: kNavy)),
         ]),
@@ -1354,7 +1356,7 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
         line('BALANCE KGS', v('Balance KGS'), rule: true),
         line('WT LOSS IN %', v('Wt Loss in %'), strong: true),
         const SizedBox(height: 4),
-        Text('Purchased KGS = DC loaded kg of closed shifts for the selected dates/agent. Sold KGS = total kg of the tables above.',
+        const Text('Purchased KGS = DC loaded kg of closed shifts for the selected dates/agent. Sold KGS = total kg of the tables above.',
             style: kTypeCaption),
       ]),
     );
@@ -1369,7 +1371,7 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
       _rpSheetHeader(),
       _kpiGrid([
         _kpi2('Orders',    '${_i(s,"total_orders")}',                              Colors.blue,   Icons.shopping_cart_outlined),
-        _kpi2('Total kg',  '${_d(s,"total_kg").toStringAsFixed(0)}',               Colors.teal,   Icons.scale_outlined),
+        _kpi2('Total kg',  _d(s,"total_kg").toStringAsFixed(0),               Colors.teal,   Icons.scale_outlined),
         _kpi2('Billed',    Fmt.amount(_d(s,'total_billed')),                       Colors.indigo, Icons.receipt_outlined),
         _kpi2('Pending',   Fmt.amount(_d(s,'total_pending')),                      Colors.orange, Icons.pending_outlined),
       ]),
@@ -1377,13 +1379,13 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
         _sec('BY RETAILER'),
         _tbl(['Shop','Phone','Orders','Total kg','Billed','Collected','Outstanding'],
             ret.map((r)=>[_str(r,'shop_name'),_str(r,'phone'),'${_i(r,"orders")}',
-              '${_d(r,"total_kg").toStringAsFixed(0)}',Fmt.amount(_d(r,'billed')),
+              (_d(r,"total_kg").toStringAsFixed(0)),Fmt.amount(_d(r,'billed')),
               Fmt.amount(_d(r,'collected')),Fmt.amount(_d(r,'outstanding'))]).toList(),
             tots: [
               'TOTAL',
               '',
               '${ret.fold<int>(0, (sum, r) => sum + _i(r, "orders"))}',
-              '${ret.fold<double>(0, (sum, r) => sum + _d(r, "total_kg")).toStringAsFixed(0)}',
+              (ret.fold<double>(0, (sum, r) => sum + _d(r, "total_kg")).toStringAsFixed(0)),
               Fmt.amount(ret.fold<double>(0, (sum, r) => sum + _d(r, 'billed'))),
               Fmt.amount(ret.fold<double>(0, (sum, r) => sum + _d(r, 'collected'))),
               Fmt.amount(ret.fold<double>(0, (sum, r) => sum + _d(r, 'outstanding'))),
@@ -1393,8 +1395,8 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
       _sec('ORDER HISTORY'),
       _tbl(['Date','Shop','kg','Birds','Rate','Billed','Collected'],
           day.map((d)=>[_fd(d['order_date']),_sh(_str(d,'shop_name'),10),
-            '${_d(d,"kg").toStringAsFixed(0)}','${_i(d,"birds")}',
-            '${_d(d,"rate").toStringAsFixed(2)}',Fmt.amount(_d(d,'billed')),Fmt.amount(_d(d,'collected'))]).toList(),
+            (_d(d,"kg").toStringAsFixed(0)),'${_i(d,"birds")}',
+            (_d(d,"rate").toStringAsFixed(2)),Fmt.amount(_d(d,'billed')),Fmt.amount(_d(d,'collected'))]).toList(),
           hi:[5],
           // carries the sales-sheet figures so this table's PDF / Print / Share
           // prints the reference layout (agent, bold date, totals block)
@@ -1714,7 +1716,7 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
         child: Row(children: [
           Expanded(
             child: DropdownButtonFormField<String>(
-              value: _ledgerProductId,
+              initialValue: _ledgerProductId,
               isDense: true,
               decoration: const InputDecoration(
                   labelText: 'Product', isDense: true,
@@ -1730,7 +1732,7 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
           const SizedBox(width: 10),
           Expanded(
             child: DropdownButtonFormField<String>(
-              value: _ledgerMovementType,
+              initialValue: _ledgerMovementType,
               isDense: true,
               decoration: const InputDecoration(
                   labelText: 'Movement Type', isDense: true,
@@ -1767,7 +1769,7 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
             if (_supervisors.isNotEmpty)
               Expanded(
                 child: DropdownButtonFormField<String>(
-                  value: _supervisorId,
+                  initialValue: _supervisorId,
                   isDense: true,
                   decoration: const InputDecoration(
                       labelText: 'Supervisor', isDense: true,
@@ -1801,7 +1803,7 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
             if (_agents.isNotEmpty)
               Expanded(
                 child: DropdownButtonFormField<String>(
-                  value: _agentId,
+                  initialValue: _agentId,
                   isDense: true,
                   decoration: const InputDecoration(
                       labelText: 'Agent', isDense: true,
@@ -1818,7 +1820,7 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
             if (_retailers.isNotEmpty)
               Expanded(
                 child: DropdownButtonFormField<String>(
-                  value: _retailerId,
+                  initialValue: _retailerId,
                   isDense: true,
                   decoration: const InputDecoration(
                       labelText: 'Retailer', isDense: true,
@@ -1841,7 +1843,7 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
         if (_sel.key == 'expense') ...[
           const SizedBox(height: 10),
           DropdownButtonFormField<String>(
-            value: _expenseType,
+            initialValue: _expenseType,
             isDense: true,
             decoration: const InputDecoration(
                 labelText: 'Expense Type', isDense: true,
@@ -2634,7 +2636,7 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
   int    _i(Map m, String k) => (m[k] as num?)?.toInt()??0;
   String _str(Map m, String k) => m[k] as String? ?? '—';
   String _sh(String s, int mx) => s.length>mx?'${s.substring(0,mx)}…':s;
-  String _kg(Map m, String k) => '${_d(m,k).toStringAsFixed(0)}';
+  String _kg(Map m, String k) => _d(m,k).toStringAsFixed(0);
   String _fd(dynamic s) {
     if (s==null) return '—';
     try { return DateFormat('d MMM').format(DateTime.parse(s.toString())); }

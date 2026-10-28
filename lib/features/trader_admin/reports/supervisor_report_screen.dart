@@ -51,11 +51,13 @@ class _S extends ConsumerState<SupervisorReportScreen> {
     try {
       final sups = await _c.from('supervisor_profiles').select('id,name').eq('trader_id', tid).order('name');
       final rets = await _c.from('retailers').select('id,shop_name').eq('trader_id', tid).eq('is_active', true).order('shop_name').limit(5000);
-      if (mounted) setState(() {
+      if (mounted) {
+        setState(() {
         _supervisors = List<Map<String, dynamic>>.from(sups as List? ?? []);
         _retailers = List<Map<String, dynamic>>.from(rets as List? ?? []);
         _loadingFilters = false;
       });
+      }
     } catch (_) { if (mounted) setState(() => _loadingFilters = false); }
   }
 
@@ -73,11 +75,13 @@ class _S extends ConsumerState<SupervisorReportScreen> {
         if (_paymentMode != null) 'p_payment_mode': _paymentMode,
       });
       final data = (res as Map?)?.cast<String, dynamic>() ?? {};
-      if (mounted) setState(() {
+      if (mounted) {
+        setState(() {
         _summary = (data['summary'] as Map?)?.cast<String, dynamic>() ?? {};
         _rows = List<Map<String, dynamic>>.from(data['rows'] as List? ?? []);
         _loading = false;
       });
+      }
     } catch (e) {
       if (mounted) { setState(() => _loading = false); showError(context, e.toString()); }
     }
@@ -181,7 +185,7 @@ class _S extends ConsumerState<SupervisorReportScreen> {
               : Column(children: [
             Row(children: [
               Expanded(child: DropdownButtonFormField<String>(
-                value: _supervisorId, isDense: true,
+                initialValue: _supervisorId, isDense: true,
                 decoration: const InputDecoration(labelText: 'Supervisor', isDense: true, contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8)),
                 items: [
                   const DropdownMenuItem(value: null, child: Text('All Supervisors')),
@@ -191,7 +195,7 @@ class _S extends ConsumerState<SupervisorReportScreen> {
               )),
               const SizedBox(width: 8),
               Expanded(child: DropdownButtonFormField<String>(
-                value: _retailerId, isDense: true,
+                initialValue: _retailerId, isDense: true,
                 decoration: const InputDecoration(labelText: 'Retailer', isDense: true, contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8)),
                 items: [
                   const DropdownMenuItem(value: null, child: Text('All Retailers')),
@@ -203,7 +207,7 @@ class _S extends ConsumerState<SupervisorReportScreen> {
             const SizedBox(height: 8),
             Row(children: [
               Expanded(child: DropdownButtonFormField<String>(
-                value: _paymentMode, isDense: true,
+                initialValue: _paymentMode, isDense: true,
                 decoration: const InputDecoration(labelText: 'Payment Mode', isDense: true, contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8)),
                 items: const [
                   DropdownMenuItem(value: null, child: Text('All Modes')),

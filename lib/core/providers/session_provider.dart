@@ -24,8 +24,11 @@ class AppUserNotifier extends StateNotifier<AsyncValue<AppUser?>> {
         state = const AsyncValue.data(null);
       }
     });
-    if (_c.auth.currentUser != null) _load();
-    else state = const AsyncValue.data(null);
+    if (_c.auth.currentUser != null) {
+      _load();
+    } else {
+      state = const AsyncValue.data(null);
+    }
   }
 
   Future<void> _load() async {

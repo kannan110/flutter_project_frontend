@@ -418,8 +418,11 @@ class _TraderTransferScreenState
 
                     return GestureDetector(
                       onTap: () => setState(() {
-                        if (sel) _selectedDeliveryIds.remove(id);
-                        else     _selectedDeliveryIds.add(id);
+                        if (sel) {
+                          _selectedDeliveryIds.remove(id);
+                        } else {
+                          _selectedDeliveryIds.add(id);
+                        }
                       }),
                       child: Container(
                         margin: const EdgeInsets.only(bottom: 6),
@@ -441,8 +444,11 @@ class _TraderTransferScreenState
                             value: sel,
                             activeColor: Colors.teal,
                             onChanged: (_) => setState(() {
-                              if (sel) _selectedDeliveryIds.remove(id);
-                              else     _selectedDeliveryIds.add(id);
+                              if (sel) {
+                                _selectedDeliveryIds.remove(id);
+                              } else {
+                                _selectedDeliveryIds.add(id);
+                              }
                             }),
                           ),
                           Expanded(

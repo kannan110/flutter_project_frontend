@@ -50,10 +50,12 @@ class _S extends ConsumerState<TraderSetupScreen> {
         await ref.read(appUserProvider.notifier).reload();
       }
     } catch (e) {
-      if (mounted) setState(() {
+      if (mounted) {
+        setState(() {
         _err = e.toString().replaceAll('Exception: ', '').replaceAll('PostgrestException(message: ', '').replaceAll(')', '');
         _busy = false;
       });
+      }
     }
   }
 
@@ -72,10 +74,12 @@ class _S extends ConsumerState<TraderSetupScreen> {
         await ref.read(appUserProvider.notifier).reload();
       }
     } catch (e) {
-      if (mounted) setState(() {
+      if (mounted) {
+        setState(() {
         _err = e.toString().replaceAll('Exception: ', '').replaceAll('PostgrestException(message: ', '').replaceAll(')', '');
         _busy = false;
       });
+      }
     }
   }
 
@@ -187,8 +191,10 @@ class _S extends ConsumerState<TraderSetupScreen> {
                   prefixIcon: Icon(Icons.tag, size: 18, color: kPrimary)),
               onChanged: (v) {
                 final u = v.toUpperCase().replaceAll(' ', '');
-                if (v != u) _coCode.value = TextEditingValue(
+                if (v != u) {
+                  _coCode.value = TextEditingValue(
                     text: u, selection: TextSelection.collapsed(offset: u.length));
+                }
               })),
           const SizedBox(width: 10),
           Expanded(child: TextFormField(controller: _coPhone, keyboardType: TextInputType.phone,
@@ -230,8 +236,10 @@ class _S extends ConsumerState<TraderSetupScreen> {
                 prefixIcon: Icon(Icons.tag, size: 18, color: kPrimary)),
             onChanged: (v) {
               final u = v.toUpperCase().replaceAll(' ', '');
-              if (v != u) _joinCode.value = TextEditingValue(
+              if (v != u) {
+                _joinCode.value = TextEditingValue(
                   text: u, selection: TextSelection.collapsed(offset: u.length));
+              }
             }),
         const SizedBox(height: 20),
         SizedBox(width: double.infinity, height: 50,

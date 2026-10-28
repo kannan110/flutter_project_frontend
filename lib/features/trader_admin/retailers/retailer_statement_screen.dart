@@ -183,10 +183,12 @@ class _RetailerStatementScreenState
         'p_from_date':   DateFormat('yyyy-MM-dd').format(_from),
         'p_to_date':     DateFormat('yyyy-MM-dd').format(_to),
       }).timeout(const Duration(seconds: 15));
-      if (mounted) setState(() {
+      if (mounted) {
+        setState(() {
         _data    = (res as Map?)?.cast<String, dynamic>() ?? {};
         _loading = false;
       });
+      }
     } catch (e) {
       if (mounted) {
         setState(() => _loading = false);
@@ -748,11 +750,11 @@ class _RetailerStatementScreenState
                         color: const Color(0xFFE65100).withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(4),
                       ),
-                      child: Row(mainAxisSize: MainAxisSize.min, children: [
-                        const Icon(Icons.open_in_new_rounded, size: 10,
+                      child: const Row(mainAxisSize: MainAxisSize.min, children: [
+                        Icon(Icons.open_in_new_rounded, size: 10,
                             color: Color(0xFFE65100)),
-                        const SizedBox(width: 3),
-                        const Text('View', style: TextStyle(
+                        SizedBox(width: 3),
+                        Text('View', style: TextStyle(
                             fontSize: 9, fontWeight: FontWeight.w700,
                             color: Color(0xFFE65100))),
                       ]),

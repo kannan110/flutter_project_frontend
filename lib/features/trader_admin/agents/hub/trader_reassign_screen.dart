@@ -289,8 +289,11 @@ class _TraderReassignScreenState
 
                 return GestureDetector(
                   onTap: () => setState(() {
-                    if (sel) _selectedIds.remove(id);
-                    else _selectedIds.add(id);
+                    if (sel) {
+                      _selectedIds.remove(id);
+                    } else {
+                      _selectedIds.add(id);
+                    }
                   }),
                   child: Container(
                     margin: const EdgeInsets.only(bottom: 6),
@@ -310,8 +313,11 @@ class _TraderReassignScreenState
                         value: sel,
                         activeColor: Colors.purple,
                         onChanged: (_) => setState(() {
-                          if (sel) _selectedIds.remove(id);
-                          else _selectedIds.add(id);
+                          if (sel) {
+                            _selectedIds.remove(id);
+                          } else {
+                            _selectedIds.add(id);
+                          }
                         }),
                       ),
                       Expanded(child: Column(

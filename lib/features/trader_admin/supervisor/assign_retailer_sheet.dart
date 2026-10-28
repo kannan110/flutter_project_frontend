@@ -56,12 +56,14 @@ class _AssignRetailersSheetState extends State<_AssignRetailersSheet> {
           .order('shop_name').limit(5000);
       final list = List<Map<String, dynamic>>.from(r as List? ?? []);
       final mine = list.where((x) => x['supervisor_id'] == widget.supervisorId).map((x) => x['id'] as String).toSet();
-      if (mounted) setState(() {
+      if (mounted) {
+        setState(() {
         _retailers = list;
         _selected = {...mine};
         _initiallySelected = {...mine};
         _loading = false;
       });
+      }
     } catch (e) {
       if (mounted) { setState(() => _loading = false); showError(context, e.toString()); }
     }
@@ -148,7 +150,11 @@ class _AssignRetailersSheetState extends State<_AssignRetailersSheet> {
                         style: TextStyle(fontSize: 11, color: Colors.orange))
                         : null,
                     onChanged: (v) => setState(() {
-                      if (v == true) _selected.add(id); else _selected.remove(id);
+                      if (v == true) {
+                        _selected.add(id);
+                      } else {
+                        _selected.remove(id);
+                      }
                     }),
                   );
                 },

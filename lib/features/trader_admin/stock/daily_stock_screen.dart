@@ -480,8 +480,11 @@ class _DailyStockScreenState extends ConsumerState<DailyStockScreen> {
         InkWell(
           onTap: agents.isNotEmpty
               ? () => setState(() {
-            if (expanded) _expandedIds.remove(id);
-            else          _expandedIds.add(id);
+            if (expanded) {
+              _expandedIds.remove(id);
+            } else {
+              _expandedIds.add(id);
+            }
           })
               : null,
           borderRadius: BorderRadius.vertical(

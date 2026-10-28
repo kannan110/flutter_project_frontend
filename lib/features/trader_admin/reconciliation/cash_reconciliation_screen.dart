@@ -68,7 +68,7 @@ class _S extends ConsumerState<CashReconciliationScreen> {
           .order('reconciled_at', ascending: false)
           .limit(30);
       if (!mounted) return;
-      if (mounted)
+      if (mounted) {
         setState(() {
           _pendingShifts = List<Map<String, dynamic>>.from(closed)
               .where((s) => !reconShiftIds.contains(s['id']))
@@ -77,6 +77,7 @@ class _S extends ConsumerState<CashReconciliationScreen> {
           _applySearch(_searchCtrl.text);
           _loading = false;
         });
+      }
     } catch (_) {
       if (mounted) setState(() => _loading = false);
     }

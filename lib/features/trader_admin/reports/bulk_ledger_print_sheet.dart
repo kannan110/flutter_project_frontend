@@ -504,7 +504,7 @@ Future<_FailureDecision?> showBatchFailureDialog(
           ),
         TextButton(
           onPressed: () => Navigator.of(dCtx, rootNavigator: true).pop(_FailureDecision.continueWithout),
-          child: Text('Continue Without Them', style: TextStyle(color: kError, fontWeight: FontWeight.w800)),
+          child: const Text('Continue Without Them', style: TextStyle(color: kError, fontWeight: FontWeight.w800)),
         ),
       ],
     ),
@@ -624,9 +624,13 @@ class _RetailerMultiSelectSheetState extends State<_RetailerMultiSelectSheet> {
   void _toggleSelectAllFiltered() {
     setState(() {
       if (_allFilteredSelected) {
-        for (final r in _filtered) _selected.remove(r['id']);
+        for (final r in _filtered) {
+          _selected.remove(r['id']);
+        }
       } else {
-        for (final r in _filtered) _selected.add(r['id'] as String);
+        for (final r in _filtered) {
+          _selected.add(r['id'] as String);
+        }
       }
     });
   }

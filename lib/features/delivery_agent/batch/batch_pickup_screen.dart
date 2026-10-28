@@ -84,7 +84,9 @@ class _S extends ConsumerState<BatchPickupScreen> {
       _birds,
       _crates,
       _farmRate
-    ]) c.dispose();
+    ]) {
+      c.dispose();
+    }
     super.dispose();
   }
 
@@ -188,7 +190,7 @@ class _S extends ConsumerState<BatchPickupScreen> {
       }
     } catch (_) {}
 
-    if (mounted)
+    if (mounted) {
       setState(() {
         _batch = batch;
         _shift = shift;
@@ -199,6 +201,7 @@ class _S extends ConsumerState<BatchPickupScreen> {
         _inHouseStock = inHouseStock;
         _dataLoading = false;
       });
+    }
   }
 
   double get _grossWtVal => double.tryParse(_grossWt.text.trim()) ?? 0;
@@ -229,7 +232,7 @@ class _S extends ConsumerState<BatchPickupScreen> {
               (s, d) =>
           s +
               (((d['orders'] as Map?)
-                  ?.cast<String, dynamic>()?['estimated_birds'] as num?)
+                  ?.cast<String, dynamic>()['estimated_birds'] as num?)
                   ?.toInt() ??
                   0));
 
@@ -239,7 +242,7 @@ class _S extends ConsumerState<BatchPickupScreen> {
               (s, d) =>
           s +
               (((d['orders'] as Map?)
-                  ?.cast<String, dynamic>()?['total_quantity'] as num?)
+                  ?.cast<String, dynamic>()['total_quantity'] as num?)
                   ?.toDouble() ??
                   0));
 
@@ -249,11 +252,12 @@ class _S extends ConsumerState<BatchPickupScreen> {
           source: ImageSource.camera, imageQuality: 70, maxWidth: 1200);
       if (picked == null || !mounted) return;
       final file = File(picked.path);
-      if (mounted)
+      if (mounted) {
         setState(() {
           _dcImage = file;
           _uploadingDcImage = true;
         });
+      }
       try {
         final path = 'dc/${DateTime.now().millisecondsSinceEpoch}.jpg';
         await Supabase.instance.client.storage
@@ -262,15 +266,17 @@ class _S extends ConsumerState<BatchPickupScreen> {
         final url = Supabase.instance.client.storage
             .from('dc-images')
             .getPublicUrl(path);
-        if (mounted)
+        if (mounted) {
           setState(() {
             _dcImageUrl = url;
             _uploadingDcImage = false;
           });
+        }
       } catch (e) {
         if (mounted) setState(() => _uploadingDcImage = false);
-        if (mounted)
+        if (mounted) {
           showError(context, 'DC photo upload failed — check connection');
+        }
       }
     } catch (_) {}
   }
@@ -469,10 +475,11 @@ class _S extends ConsumerState<BatchPickupScreen> {
 
         if (mounted) {
           showSuccess(context, 'DC saved ✓ — ready to deliver!');
-          if (context.canPop())
+          if (context.canPop()) {
             context.pop();
-          else
+          } else {
             context.go(R.agentHome);
+          }
         }
       } else {
         // add_batch_dc exact signature: has p_source_type, p_bird_count int DEFAULT 0,
@@ -537,7 +544,7 @@ class _S extends ConsumerState<BatchPickupScreen> {
     _grossWt.clear();
     _emptyWt.text = '0';
     _crates.text = '0';
-    if (mounted)
+    if (mounted) {
       setState(() {
         _dcDate = DateTime.now();
         // Do NOT silently carry the product forward — a second DC on the same
@@ -553,6 +560,7 @@ class _S extends ConsumerState<BatchPickupScreen> {
         _dcImageUrl = null;
         _uploadingDcImage = false;
       });
+    }
   }
 
   void _showFarmPicker() {
@@ -636,8 +644,9 @@ class _S extends ConsumerState<BatchPickupScreen> {
                                     // Pre-fill the manual field too
                                     _farmer.text = name;
                                     if (loc != null &&
-                                        _farmLoc.text.isEmpty)
+                                        _farmLoc.text.isEmpty) {
                                       _farmLoc.text = loc;
+                                    }
                                   });
                                 },
                                 borderRadius:
@@ -750,15 +759,15 @@ class _S extends ConsumerState<BatchPickupScreen> {
               const Text('What product is this DC?',
                   style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800)),
               const SizedBox(height: 4),
-              Text(
+              const Text(
                   'One product per DC. Variant breakdown (Small/Medium/Big) '
                       'is confirmed separately after loading.',
                   textAlign: TextAlign.center,
                   style: TextStyle(fontSize: 12, color: kTextHint)),
               const SizedBox(height: 14),
               if (_parentProducts.isEmpty)
-                Padding(
-                    padding: const EdgeInsets.all(20),
+                const Padding(
+                    padding: EdgeInsets.all(20),
                     child: Text('No active products found. Contact admin.',
                         style: TextStyle(color: kTextHint))),
               ..._parentProducts.map((p) {
@@ -821,7 +830,7 @@ class _S extends ConsumerState<BatchPickupScreen> {
 
   @override
   Widget build(BuildContext context) {
-    if (_dataLoading)
+    if (_dataLoading) {
       return Scaffold(
           backgroundColor: kBgPage,
           appBar: AppBar(
@@ -829,6 +838,7 @@ class _S extends ConsumerState<BatchPickupScreen> {
               foregroundColor: Colors.white,
               title: const Text('Add DC')),
           body: const LoadingList());
+    }
 
     final a = _batch?['delivery_agents'] as Map<String, dynamic>?;
     final bStatus = _batch?['status'] as String? ?? 'assigned';
@@ -844,10 +854,11 @@ class _S extends ConsumerState<BatchPickupScreen> {
         leading: IconButton(
             icon: const Icon(Icons.arrow_back),
             onPressed: () {
-              if (context.canPop())
+              if (context.canPop()) {
                 context.pop();
-              else
+              } else {
                 context.go(R.agentHome);
+              }
             }),
         title: Text(isAdditional
             ? 'Add DC — Additional Pickup'
@@ -1253,11 +1264,11 @@ class _S extends ConsumerState<BatchPickupScreen> {
                                   child: Image.file(_dcImage!,
                                       width: 60, height: 60, fit: BoxFit.cover))
                             else
-                              Column(children: [
-                                const Icon(Icons.camera_alt,
+                              const Column(children: [
+                                Icon(Icons.camera_alt,
                                     size: 40, color: Colors.red),
-                                const SizedBox(height: 2),
-                                const Text('Required',
+                                SizedBox(height: 2),
+                                Text('Required',
                                     style: TextStyle(
                                         fontSize: 9,
                                         color: Colors.red,
@@ -1332,8 +1343,9 @@ class _S extends ConsumerState<BatchPickupScreen> {
                                   firstDate: DateTime.now()
                                       .subtract(const Duration(days: 7)),
                                   lastDate: DateTime.now());
-                              if (d != null && mounted)
+                              if (d != null && mounted) {
                                 setState(() => _dcDate = d);
+                              }
                             },
                             child: Container(
                                 padding: const EdgeInsets.symmetric(
@@ -1646,10 +1658,11 @@ class _S extends ConsumerState<BatchPickupScreen> {
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () {
-            if (context.canPop())
+            if (context.canPop()) {
               context.pop();
-            else
+            } else {
               context.go(R.agentHome);
+            }
           },
         ),
         title: Text(isAdditional ? '📋 Add DC' : '🚜 Farm Pickup',
@@ -1767,8 +1780,9 @@ class _S extends ConsumerState<BatchPickupScreen> {
                                 firstDate: DateTime.now()
                                     .subtract(const Duration(days: 7)),
                                 lastDate: DateTime.now());
-                            if (d != null && mounted)
+                            if (d != null && mounted) {
                               setState(() => _dcDate = d);
+                            }
                           },
                           child: Container(
                             padding: const EdgeInsets.symmetric(
@@ -2103,11 +2117,11 @@ class _S extends ConsumerState<BatchPickupScreen> {
         const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(kRadiusCard),
-          borderSide: BorderSide(color: kBorder),
+          borderSide: const BorderSide(color: kBorder),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(kRadiusCard),
-          borderSide: BorderSide(color: kBorder),
+          borderSide: const BorderSide(color: kBorder),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(kRadiusCard),
@@ -2261,7 +2275,7 @@ class _S extends ConsumerState<BatchPickupScreen> {
                       ),
                     ),
                     if (selected)
-                      Text('Tap to change',
+                      const Text('Tap to change',
                           style: TextStyle(fontSize: 12, color: kTextHint)),
                   ])),
           const Icon(Icons.chevron_right, size: 22, color: kTextHint),
@@ -2305,7 +2319,7 @@ class _S extends ConsumerState<BatchPickupScreen> {
                       ),
                     ),
                     if (selected)
-                      Text('Tap to change',
+                      const Text('Tap to change',
                           style: TextStyle(fontSize: 12, color: kTextHint)),
                   ])),
           const Icon(Icons.chevron_right, size: 22, color: kTextHint),

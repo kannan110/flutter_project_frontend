@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../../../core/providers/session_provider.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_theme.dart';
 
@@ -93,8 +92,9 @@ class _S extends ConsumerState<AgentDetailScreen> {
       showSuccess(context, '${current ? 'Deactivated' : 'Activated'} ✓');
       _load();
     } catch (e) {
-      if (mounted)
+      if (mounted) {
         showError(context, e.toString().replaceAll('Exception: ', ''));
+      }
     } finally {
       if (mounted) setState(() => _toggling = false);
     }
@@ -136,7 +136,7 @@ class _S extends ConsumerState<AgentDetailScreen> {
                       const InputDecoration(labelText: 'Vehicle No')),
                   const SizedBox(height: 10),
                   DropdownButtonFormField<String>(
-                      value: vehicleType,
+                      initialValue: vehicleType,
                       decoration:
                       const InputDecoration(labelText: 'Vehicle Type'),
                       items: const [
@@ -182,9 +182,10 @@ class _S extends ConsumerState<AgentDetailScreen> {
   @override
   Widget build(BuildContext context) {
     if (_loading) return const Scaffold(body: LoadingList());
-    if (_agent == null)
+    if (_agent == null) {
       return Scaffold(
           appBar: AppBar(), body: const Center(child: Text('Not found')));
+    }
     final a = _agent!;
     final linked = a['auth_user_id'] != null;
     final active = a['is_active'] as bool? ?? true;
@@ -415,8 +416,9 @@ class _S extends ConsumerState<AgentDetailScreen> {
               final birds = (sh['total_birds_delivered'] as num?)?.toInt() ?? 0;
               final orders = (sh['total_orders'] as num?)?.toInt() ?? 0;
               Duration? dur;
-              if (startAt != null && endAt != null)
+              if (startAt != null && endAt != null) {
                 dur = endAt.difference(startAt);
+              }
               return Container(
                   margin: const EdgeInsets.only(bottom: 8),
                   padding: const EdgeInsets.all(12),

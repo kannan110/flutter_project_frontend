@@ -83,11 +83,12 @@ class _S extends ConsumerState<RetailersScreen> {
       });
       _applySearch(_searchCtrl.text);
     } catch (e) {
-      if (mounted)
+      if (mounted) {
         setState(() {
           _error = e.toString();
           _loading = false;
         });
+      }
     }
   }
 
@@ -231,26 +232,30 @@ class _S extends ConsumerState<RetailersScreen> {
             final risk = r['risk_level'] as String? ?? 'low';
             final blocked = r['is_blocked'] as bool? ?? false;
             final active = r['is_active'] as bool? ?? true;
-            if (blocked)
+            if (blocked) {
               return const StatusChip(
                   label: 'Blocked',
                   color: Colors.red,
                   size: StatusChipSize.small);
-            if (!active)
+            }
+            if (!active) {
               return const StatusChip(
                   label: 'Inactive',
                   color: Colors.grey,
                   size: StatusChipSize.small);
-            if (risk == 'high')
+            }
+            if (risk == 'high') {
               return const StatusChip(
                   label: 'High Risk',
                   color: Colors.red,
                   size: StatusChipSize.small);
-            if (risk == 'medium')
+            }
+            if (risk == 'medium') {
               return const StatusChip(
                   label: 'Med Risk',
                   color: Colors.orange,
                   size: StatusChipSize.small);
+            }
             return const SizedBox.shrink();
           },
         ),
@@ -269,9 +274,9 @@ class _S extends ConsumerState<RetailersScreen> {
         final blocked = r['is_blocked'] as bool? ?? false;
         final risk = r['risk_level'] as String? ?? 'low';
         Color? tint;
-        if (blocked)
+        if (blocked) {
           tint = Colors.red.withValues(alpha: 0.03);
-        else if (risk == 'high') tint = Colors.orange.withValues(alpha: 0.03);
+        } else if (risk == 'high') tint = Colors.orange.withValues(alpha: 0.03);
         return BoxDecoration(
           color: tint ?? Colors.transparent,
           border: const Border(bottom: BorderSide(color: kBorder, width: 0.5)),

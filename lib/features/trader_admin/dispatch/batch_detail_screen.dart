@@ -124,7 +124,8 @@ class _S extends ConsumerState<BatchDetailScreen> {
             ((r['in_house_kg'] as num?) ?? 0) > 0)
             .toList();
       } catch (_) {}
-      if (mounted) setState(() {
+      if (mounted) {
+        setState(() {
         _batch = b;
         _deliveries = List<Map<String, dynamic>>.from(d);
         _challans = List<Map<String, dynamic>>.from(ch);
@@ -136,6 +137,7 @@ class _S extends ConsumerState<BatchDetailScreen> {
         _inHouseStock = inHouseStock;
         _loading = false;
       });
+      }
     } catch (e) {
       if (mounted) setState(() => _loading = false);
     }
@@ -155,15 +157,17 @@ class _S extends ConsumerState<BatchDetailScreen> {
       _load();
       if (mounted) {
         final isMidShift =
-            (res as Map?)?.cast<String, dynamic>()?['added_mid_shift'] == true;
+            (res as Map?)?.cast<String, dynamic>()['added_mid_shift'] == true;
         showSuccess(context, isMidShift
             ? '✓ Order added — agent will see it immediately'
             : '✓ Order added to batch');
       }
     } catch (e) {
-      if (mounted) showError(context,
+      if (mounted) {
+        showError(context,
           e.toString().replaceAll('Exception: ', '').replaceAll(
               'PostgrestException(message: ', ''));
+      }
     }
   }
 
@@ -205,9 +209,11 @@ class _S extends ConsumerState<BatchDetailScreen> {
         _load();
       }
     } catch (e) {
-      if (mounted) showError(context,
+      if (mounted) {
+        showError(context,
           e.toString().replaceAll('Exception: ', '').replaceAll(
               'PostgrestException(message: ', ''));
+      }
     }
   }
 
@@ -444,11 +450,11 @@ class _S extends ConsumerState<BatchDetailScreen> {
                           mainAxisSize: MainAxisSize.min,
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            Row(children: [
-                              const Text('Add DC', style: TextStyle(
+                            const Row(children: [
+                              Text('Add DC', style: TextStyle(
                                   fontSize: 16, fontWeight: FontWeight.w800)),
-                              const Spacer(),
-                              const Icon(
+                              Spacer(),
+                              Icon(
                                   Icons.receipt_long_outlined, color: kPrimary),
                             ]),
                             if (formError != null) ...[
@@ -598,8 +604,8 @@ class _S extends ConsumerState<BatchDetailScreen> {
                                 style: TextStyle(fontSize: 11, color: kTextHint)),
                             const SizedBox(height: 8),
                             if (_parentProducts.isEmpty)
-                              Padding(
-                                  padding: const EdgeInsets.symmetric(vertical: 8),
+                              const Padding(
+                                  padding: EdgeInsets.symmetric(vertical: 8),
                                   child: Text('No active products found.',
                                       style: TextStyle(color: kTextHint)))
                             else
@@ -820,10 +826,11 @@ class _S extends ConsumerState<BatchDetailScreen> {
                                                                                           true &&
                                                                                           farmLocCtrl
                                                                                               .text
-                                                                                              .isEmpty)
+                                                                                              .isEmpty) {
                                                                                         farmLocCtrl
                                                                                             .text =
                                                                                         f['location'] as String;
+                                                                                      }
                                                                                     });
                                                                                   });
                                                                             })),
@@ -971,8 +978,10 @@ class _S extends ConsumerState<BatchDetailScreen> {
                                   ss(() { dcImageUrl = url; uploadingDcImage = false; });
                                 } catch (e) {
                                   ss(() => uploadingDcImage = false);
-                                  if (ctx.mounted) showError(ctx,
+                                  if (ctx.mounted) {
+                                    showError(ctx,
                                       'Photo upload failed — check connection');
+                                  }
                                 }
                               },
                               child: Container(
@@ -988,7 +997,7 @@ class _S extends ConsumerState<BatchDetailScreen> {
                                     : dcImage != null
                                     ? Image.file(dcImage!, fit: BoxFit.cover,
                                     width: double.infinity)
-                                    : Center(child: Column(
+                                    : const Center(child: Column(
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
                                       Icon(Icons.add_a_photo_outlined,
@@ -1163,8 +1172,10 @@ class _S extends ConsumerState<BatchDetailScreen> {
                                     _load();
                                     if (mounted) showSuccess(context, 'DC added ✓');
                                   } catch (e) {
-                                    if (mounted) showError(context,
+                                    if (mounted) {
+                                      showError(context,
                                         e.toString().replaceAll('Exception: ', ''));
+                                    }
                                   }
                                 },
                                 child: const Text('Save DC')),
@@ -1188,11 +1199,14 @@ class _S extends ConsumerState<BatchDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    if (_loading)
+    if (_loading) {
       return const Scaffold(backgroundColor: kBgPage, body: LoadingList());
-    if (_batch == null) return Scaffold(backgroundColor: kBgPage,
+    }
+    if (_batch == null) {
+      return Scaffold(backgroundColor: kBgPage,
         appBar: AppBar(backgroundColor: kSurface),
         body: const Center(child: Text('Not found')));
+    }
     final a = _batch!['delivery_agents'] as Map<String, dynamic>?;
     final status = _batch!['status'] as String? ?? 'assigned';
     final canEdit = !['completed', 'cancelled'].contains(status);
@@ -1375,11 +1389,11 @@ class _S extends ConsumerState<BatchDetailScreen> {
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(color: Colors.orange.shade200),
               ),
-              child: Row(children: [
-                const Icon(Icons.local_shipping_outlined,
+              child: const Row(children: [
+                Icon(Icons.local_shipping_outlined,
                     color: Colors.orange, size: 16),
-                const SizedBox(width: 8),
-                const Expanded(child: Text(
+                SizedBox(width: 8),
+                Expanded(child: Text(
                   'Agent is mid-shift. New orders will appear on their '
                       'screen immediately as out-for-delivery.',
                   style: TextStyle(fontSize: 11, color: Colors.orange),
@@ -1388,7 +1402,7 @@ class _S extends ConsumerState<BatchDetailScreen> {
             ),
           ...() {
             final alreadyInBatch = _deliveries.map((d) =>
-            (d['orders'] as Map?)?.cast<String, dynamic>()?['id']).toSet();
+            (d['orders'] as Map?)?.cast<String, dynamic>()['id']).toSet();
             final available = _confirmedOrders.where((o) =>
             !alreadyInBatch.contains(o['id'])).toList();
             if (available.isEmpty) {
@@ -1673,23 +1687,23 @@ class _DcCardState extends State<_DcCard> {
                 // DC Photo
                 if (hasPic) ...[
                   const SizedBox(height: 12),
-                  Row(children: [
-                    const Icon(Icons.photo_library_outlined, size: 13,
+                  const Row(children: [
+                    Icon(Icons.photo_library_outlined, size: 13,
                         color: Colors.green),
-                    const SizedBox(width: 6),
-                    const Text('DC Photo Proof',
+                    SizedBox(width: 6),
+                    Text('DC Photo Proof',
                         style: TextStyle(fontSize: 12,
                             fontWeight: FontWeight.w700,
                             color: Colors.green)),
                   ]),
                   const SizedBox(height: 8),
                   GestureDetector(
-                      onTap: () => _showImageFull(context, photoUrl!),
+                      onTap: () => _showImageFull(context, photoUrl),
                       child: ClipRRect(
                           borderRadius: BorderRadius.circular(kRadiusCard),
                           child: Stack(children: [
                             Image.network(
-                              photoUrl!,
+                              photoUrl,
                               width: double.infinity,
                               height: 180,
                               fit: BoxFit.cover,
@@ -1769,7 +1783,7 @@ class _DcCardState extends State<_DcCard> {
                       onTap: () => Navigator.pop(ctx),
                       child: Container(
                           padding: const EdgeInsets.all(6),
-                          decoration: BoxDecoration(
+                          decoration: const BoxDecoration(
                               color: Colors.black54, shape: BoxShape.circle),
                           child: const Icon(
                               Icons.close, color: Colors.white, size: 18)))),

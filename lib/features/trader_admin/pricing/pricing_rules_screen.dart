@@ -1,10 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
-import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/providers/session_provider.dart';
-import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_theme.dart';
 
 class PricingRulesScreen extends ConsumerStatefulWidget {
@@ -46,13 +43,14 @@ class _S extends ConsumerState<PricingRulesScreen> {
           .from('master_products')
           .select('id,name')
           .eq('is_active', true);
-      if (mounted)
+      if (mounted) {
         setState(() {
           _rules = List<Map<String, dynamic>>.from(r);
           _retailers = List<Map<String, dynamic>>.from(ret);
           _products = List<Map<String, dynamic>>.from(prod);
           _loading = false;
         });
+      }
     } catch (_) {
       if (mounted) setState(() => _loading = false);
     }
@@ -183,8 +181,9 @@ class _S extends ConsumerState<PricingRulesScreen> {
                                     'created_by': uid,
                                   });
                                   _load();
-                                  if (mounted)
+                                  if (mounted) {
                                     showSuccess(context, 'Rule added ✓');
+                                  }
                                 } catch (e) {
                                   if (mounted) showError(context, e.toString());
                                 }

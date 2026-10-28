@@ -84,7 +84,7 @@ class _S extends ConsumerState<InstantOrderScreen> {
   String _payMode = 'cash';
   String? _err;
 
-  List<_AgentLine> _lines = [_AgentLine()];
+  final List<_AgentLine> _lines = [_AgentLine()];
   int _activeIdx = 0;
 
   @override
@@ -98,7 +98,9 @@ class _S extends ConsumerState<InstantOrderScreen> {
     _localMessengerKey.currentState?.clearSnackBars();
     _notesCtrl.dispose();
     _scrollCtrl.dispose();
-    for (final l in _lines) l.dispose();
+    for (final l in _lines) {
+      l.dispose();
+    }
     super.dispose();
   }
 
@@ -107,10 +109,12 @@ class _S extends ConsumerState<InstantOrderScreen> {
     final agentId = user?.agentId;
     final traderId = user?.traderId;
     if (agentId == null || traderId == null) {
-      if (mounted) setState(() {
+      if (mounted) {
+        setState(() {
         _loading = false;
         _hasShift = false;
       });
+      }
       return;
     }
     try {
@@ -121,10 +125,12 @@ class _S extends ConsumerState<InstantOrderScreen> {
           .eq('status', 'open')
           .maybeSingle();
       if (shift == null) {
-        if (mounted) setState(() {
+        if (mounted) {
+          setState(() {
           _loading = false;
           _hasShift = false;
         });
+        }
         return;
       }
       final results = await Future.wait<dynamic>([
@@ -144,10 +150,12 @@ class _S extends ConsumerState<InstantOrderScreen> {
         _loading = false;
       });
     } catch (e) {
-      if (mounted) setState(() {
+      if (mounted) {
+        setState(() {
         _loading = false;
         _hasShift = false;
       });
+      }
     }
   }
 
@@ -208,7 +216,7 @@ class _S extends ConsumerState<InstantOrderScreen> {
       useRootNavigator: true,
       builder: (c) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kRadiusCard)),
-        title: Row(children: const [
+        title: const Row(children: [
           Icon(Icons.info_outline, color: Colors.orange, size: 20),
           SizedBox(width: 8),
           Text('Possible Duplicate Order', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
@@ -344,11 +352,13 @@ class _S extends ConsumerState<InstantOrderScreen> {
           .replaceAll('Exception: ', '')
           .replaceAll('PostgrestException(message: ', '')
           .replaceAll(')', '');
-      if (mounted) setState(() {
+      if (mounted) {
+        setState(() {
         _err = createdDeliveryIds.isEmpty
             ? msg
             : '${createdDeliveryIds.length} of ${validLines.length} orders created before this failed: $msg';
       });
+      }
     } finally {
       if (mounted) setState(() => _submitting = false);
     }

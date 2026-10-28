@@ -54,12 +54,14 @@ class _S extends ConsumerState<SupervisorDetailScreen> with SingleTickerProvider
         payments = List<Map<String, dynamic>>.from(p as List? ?? []);
       }
 
-      if (mounted) setState(() {
+      if (mounted) {
+        setState(() {
         _supervisor = s;
         _assignedRetailers = List<Map<String, dynamic>>.from(retailers as List? ?? []);
         _payments = payments;
         _loading = false;
       });
+      }
     } catch (e) {
       if (mounted) { setState(() => _loading = false); showError(context, e.toString()); }
     }

@@ -38,12 +38,14 @@ class _S extends ConsumerState<SupervisorCustomerLedgerScreen> {
           .order('entry_date', ascending: false).order('created_at', ascending: false)
           .limit(200);
 
-      if (mounted) setState(() {
+      if (mounted) {
+        setState(() {
         _retailer = r;
         _entries = List<Map<String, dynamic>>.from(e as List? ?? []);
         _outstanding = (r?['outstanding_balance'] as num?)?.toDouble() ?? 0;
         _loading = false;
       });
+      }
     } catch (ex) {
       if (mounted) { setState(() => _loading = false); showError(context, ex.toString()); }
     }

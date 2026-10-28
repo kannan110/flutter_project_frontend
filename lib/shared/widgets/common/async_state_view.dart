@@ -34,13 +34,15 @@ class AsyncStateView extends StatelessWidget {
   Widget build(BuildContext context) {
     if (loading) return _LoadingView(message: loadingMessage);
     if (error != null) return _ErrorView(error: error!, onRetry: onRetry);
-    if (empty)  return _EmptyView(
+    if (empty) {
+      return _EmptyView(
       icon:        emptyIcon,
       message:     emptyMessage,
       sub:         emptySub,
       onAction:    onAction,
       actionLabel: actionLabel,
     );
+    }
     return child;
   }
 }
@@ -185,6 +187,6 @@ class InlineLoader extends StatelessWidget {
   @override
   Widget build(BuildContext context) => SizedBox(
     width:  size, height: size,
-    child:  CircularProgressIndicator(color: kNavy, strokeWidth: 2),
+    child:  const CircularProgressIndicator(color: kNavy, strokeWidth: 2),
   );
 }

@@ -11,7 +11,6 @@ import '../../../core/theme/app_theme.dart';
 import '../../../shared/layouts/responsive_layout.dart';
 import '../../../shared/widgets/common/async_state_view.dart';
 import '../../../shared/widgets/common/status_chip.dart';
-import '../../../shared/widgets/filters/search_bar.dart' hide ListToolbar;
 import '../../../shared/widgets/tables/app_table.dart';
 
 class ApprovalsScreen extends ConsumerStatefulWidget {
@@ -137,7 +136,7 @@ class _S extends ConsumerState<ApprovalsScreen> {
       label: label,
       style: OutlinedButton.styleFrom(
         foregroundColor: kPrimary,
-        side: BorderSide(color: kPrimary),
+        side: const BorderSide(color: kPrimary),
         minimumSize: compactSize,
       ),
     );
@@ -497,11 +496,11 @@ class _S extends ConsumerState<ApprovalsScreen> {
         border: const Border(bottom: BorderSide(color: kBorder, width: 0.5)),
         color:  Colors.orange.withValues(alpha: 0.02),
       ),
-      emptyWidget: AsyncStateView(
+      emptyWidget: const AsyncStateView(
         loading: false, empty: true,
         emptyIcon: Icons.fact_check_outlined,
         emptyMessage: 'No pending approvals',
-        child: const SizedBox.shrink(),
+        child: SizedBox.shrink(),
       ),
     );
   }

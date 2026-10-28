@@ -162,7 +162,7 @@ class _S extends State<PlansSaScreen> {
                       IconButton(
                           icon: const Icon(Icons.edit_outlined, size: 18, color: kPrimary),
                           onPressed: () => _showForm(existing: p)),
-                      Switch(value: isActive, onChanged: (_) => _toggle(p), activeColor: kNavy),
+                      Switch(value: isActive, onChanged: (_) => _toggle(p), activeThumbColor: kNavy),
                     ]),
                   ]),
                   const Divider(height: 14),

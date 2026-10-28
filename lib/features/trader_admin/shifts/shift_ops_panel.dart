@@ -295,8 +295,8 @@ class _SelfUpdateKpi extends StatelessWidget {
                         color: color)),
               ),
               const Spacer(),
-              Text('Last 30 days',
-                  style: const TextStyle(
+              const Text('Last 30 days',
+                  style: TextStyle(
                       fontSize: 10, color: kTextHint)),
             ]),
             const SizedBox(height: 8),
@@ -553,7 +553,7 @@ class _MiniResolveFormState
         '${(widget.delivery['expected_bird_count'] as num?)?.toInt() ?? 0}');
     _weightCtrl = TextEditingController(
         text:
-        '${((widget.delivery['expected_total_weight'] as num?)?.toDouble() ?? 0).toStringAsFixed(1)}');
+        ((widget.delivery['expected_total_weight'] as num?)?.toDouble() ?? 0).toStringAsFixed(1));
   }
 
   @override
@@ -1032,7 +1032,7 @@ class _AddExpenseTileState
             const EdgeInsets.fromLTRB(14, 0, 14, 14),
             child: Column(children: [
               DropdownButtonFormField<String>(
-                value: _expType,
+                initialValue: _expType,
                 decoration: const InputDecoration(
                     labelText: 'Type', isDense: true),
                 items: _expTypes

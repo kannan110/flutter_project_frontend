@@ -66,7 +66,11 @@ class _S extends ConsumerState<DeliveryHistoryScreen> {
       appBar: AppBar(
           leading: IconButton(
               icon: const Icon(Icons.arrow_back),
-              onPressed: () { if (context.canPop()) context.pop(); else context.go(R.agentDeliveries); }),
+              onPressed: () { if (context.canPop()) {
+                context.pop();
+              } else {
+                context.go(R.agentDeliveries);
+              } }),
           title: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(r?['shop_name'] as String? ?? 'Delivery History',
                 style: const TextStyle(fontSize: 16)),
@@ -239,17 +243,21 @@ class _S extends ConsumerState<DeliveryHistoryScreen> {
         backgroundColor: kSurface,
         leading: IconButton(
             icon: const Icon(Icons.arrow_back),
-            onPressed: () { if (context.canPop()) context.pop(); else context.go(R.agentDeliveries); }),
+            onPressed: () { if (context.canPop()) {
+              context.pop();
+            } else {
+              context.go(R.agentDeliveries);
+            } }),
         title: Text('📋 $shopName',
             style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
         actions: [IconButton(icon: const Icon(Icons.refresh), onPressed: _load)],
       ),
       body: _history.isEmpty
-          ? Center(
+          ? const Center(
         child: Column(mainAxisSize: MainAxisSize.min, children: [
-          const Text('📭', style: TextStyle(fontSize: 56)),
-          const SizedBox(height: 12),
-          const Text('No delivery history yet',
+          Text('📭', style: TextStyle(fontSize: 56)),
+          SizedBox(height: 12),
+          Text('No delivery history yet',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: kTextSub)),
         ]),
       )
@@ -363,7 +371,7 @@ class _S extends ConsumerState<DeliveryHistoryScreen> {
               // Stats
               Row(children: [
                 _simpleStat('🐔', '$birds', 'birds'),
-                _simpleStat('⚖️', '${weight.toStringAsFixed(1)}', 'kg'),
+                _simpleStat('⚖️', weight.toStringAsFixed(1), 'kg'),
                 _simpleStat('💰', Fmt.amount(cash), 'cash'),
                 if (partial) _simpleStat('⏳', '$remB', 'left'),
               ]),

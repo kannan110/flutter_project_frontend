@@ -38,7 +38,7 @@ class _S extends ConsumerState<PurchaseScreen>
   Map<String, dynamic>? _stockVal;
   Map<String, dynamic>? _summary;
   Map<String, dynamic>? _reportData;
-  Map<String, bool> _farmOverdue = {};
+  final Map<String, bool> _farmOverdue = {};
   bool _loading = true;
 
   // ── Filters ────────────────────────────────────────────────────────────────
@@ -99,12 +99,13 @@ class _S extends ConsumerState<PurchaseScreen>
           final sv = await _c.rpc('get_stock_valuation', params: {
             'p_trader_id': tid
           }).timeout(const Duration(seconds: 10));
-          if (mounted)
+          if (mounted) {
             setState(() {
               _overview = ov as Map<String, dynamic>?;
               _summary = sm as Map<String, dynamic>?;
               _stockVal = sv as Map<String, dynamic>?;
             });
+          }
 
         case 1: // Purchases
         // ROOT CAUSE FIX (Purchase Report duplicate DC audit): this used
@@ -128,11 +129,12 @@ class _S extends ConsumerState<PurchaseScreen>
             'p_from_date': _fromStr,
             'p_to_date': _toStr,
           });
-          if (mounted)
+          if (mounted) {
             setState(() {
               _purchases = List<Map<String, dynamic>>.from(r as List? ?? []);
               _summary = sm2 as Map<String, dynamic>?;
             });
+          }
 
         case 2: // Suppliers
           final r = await _c
@@ -166,22 +168,24 @@ class _S extends ConsumerState<PurchaseScreen>
                 ((row['total_paid'] as num?)?.toDouble() ?? 0);
             farmStats[fid]!['claim'] = (farmStats[fid]!['claim'] as double) +
                 ((row['claim_amount'] as num?)?.toDouble() ?? 0);
-            if (row['payment_status'] == 'overdue')
+            if (row['payment_status'] == 'overdue') {
               farmStats[fid]!['overdue'] =
                   (farmStats[fid]!['overdue'] as int) + 1;
+            }
           }
           final cos = await _c
               .from('poultry_companies')
               .select('id,company_name')
               .eq('trader_id', tid)
               .order('company_name');
-          if (mounted)
+          if (mounted) {
             setState(() {
               _farms = List<Map<String, dynamic>>.from(r as List? ?? [])
                   .map((f) => {...f, '_stats': farmStats[f['id']] ?? {}})
                   .toList();
               _companies = List<Map<String, dynamic>>.from(cos as List? ?? []);
             });
+          }
 
         case 3: // Ledger
           var lq = _c.from('supplier_ledger').select(
@@ -194,10 +198,11 @@ class _S extends ConsumerState<PurchaseScreen>
               .lte('entry_date', _toStr);
           if (_farmFilter != null) lq = lq.eq('farm_id', _farmFilter!);
           final lr = await lq.order('entry_date', ascending: false).limit(200);
-          if (mounted)
+          if (mounted) {
             setState(() {
               _ledger = List<Map<String, dynamic>>.from(lr as List? ?? []);
             });
+          }
 
         case 4: // Costing
         // FIX: purchase_entries is 1-to-many per batch — join returns ARRAY not Map
@@ -243,10 +248,11 @@ class _S extends ConsumerState<PurchaseScreen>
               if (bid != null && peMap.containsKey(bid)) '_pe': peMap[bid]
             };
           }).toList();
-          if (mounted)
+          if (mounted) {
             setState(() {
               _costing = enrichedCosting.cast<Map<String, dynamic>>();
             });
+          }
 
         case 5: // Reports
           final rd = await _c.rpc('get_purchase_report', params: {
@@ -257,10 +263,11 @@ class _S extends ConsumerState<PurchaseScreen>
             if (_filterStatus != null) 'p_status': _filterStatus,
             if (_filterPayStatus != null) 'p_pay_status': _filterPayStatus,
           }).timeout(const Duration(seconds: 15));
-          if (mounted)
+          if (mounted) {
             setState(() {
               _reportData = rd as Map<String, dynamic>?;
             });
+          }
 
         case 6: // History
           final hist = await _c.rpc('get_purchase_history', params: {
@@ -270,7 +277,7 @@ class _S extends ConsumerState<PurchaseScreen>
           }).timeout(const Duration(seconds: 12));
           if (hist != null) {
             final h = hist as Map<String, dynamic>;
-            if (mounted)
+            if (mounted) {
               setState(() {
                 _auditLog = List<Map<String, dynamic>>.from(
                     h['audit_log'] as List? ?? []);
@@ -279,6 +286,7 @@ class _S extends ConsumerState<PurchaseScreen>
                 _rateHistory = List<Map<String, dynamic>>.from(
                     h['rate_history'] as List? ?? []);
               });
+            }
           }
       }
     } catch (_) {}
@@ -294,7 +302,7 @@ class _S extends ConsumerState<PurchaseScreen>
         lastDate: DateTime.now(),
         builder: (ctx, child) => Theme(
             data: Theme.of(ctx)
-                .copyWith(colorScheme: ColorScheme.light(primary: kPrimary)),
+                .copyWith(colorScheme: const ColorScheme.light(primary: kPrimary)),
             child: child!));
     if (r == null || !mounted) return;
     setState(() {
@@ -371,9 +379,10 @@ class _S extends ConsumerState<PurchaseScreen>
   Widget _tabOverview() {
     final s = _summary;
     final o = _overview;
-    if (s == null && o == null)
+    if (s == null && o == null) {
       return const EmptyState(
           icon: Icons.analytics_outlined, message: 'No data');
+    }
     final total = (s?['total_purchase_amt'] as num?)?.toDouble() ?? 0;
     final paid = (s?['total_paid'] as num?)?.toDouble() ?? 0;
     final claim = (s?['total_claim'] as num?)?.toDouble() ?? 0;
@@ -780,9 +789,7 @@ class _S extends ConsumerState<PurchaseScreen>
           child: Row(children: [
             // Date range chip
             _filterChip(
-                DateFormat('d MMM').format(_from) +
-                    ' - ' +
-                    DateFormat('d MMM').format(_to),
+                '${DateFormat('d MMM').format(_from)} - ${DateFormat('d MMM').format(_to)}',
                 active: true,
                 onTap: _pickRange),
             const SizedBox(width: 6),
@@ -1050,13 +1057,13 @@ class _S extends ConsumerState<PurchaseScreen>
                 ]),
               ],
               if (isDraft)
-                Padding(
-                    padding: const EdgeInsets.only(top: 6),
+                const Padding(
+                    padding: EdgeInsets.only(top: 6),
                     child: Row(children: [
-                      const Icon(Icons.edit_outlined,
+                      Icon(Icons.edit_outlined,
                           size: 12, color: Colors.orange),
-                      const SizedBox(width: 4),
-                      const Text('Tap to enter purchase rate',
+                      SizedBox(width: 4),
+                      Text('Tap to enter purchase rate',
                           style: TextStyle(fontSize: 10, color: Colors.orange)),
                     ])),
               if (!isDraft && !isLocked)
@@ -1119,7 +1126,7 @@ class _S extends ConsumerState<PurchaseScreen>
   // TAB 2: SUPPLIERS
   // ==========================================================================
   Widget _tabSuppliers() {
-    if (_farms.isEmpty)
+    if (_farms.isEmpty) {
       return Center(
           child: Column(mainAxisSize: MainAxisSize.min, children: [
             const EmptyState(
@@ -1130,6 +1137,7 @@ class _S extends ConsumerState<PurchaseScreen>
                 icon: const Icon(Icons.add),
                 label: const Text('Add Supplier')),
           ]));
+    }
     return ListView.separated(
         padding: const EdgeInsets.fromLTRB(12, 12, 12, kBottomNavClearance),
         itemCount: _farms.length,
@@ -1247,18 +1255,20 @@ class _S extends ConsumerState<PurchaseScreen>
       final fn = (e['farms'] as Map?)?['farmer_name'] as String?;
       if (fid != null && fn != null) allFarms[fid] = fn;
     }
-    if (_ledger.isEmpty && _farmFilter == null)
+    if (_ledger.isEmpty && _farmFilter == null) {
       return const EmptyState(
           icon: Icons.book_outlined, message: 'No ledger entries');
+    }
 
     double balance = 0;
     final rows = _ledger.reversed
         .map((e) {
       final amt = (e['amount'] as num?)?.toDouble() ?? 0;
-      if (e['entry_type'] == 'debit')
+      if (e['entry_type'] == 'debit') {
         balance += amt;
-      else
+      } else {
         balance -= amt;
+      }
       return {...e, '_balance': balance};
     })
         .toList()
@@ -1318,7 +1328,7 @@ class _S extends ConsumerState<PurchaseScreen>
                                         color: c)),
                                 Text(
                                     [farm, dc, e['description'] as String?]
-                                        .where((s) => s != null && s!.isNotEmpty)
+                                        .where((s) => s != null && s.isNotEmpty)
                                         .cast<String>()
                                         .join(' | '),
                                     style: const TextStyle(
@@ -1406,11 +1416,12 @@ class _S extends ConsumerState<PurchaseScreen>
   // TAB 4: COSTING
   // ==========================================================================
   Widget _tabCosting() {
-    if (_costing.isEmpty)
+    if (_costing.isEmpty) {
       return const EmptyState(
           icon: Icons.calculate_outlined,
           message:
           'No costing data\nConfirm purchase rates to see profitability');
+    }
     final totalRevenue = _costing.fold<double>(
         0, (s, c) => s + ((c['revenue'] as num?)?.toDouble() ?? 0));
     final totalCost = _costing.fold<double>(
@@ -1593,15 +1604,17 @@ class _S extends ConsumerState<PurchaseScreen>
                                                 'p_batch_id': c['batch_id']
                                               });
                                           _load();
-                                          if (mounted)
+                                          if (mounted) {
                                             showSuccess(
                                                 context, 'Recalculated');
+                                          }
                                         } catch (e) {
-                                          if (mounted)
+                                          if (mounted) {
                                             showError(
                                                 context,
                                                 e.toString().replaceAll(
                                                     'Exception: ', ''));
+                                          }
                                         }
                                       },
                                       child: const Row(children: [
@@ -1763,11 +1776,11 @@ class _S extends ConsumerState<PurchaseScreen>
                           decoration: BoxDecoration(
                               color: Colors.white,
                               borderRadius: BorderRadius.circular(kRadiusCard),
-                              border: Border(
+                              border: const Border(
                                   left: BorderSide(color: kBorder, width: 3),
-                                  right: const BorderSide(color: kBorder),
-                                  top: const BorderSide(color: kBorder),
-                                  bottom: const BorderSide(color: kBorder))),
+                                  right: BorderSide(color: kBorder),
+                                  top: BorderSide(color: kBorder),
+                                  bottom: BorderSide(color: kBorder))),
                           child: Row(children: [
                             Expanded(
                                 child: Column(
@@ -1952,8 +1965,9 @@ class _S extends ConsumerState<PurchaseScreen>
   Color _auditColor(String action) {
     if (action.contains('rate')) return Colors.blue;
     if (action.contains('payment')) return Colors.green;
-    if (action.contains('lock') || action.contains('unlock'))
+    if (action.contains('lock') || action.contains('unlock')) {
       return Colors.grey;
+    }
     if (action.contains('claim')) return Colors.orange;
     if (action.contains('shortage')) return Colors.red;
     if (action.contains('created')) return kPrimary;
@@ -2251,15 +2265,17 @@ class _S extends ConsumerState<PurchaseScreen>
                                   }).eq('id', p['id'] as String);
                                 }
                                 _load();
-                                if (mounted)
+                                if (mounted) {
                                   showSuccess(context,
                                       'Rate confirmed. Landed: Rs.${landed.toStringAsFixed(2)}');
+                                }
                               } catch (e) {
-                                if (mounted)
+                                if (mounted) {
                                   showError(
                                       context,
                                       e.toString().replaceAll(
                                           'Exception: ', ''));
+                                }
                               }
                             },
                             style: ElevatedButton.styleFrom(
@@ -2458,9 +2474,9 @@ class _S extends ConsumerState<PurchaseScreen>
                     padding: const EdgeInsets.all(20),
                     child: Column(mainAxisSize: MainAxisSize.min, children: [
                       Row(children: [
-                        Expanded(
+                        const Expanded(
                             child: Text('Record Payment',
-                                style: const TextStyle(
+                                style: TextStyle(
                                     fontSize: 15,
                                     fontWeight: FontWeight.w800))),
                         IconButton(
@@ -2585,12 +2601,14 @@ class _S extends ConsumerState<PurchaseScreen>
                                     : noteCtrl.text.trim(),
                               });
                               _load();
-                              if (mounted)
+                              if (mounted) {
                                 showSuccess(context, 'Payment recorded');
+                              }
                             } catch (e) {
-                              if (mounted)
+                              if (mounted) {
                                 showError(context,
                                     e.toString().replaceAll('Exception: ', ''));
+                              }
                             }
                           },
                           child: const Text('Record Payment')),
@@ -2677,9 +2695,10 @@ class _S extends ConsumerState<PurchaseScreen>
                           _load();
                           if (mounted) showSuccess(context, 'Claim recorded');
                         } catch (e) {
-                          if (mounted)
+                          if (mounted) {
                             showError(context,
                                 e.toString().replaceAll('Exception: ', ''));
+                          }
                         }
                       },
                       child: const Text('Save Claim')),
@@ -2702,8 +2721,9 @@ class _S extends ConsumerState<PurchaseScreen>
       _load();
       if (mounted) showSuccess(context, 'Entry locked');
     } catch (e) {
-      if (mounted)
+      if (mounted) {
         showError(context, e.toString().replaceAll('Exception: ', ''));
+      }
     }
   }
 
@@ -2722,8 +2742,9 @@ class _S extends ConsumerState<PurchaseScreen>
       _load();
       if (mounted) showSuccess(context, 'Entry reopened');
     } catch (e) {
-      if (mounted)
+      if (mounted) {
         showError(context, e.toString().replaceAll('Exception: ', ''));
+      }
     }
   }
 
@@ -2745,8 +2766,9 @@ class _S extends ConsumerState<PurchaseScreen>
       _load();
       if (mounted) showSuccess(context, 'Payment reversed');
     } catch (e) {
-      if (mounted)
+      if (mounted) {
         showError(context, e.toString().replaceAll('Exception: ', ''));
+      }
     }
   }
 
@@ -2947,9 +2969,9 @@ class _S extends ConsumerState<PurchaseScreen>
           .order('dc_date', ascending: true)
           .limit(1)
           .maybeSingle();
-      if (r != null && mounted)
+      if (r != null && mounted) {
         _showPayment(r);
-      else if (mounted)
+      } else if (mounted)
         showSuccess(context, 'All payments settled for this supplier');
     } catch (_) {}
   }
@@ -3033,7 +3055,7 @@ class _S extends ConsumerState<PurchaseScreen>
                       if (_companies.isNotEmpty) ...[
                         const SizedBox(height: 8),
                         DropdownButtonFormField<String>(
-                            value: selectedCompanyId,
+                            initialValue: selectedCompanyId,
                             decoration: const InputDecoration(
                                 labelText: 'Company (optional)'),
                             items: [
@@ -3082,12 +3104,14 @@ class _S extends ConsumerState<PurchaseScreen>
                                 'company_id': selectedCompanyId,
                               });
                               _load();
-                              if (mounted)
+                              if (mounted) {
                                 showSuccess(context, 'Supplier added');
+                              }
                             } catch (e) {
-                              if (mounted)
+                              if (mounted) {
                                 showError(context,
                                     e.toString().replaceAll('Exception: ', ''));
+                              }
                             }
                           },
                           child: const Text('Add Supplier')),
@@ -3215,7 +3239,7 @@ class _S extends ConsumerState<PurchaseScreen>
                       if (_companies.isNotEmpty) ...[
                         const SizedBox(height: 8),
                         DropdownButtonFormField<String>(
-                            value: selectedCompanyId,
+                            initialValue: selectedCompanyId,
                             decoration:
                             const InputDecoration(labelText: 'Company'),
                             items: [
@@ -3269,12 +3293,14 @@ class _S extends ConsumerState<PurchaseScreen>
                                 'updated_at': DateTime.now().toIso8601String(),
                               }).eq('id', farm['id'] as String);
                               _load();
-                              if (mounted)
+                              if (mounted) {
                                 showSuccess(context, 'Supplier updated');
+                              }
                             } catch (e) {
-                              if (mounted)
+                              if (mounted) {
                                 showError(context,
                                     e.toString().replaceAll('Exception: ', ''));
+                              }
                             }
                           },
                           child: const Text('Save Changes')),
@@ -3331,7 +3357,7 @@ class _S extends ConsumerState<PurchaseScreen>
     try {
       // Use share_plus to show native share sheet
       await Share.share(lines.toString(),
-          subject: 'Purchase Report: ' + _fromStr + ' to ' + _toStr);
+          subject: 'Purchase Report: $_fromStr to $_toStr');
     } catch (e) {
       // Fallback: copy to clipboard via SnackBar
       if (mounted) {
@@ -3425,9 +3451,10 @@ class _S extends ConsumerState<PurchaseScreen>
                           _load();
                           if (mounted) showSuccess(context, 'Company added');
                         } catch (e) {
-                          if (mounted)
+                          if (mounted) {
                             showError(context,
                                 e.toString().replaceAll('Exception: ', ''));
+                          }
                         }
                       },
                       child: const Text('Add Company')),

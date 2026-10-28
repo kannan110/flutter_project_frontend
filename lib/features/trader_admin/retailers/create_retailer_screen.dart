@@ -341,7 +341,11 @@ class _S extends ConsumerState<CreateRetailerScreen> {
 
       if (mounted) {
         showSuccess(context, '${_shopName.text.trim()} added ✓');
-        if (context.canPop()) context.pop(); else context.go(R.retailers);
+        if (context.canPop()) {
+          context.pop();
+        } else {
+          context.go(R.retailers);
+        }
       }
     } catch (e) {
       if (mounted) showError(context, e.toString().replaceAll('Exception: ', ''));
@@ -357,7 +361,9 @@ class _S extends ConsumerState<CreateRetailerScreen> {
     _creditLimit.dispose(); _openingBalance.dispose(); _openingNote.dispose();
     _newZoneName.dispose(); _newZoneCode.dispose(); _zoneSearch.dispose();
     _newAreaName.dispose(); _newAreaCode.dispose(); _areaSearch.dispose();
-    for (final c in _rateCtrl.values) c.dispose();
+    for (final c in _rateCtrl.values) {
+      c.dispose();
+    }
     super.dispose();
   }
 
@@ -1242,7 +1248,7 @@ class _S extends ConsumerState<CreateRetailerScreen> {
           children: [
             // Pricing type selector
             DropdownButtonFormField<String>(
-              value: _pricingType,
+              initialValue: _pricingType,
               decoration: const InputDecoration(
                 labelText: 'Pricing Type',
                 prefixIcon: Icon(Icons.tune_outlined, size: 18),

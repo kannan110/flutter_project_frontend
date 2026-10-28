@@ -197,18 +197,18 @@ class _ExpenseRulesScreenState extends ConsumerState<ExpenseRulesScreen> {
               borderRadius: BorderRadius.circular(kRadiusCard),
               border: Border.all(color: kNavy.withValues(alpha: 0.15)),
             ),
-            child: Column(
+            child: const Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Row(children: [
+                  Row(children: [
                     Icon(Icons.info_outline, color: kNavy, size: 16),
                     SizedBox(width: 8),
                     Text('How Expense Validation Works',
                         style: TextStyle(fontSize: 13,
                             fontWeight: FontWeight.w800, color: kNavy)),
                   ]),
-                  const SizedBox(height: 8),
-                  const Text(
+                  SizedBox(height: 8),
+                  Text(
                     'When a shift is closed, the system checks reported '
                         'expenses against these rules.\n\n'
                         'Fuel cap = Distance (km) × Fuel Rate (₹/km).\n'
@@ -318,9 +318,9 @@ class _ExpenseRulesScreenState extends ConsumerState<ExpenseRulesScreen> {
         // Caps grid
         Container(
           padding: const EdgeInsets.fromLTRB(14, 10, 14, 14),
-          decoration: BoxDecoration(
+          decoration: const BoxDecoration(
             color: kBgPage,
-            borderRadius: const BorderRadius.vertical(
+            borderRadius: BorderRadius.vertical(
                 bottom: Radius.circular(kRadiusCard)),
           ),
           child: Column(children: [
@@ -419,7 +419,9 @@ class _RuleEditorSheetState extends ConsumerState<_RuleEditorSheet> {
   @override
   void dispose() {
     for (final c in [_fuelCtrl, _allowCtrl, _tollCtrl, _loadCtrl,
-      _miscCtrl, _totalCtrl, _notesCtrl]) c.dispose();
+      _miscCtrl, _totalCtrl, _notesCtrl]) {
+      c.dispose();
+    }
     super.dispose();
   }
 
@@ -457,8 +459,10 @@ class _RuleEditorSheetState extends ConsumerState<_RuleEditorSheet> {
         widget.onSaved();
       }
     } catch (e) {
-      if (mounted) showError(context,
+      if (mounted) {
+        showError(context,
           e.toString().replaceAll('Exception: ', ''));
+      }
     } finally {
       if (mounted) setState(() => _submitting = false);
     }

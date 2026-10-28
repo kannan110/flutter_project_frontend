@@ -261,8 +261,9 @@ class _ZoneRatesTabState extends ConsumerState<_ZoneRatesTab> {
                         minimumSize: const Size(double.infinity, 52)),
                     onPressed: () {
                       final v = double.tryParse(rateCtrl.text.trim());
-                      if (v != null && v > 0)
+                      if (v != null && v > 0) {
                         Navigator.of(ctx, rootNavigator: true).pop(v);
+                      }
                     },
                     child: Text(currentRate == null
                         ? 'Set Zone Rate'
@@ -689,7 +690,7 @@ class _CustomerRatesTabState extends ConsumerState<_CustomerRatesTab> {
 
                 // ── Customer + Product dropdowns ───────────────────────────────
                 DropdownButtonFormField<Map<String, dynamic>>(
-                  value: selR,
+                  initialValue: selR,
                   hint: const Text('Select Customer *'),
                   decoration: const InputDecoration(
                       prefixIcon: Icon(Icons.store_outlined, size: 18)),
@@ -705,7 +706,7 @@ class _CustomerRatesTabState extends ConsumerState<_CustomerRatesTab> {
                 ),
                 const SizedBox(height: 10),
                 DropdownButtonFormField<Map<String, dynamic>>(
-                  value: selP,
+                  initialValue: selP,
                   hint: const Text('Select Product *'),
                   decoration: const InputDecoration(
                       prefixIcon: Icon(Icons.egg_alt_outlined, size: 18)),
@@ -836,7 +837,7 @@ class _CustomerRatesTabState extends ConsumerState<_CustomerRatesTab> {
                       });
                       if (mounted) {
                         final desc = selType.needsAdjustment
-                            ? '${selType.label}: ${adjVal}${selType.type.startsWith('pct') ? '%' : '₹'}'
+                            ? '${selType.label}: $adjVal${selType.type.startsWith('pct') ? '%' : '₹'}'
                             : '${Fmt.amount(rateVal!)}/kg';
                         showSuccess(context,
                             '${selR!['shop_name']} · ${selP!['name']} → $desc ✓');
@@ -1226,8 +1227,9 @@ class _ProductsTabState extends ConsumerState<_ProductsTab> {
   Widget build(BuildContext context) {
     if (_loading) return const LoadingList();
     final grouped = <String, List<Map<String, dynamic>>>{};
-    for (final p in _products)
+    for (final p in _products) {
       grouped.putIfAbsent(p['category'] as String? ?? 'other', () => []).add(p);
+    }
     // FIX (missing products/categories audit): this used to only ever show
     // 'broiler'/'country'/'quail' — any other category (e.g. Duck, Egg,
     // Weaks) was silently unreachable here regardless of whether the
@@ -1481,7 +1483,7 @@ class _ZonesTabState extends ConsumerState<_ZonesTab> {
                         await _c.rpc('manage_zone', params: {
                           'p_action': isEdit ? 'update' : 'create',
                           'p_trader_id': tid,
-                          if (isEdit) 'p_zone_id': existing!['id'],
+                          if (isEdit) 'p_zone_id': existing['id'],
                           'p_zone_name': name,
                           'p_zone_code': code,
                           if (dc.text.trim().isNotEmpty)

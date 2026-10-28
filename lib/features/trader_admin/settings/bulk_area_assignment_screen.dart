@@ -222,7 +222,7 @@ class _S extends ConsumerState<BulkAreaAssignmentScreen> {
               ),
               child: Column(mainAxisSize: MainAxisSize.min, children: [
                 DropdownButtonFormField<String>(
-                  value: _targetAreaId,
+                  initialValue: _targetAreaId,
                   decoration: const InputDecoration(labelText: 'Assign to Delivery Area'),
                   items: _areas.map((a) => DropdownMenuItem(
                       value: a['id'] as String, child: Text(a['area_name'] as String))).toList(),

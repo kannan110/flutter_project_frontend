@@ -47,7 +47,7 @@ class _RS extends ConsumerState<RetailerScreen>
       if (uid == null) return;
       final ru = await _c.from('retailer_users')
           .select('retailer_id').eq('user_id', uid).maybeSingle();
-      _retailerId = (ru as Map<String,dynamic>?)?['retailer_id'] as String?;
+      _retailerId = (ru)?['retailer_id'] as String?;
     }
     _load();
   }
@@ -94,8 +94,10 @@ class _RS extends ConsumerState<RetailerScreen>
           final r = await _c.rpc('get_retailer_order_history', params: {
             'p_retailer_id': rid, 'p_from_date': fromStr, 'p_to_date': toStr,
           }).timeout(const Duration(seconds: 10));
-          if (mounted) setState(() => _history = List<Map<String,dynamic>>.from(
+          if (mounted) {
+            setState(() => _history = List<Map<String,dynamic>>.from(
               (r as Map<String,dynamic>?)?['orders'] as List? ?? []));
+          }
       }
     } catch (e) {
       if (mounted) showError(context, e.toString().replaceAll('Exception: ',''));
@@ -395,10 +397,10 @@ class _RS extends ConsumerState<RetailerScreen>
                       const SizedBox(height: 6),
                       GestureDetector(
                           onTap: () => _cancelOrder(o['id'] as String, status),
-                          child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                            const Icon(Icons.cancel_outlined, size: 14, color: kError),
-                            const SizedBox(width: 4),
-                            const Text('Cancel Order',
+                          child: const Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                            Icon(Icons.cancel_outlined, size: 14, color: kError),
+                            SizedBox(width: 4),
+                            Text('Cancel Order',
                                 style: TextStyle(fontSize: 11, color: kError,
                                     fontWeight: FontWeight.w700)),
                           ])),
@@ -895,7 +897,7 @@ class _RS extends ConsumerState<RetailerScreen>
                                 ? kPrimary : kTextHint, fontWeight: FontWeight.w700)),
                       ]))
                   else DropdownButtonFormField<String>(
-                        value: selectedProductId,
+                        initialValue: selectedProductId,
                         decoration: const InputDecoration(labelText: 'Product *', isDense: true),
                         items: products.map((p) => DropdownMenuItem(
                             value: p['id'] as String,
@@ -970,8 +972,9 @@ class _RS extends ConsumerState<RetailerScreen>
                       onPressed: () async {
                         final qty = double.tryParse(qtyCtrl.text.trim()) ?? 0;
                         if (qty <= 0) { showError(context, 'Enter quantity'); return; }
-                        if (selectedProductId == null && products.isNotEmpty)
+                        if (selectedProductId == null && products.isNotEmpty) {
                           selectedProductId = products.first['id'] as String;
+                        }
                         Navigator.of(ctx, rootNavigator: true).pop();
                         try {
                           // ★ NEW (duplicate-order audit): warn, never block.
@@ -1026,7 +1029,7 @@ class _RS extends ConsumerState<RetailerScreen>
       useRootNavigator: true,
       builder: (c) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kRadiusCard)),
-        title: Row(children: const [
+        title: const Row(children: [
           Icon(Icons.info_outline, color: Colors.orange, size: 20),
           SizedBox(width: 8),
           Text('Possible Duplicate Order', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
@@ -1090,8 +1093,8 @@ class _RS extends ConsumerState<RetailerScreen>
             .eq('order_id', orderId)
             .order('created_at', ascending: false).limit(1).maybeSingle(),
       ]);
-      invoice  = results[0] as Map<String,dynamic>?;
-      delivery = results[1] as Map<String,dynamic>?;
+      invoice  = results[0];
+      delivery = results[1];
     } catch (_) {
       // Non-fatal — order/delivery/invoice may simply not exist yet.
     }
@@ -1209,8 +1212,10 @@ class _RS extends ConsumerState<RetailerScreen>
       _load();
       if (mounted) showSuccess(context, 'Order cancelled.');
     } catch (e) {
-      if (mounted) showError(context,
+      if (mounted) {
+        showError(context,
           e.toString().replaceAll('Exception: ','').replaceAll('PostgrestException: ',''));
+      }
     }
   }
 
@@ -1313,7 +1318,7 @@ class _RS extends ConsumerState<RetailerScreen>
                     IconButton(icon: const Icon(Icons.close),
                         onPressed: () => Navigator.of(ctx, rootNavigator: true).pop()),
                   ]),
-                  DropdownButtonFormField<String>(value: type,
+                  DropdownButtonFormField<String>(initialValue: type,
                       decoration: const InputDecoration(labelText: 'Type', isDense: true),
                       items: const [
                         DropdownMenuItem(value: 'weight_issue',  child: Text('Weight Issue')),
@@ -1489,12 +1494,14 @@ class _RS extends ConsumerState<RetailerScreen>
                 .eq('retailer_id', _retailerId ?? '')
                 .order('created_at', ascending: false).limit(20),
             builder: (ctx, snap) {
-              if (snap.connectionState == ConnectionState.waiting)
+              if (snap.connectionState == ConnectionState.waiting) {
                 return const SizedBox(height: 120, child: LoadingList());
+              }
               final notifs = List<Map<String,dynamic>>.from(snap.data as List? ?? []);
-              if (notifs.any((n) => n['is_read'] == false))
+              if (notifs.any((n) => n['is_read'] == false)) {
                 _c.from('retailer_notifications').update({'is_read': true})
                     .eq('retailer_id', _retailerId ?? '').eq('is_read', false);
+              }
               return DraggableScrollableSheet(expand: false,
                   initialChildSize: 0.6, maxChildSize: 0.9,
                   builder: (_, ctrl) => Column(children: [

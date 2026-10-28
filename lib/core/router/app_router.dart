@@ -102,7 +102,6 @@ import '../../features/delivery_agent/deliveries/agent_deliveries_screen.dart';
 import '../../features/delivery_agent/deliveries/delivery_complete_screen.dart';
 import '../../features/delivery_agent/expenses/expenses_screen.dart';
 import '../../features/delivery_agent/deliveries/delivery_history_screen.dart';
-import '../../features/retailer/retailer_screen.dart';
 import '../../features/supervisor/supervisor_shell.dart';
 import '../../features/supervisor/supervisor_customer_ledger_screen.dart';
 import '../../features/supervisor/supervisor_payment_history_screen.dart';
@@ -281,8 +280,9 @@ final appRouterProvider = Provider<GoRouter>((ref) => GoRouter(
     // ── Not signed in ─────────────────────────────────────────────
     if (user == null) {
       // Allow login, agent-link, and supervisor-link when signed out
-      if (loc == R.splash || loc == R.login || loc == R.agentLink || loc == R.supervisorLink)
+      if (loc == R.splash || loc == R.login || loc == R.agentLink || loc == R.supervisorLink) {
         return null;
+      }
       return R.login;
     }
 
@@ -299,7 +299,9 @@ final appRouterProvider = Provider<GoRouter>((ref) => GoRouter(
     if (user.isSuperAdmin || user.role == UserRole.superAdmin) {
       if (loc.startsWith('/sa/') ||
           loc == R.saDashboard ||
-          loc == R.superAdmin) return null;
+          loc == R.superAdmin) {
+        return null;
+      }
       return R.saDashboard;
     }
 

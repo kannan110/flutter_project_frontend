@@ -75,7 +75,7 @@ class _S extends ConsumerState<ReturnsScreen> {
         birds += (s['quantity_birds'] as num?)?.toInt() ?? 0;
         kg += (s['quantity_kg'] as num?)?.toDouble() ?? 0;
       }
-      if (mounted)
+      if (mounted) {
         setState(() {
           _returns = List<Map<String, dynamic>>.from(r);
           _applySearch(_searchCtrl.text);
@@ -83,6 +83,7 @@ class _S extends ConsumerState<ReturnsScreen> {
           _totalReturnedKg = kg;
           _loading = false;
         });
+      }
     } catch (e) {
       if (mounted) setState(() => _loading = false);
       showError(context, e.toString());

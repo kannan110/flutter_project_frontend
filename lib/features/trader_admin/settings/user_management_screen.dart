@@ -186,19 +186,19 @@ class _S extends ConsumerState<UserManagementScreen> {
                 decoration: BoxDecoration(
                     gradient: const LinearGradient(colors: [kNavy, kNavyMid], begin: Alignment.topLeft, end: Alignment.bottomRight),
                     borderRadius: BorderRadius.circular(kRadiusCard)),
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  const Row(children: [
+                child: const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Row(children: [
                     Icon(Icons.info_outline, color: kGoldLight, size: 18),
                     SizedBox(width: 8),
                     Text('How to add users', style: TextStyle(fontWeight: FontWeight.w800, color: kGoldLight)),
                   ]),
-                  const SizedBox(height: 8),
-                  const Text(
+                  SizedBox(height: 8),
+                  Text(
                       '1. Create the user in Supabase Dashboard → Authentication → Users\n'
                           '2. Come here and tap "Assign Role" on the new user\n'
                           '3. Select their role and tap Update\n\n'
                           'For delivery agents: they can self-register and link via company code RT001',
-                      style: const TextStyle(fontSize: 12, color: Color(0xFFB4C6F4), height: 1.6)),
+                      style: TextStyle(fontSize: 12, color: Color(0xFFB4C6F4), height: 1.6)),
                 ])),
 
             // ── Unassigned users (need attention) ───────────

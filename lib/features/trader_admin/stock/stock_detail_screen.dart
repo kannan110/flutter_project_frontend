@@ -290,14 +290,14 @@ class _S extends ConsumerState<StockDetailScreen> {
             boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8, offset: const Offset(0,2))]),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           // Header
-          Padding(
-              padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
+          const Padding(
+              padding: EdgeInsets.fromLTRB(16, 14, 16, 10),
               child: Row(children: [
-                const Icon(Icons.account_tree_outlined, size: 16, color: kPrimary),
-                const SizedBox(width: 8),
-                const Text('Stock Flow Breakdown', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: kTextMain)),
-                const Spacer(),
-                const Text('All-time cumulative', style: TextStyle(fontSize: 10, color: kTextHint)),
+                Icon(Icons.account_tree_outlined, size: 16, color: kPrimary),
+                SizedBox(width: 8),
+                Text('Stock Flow Breakdown', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: kTextMain)),
+                Spacer(),
+                Text('All-time cumulative', style: TextStyle(fontSize: 10, color: kTextHint)),
               ])),
           const Divider(height: 1),
 

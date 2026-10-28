@@ -276,11 +276,11 @@ class _S extends ConsumerState<InvoicesScreen> {
           border: const Border(bottom: BorderSide(color: kBorder, width: 0.5)),
         );
       },
-      emptyWidget: AsyncStateView(
+      emptyWidget: const AsyncStateView(
         loading: false, empty: true,
         emptyIcon: Icons.receipt_long_outlined,
         emptyMessage: 'No invoices found',
-        child: const SizedBox.shrink(),
+        child: SizedBox.shrink(),
       ),
     );
   }

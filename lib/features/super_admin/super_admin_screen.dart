@@ -61,10 +61,12 @@ class _S extends ConsumerState<SuperAdminScreen> {
       if (mounted) showSuccess(context, '${_actionLabel(action)} ✓');
       _load();
     } catch (e) {
-      if (mounted) showError(context, e.toString()
+      if (mounted) {
+        showError(context, e.toString()
           .replaceAll('Exception: ', '')
           .replaceAll('PostgrestException(message: ', '')
           .replaceAll(')', ''));
+      }
     }
   }
 
@@ -101,7 +103,7 @@ class _S extends ConsumerState<SuperAdminScreen> {
                       style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
                   const SizedBox(height: 8),
                   DropdownButtonFormField<Map<String,dynamic>>(
-                      value: selPlan, isExpanded: true,
+                      initialValue: selPlan, isExpanded: true,
                       decoration: const InputDecoration(hintText: 'Choose plan'),
                       items: activePlans.map((p) {
                         final price = (p['base_price'] as num?) ?? 0;

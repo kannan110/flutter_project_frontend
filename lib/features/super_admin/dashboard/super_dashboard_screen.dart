@@ -245,7 +245,7 @@ class _RevenueBanner extends StatelessWidget {
               colors: [Color(0xFF1A1A2E), Color(0xFF0F3460)],
               begin: Alignment.topLeft, end: Alignment.bottomRight),
           borderRadius: BorderRadius.circular(kRadiusHero),
-          boxShadow: [BoxShadow(color: Color(0x441A1A2E),
+          boxShadow: const [BoxShadow(color: Color(0x441A1A2E),
               blurRadius: 24, offset: Offset(0, 8))]),
       child: Column(children: [
         Row(children: [

@@ -1,11 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:rooster_trader/features/trader_admin/shifts/shift_Expense_validation_rule.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/providers/session_provider.dart';
-import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../shared/layouts/responsive_layout.dart';
 import 'shift_verification_screen.dart';
@@ -41,11 +39,12 @@ class _S extends ConsumerState<ShiftDetailScreen> {
           ? Map<String, dynamic>.from(
           ((res as Map?)?.cast<String, dynamic>()) ?? {})
           : null;
-      if (mounted)
+      if (mounted) {
         setState(() {
           _summary = summary;
           _loading = false;
         });
+      }
       // Pre-load batch loss once we know the shift is closed
       final shiftStatus = summary?['shift']?['status'] as String?;
       if (shiftStatus == 'closed' && _batchLoss == null) {
@@ -64,8 +63,9 @@ class _S extends ConsumerState<ShiftDetailScreen> {
     try {
       final res = await _c
           .rpc('get_batch_loss_summary', params: {'p_shift_id': widget.id});
-      if (mounted)
+      if (mounted) {
         setState(() => _batchLoss = (res as Map?)?.cast<String, dynamic>());
+      }
     } catch (_) {}
   }
 
@@ -161,10 +161,10 @@ class _S extends ConsumerState<ShiftDetailScreen> {
                       borderRadius: BorderRadius.circular(kRadiusCard),
                       border: Border.all(color: kBorderLight)),
                   child: Column(children: [
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
+                    const Padding(
+                      padding: EdgeInsets.only(bottom: 8),
                       child: Row(children: [
-                        const Expanded(flex: 3, child: SizedBox()),
+                        Expanded(flex: 3, child: SizedBox()),
                         SizedBox(width: 80, child: Text('Birds',
                             textAlign: TextAlign.right,
                             style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800,
@@ -278,13 +278,14 @@ class _S extends ConsumerState<ShiftDetailScreen> {
       final lossResult  = (r?['unaccounted_loss_kg'] as num?)?.toDouble() ?? 0;
       final mortResult  = (r?['total_mortality_kg']  as num?)?.toDouble() ?? 0;
       _load();
-      if (mounted)
+      if (mounted) {
         showSuccess(context,
           'Shift approved \u2713\n'
               'Mortality: ${mortResult.toStringAsFixed(2)} kg\n'
               'Weight Variance: ${lossResult.toStringAsFixed(2)} kg\n'
               '${resetBirds > 0 ? 'Stock reset: $resetBirds birds' : 'Stock fully settled'}',
         );
+      }
     } catch (e) {
       if (mounted) showError(context, e.toString().replaceAll('Exception: ', ''));
     } finally {
@@ -377,8 +378,9 @@ class _S extends ConsumerState<ShiftDetailScreen> {
                 child: const Text('Cancel')),
             ElevatedButton(
                 onPressed: () {
-                  if (ctrl.text.trim().isNotEmpty)
+                  if (ctrl.text.trim().isNotEmpty) {
                     Navigator.pop(ctx, ctrl.text.trim());
+                  }
                 },
                 child: const Text('Reject'))
           ],
@@ -424,14 +426,16 @@ class _S extends ConsumerState<ShiftDetailScreen> {
   }
 
   Widget _buildScaffold(BuildContext context) {
-    if (_loading)
+    if (_loading) {
       return const Scaffold(backgroundColor: kBgPage, body: LoadingList());
-    if (_summary == null)
+    }
+    if (_summary == null) {
       return Scaffold(
           backgroundColor: kBgPage,
           appBar: AppBar(
               backgroundColor: kSurface, title: const Text('Shift Detail')),
           body: const Center(child: Text('No data')));
+    }
 
     final shift = _summary!['shift'] as Map<String, dynamic>?;
     final totals = _summary!['totals'] as Map<String, dynamic>?;
@@ -554,7 +558,7 @@ class _S extends ConsumerState<ShiftDetailScreen> {
                                 : null,
                           );
                         }),
-                        Divider(height: 12),
+                        const Divider(height: 12),
                         _trow('Total DC Birds',
                             '${totals?['total_dc_birds'] ?? 0} birds'),
                         _trow('Total DC Weight',
@@ -755,13 +759,13 @@ class _S extends ConsumerState<ShiftDetailScreen> {
                                 fontWeight: FontWeight.w800, color: color)),
                             const Spacer(),
                             // Column headers
-                            SizedBox(width: 68, child: Text('Birds',
+                            const SizedBox(width: 68, child: Text('Birds',
                                 textAlign: TextAlign.right,
-                                style: const TextStyle(fontSize: 9,
+                                style: TextStyle(fontSize: 9,
                                     fontWeight: FontWeight.w700, color: kTextHint))),
-                            SizedBox(width: 72, child: Text('Weight',
+                            const SizedBox(width: 72, child: Text('Weight',
                                 textAlign: TextAlign.right,
-                                style: const TextStyle(fontSize: 9,
+                                style: TextStyle(fontSize: 9,
                                     fontWeight: FontWeight.w700, color: kTextHint))),
                           ]),
                         ),
@@ -1055,14 +1059,16 @@ class _S extends ConsumerState<ShiftDetailScreen> {
   // ══════════════════════════════════════════════════════════════════════
 
   Widget _buildDesktopScaffold(BuildContext context) {
-    if (_loading)
+    if (_loading) {
       return const Scaffold(backgroundColor: kBgPage, body: LoadingList());
-    if (_summary == null)
+    }
+    if (_summary == null) {
       return Scaffold(
           backgroundColor: kBgPage,
           appBar: AppBar(
               backgroundColor: kSurface, title: const Text('Shift Approval')),
           body: const Center(child: Text('No data')));
+    }
 
     final shift = _summary!['shift'] as Map<String, dynamic>?;
     final totals = _summary!['totals'] as Map<String, dynamic>?;
@@ -2277,7 +2283,7 @@ class _S extends ConsumerState<ShiftDetailScreen> {
         startPhoto != null ||
         endPhoto != null;
 
-    if (!hasAnyData)
+    if (!hasAnyData) {
       return Container(
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
@@ -2291,6 +2297,7 @@ class _S extends ConsumerState<ShiftDetailScreen> {
             Text('No odometer data recorded for this shift',
                 style: TextStyle(fontSize: 12, color: kTextHint)),
           ]));
+    }
 
     return Container(
         decoration: BoxDecoration(
@@ -2659,13 +2666,13 @@ class _S extends ConsumerState<ShiftDetailScreen> {
     // transferred-in stock (no DC of its own) is now also valid — the loss
     // formula accounts for transferred_in as inbound stock, so only warn when
     // there's truly no inbound stock at all (neither DC nor transfer).
-    final _checkTotals =
+    final checkTotals =
     (_batchLoss!['shift_totals'] as Map?)?.cast<String, dynamic>();
-    final _checkDcKg =
-        (_checkTotals?['total_dc_weight_kg'] as num?)?.toDouble() ?? 0;
-    final _checkTransferInKg =
-        (_checkTotals?['total_transferred_in_kg'] as num?)?.toDouble() ?? 0;
-    if (_checkDcKg == 0 && _checkTransferInKg == 0) {
+    final checkDcKg =
+        (checkTotals?['total_dc_weight_kg'] as num?)?.toDouble() ?? 0;
+    final checkTransferInKg =
+        (checkTotals?['total_transferred_in_kg'] as num?)?.toDouble() ?? 0;
+    if (checkDcKg == 0 && checkTransferInKg == 0) {
       return Container(
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
@@ -2779,8 +2786,8 @@ class _S extends ConsumerState<ShiftDetailScreen> {
               padding: const EdgeInsets.fromLTRB(14, 14, 14, 8),
               child: Column(children: [
                 // Column headers
-                Row(children: [
-                  const Expanded(flex: 3, child: SizedBox()),
+                const Row(children: [
+                  Expanded(flex: 3, child: SizedBox()),
                   SizedBox(width: 80, child: Text('Birds',
                       textAlign: TextAlign.right,
                       style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800,
@@ -2848,9 +2855,9 @@ class _S extends ConsumerState<ShiftDetailScreen> {
           // Shown for multi-batch shifts using the same formula as shift_totals.
           if (batches.length > 1) ...[
             const Divider(height: 1),
-            Padding(
-                padding: const EdgeInsets.fromLTRB(14, 10, 14, 4),
-                child: const Text('PER-BATCH BREAKDOWN',
+            const Padding(
+                padding: EdgeInsets.fromLTRB(14, 10, 14, 4),
+                child: Text('PER-BATCH BREAKDOWN',
                     style: TextStyle(
                         fontSize: 10,
                         fontWeight: FontWeight.w800,
@@ -2920,8 +2927,8 @@ class _S extends ConsumerState<ShiftDetailScreen> {
                             style: const TextStyle(fontSize: 10, color: kTextHint)),
                         const SizedBox(height: 10),
                         // Reconciliation rows — same layout and formula as shift-level above
-                        Row(children: [
-                          const Expanded(flex: 3, child: SizedBox()),
+                        const Row(children: [
+                          Expanded(flex: 3, child: SizedBox()),
                           SizedBox(width: 76, child: Text('Birds',
                               textAlign: TextAlign.right,
                               style: TextStyle(fontSize: 9, fontWeight: FontWeight.w700,

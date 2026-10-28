@@ -55,7 +55,7 @@ class _S extends ConsumerState<ShiftsScreen> {
   @override
   Widget build(BuildContext context) {
     final pendingApprovals = _shifts.where((s) => s['status'] == 'closed' && s['shift_approval_status'] == 'pending').length;
-    final _scaffold = Scaffold(
+    final scaffold = Scaffold(
       backgroundColor: kBgPage,
       appBar: AppBar(
         backgroundColor: kSurface,
@@ -128,6 +128,6 @@ class _S extends ConsumerState<ShiftsScreen> {
           }))),
       ]),
     );
-    return ResponsiveLayout(mobile: (_) => _scaffold, desktop: (_) => _scaffold);
+    return ResponsiveLayout(mobile: (_) => scaffold, desktop: (_) => scaffold);
   }
 }

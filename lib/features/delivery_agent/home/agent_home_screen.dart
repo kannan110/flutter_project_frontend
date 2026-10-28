@@ -334,8 +334,9 @@ class _S extends ConsumerState<AgentHomeScreen> {
         _load();
       }
     } catch (e) {
-      if (mounted)
+      if (mounted) {
         showError(context, e.toString().replaceAll('Exception: ', ''));
+      }
     }
   }
 
@@ -452,8 +453,8 @@ class _S extends ConsumerState<AgentHomeScreen> {
                       Text(user?.companyName ?? 'Delivery Agent',
                           style: const TextStyle(
                               fontSize: 16, fontWeight: FontWeight.w800)),
-                      Text('Agent',
-                          style: const TextStyle(fontSize: 12, color: kTextHint)),
+                      const Text('Agent',
+                          style: TextStyle(fontSize: 12, color: kTextHint)),
                     ],
                   )),
             ]),
@@ -1396,7 +1397,7 @@ class _S extends ConsumerState<AgentHomeScreen> {
                         Expanded(
                             child: OutlinedButton.icon(
                                 onPressed: () =>
-                                    context.push(R.birdTransferPath(bid!))
+                                    context.push(R.birdTransferPath(bid))
                                         .then((_) { if (mounted) _load(); }),
                                 icon: const Icon(Icons.swap_horiz,
                                     size: 14, color: Colors.purple),
@@ -1455,7 +1456,7 @@ class _S extends ConsumerState<AgentHomeScreen> {
                                     side: const BorderSide(color: Colors.brown)))),
                       ]),
                   ]));
-        }).toList(),
+        }),
       ]);
 
   // ══════════════════════════════════════════════════════════════════════════

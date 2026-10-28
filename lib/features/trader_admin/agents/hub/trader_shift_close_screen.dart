@@ -117,7 +117,9 @@ class _TraderShiftCloseScreenState
       _odoEndCtrl, _returnBirdsCtrl, _returnWtCtrl, _mortalityReasonCtrl,
       _mortReturnBirdsCtrl, _mortReturnWtCtrl, _expAmtCtrl, _expNoteCtrl,
       _dieselCtrl, _allowanceCtrl, _tollCtrl,
-    ]) c.dispose();
+    ]) {
+      c.dispose();
+    }
     super.dispose();
   }
 
@@ -229,7 +231,7 @@ class _TraderShiftCloseScreenState
       final dash = await _c.rpc('get_agent_dashboard',
           params: {'p_agent_id': widget.agentId})
           .timeout(const Duration(seconds: 10));
-      final s = (dash as Map?)?.cast<String, dynamic>()?['stock'] as Map?;
+      final s = (dash as Map?)?.cast<String, dynamic>()['stock'] as Map?;
       stockB = ((s?['available_birds'] as num?)?.toInt()    ?? 0).clamp(0, 999999);
       stockK = ((s?['available_kg']    as num?)?.toDouble() ?? 0).clamp(0.0, 999999.0);
       stockOk = true;
@@ -332,19 +334,22 @@ class _TraderShiftCloseScreenState
         final note = row['notes'] as String? ?? '';
         switch (mt) {
           case 'transferred_in':
-            if (note.isNotEmpty && seen.add(note))
+            if (note.isNotEmpty && seen.add(note)) {
               tNotes.add('IN: $b birds (${k.toStringAsFixed(1)} kg) — $note');
+            }
           case 'transferred_out':
             toB += b; toK += k;
-            if (note.isNotEmpty && seen.add(note))
+            if (note.isNotEmpty && seen.add(note)) {
               tNotes.add('OUT: $b birds (${k.toStringAsFixed(1)} kg) — $note');
+            }
         }
       }
 
       int pendCount = 0; double cash = 0;
       for (final d in deliveries) {
-        if (['assigned','picked_up','out_for_delivery'].contains(d['status']))
+        if (['assigned','picked_up','out_for_delivery'].contains(d['status'])) {
           pendCount++;
+        }
         cash += (d['collected_amount'] as num?)?.toDouble() ?? 0;
       }
 
@@ -447,17 +452,21 @@ class _TraderShiftCloseScreenState
         'Cash: ${Fmt.amount(_totalCash)}\n'
         'Returning: $_returnBirds birds · ${_returnWt.toStringAsFixed(1)} kg\n'
         'Expenses: ${Fmt.amount(_totalExpenses)}';
-    if (_totalMortalityBirds > 0)
+    if (_totalMortalityBirds > 0) {
       msg += '\nMortality: $_totalMortalityBirds birds · '
           '${_totalMortalityKg.toStringAsFixed(2)} kg';
-    if (_transferInBirds > 0 || _transferOutBirds > 0)
+    }
+    if (_transferInBirds > 0 || _transferOutBirds > 0) {
       msg += '\nTransfers: IN $_transferInBirds · OUT $_transferOutBirds birds';
-    if (_shrinkageKg > 0.01)
+    }
+    if (_shrinkageKg > 0.01) {
       msg += '\nShrinkage: ${_shrinkageKg.toStringAsFixed(2)} kg '
           '(${_shrinkagePct.toStringAsFixed(1)}%)';
-    if (_pendingCount > 0)
+    }
+    if (_pendingCount > 0) {
       msg = '⚠️ $_pendingCount deliveries still active.\n'
           'Trader override will close anyway.\n\n$msg';
+    }
 
     final ok = await confirmDialog(context,
         title: 'Close Shift — ${widget.agentName}',
@@ -1117,7 +1126,7 @@ class _TraderShiftCloseScreenState
       }),
       Row(children: [
         Expanded(child: DropdownButtonFormField<String>(
-          value: _expType,
+          initialValue: _expType,
           isDense: true,
           decoration: const InputDecoration(labelText: 'Type',
               contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 10)),

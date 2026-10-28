@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../../../core/providers/session_provider.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../shared/layouts/responsive_layout.dart';
@@ -43,13 +42,15 @@ class _S extends ConsumerState<OrderDetailScreen> {
         .eq('order_id', widget.id)
         .order('created_at', ascending: false);
     final invList = List<Map<String,dynamic>>.from(invRaw as List? ?? []);
-    if (mounted) setState(() {
+    if (mounted) {
+      setState(() {
       _order = o;
       _items = List<Map<String,dynamic>>.from(items);
       _invoices = invList;
       _invoice = invList.isNotEmpty ? invList.first : null;
       _loading = false;
     });
+    }
   }
 
   Future<void> _updateStatus(String s) async {
@@ -109,8 +110,10 @@ class _S extends ConsumerState<OrderDetailScreen> {
                             '-${selectedDate.day.toString().padLeft(2,"0")}',
                       });
                       _load();
-                      if (mounted) showSuccess(context,
+                      if (mounted) {
+                        showSuccess(context,
                           'Order confirmed for ${dateCtrl.text}. Retailer notified.');
+                      }
                     } catch (e) {
                       if (mounted) showError(context, e.toString().replaceAll('Exception: ',''));
                     }
@@ -230,10 +233,12 @@ class _S extends ConsumerState<OrderDetailScreen> {
   @override
   Widget build(BuildContext context) {
     if (_loading) return const Scaffold(backgroundColor: kBgPage, body: LoadingList());
-    if (_order == null) return Scaffold(
+    if (_order == null) {
+      return Scaffold(
         backgroundColor: kBgPage,
         appBar: AppBar(backgroundColor: kSurface),
         body: const Center(child: Text('Not found')));
+    }
 
     final r          = _order!['retailers'] as Map<String,dynamic>?;
     final status     = _order!['status']    as String? ?? 'pending';
@@ -331,13 +336,13 @@ class _S extends ConsumerState<OrderDetailScreen> {
           boxShadow:    kCardShadow,
         ),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(18, 16, 18, 0),
+          const Padding(
+            padding: EdgeInsets.fromLTRB(18, 16, 18, 0),
             child: Row(children: [
-              const Icon(Icons.shopping_basket_outlined,
+              Icon(Icons.shopping_basket_outlined,
                   color: kGold, size: 16),
-              const SizedBox(width: 8),
-              const Text('ORDER ITEMS',
+              SizedBox(width: 8),
+              Text('ORDER ITEMS',
                   style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900,
                       color: kNavy, letterSpacing: 0.6)),
             ]),
@@ -530,16 +535,16 @@ class _S extends ConsumerState<OrderDetailScreen> {
               borderRadius: BorderRadius.circular(kRadiusCard),
               border:       Border.all(color: Colors.orange.withValues(alpha: 0.35)),
             ),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            child: const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Row(children: [
-                const Icon(Icons.store_outlined, size: 14, color: Colors.orange),
-                const SizedBox(width: 6),
-                const Text('Retailer Order — Awaiting Confirmation',
+                Icon(Icons.store_outlined, size: 14, color: Colors.orange),
+                SizedBox(width: 6),
+                Text('Retailer Order — Awaiting Confirmation',
                     style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800,
                         color: Colors.orange)),
               ]),
-              const SizedBox(height: 4),
-              const Text('Review the order, set delivery date and confirm.',
+              SizedBox(height: 4),
+              Text('Review the order, set delivery date and confirm.',
                   style: TextStyle(fontSize: 11, color: kTextSub)),
             ]),
           ),
@@ -567,16 +572,16 @@ class _S extends ConsumerState<OrderDetailScreen> {
               borderRadius: BorderRadius.circular(kRadiusCard),
               border:       Border.all(color: Colors.orange.withValues(alpha: 0.35)),
             ),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            child: const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Row(children: [
-                const Icon(Icons.delivery_dining_outlined, size: 14, color: Colors.orange),
-                const SizedBox(width: 6),
-                const Text('Agent Order — Awaiting Approval',
+                Icon(Icons.delivery_dining_outlined, size: 14, color: Colors.orange),
+                SizedBox(width: 6),
+                Text('Agent Order — Awaiting Approval',
                     style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800,
                         color: Colors.orange)),
               ]),
-              const SizedBox(height: 4),
-              const Text('Entered by delivery agent before shift. Review and approve, or cancel below.',
+              SizedBox(height: 4),
+              Text('Entered by delivery agent before shift. Review and approve, or cancel below.',
                   style: TextStyle(fontSize: 11, color: kTextSub)),
             ]),
           ),

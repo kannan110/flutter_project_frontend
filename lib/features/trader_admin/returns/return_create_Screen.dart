@@ -83,8 +83,12 @@ class _S extends ConsumerState<ReturnCreateScreen> {
   void dispose() {
     _customerSearchCtrl.dispose();
     _remarksCtrl.dispose();
-    for (final ctrl in _weightCtrls) ctrl.dispose();
-    for (final ctrl in _birdCtrls) ctrl.dispose();
+    for (final ctrl in _weightCtrls) {
+      ctrl.dispose();
+    }
+    for (final ctrl in _birdCtrls) {
+      ctrl.dispose();
+    }
     super.dispose();
   }
 
@@ -209,8 +213,12 @@ class _S extends ConsumerState<ReturnCreateScreen> {
           .select('id,product_id,product_name,bird_count,weight_kg,rate_per_kg,line_total')
           .eq('invoice_id', invoice['id']);
       if (!mounted) return;
-      for (final ctrl in _weightCtrls) ctrl.dispose();
-      for (final ctrl in _birdCtrls) ctrl.dispose();
+      for (final ctrl in _weightCtrls) {
+        ctrl.dispose();
+      }
+      for (final ctrl in _birdCtrls) {
+        ctrl.dispose();
+      }
       _weightCtrls.clear();
       _birdCtrls.clear();
       final lines = List<Map<String, dynamic>>.from(rows);
@@ -443,7 +451,7 @@ class _S extends ConsumerState<ReturnCreateScreen> {
             onTap: () => _selectDelivery(d),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Row(children: [
-                Icon(Icons.event_outlined, size: 14, color: kTextHint),
+                const Icon(Icons.event_outlined, size: 14, color: kTextHint),
                 const SizedBox(width: 4),
                 Text(date != null ? DateFormat('d MMM y').format(date) : '—',
                     style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14)),
@@ -577,7 +585,7 @@ class _S extends ConsumerState<ReturnCreateScreen> {
       ),
       const SizedBox(height: 12),
       DropdownButtonFormField<String>(
-        value: _reason,
+        initialValue: _reason,
         isExpanded: true,
         decoration: const InputDecoration(labelText: 'Reason *', border: OutlineInputBorder()),
         items: _reasons.map((r) => DropdownMenuItem(value: r, child: Text(r))).toList(),

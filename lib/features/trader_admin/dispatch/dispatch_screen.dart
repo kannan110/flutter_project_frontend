@@ -349,8 +349,8 @@ class _S extends ConsumerState<DispatchScreen> with SingleTickerProviderStateMix
         'p_order_ids': orderIds,
       });
       final added = (res as Map?)?['added_count'] as int? ?? orderIds.length;
-      final failed = (res as Map?)?['failed'] as List? ?? const [];
-      final batchId = (res as Map?)?['batch_id'] as String?;
+      final failed = (res)?['failed'] as List? ?? const [];
+      final batchId = (res)?['batch_id'] as String?;
       setState(() => _cart.removeWhere(orderIds.contains));
       _silentRefresh();
       if (mounted && batchId != null) {
@@ -540,7 +540,7 @@ class _S extends ConsumerState<DispatchScreen> with SingleTickerProviderStateMix
           ]),
         ]),
       ),
-      Divider(height: 1, color: kBorderLight),
+      const Divider(height: 1, color: kBorderLight),
       if (hasUnassigned) _unassignedBanner(),
       Expanded(
         child: groups.isEmpty
@@ -678,7 +678,7 @@ class _S extends ConsumerState<DispatchScreen> with SingleTickerProviderStateMix
         ),
         if (expanded) ...[
           const SizedBox(height: 10),
-          Divider(height: 1, color: kBorderLight),
+          const Divider(height: 1, color: kBorderLight),
           const SizedBox(height: 8),
           _areaExpandedSection(g),
         ],

@@ -54,10 +54,12 @@ class _RetailerInvoiceDetailScreenState extends State<RetailerInvoiceDetailScree
         });
       }
     } catch (e) {
-      if (mounted) setState(() {
+      if (mounted) {
+        setState(() {
         _error = e.toString().replaceAll('Exception: ', '').replaceAll('PostgrestException: ', '');
         _loading = false;
       });
+      }
     }
   }
 

@@ -74,8 +74,8 @@ class _RLS extends ConsumerState<RetailerLinkScreen> {
                     // Logo / icon
                     Center(child: Container(
                         width: 80, height: 80,
-                        decoration: BoxDecoration(
-                            gradient: const LinearGradient(colors: [kNavy, kNavyMid], begin: Alignment.topLeft, end: Alignment.bottomRight),
+                        decoration: const BoxDecoration(
+                            gradient: LinearGradient(colors: [kNavy, kNavyMid], begin: Alignment.topLeft, end: Alignment.bottomRight),
                             shape: BoxShape.circle,
                             boxShadow: kCardShadow),
                         child: const Icon(Icons.store_outlined, size: 38, color: kGoldLight))),
@@ -87,11 +87,11 @@ class _RLS extends ConsumerState<RetailerLinkScreen> {
 
                     const SizedBox(height: 8),
 
-                    Center(child: Text(
+                    const Center(child: Text(
                         'Your supplier (trader) will share a 6-character code with you.\n'
                             'Enter it below to link your account.',
                         textAlign: TextAlign.center,
-                        style: const TextStyle(fontSize: 13, color: kTextSub, height: 1.4))),
+                        style: TextStyle(fontSize: 13, color: kTextSub, height: 1.4))),
 
                     const SizedBox(height: 40),
 

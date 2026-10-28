@@ -102,7 +102,9 @@ class _S extends ConsumerState<PendingOrderScreen> {
     _localMessengerKey.currentState?.clearSnackBars();
     _notesCtrl.dispose();
     _scrollCtrl.dispose();
-    for (final l in _lines) l.dispose();
+    for (final l in _lines) {
+      l.dispose();
+    }
     super.dispose();
   }
 
@@ -243,7 +245,9 @@ class _S extends ConsumerState<PendingOrderScreen> {
 
       // Stay on this screen and refresh — the agent should see their orders
       // appear in "My Submitted Orders" immediately, not navigate away blind.
-      for (final l in _lines) l.dispose();
+      for (final l in _lines) {
+        l.dispose();
+      }
       _notesCtrl.clear();
       setState(() {
         _lines = [_AgentPendingLine()];
@@ -258,9 +262,11 @@ class _S extends ConsumerState<PendingOrderScreen> {
           .replaceAll('Exception: ', '')
           .replaceAll('PostgrestException(message: ', '')
           .replaceAll(')', '');
-      if (mounted) setState(() {
+      if (mounted) {
+        setState(() {
         _err = created == 0 ? msg : '$created of ${validLines.length} orders submitted before this failed: $msg';
       });
+      }
     } finally {
       if (mounted) setState(() => _submitting = false);
     }

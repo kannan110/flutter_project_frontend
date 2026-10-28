@@ -190,7 +190,7 @@ class _S extends ConsumerState<RatesScreen> {
                           Text(Fmt.amount(r),
                               style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900,
                                   color: isLatest ? kPrimary : kTextMain)),
-                          Text('/kg', style: const TextStyle(fontSize: 10, color: kTextHint)),
+                          const Text('/kg', style: TextStyle(fontSize: 10, color: kTextHint)),
                         ]));
                   })),
             ])));
@@ -307,7 +307,7 @@ class _S extends ConsumerState<RatesScreen> {
                             color: isLatest ? kPrimary.withValues(alpha: 0.08) : Colors.transparent,
                             borderRadius: BorderRadius.circular(6)),
                         child: Column(children: [
-                          Text('${Fmt.amount(r)}',
+                          Text(Fmt.amount(r),
                               style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800,
                                   color: isLatest ? kPrimary : kTextSub)),
                           Text(d != null ? DateFormat('d MMM').format(d) : '--',

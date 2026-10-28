@@ -20,8 +20,9 @@ class AgentShell extends ConsumerWidget {
         loc.startsWith('/a/order/');
 
     int idx = 0;
-    if (loc.startsWith('/a/deliveries') || loc.startsWith('/a/delivery')) idx = 1;
-    else if (loc.startsWith('/a/expenses'))  idx = 2;
+    if (loc.startsWith('/a/deliveries') || loc.startsWith('/a/delivery')) {
+      idx = 1;
+    } else if (loc.startsWith('/a/expenses'))  idx = 2;
     else if (loc.startsWith('/a/shift'))     idx = 3;
 
     if (isSubScreen) return Scaffold(body: child);

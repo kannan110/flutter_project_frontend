@@ -709,10 +709,10 @@ class _NextDeliveryCard extends StatelessWidget {
         // ACTIVE DELIVERY header
         Container(
           padding: const EdgeInsets.fromLTRB(18, 12, 18, 10),
-          decoration: BoxDecoration(
-            color: const Color(0xFFEFF6FF),
+          decoration: const BoxDecoration(
+            color: Color(0xFFEFF6FF),
             borderRadius:
-            const BorderRadius.vertical(top: Radius.circular(kRadiusHero)),
+            BorderRadius.vertical(top: Radius.circular(kRadiusHero)),
           ),
           child: Row(children: [
             const Icon(Icons.local_shipping_rounded,

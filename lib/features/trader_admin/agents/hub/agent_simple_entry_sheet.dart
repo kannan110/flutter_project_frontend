@@ -75,7 +75,7 @@ class _AgentSimpleEntrySheetState extends ConsumerState<AgentSimpleEntrySheet> {
   List<Map<String, dynamic>> _retailers = [];
   List<Map<String, dynamic>> _products = [];
   Map<String, dynamic>? _selRetailer;
-  List<_SimpleLine> _lines = [_SimpleLine()];
+  final List<_SimpleLine> _lines = [_SimpleLine()];
 
   String _entryMode = 'called';
   String _payMode = 'credit';
@@ -95,7 +95,9 @@ class _AgentSimpleEntrySheetState extends ConsumerState<AgentSimpleEntrySheet> {
 
   @override
   void dispose() {
-    for (final l in _lines) l.dispose();
+    for (final l in _lines) {
+      l.dispose();
+    }
     super.dispose();
   }
 
@@ -200,7 +202,7 @@ class _AgentSimpleEntrySheetState extends ConsumerState<AgentSimpleEntrySheet> {
       useRootNavigator: true,
       builder: (c) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kRadiusCard)),
-        title: Row(children: const [
+        title: const Row(children: [
           Icon(Icons.info_outline, color: Colors.orange, size: 20),
           SizedBox(width: 8),
           Text('Possible Duplicate Order', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
@@ -628,7 +630,7 @@ class _ProductRow extends StatelessWidget {
             children: [
               Expanded(
                 child: DropdownButtonFormField<Map<String, dynamic>>(
-                  value: line.product,
+                  initialValue: line.product,
                   isExpanded: true,
                   decoration: const InputDecoration(
                     hintText: 'Select product',

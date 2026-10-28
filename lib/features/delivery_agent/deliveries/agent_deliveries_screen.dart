@@ -56,18 +56,20 @@ class _S extends ConsumerState<AgentDeliveriesScreen> {
           'order_items(master_products(name)))')
           .eq('delivery_agent_id', agentId);
 
-      if (_filter == 'active')
+      if (_filter == 'active') {
         q = q.inFilter('status', ['assigned', 'picked_up', 'out_for_delivery']);
-      else if (_filter == 'done')
+      } else if (_filter == 'done')
         q = q.eq('status', 'delivered');
 
       final data = await q.order('created_at', ascending: false).limit(100);
       if (!mounted) return;
-      if (mounted) setState(() {
+      if (mounted) {
+        setState(() {
         _list    = List<Map<String,dynamic>>.from(data);
         _loading = false;
         _applySearch(_searchCtrl.text);
       });
+      }
     } catch (e) {
       if (mounted) setState(() => _loading = false);
     }
@@ -192,8 +194,8 @@ class _S extends ConsumerState<AgentDeliveriesScreen> {
               Text(_filter == 'active' ? 'No active deliveries' : 'No deliveries found',
                   style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: kTextSub)),
               const SizedBox(height: 8),
-              Text('Waiting for admin to assign work',
-                  style: const TextStyle(fontSize: 14, color: kTextHint)),
+              const Text('Waiting for admin to assign work',
+                  style: TextStyle(fontSize: 14, color: kTextHint)),
             ]),
           )
               : RefreshIndicator(
@@ -318,7 +320,7 @@ class _S extends ConsumerState<AgentDeliveriesScreen> {
                 );
               }),
               if (address != null)
-                Text(address!, style: const TextStyle(fontSize: 12, color: kTextHint),
+                Text(address, style: const TextStyle(fontSize: 12, color: kTextHint),
                     maxLines: 1, overflow: TextOverflow.ellipsis),
             ]),
           ),

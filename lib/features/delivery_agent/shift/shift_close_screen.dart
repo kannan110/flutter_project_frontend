@@ -231,10 +231,12 @@ class _S extends ConsumerState<ShiftCloseScreen> {
     // HARD BLOCK: total returned birds exceed system stock count
     if (_returnExceedsStock) return _RStatus.returnExceedsStock;
     // Mortality proof photo is REQUIRED before close
-    if (_mortalityBirds > 0 && _mortalityPhotoUrl == null)
+    if (_mortalityBirds > 0 && _mortalityPhotoUrl == null) {
       return _RStatus.mortProofRequired;
-    if (_mortReturnBirds > 0 && _mortReturnPhotoUrl == null)
+    }
+    if (_mortReturnBirds > 0 && _mortReturnPhotoUrl == null) {
       return _RStatus.mortProofRequired;
+    }
     if (_birdVariance > 5) return _RStatus.mismatch;
     if (_shrinkagePct > 5) return _RStatus.highShrinkage;
     if (_shrinkagePct > 2) return _RStatus.approvalNeeded;
@@ -329,7 +331,7 @@ class _S extends ConsumerState<ShiftCloseScreen> {
     // Query ALL agent ledger rows for today — transfers are date-based not shift-linked.
     Map<String, dynamic> recon = {};
     try {
-      final shiftDate = shift!['shift_start_at'] != null
+      final shiftDate = shift['shift_start_at'] != null
           ? DateTime.tryParse(shift['shift_start_at'] as String)
           ?.toIso8601String()
           .split('T')[0]
@@ -421,8 +423,9 @@ class _S extends ConsumerState<ShiftCloseScreen> {
       int pendCount = 0;
       double cash = 0;
       for (final d in deliveries) {
-        if (['assigned', 'picked_up', 'out_for_delivery'].contains(d['status']))
+        if (['assigned', 'picked_up', 'out_for_delivery'].contains(d['status'])) {
           pendCount++;
+        }
         cash += (d['collected_amount'] as num?)?.toDouble() ?? 0;
       }
 
@@ -448,7 +451,7 @@ class _S extends ConsumerState<ShiftCloseScreen> {
       };
     } catch (_) {}
 
-    if (mounted)
+    if (mounted) {
       setState(() {
         _shift = shift;
         _deliveries = deliveries;
@@ -468,6 +471,7 @@ class _S extends ConsumerState<ShiftCloseScreen> {
           _showMortality = true; // force open so agent sees the required photo
         }
       });
+    }
   }
 
   // ── Photo upload ─────────────────────────────────────────────────────────
@@ -493,66 +497,72 @@ class _S extends ConsumerState<ShiftCloseScreen> {
           _uploadingOdo = true;
         });
         final u = await _upload(f, 'odometer');
-        if (mounted)
+        if (mounted) {
           setState(() {
             _odoPhotoUrl = u;
             _uploadingOdo = false;
           });
+        }
       } else if (type == 'mortality') {
         setState(() {
           _mortalityPhotoFile = f;
           _uploadingMortality = true;
         });
         final u = await _upload(f, 'mortality');
-        if (mounted)
+        if (mounted) {
           setState(() {
             _mortalityPhotoUrl = u;
             _uploadingMortality = false;
           });
+        }
       } else if (type == 'return') {
         setState(() {
           _returnPhotoFile = f;
           _uploadingReturn = true;
         });
         final u = await _upload(f, 'return-stock');
-        if (mounted)
+        if (mounted) {
           setState(() {
             _returnPhotoUrl = u;
             _uploadingReturn = false;
           });
+        }
       } else if (type == 'return-slip') {
         setState(() {
           _returnSlipFile = f;
           _uploadingReturnSlip = true;
         });
         final u = await _upload(f, 'return-slip');
-        if (mounted)
+        if (mounted) {
           setState(() {
             _returnSlipUrl = u;
             _uploadingReturnSlip = false;
           });
+        }
       } else if (type == 'mort-return') {
         setState(() {
           _mortReturnPhotoFile = f;
           _uploadingMortReturn = true;
         });
         final u = await _upload(f, 'mortality-return');
-        if (mounted)
+        if (mounted) {
           setState(() {
             _mortReturnPhotoUrl = u;
             _uploadingMortReturn = false;
           });
+        }
       } else if (type == 'mort-return-slip') {
         setState(() {
           _mortReturnSlipFile = f;
           _uploadingMortReturnSlip = true;
         });
         final u = await _upload(f, 'mortality-return-slip');
-        if (mounted)
+        if (mounted) {
           setState(() {
             _mortReturnSlipUrl = u;
             _uploadingMortReturnSlip = false;
           });
+        }
       }
     } catch (_) {}
   }
@@ -603,21 +613,26 @@ class _S extends ConsumerState<ShiftCloseScreen> {
         'Collected: ${Fmt.amount(_totalCash)}\n'
         'Returning: $_returnBirds birds · ${_returnWt.toStringAsFixed(1)} kg\n'
         'Expenses: ${Fmt.amount(_totalExpenses)}';
-    if (_totalMortalityBirds > 0)
+    if (_totalMortalityBirds > 0) {
       msg +=
-      '\nMortality: ${_totalMortalityBirds} birds · ${_totalMortalityKg.toStringAsFixed(2)} kg';
-    if (_transferInBirds > 0 || _transferOutBirds > 0)
+      '\nMortality: $_totalMortalityBirds birds · ${_totalMortalityKg.toStringAsFixed(2)} kg';
+    }
+    if (_transferInBirds > 0 || _transferOutBirds > 0) {
       msg +=
-      '\nTransfers: IN ${_transferInBirds} · OUT ${_transferOutBirds} birds';
-    if (_shrinkageKg > 0.01)
+      '\nTransfers: IN $_transferInBirds · OUT $_transferOutBirds birds';
+    }
+    if (_shrinkageKg > 0.01) {
       msg +=
       '\nShrinkage: ${_shrinkageKg.toStringAsFixed(2)} kg (${_shrinkagePct.toStringAsFixed(1)}%)';
-    if (st == _RStatus.mismatch)
+    }
+    if (st == _RStatus.mismatch) {
       msg =
       '⚠️ Bird mismatch: $_birdVariance birds unaccounted.\nTrader will review.\n\n$msg';
-    if (st == _RStatus.highShrinkage)
+    }
+    if (st == _RStatus.highShrinkage) {
       msg =
       '🔴 High shrinkage: ${_shrinkagePct.toStringAsFixed(1)}%\nTrader approval required.\n\n$msg';
+    }
 
     final ok = await confirmDialog(context,
         title: 'Close Shift',
@@ -1140,8 +1155,8 @@ class _S extends ConsumerState<ShiftCloseScreen> {
             _alert(
                 Icons.block,
                 '⛔ Return exceeds available stock: '
-                    '${_returnBirds} live + ${_mortReturnBirds} dead = ${_returnBirds + _mortReturnBirds} birds '
-                    '> ${_stockBirds} in system. '
+                    '$_returnBirds live + $_mortReturnBirds dead = ${_returnBirds + _mortReturnBirds} birds '
+                    '> $_stockBirds in system. '
                     'Recount and correct before closing.',
                 Colors.red.shade900),
           ],
@@ -1362,7 +1377,7 @@ class _S extends ConsumerState<ShiftCloseScreen> {
     final hasMort = _mortalityBirds > 0;
     final hasReturnMort = _mortReturnBirds > 0;
     final badgeText = hasMort || hasReturnMort
-        ? '${_totalMortalityBirds} birds total'
+        ? '$_totalMortalityBirds birds total'
         : 'None';
     return _Card(
         title: '5. Mortality & Return Mortality',
@@ -1420,10 +1435,10 @@ class _S extends ConsumerState<ShiftCloseScreen> {
                 onTap: () => _capture('mortality')),
             if (hasMort && _mortalityPhotoUrl == null) ...[
               const SizedBox(height: 4),
-              Row(children: [
-                const Icon(Icons.block, color: Colors.red, size: 12),
-                const SizedBox(width: 4),
-                const Expanded(
+              const Row(children: [
+                Icon(Icons.block, color: Colors.red, size: 12),
+                SizedBox(width: 4),
+                Expanded(
                     child: Text(
                         'Shift cannot be closed until mortality photo is captured',
                         style: TextStyle(
@@ -1524,7 +1539,7 @@ class _S extends ConsumerState<ShiftCloseScreen> {
             _alert(
                 Icons.info_outline,
                 'Return mortality: $_mortReturnBirds birds · ${_mortReturnWtEffective.toStringAsFixed(2)} kg included in reconciliation'
-                    '${_mortReturnWt == 0 && _mortReturnBirds > 0 ? '\n⚡ Auto-calc: ${_mortReturnBirds} × ${_dcAvgBirdWeightKg.toStringAsFixed(3)} kg (DC avg)' : ' (actual weighed)'}',
+                    '${_mortReturnWt == 0 && _mortReturnBirds > 0 ? '\n⚡ Auto-calc: $_mortReturnBirds × ${_dcAvgBirdWeightKg.toStringAsFixed(3)} kg (DC avg)' : ' (actual weighed)'}',
                 Colors.deepOrange),
           ],
           const SizedBox(height: 8),
@@ -1543,7 +1558,7 @@ class _S extends ConsumerState<ShiftCloseScreen> {
                       color: Colors.red, size: 14),
                   const SizedBox(width: 8),
                   Text(
-                      'Total mortality: ${_totalMortalityBirds} birds · ${_totalMortalityKg.toStringAsFixed(2)} kg',
+                      'Total mortality: $_totalMortalityBirds birds · ${_totalMortalityKg.toStringAsFixed(2)} kg',
                       style: const TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.w700,
@@ -1602,7 +1617,7 @@ class _S extends ConsumerState<ShiftCloseScreen> {
         Row(children: [
           Expanded(
               child: DropdownButtonFormField<String>(
-                  value: _expType,
+                  initialValue: _expType,
                   isDense: true,
                   decoration: const InputDecoration(
                       labelText: 'Type',
@@ -1968,10 +1983,10 @@ class _S extends ConsumerState<ShiftCloseScreen> {
         ],
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [
-          const Text('⏱️', style: TextStyle(fontSize: 24)),
-          const SizedBox(width: 10),
-          const Expanded(
+        const Row(children: [
+          Text('⏱️', style: TextStyle(fontSize: 24)),
+          SizedBox(width: 10),
+          Expanded(
               child: Text('Shift Summary',
                   style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800))),
         ]),
@@ -2042,10 +2057,10 @@ class _S extends ConsumerState<ShiftCloseScreen> {
         Row(children: [
           const Text('🚛', style: TextStyle(fontSize: 24)),
           const SizedBox(width: 10),
-          Expanded(
+          const Expanded(
             child: Text('Delivery Summary',
                 style:
-                const TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
+                TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
           ),
           if (pending.isNotEmpty)
             Container(
@@ -2105,11 +2120,11 @@ class _S extends ConsumerState<ShiftCloseScreen> {
               borderRadius: BorderRadius.circular(10),
               border: Border.all(color: Colors.red.shade200),
             ),
-            child: Row(children: [
-              const Icon(Icons.sentiment_dissatisfied_outlined,
+            child: const Row(children: [
+              Icon(Icons.sentiment_dissatisfied_outlined,
                   color: Colors.red, size: 18),
-              const SizedBox(width: 8),
-              const Expanded(
+              SizedBox(width: 8),
+              Expanded(
                   child: Text('Mortality recorded',
                       style: TextStyle(
                           fontSize: 12,
@@ -2360,11 +2375,11 @@ class _S extends ConsumerState<ShiftCloseScreen> {
               borderRadius: BorderRadius.circular(10),
               border: Border.all(color: Colors.orange.shade200),
             ),
-            child: Row(children: [
-              const Icon(Icons.warning_amber_rounded,
+            child: const Row(children: [
+              Icon(Icons.warning_amber_rounded,
                   color: Colors.orange, size: 18),
-              const SizedBox(width: 8),
-              const Expanded(
+              SizedBox(width: 8),
+              Expanded(
                   child: Text('Bird mismatch — trader will be notified',
                       style: TextStyle(
                           fontSize: 12,
@@ -2763,11 +2778,11 @@ class _S extends ConsumerState<ShiftCloseScreen> {
           ),
           child:
           Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Row(children: [
-              const Icon(Icons.warning_amber_rounded,
+            const Row(children: [
+              Icon(Icons.warning_amber_rounded,
                   color: Colors.deepOrange, size: 18),
-              const SizedBox(width: 8),
-              const Expanded(
+              SizedBox(width: 8),
+              Expanded(
                   child: Text('Mortality During Return',
                       style: TextStyle(
                           fontSize: 14,
@@ -2874,7 +2889,7 @@ class _S extends ConsumerState<ShiftCloseScreen> {
               const SizedBox(width: 8),
               Expanded(
                   child: Text(
-                      'Total mortality: ${_totalMortalityBirds} birds · ${_totalMortalityKg.toStringAsFixed(2)} kg',
+                      'Total mortality: $_totalMortalityBirds birds · ${_totalMortalityKg.toStringAsFixed(2)} kg',
                       style: const TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.w700,
@@ -2907,10 +2922,10 @@ class _S extends ConsumerState<ShiftCloseScreen> {
         ],
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [
-          const Text('⛽', style: TextStyle(fontSize: 24)),
-          const SizedBox(width: 10),
-          const Expanded(
+        const Row(children: [
+          Text('⛽', style: TextStyle(fontSize: 24)),
+          SizedBox(width: 10),
+          Expanded(
               child: Text('Odometer Reading',
                   style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800))),
         ]),
@@ -3074,7 +3089,7 @@ class _S extends ConsumerState<ShiftCloseScreen> {
         Row(children: [
           Expanded(
             child: DropdownButtonFormField<String>(
-              value: _expType,
+              initialValue: _expType,
               isDense: true,
               decoration: InputDecoration(
                 labelText: 'Type',
@@ -3349,7 +3364,7 @@ class _S extends ConsumerState<ShiftCloseScreen> {
           file != null
               ? ClipRRect(
               borderRadius: BorderRadius.circular(6),
-              child: Image.file(file!,
+              child: Image.file(file,
                   width: 44, height: 44, fit: BoxFit.cover))
               : Container(
               width: 44,

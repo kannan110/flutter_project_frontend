@@ -237,7 +237,7 @@ class CustomerLedgerPrintBuilder {
   static const double _halfSafety    = 8;    // spare points
 
   static int get _halfRowsPerSlot {
-    final avail = _halfSlotH -
+    const avail = _halfSlotH -
         _halfHeaderEst -
         _halfBlockGap -
         _halfRowH - // the table's own header row
@@ -673,7 +673,7 @@ class CustomerLedgerPrintBuilder {
           : pw.SizedBox(height: gap),
     );
 
-    final perSheet = _halfTwoPerA4 ? 2 : 1;
+    const perSheet = _halfTwoPerA4 ? 2 : 1;
     for (var i = 0; i < totalHalves; i += perSheet) {
       final hasSecond = _halfTwoPerA4 && i + 1 < totalHalves;
       doc.addPage(pw.Page(
@@ -995,13 +995,13 @@ class CustomerLedgerPrintBuilder {
 
     return pw.Table(
       border: bw
-          ? pw.TableBorder(
-        top: const pw.BorderSide(color: PdfColors.black, width: 1.0),
-        bottom: const pw.BorderSide(color: PdfColors.black, width: 1.0),
-        left: const pw.BorderSide(color: PdfColors.black, width: 1.0),
-        right: const pw.BorderSide(color: PdfColors.black, width: 1.0),
-        horizontalInside: const pw.BorderSide(color: PdfColors.black, width: 0.4),
-        verticalInside: const pw.BorderSide(color: PdfColors.black, width: 0.4),
+          ? const pw.TableBorder(
+        top: pw.BorderSide(color: PdfColors.black, width: 1.0),
+        bottom: pw.BorderSide(color: PdfColors.black, width: 1.0),
+        left: pw.BorderSide(color: PdfColors.black, width: 1.0),
+        right: pw.BorderSide(color: PdfColors.black, width: 1.0),
+        horizontalInside: pw.BorderSide(color: PdfColors.black, width: 0.4),
+        verticalInside: pw.BorderSide(color: PdfColors.black, width: 0.4),
       )
           : pw.TableBorder.all(color: _border, width: 0.4),
       columnWidths: size.columnWidths,
@@ -1180,13 +1180,13 @@ class CustomerLedgerPrintBuilder {
       headers: headers,
       data: data,
       border: bw
-          ? pw.TableBorder(
-        top: const pw.BorderSide(color: PdfColors.black, width: 1.0),
-        bottom: const pw.BorderSide(color: PdfColors.black, width: 1.0),
-        left: const pw.BorderSide(color: PdfColors.black, width: 1.0),
-        right: const pw.BorderSide(color: PdfColors.black, width: 1.0),
-        horizontalInside: const pw.BorderSide(color: PdfColors.black, width: 0.4),
-        verticalInside: const pw.BorderSide(color: PdfColors.black, width: 0.4),
+          ? const pw.TableBorder(
+        top: pw.BorderSide(color: PdfColors.black, width: 1.0),
+        bottom: pw.BorderSide(color: PdfColors.black, width: 1.0),
+        left: pw.BorderSide(color: PdfColors.black, width: 1.0),
+        right: pw.BorderSide(color: PdfColors.black, width: 1.0),
+        horizontalInside: pw.BorderSide(color: PdfColors.black, width: 0.4),
+        verticalInside: pw.BorderSide(color: PdfColors.black, width: 0.4),
       )
           : pw.TableBorder.all(color: _border, width: 0.4),
       headerDecoration: bw

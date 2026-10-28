@@ -406,7 +406,7 @@ class _S extends ConsumerState<CustomerLedgerReportScreen> {
           border: Border.all(color: kBorder),
         ),
         child: Row(children: [
-          Icon(Icons.search, size: 18, color: kTextHint),
+          const Icon(Icons.search, size: 18, color: kTextHint),
           const SizedBox(width: 8),
           Expanded(
             child: Text(label,

@@ -55,7 +55,7 @@ class _S extends ConsumerState<AlertsScreen> {
   @override
   Widget build(BuildContext context) {
     final tid = ref.read(appUserProvider).valueOrNull?.traderId;
-    final _scaffold = Scaffold(
+    final scaffold = Scaffold(
       backgroundColor: kBgPage,
       appBar: AppBar(
         backgroundColor: kSurface,
@@ -105,6 +105,6 @@ class _S extends ConsumerState<AlertsScreen> {
                     ])));
           }),
     );
-    return ResponsiveLayout(mobile: (_) => _scaffold, desktop: (_) => _scaffold);
+    return ResponsiveLayout(mobile: (_) => scaffold, desktop: (_) => scaffold);
   }
 }

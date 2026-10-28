@@ -142,10 +142,11 @@ class _S extends ConsumerState<AgentMyOrdersScreen> {
           leading: IconButton(
               icon: const Icon(Icons.arrow_back),
               onPressed: () {
-                if (context.canPop())
+                if (context.canPop()) {
                   context.pop();
-                else
+                } else {
                   context.go(R.agentHome);
+                }
               }),
           title: const Text('📋 My Orders'),
           actions: [
@@ -320,8 +321,8 @@ class _S extends ConsumerState<AgentMyOrdersScreen> {
                           fontSize: 11,
                           color: kError.withValues(alpha: 0.85))))),
         if (bucket == _Bucket.approved)
-          Padding(
-              padding: const EdgeInsets.only(top: 6),
+          const Padding(
+              padding: EdgeInsets.only(top: 6),
               child: Text(
                   'Waiting for trader to assign this to a delivery batch.',
                   style: TextStyle(fontSize: 11, color: kTextHint))),

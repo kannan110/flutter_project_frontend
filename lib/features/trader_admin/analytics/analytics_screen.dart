@@ -1,12 +1,10 @@
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/models/dashboard_models.dart';
 import '../../../core/providers/session_provider.dart';
-import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../shared/layouts/responsive_layout.dart';
 import '../../../shared/widgets/cards/metric_card.dart';
@@ -100,10 +98,12 @@ class _S extends ConsumerState<AnalyticsScreen>
         _loading       = false;
       });
     } catch (e) {
-      if (mounted) setState(() {
+      if (mounted) {
+        setState(() {
         _error   = e.toString().replaceAll('Exception: ', '');
         _loading = false;
       });
+      }
     }
   }
 
@@ -588,9 +588,9 @@ class _S extends ConsumerState<AnalyticsScreen>
             // Stats row
             Container(
               padding: const EdgeInsets.fromLTRB(16, 10, 16, 14),
-              decoration: BoxDecoration(
+              decoration: const BoxDecoration(
                   color: kBgPage,
-                  borderRadius: const BorderRadius.vertical(
+                  borderRadius: BorderRadius.vertical(
                       bottom: Radius.circular(kRadiusCard))),
               child: Row(children: [
                 _agentStat('Deliveries', '$del',         kPrimary),

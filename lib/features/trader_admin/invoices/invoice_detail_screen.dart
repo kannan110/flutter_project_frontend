@@ -292,10 +292,10 @@ class _S extends State<InvoiceDetailScreen> {
     final boldFont = await PdfGoogleFonts.notoSansBold();
     final doc      = pw.Document(theme: pw.ThemeData.withFont(base: font, bold: boldFont));
 
-    final primary = PdfColor.fromInt(0xFFBF1B2C);
-    final grey    = PdfColor.fromInt(0xFF616161);
-    final bgLight = PdfColor.fromInt(0xFFF5F5F5);
-    final green   = PdfColor.fromInt(0xFF1B5E20);
+    const primary = PdfColor.fromInt(0xFFBF1B2C);
+    const grey    = PdfColor.fromInt(0xFF616161);
+    const bgLight = PdfColor.fromInt(0xFFF5F5F5);
+    const green   = PdfColor.fromInt(0xFF1B5E20);
 
     // ★ NEW: cancelled invoices get a diagonal watermark rather than a
     // blocked PDF — traders may still want a copy for their own records,
@@ -316,18 +316,18 @@ class _S extends State<InvoiceDetailScreen> {
                     style: pw.TextStyle(fontSize: 20, fontWeight: pw.FontWeight.bold, color: primary)),
                 if (inv['trader_phone'] != null)
                   pw.Text('Phone: ${inv['trader_phone']}',
-                      style: pw.TextStyle(fontSize: 10, color: grey)),
+                      style: const pw.TextStyle(fontSize: 10, color: grey)),
                 if (inv['gst_number'] != null)
                   pw.Text('GST: ${inv['gst_number']}',
-                      style: pw.TextStyle(fontSize: 10, color: grey)),
+                      style: const pw.TextStyle(fontSize: 10, color: grey)),
               ]),
               pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.end, children: [
                 pw.Text('TAX INVOICE',
                     style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold, color: primary)),
-                pw.Text(num_, style: pw.TextStyle(fontSize: 11, color: grey)),
+                pw.Text(num_, style: const pw.TextStyle(fontSize: 11, color: grey)),
                 if (date != null)
                   pw.Text('Date: ${DateFormat('d MMM y').format(date)}',
-                      style: pw.TextStyle(fontSize: 10, color: grey)),
+                      style: const pw.TextStyle(fontSize: 10, color: grey)),
               ]),
             ]),
             pw.SizedBox(height: 12),
@@ -344,9 +344,9 @@ class _S extends State<InvoiceDetailScreen> {
                 pw.Text(inv['shop_name'] as String? ?? '—',
                     style: pw.TextStyle(fontSize: 13, fontWeight: pw.FontWeight.bold)),
                 if (inv['owner_name'] != null)
-                  pw.Text(inv['owner_name'] as String, style: pw.TextStyle(fontSize: 10, color: grey)),
+                  pw.Text(inv['owner_name'] as String, style: const pw.TextStyle(fontSize: 10, color: grey)),
                 if (inv['retailer_phone'] != null)
-                  pw.Text('Phone: ${inv['retailer_phone']}', style: pw.TextStyle(fontSize: 10, color: grey)),
+                  pw.Text('Phone: ${inv['retailer_phone']}', style: const pw.TextStyle(fontSize: 10, color: grey)),
               ]),
             ),
             pw.SizedBox(height: 16),
@@ -360,7 +360,7 @@ class _S extends State<InvoiceDetailScreen> {
               4: const pw.FlexColumnWidth(2),
             }, children: [
               pw.TableRow(
-                decoration: pw.BoxDecoration(color: primary),
+                decoration: const pw.BoxDecoration(color: primary),
                 children: ['Product', 'Birds', 'Weight (kg)', 'Rate', 'Amount (₹)'].map((h) =>
                     pw.Padding(padding: const pw.EdgeInsets.all(6),
                         child: pw.Text(h, style: pw.TextStyle(
@@ -386,7 +386,7 @@ class _S extends State<InvoiceDetailScreen> {
                 pw.TableRow(children: [
                   _pdfCell(inv['product_name'] as String? ?? 'Broiler', bgLight),
                   _pdfCell('${(inv['bird_count'] as num?)?.toInt() ?? 0}', bgLight),
-                  _pdfCell('${(inv['quantity_kg'] as num?)?.toStringAsFixed(2) ?? '0'}', bgLight),
+                  _pdfCell((inv['quantity_kg'] as num?)?.toStringAsFixed(2) ?? '0', bgLight),
                   _pdfCell('₹${(inv['price_per_kg'] as num?)?.toStringAsFixed(2) ?? '0'}/kg', bgLight),
                   _pdfCell('₹${sub.toStringAsFixed(2)}', bgLight),
                 ]),
@@ -424,9 +424,9 @@ class _S extends State<InvoiceDetailScreen> {
                 pw.Divider(color: grey),
                 _pdfTotRow('TOTAL', '₹${total.toStringAsFixed(2)}', primary, bold: true, size: 13),
                 _pdfTotRow('Collected', '₹${coll.toStringAsFixed(2)}', green),
-                pw.Divider(color: PdfColor.fromInt(0xFFE57373)),
+                pw.Divider(color: const PdfColor.fromInt(0xFFE57373)),
                 _pdfTotRow('BALANCE DUE', '₹${bal.toStringAsFixed(2)}',
-                    bal > 0 ? PdfColor.fromInt(0xFFE65100) : green, bold: true, size: 12),
+                    bal > 0 ? const PdfColor.fromInt(0xFFE65100) : green, bold: true, size: 12),
               ])),
             ),
             pw.SizedBox(height: 20),
@@ -437,7 +437,7 @@ class _S extends State<InvoiceDetailScreen> {
             pw.Text('Thank you for your business!',
                 style: pw.TextStyle(fontSize: 10, color: grey, fontStyle: pw.FontStyle.italic)),
             pw.Text('Generated by Rooster Trader • ${DateFormat('d MMM y, h:mm a').format(DateTime.now())}',
-                style: pw.TextStyle(fontSize: 8, color: PdfColor.fromInt(0xFF9E9E9E))),
+                style: const pw.TextStyle(fontSize: 8, color: PdfColor.fromInt(0xFF9E9E9E))),
           ],
         ),
         if (isCancelled)
@@ -449,7 +449,7 @@ class _S extends State<InvoiceDetailScreen> {
                     style: pw.TextStyle(
                         fontSize: 72,
                         fontWeight: pw.FontWeight.bold,
-                        color: PdfColor(0.90, 0.22, 0.21, 0.28))),
+                        color: const PdfColor(0.90, 0.22, 0.21, 0.28))),
               ),
             ),
           ),
@@ -523,8 +523,10 @@ class _S extends State<InvoiceDetailScreen> {
   // ── Build ─────────────────────────────────────────────────────────────────
   Widget _buildScaffold(BuildContext context) {
     if (_loading) return const Scaffold(body: LoadingList());
-    if (_inv == null) return Scaffold(
+    if (_inv == null) {
+      return Scaffold(
         appBar: AppBar(), body: const Center(child: Text('Invoice not found')));
+    }
 
     final inv   = _inv!;
     final date  = DateTime.tryParse(inv['invoice_date'] as String? ?? '');
@@ -626,7 +628,7 @@ class _S extends State<InvoiceDetailScreen> {
                 borderRadius: BorderRadius.circular(kRadiusCard),
                 border: Border.all(color: kBorderLight)),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Row(children: const [
+              const Row(children: [
                 Icon(Icons.info_outline, size: 16, color: kTextSub),
                 SizedBox(width: 6),
                 Text('This invoice was corrected.',
@@ -661,7 +663,7 @@ class _S extends State<InvoiceDetailScreen> {
                 borderRadius: BorderRadius.circular(kRadiusCard),
                 border: Border.all(color: kGold.withValues(alpha: 0.3))),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Row(children: const [
+              const Row(children: [
                 Icon(Icons.history_rounded, size: 16, color: kGold),
                 SizedBox(width: 6),
                 Text('Corrected From', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: kGold)),

@@ -4,7 +4,6 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:rooster_trader/features/trader_admin/retailers/retailer_openinh_balancesheet.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../../../core/providers/session_provider.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_theme.dart';
 
@@ -140,8 +139,10 @@ class _S extends ConsumerState<RetailerDetailScreen> {
         _load();
       }
     } catch (e) {
-      if (mounted) showError(
+      if (mounted) {
+        showError(
           context, e.toString().replaceAll('Exception: ', ''));
+      }
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -196,7 +197,7 @@ class _S extends ConsumerState<RetailerDetailScreen> {
       String retailerId, String phone, String shopName) async {
     final emailCtrl = TextEditingController(
         text: phone.isNotEmpty
-            ? phone.replaceAll(' ', '').replaceAll('-', '') + '@rt.app'
+            ? '${phone.replaceAll(' ', '').replaceAll('-', '')}@rt.app'
             : '');
     final passCtrl = TextEditingController();
     bool busy = false;
@@ -267,9 +268,11 @@ class _S extends ConsumerState<RetailerDetailScreen> {
                       }
                     } catch (e) {
                       ss(() => busy = false);
-                      if (mounted) showError(context,
+                      if (mounted) {
+                        showError(context,
                           e.toString().replaceAll('Exception: ', '')
                               .replaceAll('PostgrestException: ', ''));
+                      }
                     }
                   },
                   child: busy
@@ -332,8 +335,10 @@ class _S extends ConsumerState<RetailerDetailScreen> {
   @override
   Widget build(BuildContext context) {
     if (_loading) return const Scaffold(body: LoadingList());
-    if (_r == null) return Scaffold(
+    if (_r == null) {
+      return Scaffold(
         appBar: AppBar(), body: const Center(child: Text('Not found')));
+    }
     final r = _r!;
     final isActive = r['is_active'] as bool? ?? true;
 
@@ -558,13 +563,13 @@ class _S extends ConsumerState<RetailerDetailScreen> {
                             style: const TextStyle(fontSize: 11, color: kTextHint)),
                       ],
                     ],
-                  ) : Column(
+                  ) : const Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('No opening balance set',
+                      Text('No opening balance set',
                           style: TextStyle(fontSize: 13, color: kTextSub)),
-                      const SizedBox(height: 2),
-                      const Text(
+                      SizedBox(height: 2),
+                      Text(
                         'Set this only if migrating from another system',
                         style: TextStyle(fontSize: 11, color: kTextHint),
                       ),

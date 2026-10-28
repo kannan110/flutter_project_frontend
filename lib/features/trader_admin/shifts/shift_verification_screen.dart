@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/providers/session_provider.dart';
 import '../../../core/theme/app_theme.dart';
@@ -243,8 +242,10 @@ class _ShiftVerificationScreenState
         await _load();
       }
     } catch (e) {
-      if (mounted) showError(context,
+      if (mounted) {
+        showError(context,
           e.toString().replaceAll('Exception: ', ''));
+      }
     } finally {
       if (mounted) setState(() => _submitting.remove(deliveryId));
     }
@@ -308,8 +309,10 @@ class _ShiftVerificationScreenState
         await _load();
       }
     } catch (e) {
-      if (mounted) showError(context,
+      if (mounted) {
+        showError(context,
           e.toString().replaceAll('Exception: ', ''));
+      }
     } finally {
       if (mounted) setState(() => _submitting.remove(challanId));
     }
@@ -369,8 +372,10 @@ class _ShiftVerificationScreenState
         await _load();
       }
     } catch (e) {
-      if (mounted) showError(context,
+      if (mounted) {
+        showError(context,
           e.toString().replaceAll('Exception: ', ''));
+      }
     } finally {
       if (mounted) setState(() => _submitting.remove(challanId));
     }
@@ -466,7 +471,7 @@ class _ShiftVerificationScreenState
               // ── DC Challans section ──────────────────────────────────
               if (_challans.isNotEmpty) ...[
                 _sectionHeader(
-                  'DELIVERY CHALLANS (${_verifiedChallans}/${_totalChallans} verified)',
+                  'DELIVERY CHALLANS ($_verifiedChallans/$_totalChallans verified)',
                   Icons.receipt_long_outlined,
                   Colors.blue,
                 ),
@@ -477,7 +482,7 @@ class _ShiftVerificationScreenState
 
               // ── Deliveries section ───────────────────────────────────
               _sectionHeader(
-                'DELIVERIES (${_verifiedDeliveries}/${_totalDeliveries} verified)',
+                'DELIVERIES ($_verifiedDeliveries/$_totalDeliveries verified)',
                 Icons.local_shipping_outlined,
                 kNavy,
               ),
@@ -892,8 +897,9 @@ class _ShiftVerificationScreenState
     if (expanded) _ensureDeliveryControllers(id, d);
 
     Color borderColor = kBorderLight;
-    if (hasDisc)   borderColor = Colors.orange;
-    else if (verified) borderColor = Colors.green.withValues(alpha: 0.5);
+    if (hasDisc) {
+      borderColor = Colors.orange;
+    } else if (verified) borderColor = Colors.green.withValues(alpha: 0.5);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
@@ -1095,7 +1101,7 @@ class _ShiftVerificationScreenState
                       value: _hasDiscrepancy[id] ?? false,
                       onChanged: (v) =>
                           setState(() => _hasDiscrepancy[id] = v),
-                      activeColor: Colors.orange,
+                      activeThumbColor: Colors.orange,
                       secondary: Icon(
                         (_hasDiscrepancy[id] == true)
                             ? Icons.warning_amber_rounded

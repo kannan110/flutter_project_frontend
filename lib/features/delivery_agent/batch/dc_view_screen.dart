@@ -52,7 +52,11 @@ class _S extends State<DcViewScreen> {
       appBar: AppBar(
         leading: IconButton(
             icon: const Icon(Icons.arrow_back),
-            onPressed: () { if (context.canPop()) context.pop(); else context.go(R.agentHome); }),
+            onPressed: () { if (context.canPop()) {
+              context.pop();
+            } else {
+              context.go(R.agentHome);
+            } }),
         title: Text('DCs — ${_challans.length} challan${_challans.length == 1 ? '' : 's'}'),
         actions: [IconButton(icon: const Icon(Icons.refresh), onPressed: _load)],
       ),

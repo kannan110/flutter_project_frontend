@@ -100,7 +100,9 @@ class _S extends ConsumerState<InvoiceCorrectionScreen> {
 
   @override
   void dispose() {
-    for (final l in _lines) l.dispose();
+    for (final l in _lines) {
+      l.dispose();
+    }
     _remarksCtrl.dispose();
     super.dispose();
   }
@@ -353,14 +355,14 @@ class _S extends ConsumerState<InvoiceCorrectionScreen> {
               borderRadius: BorderRadius.circular(kRadiusCard),
               border: Border.all(color: kError.withValues(alpha: 0.25)),
             ),
-            child: Row(children: [
-              const Icon(Icons.warning_amber_rounded, color: kError, size: 20),
-              const SizedBox(width: 10),
+            child: const Row(children: [
+              Icon(Icons.warning_amber_rounded, color: kError, size: 20),
+              SizedBox(width: 10),
               Expanded(
                 child: Text(
                   'This cancels the original invoice and creates a new corrected one. '
                       'Use this only for genuine data-entry mistakes.',
-                  style: const TextStyle(fontSize: 12, color: kTextSub),
+                  style: TextStyle(fontSize: 12, color: kTextSub),
                 ),
               ),
             ]),
@@ -372,7 +374,7 @@ class _S extends ConsumerState<InvoiceCorrectionScreen> {
               const SectionHeader('RETAILER'),
               const SizedBox(height: 10),
               DropdownButtonFormField<String>(
-                value: _selectedRetailerId,
+                initialValue: _selectedRetailerId,
                 isExpanded: true,
                 decoration: const InputDecoration(border: OutlineInputBorder()),
                 items: _retailers
@@ -511,7 +513,7 @@ class _S extends ConsumerState<InvoiceCorrectionScreen> {
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         DropdownButtonFormField<String>(
-          value: l.productId,
+          initialValue: l.productId,
           isExpanded: true,
           decoration: const InputDecoration(
               labelText: 'Product', border: OutlineInputBorder(), isDense: true),

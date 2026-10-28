@@ -10,7 +10,6 @@ import '../../../core/providers/session_provider.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../shared/layouts/responsive_layout.dart';
-import '../../../shared/layouts/trader_shell.dart' hide shellBadgesProvider;
 import '../dashboard/trader_shell.dart';
 
 // ── Language provider ─────────────────────────────────────────────────────────
@@ -83,10 +82,12 @@ class _S extends ConsumerState<DashboardScreen> {
         .valueOrNull
         ?.traderId;
     if (tid == null || !mounted) return;
-    if (mounted) setState(() {
+    if (mounted) {
+      setState(() {
       _loading = true;
       _error = null;
     });
+    }
     try {
       final results = await Future.wait([
         Supabase.instance.client
@@ -176,7 +177,7 @@ class _S extends ConsumerState<DashboardScreen> {
         .watch(appUserProvider)
         .valueOrNull;
     final lang = ref.watch(langProvider);
-    final t = (String k) => _L.g(lang, k);
+    String t(String k) => _L.g(lang, k);
     return ResponsiveLayout(
       mobile:  (_) => _buildMobileScaffold(user, lang, t),
       tablet:  (_) => _buildTabletScaffold(user, lang, t),
@@ -186,9 +187,11 @@ class _S extends ConsumerState<DashboardScreen> {
 
   Widget _buildDesktopLayout(dynamic user, String lang,
       String Function(String) t) {
-    if (_loading) return const Center(child: SizedBox(
+    if (_loading) {
+      return const Center(child: SizedBox(
         width: 28, height: 28,
         child: CircularProgressIndicator(strokeWidth: 2, color: _kBlue)));
+    }
     if (_error != null) return _errorView();
 
     final d = _data ?? const DashboardData();
@@ -256,11 +259,14 @@ class _S extends ConsumerState<DashboardScreen> {
 
   Widget _buildMobileScaffold(dynamic user, String lang,
       String Function(String) t) {
-    if (_loading) return const Scaffold(backgroundColor: kBgPage,
+    if (_loading) {
+      return const Scaffold(backgroundColor: kBgPage,
         body: Center(
             child: CircularProgressIndicator(color: kNavy, strokeWidth: 2.5)));
-    if (_error != null)
+    }
+    if (_error != null) {
       return Scaffold(backgroundColor: kBgPage, body: _errorView());
+    }
 
     final d       = _data!;
     final agents  = d.agentStatus;
@@ -581,11 +587,14 @@ class _S extends ConsumerState<DashboardScreen> {
 
   Widget _buildTabletScaffold(dynamic user, String lang,
       String Function(String) t) {
-    if (_loading) return const Scaffold(backgroundColor: kBgPage,
+    if (_loading) {
+      return const Scaffold(backgroundColor: kBgPage,
         body: Center(
             child: CircularProgressIndicator(color: kNavy, strokeWidth: 2.5)));
-    if (_error != null)
+    }
+    if (_error != null) {
       return Scaffold(backgroundColor: kBgPage, body: _errorView());
+    }
 
     final d = _data!;
 
@@ -867,16 +876,16 @@ class _S extends ConsumerState<DashboardScreen> {
                 padding: const EdgeInsets.all(24),
                 child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Row(children: [
-                    const Icon(
+                  const Row(children: [
+                    Icon(
                         Icons.inventory_2_rounded, color: kGold, size: 18),
-                    const SizedBox(width: 8),
-                    const Text('LIVE STOCK', style: TextStyle(fontSize: 12,
+                    SizedBox(width: 8),
+                    Text('LIVE STOCK', style: TextStyle(fontSize: 12,
                         fontWeight: FontWeight.w900,
                         color: kNavy,
                         letterSpacing: 0.6)),
-                    const Spacer(),
-                    const Text('DETAILS ›', style: TextStyle(fontSize: 10,
+                    Spacer(),
+                    Text('DETAILS ›', style: TextStyle(fontSize: 10,
                         fontWeight: FontWeight.w900,
                         color: kGold,
                         letterSpacing: 0.6))
@@ -1242,17 +1251,25 @@ class _S extends ConsumerState<DashboardScreen> {
     if (d == null) return out;
     void add(String msg, Color c, IconData icon, {VoidCallback? onTap}) =>
         out.add(_alertTile(msg, c, icon, onTap: onTap));
-    if (d.isDayClosed) add(
+    if (d.isDayClosed) {
+      add(
         'Day is closed. No new records.', Colors.grey, Icons.lock);
-    if (d.remainingBirds < 0) add(
+    }
+    if (d.remainingBirds < 0) {
+      add(
         'CRITICAL: Negative stock! Check entries.', kError, Icons.error,
         onTap: () => context.go(R.stock));
-    if (d.remainingBirds < 50 && d.stockBirds > 0) add(
+    }
+    if (d.remainingBirds < 50 && d.stockBirds > 0) {
+      add(
         'Low stock: only ${d.remainingBirds} birds remaining', Colors.orange,
         Icons.inventory_outlined, onTap: () => context.go(R.stock));
-    if (d.pendingApprovals > 0) add(
+    }
+    if (d.pendingApprovals > 0) {
+      add(
         '${d.pendingApprovals} deliveries need approval', Colors.orange,
         Icons.fact_check_outlined, onTap: () => context.go(R.approvals));
+    }
     return out;
   }
 
@@ -1412,6 +1429,7 @@ class _CommandHeader extends StatelessWidget {
         border: Border(bottom: BorderSide(color: _kBorder)),
       ),
       padding: const EdgeInsets.fromLTRB(24, 0, 24, 0),
+      height: 64,
       child: Row(children: [
         Expanded(child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -1507,7 +1525,6 @@ class _CommandHeader extends StatelessWidget {
             icon: Icons.refresh_rounded, onTap: onRefresh, tooltip: 'Refresh'),
         const SizedBox(width: 4),
       ]),
-      height: 64,
     );
   }
 }
@@ -1945,12 +1962,12 @@ class _BusinessHealthCard extends StatelessWidget {
         // calculation happens here. Hidden entirely when there's nothing
         // currently stocked, rather than showing an empty section.
         if (stockValueByProduct.isNotEmpty) ...[
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+          const Padding(
+            padding: EdgeInsets.fromLTRB(16, 0, 16, 8),
             child: Row(children: [
-              const Icon(Icons.inventory_2_outlined, size: 11, color: kNavy),
-              const SizedBox(width: 4),
-              const Text('CURRENT STOCK VALUE  —  By Product',
+              Icon(Icons.inventory_2_outlined, size: 11, color: kNavy),
+              SizedBox(width: 4),
+              Text('CURRENT STOCK VALUE  —  By Product',
                   style: TextStyle(fontSize: 9, fontWeight: FontWeight.w900,
                       color: kNavy, letterSpacing: 0.5)),
             ]),
@@ -2234,17 +2251,17 @@ class _RevenueTrendPanel extends StatelessWidget {
       ),
       padding: const EdgeInsets.all(20),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [
-          const Text('SALES & REVENUE TREND',
+        const Row(children: [
+          Text('SALES & REVENUE TREND',
               style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800,
                   color: _kText1, letterSpacing: 0.8)),
-          const Spacer(),
-          const _ChipFilter('Last 7 Days'),
+          Spacer(),
+          _ChipFilter('Last 7 Days'),
         ]),
         const SizedBox(height: 4),
-        Row(children: [
+        const Row(children: [
           _Legend(color: _kBlue, label: 'Revenue (₹)'),
-          const SizedBox(width: 16),
+          SizedBox(width: 16),
           _Legend(color: _kText3, label: 'Sold (kg)'),
         ]),
         const SizedBox(height: 16),
@@ -2256,10 +2273,10 @@ class _RevenueTrendPanel extends StatelessWidget {
                 color: const Color(0xFFF8FAFC),
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(color: _kBorder)),
-            child: Column(mainAxisSize: MainAxisSize.min, children: [
-              const Icon(Icons.show_chart_rounded, size: 22, color: _kText3),
-              const SizedBox(height: 6),
-              const Text('No sales recorded in the last 7 days',
+            child: const Column(mainAxisSize: MainAxisSize.min, children: [
+              Icon(Icons.show_chart_rounded, size: 22, color: _kText3),
+              SizedBox(height: 6),
+              Text('No sales recorded in the last 7 days',
                   style: TextStyle(fontSize: 12, color: _kText3,
                       fontWeight: FontWeight.w600)),
             ]),
@@ -2404,7 +2421,7 @@ class _AreaChartPainter extends CustomPainter {
       ..strokeCap = StrokeCap.round;
     final ap = Paint()
       ..shader = LinearGradient(
-        colors: [color.withOpacity(0.15), color.withOpacity(0)],
+        colors: [color.withValues(alpha: 0.15), color.withValues(alpha: 0)],
         begin: Alignment.topCenter, end: Alignment.bottomCenter,
       ).createShader(Rect.fromLTWH(0, 0, size.width, size.height))
       ..style = PaintingStyle.fill;
@@ -2589,8 +2606,8 @@ class _LiveStockPanel extends StatelessWidget {
             ]),
           )
         else
-          Text('Updated just now',
-              style: const TextStyle(fontSize: 11, color: _kText3)),
+          const Text('Updated just now',
+              style: TextStyle(fontSize: 11, color: _kText3)),
       ]),
     );
   }
@@ -3039,15 +3056,18 @@ class _AlertsPanel extends StatelessWidget {
       alerts.add((_kOrange, Icons.inventory_outlined,
       'Low Stock Alert', '$stockLabel is below 500 birds'));
     }
-    if (data.totalOutstanding > 50000)
+    if (data.totalOutstanding > 50000) {
       alerts.add((_kRed, Icons.account_balance_wallet_outlined,
       'Payment Overdue', 'Outstanding exceeds ₹50,000'));
-    if (data.activeDeliveries > 3)
+    }
+    if (data.activeDeliveries > 3) {
       alerts.add((_kBlue, Icons.local_shipping_outlined,
       'Dispatch Delay', '${data.activeDeliveries} orders pending dispatch'));
-    if (data.todayMortalityBirdsLedger > 0)
+    }
+    if (data.todayMortalityBirdsLedger > 0) {
       alerts.add((_kColorsViolet, Icons.warning_amber_outlined,
       'Mortality Today', '${data.todayMortalityBirdsLedger} birds'));
+    }
 
     if (alerts.isEmpty) return const SizedBox.shrink();
 
@@ -3248,7 +3268,7 @@ class _RecentOrdersTableState extends State<_RecentOrdersTable> {
             gradient: LinearGradient(colors: [_kNavBg, Color(0xFF1E293B)]),
           ),
           padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 11),
-          child: Row(children: const [
+          child: const Row(children: [
             _TH('Order ID', 90),
             _TH('Customer', 200),
             _TH('Birds / Weight', 140),
@@ -3394,7 +3414,7 @@ class _OrderRowState extends State<_OrderRow> {
                   maxLines: 1, overflow: TextOverflow.ellipsis)),
               SizedBox(width: 90, child: Text(widget.time,
                   style: const TextStyle(fontSize: 12, color: _kText3))),
-              SizedBox(width: 60,
+              const SizedBox(width: 60,
                   child: Center(child: Icon(Icons.visibility_outlined,
                       size: 16, color: _kText3))),
             ]),

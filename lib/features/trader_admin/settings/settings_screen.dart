@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:intl/intl.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/providers/session_provider.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_theme.dart';
@@ -195,8 +193,9 @@ class SettingsScreen extends ConsumerWidget {
             onTap: () async {
               final ok = await confirmDialog(context,
                   title: 'Sign Out', message: 'Sign out of Rooster Trader?');
-              if (ok && context.mounted)
+              if (ok && context.mounted) {
                 ref.read(appUserProvider.notifier).signOut();
+              }
             },
             borderRadius: BorderRadius.circular(kRadiusCard),
             child: Container(
@@ -253,7 +252,7 @@ class SettingsScreen extends ConsumerWidget {
   );
 
   Widget _item(BuildContext ctx, IconData icon, String label, String route) {
-    final isLast = false; // divider handled by container
+    const isLast = false; // divider handled by container
     return InkWell(
       onTap: () => ctx.go(route),
       borderRadius: BorderRadius.circular(kRadiusCard),

@@ -97,11 +97,12 @@ class _S extends ConsumerState<ZoneRateHistoryScreen> {
       if (mounted) setState(() => _loading = false);
       return;
     }
-    if (mounted)
+    if (mounted) {
       setState(() {
         _loading = true;
         _error = null;
       });
+    }
     try {
       final res = await _c.rpc('get_zone_rate_history_v3', params: {
         'p_trader_id': tid,
@@ -229,9 +230,9 @@ class _S extends ConsumerState<ZoneRateHistoryScreen> {
           const SizedBox(height: 8),
           GestureDetector(
             onTap: _clearAllFilters,
-            child: Row(mainAxisSize: MainAxisSize.min, children: [
-              const Icon(Icons.close_rounded, size: 14, color: kTextHint),
-              const SizedBox(width: 4),
+            child: const Row(mainAxisSize: MainAxisSize.min, children: [
+              Icon(Icons.close_rounded, size: 14, color: kTextHint),
+              SizedBox(width: 4),
               Text('Clear filters',
                   style: TextStyle(
                       fontSize: 12,
@@ -368,7 +369,7 @@ class _S extends ConsumerState<ZoneRateHistoryScreen> {
     required ValueChanged<String?> onChanged,
   }) =>
       DropdownButtonFormField<String>(
-        value: value,
+        initialValue: value,
         isExpanded: true,
         decoration: InputDecoration(
           labelText: label,
@@ -548,7 +549,7 @@ class _S extends ConsumerState<ZoneRateHistoryScreen> {
             ]),
             const SizedBox(height: 6),
             Row(children: [
-              Icon(Icons.event_outlined, size: 12, color: kTextHint),
+              const Icon(Icons.event_outlined, size: 12, color: kTextHint),
               const SizedBox(width: 3),
               Text('Effective $dateLabel',
                   style: const TextStyle(fontSize: 11, color: kTextHint)),
@@ -573,7 +574,7 @@ class _S extends ConsumerState<ZoneRateHistoryScreen> {
             ],
             if (!isActive) ...[
               const SizedBox(height: 4),
-              Text('Superseded',
+              const Text('Superseded',
                   style: TextStyle(
                       fontSize: 10,
                       color: kTextHint,

@@ -51,7 +51,9 @@ class _S extends ConsumerState<ApprovalDetailScreen> {
     _notesCtrl.dispose();
     _rejectCtrl.dispose();
     _flagNotesCtrl.dispose();
-    for (final c in _itemRateCtrls.values) c.dispose();
+    for (final c in _itemRateCtrls.values) {
+      c.dispose();
+    }
     super.dispose();
   }
 
@@ -100,7 +102,9 @@ class _S extends ConsumerState<ApprovalDetailScreen> {
       rawItems.map((i) => Map<String, dynamic>.from(i as Map)).toList();
 
       // Dispose old controllers before creating new ones
-      for (final c in _itemRateCtrls.values) c.dispose();
+      for (final c in _itemRateCtrls.values) {
+        c.dispose();
+      }
       _itemRateCtrls.clear();
 
       // Create per-item rate controllers, pre-fill from existing rate or delivery final_rate
@@ -166,7 +170,7 @@ class _S extends ConsumerState<ApprovalDetailScreen> {
         }
       } catch (_) {}
 
-      if (mounted)
+      if (mounted) {
         setState(() {
           _delivery = d;
           _weighSession = ws;
@@ -175,6 +179,7 @@ class _S extends ConsumerState<ApprovalDetailScreen> {
           _ratePreview = preview;
           _loading = false;
         });
+      }
     } catch (e) {
       if (mounted) setState(() => _loading = false);
     }
@@ -494,13 +499,15 @@ class _S extends ConsumerState<ApprovalDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    if (_loading)
+    if (_loading) {
       return const Scaffold(backgroundColor: kBgPage, body: LoadingList());
-    if (_delivery == null)
+    }
+    if (_delivery == null) {
       return Scaffold(
           backgroundColor: kBgPage,
           appBar: AppBar(backgroundColor: kSurface),
           body: const Center(child: Text('Not found')));
+    }
 
     // ★ NEW: this delivery was undone (Undo Delivery) — its stock and cash
     // effects were already reversed, so it must never be approvable. This
@@ -670,17 +677,17 @@ class _S extends ConsumerState<ApprovalDetailScreen> {
                 ),
                 child:
                 Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Row(children: [
-                    const Icon(Icons.auto_fix_high_rounded, size: 14, color: kNavy),
-                    const SizedBox(width: 6),
-                    const Text('AUTO-RESOLVED RATES',
+                  const Row(children: [
+                    Icon(Icons.auto_fix_high_rounded, size: 14, color: kNavy),
+                    SizedBox(width: 6),
+                    Text('AUTO-RESOLVED RATES',
                         style: TextStyle(
                             fontSize: 10,
                             fontWeight: FontWeight.w900,
                             color: kNavy,
                             letterSpacing: 0.6)),
-                    const Spacer(),
-                    const Text('Editable below',
+                    Spacer(),
+                    Text('Editable below',
                         style: TextStyle(fontSize: 10, color: kTextHint)),
                   ]),
                   const SizedBox(height: 8),
@@ -771,7 +778,7 @@ class _S extends ConsumerState<ApprovalDetailScreen> {
                             Container(
                                 width: 8,
                                 height: 8,
-                                decoration: BoxDecoration(
+                                decoration: const BoxDecoration(
                                     color: kPrimary, shape: BoxShape.circle)),
                             const SizedBox(width: 8),
                             Expanded(
@@ -1458,13 +1465,13 @@ class _S extends ConsumerState<ApprovalDetailScreen> {
                               style: const TextStyle(
                                   fontSize: 11, color: kTextHint))),
                     if (ch['dc_photo_url'] != null)
-                      Padding(
-                          padding: const EdgeInsets.only(top: 6),
+                      const Padding(
+                          padding: EdgeInsets.only(top: 6),
                           child: Row(children: [
-                            const Icon(Icons.photo_outlined,
+                            Icon(Icons.photo_outlined,
                                 size: 13, color: Colors.blue),
-                            const SizedBox(width: 4),
-                            const Text('DC photo attached',
+                            SizedBox(width: 4),
+                            Text('DC photo attached',
                                 style: TextStyle(
                                     fontSize: 11, color: Colors.blue)),
                           ])),
@@ -1997,9 +2004,9 @@ class _S extends ConsumerState<ApprovalDetailScreen> {
               child: Row(children: [
                 _tCell('$seq', 28, kTextHint),
                 _tCell(time, 48, kTextSub),
-                _tCell('${loadWt.toStringAsFixed(1)}', 68, kTextMain),
-                _tCell('${emptyWt.toStringAsFixed(1)}', 68, kTextSub),
-                _tCell('${netWt.toStringAsFixed(1)}', 68, Colors.green.shade700),
+                _tCell(loadWt.toStringAsFixed(1), 68, kTextMain),
+                _tCell(emptyWt.toStringAsFixed(1), 68, kTextSub),
+                _tCell(netWt.toStringAsFixed(1), 68, Colors.green.shade700),
                 _tCell('$cageL', 45, kTextSub),
                 SizedBox(width: 56, child: Icon(
                     rowOk ? Icons.check : Icons.warning_amber,

@@ -163,7 +163,7 @@ class _S extends ConsumerState<LoginScreen> {
 
                       const SizedBox(height: 2),
 
-                      Text(
+                      const Text(
                         'Smart Poultry Trading',
                         style: TextStyle(
                           fontSize: 12,
@@ -528,7 +528,7 @@ class _S extends ConsumerState<LoginScreen> {
         const SizedBox(height: 22),
         _submitBtn('Create My Account', _agentSignUpSubmit),
         const SizedBox(height: 10),
-        Center(child: Text('Min 6 characters for password',
+        const Center(child: Text('Min 6 characters for password',
             style: TextStyle(fontSize: 11, color: kTextHint))),
       ]);
 
@@ -658,7 +658,7 @@ class _S extends ConsumerState<LoginScreen> {
         const SizedBox(height: 22),
         _submitBtn('Create My Account', _supervisorSignUpSubmit),
         const SizedBox(height: 10),
-        Center(child: Text('Min 6 characters for password',
+        const Center(child: Text('Min 6 characters for password',
             style: TextStyle(fontSize: 11, color: kTextHint))),
       ]);
 
@@ -839,10 +839,12 @@ class _TRS extends State<_TraderRegisterCard> {
         }
       }
     } catch (e) {
-      if (mounted) setState(() {
+      if (mounted) {
+        setState(() {
         _err = e.toString().replaceAll('Exception: ', '').replaceAll('PostgrestException(message: ', '').replaceAll(')', '');
         _busy = false;
       });
+      }
     }
   }
 
@@ -987,7 +989,7 @@ class _TRS extends State<_TraderRegisterCard> {
             else if (isPremium)
               const Icon(Icons.star_rounded, color: Colors.purple, size: 22)
             else
-              Icon(Icons.circle_outlined, color: kBorderLight, size: 22),
+              const Icon(Icons.circle_outlined, color: kBorderLight, size: 22),
             const SizedBox(width: 14),
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Row(children: [

@@ -200,12 +200,12 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
           .toList();
       // Sort by product name for consistent display
       rawItems.sort((a, b) {
-        final na = ((a['master_products'] as Map?)?.cast<String,dynamic>()?['name'] as String? ?? '');
-        final nb = ((b['master_products'] as Map?)?.cast<String,dynamic>()?['name'] as String? ?? '');
+        final na = ((a['master_products'] as Map?)?.cast<String,dynamic>()['name'] as String? ?? '');
+        final nb = ((b['master_products'] as Map?)?.cast<String,dynamic>()['name'] as String? ?? '');
         return na.compareTo(nb);
       });
 
-      if (mounted)
+      if (mounted) {
         setState(() {
           _delivery = d;
           _deliveryStatus = dStatus;
@@ -218,6 +218,7 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
             _selectedOrderItemId = rawItems.first['id'] as String?;
           }
         });
+      }
 
       try {
         final agentId = user?.agentId;
@@ -230,9 +231,10 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
               .eq('is_active', true)
               .neq('id', agentId ?? '')
               .order('name');
-          if (mounted)
+          if (mounted) {
             setState(() => _otherAgents =
             List<Map<String, dynamic>>.from(agentRes as List? ?? []));
+          }
         }
       } catch (_) {}
 
@@ -254,8 +256,9 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
         } catch (_) {}
       }
     } catch (e) {
-      if (mounted)
+      if (mounted) {
         showError(context, e.toString().replaceAll('Exception: ', ''));
+      }
     }
   }
 
@@ -265,7 +268,7 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
           source: ImageSource.camera, imageQuality: 70, maxWidth: 1200);
       if (picked == null) return;
       final file = File(picked.path);
-      if (mounted)
+      if (mounted) {
         setState(() {
           if (isMortality) {
             _mortalityImage = file;
@@ -275,6 +278,7 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
             _uploadingDelivery = true;
           }
         });
+      }
       try {
         final path =
             '${isMortality ? 'mortality' : 'delivery'}/${DateTime.now().millisecondsSinceEpoch}.jpg';
@@ -284,7 +288,7 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
         final url = Supabase.instance.client.storage
             .from('delivery-proofs')
             .getPublicUrl(path);
-        if (mounted)
+        if (mounted) {
           setState(() {
             if (isMortality) {
               _mortalityProofUrl = url;
@@ -294,17 +298,21 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
               _uploadingDelivery = false;
             }
           });
+        }
       } catch (e) {
-        if (mounted)
+        if (mounted) {
           setState(() {
-            if (isMortality)
+            if (isMortality) {
               _uploadingMortality = false;
-            else
+            } else {
               _uploadingDelivery = false;
+            }
           });
-        if (mounted)
+        }
+        if (mounted) {
           showError(context,
               'Upload failed: ${e.toString().replaceAll('Exception: ', '')}');
+        }
       }
     } catch (_) {}
   }
@@ -801,7 +809,7 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
       final isPartialResult =
           (res as Map<String, dynamic>?)?['is_partial'] == true;
       final birdsRemaining =
-          (res as Map<String, dynamic>?)?['birds_remaining'] as int? ?? 0;
+          (res)?['birds_remaining'] as int? ?? 0;
 
       if (isPartialResult) {
         showSuccess(context,
@@ -836,19 +844,21 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
 
   @override
   Widget build(BuildContext context) {
-    if (!_loaded)
+    if (!_loaded) {
       return Scaffold(
           appBar: AppBar(
               leading: IconButton(
                   icon: const Icon(Icons.arrow_back),
                   onPressed: () {
-                    if (context.canPop())
+                    if (context.canPop()) {
                       context.pop();
-                    else
+                    } else {
                       context.go(R.agentDeliveries);
+                    }
                   }),
               title: const Text('Complete Delivery')),
           body: const LoadingList());
+    }
 
     final isSimple = ref.watch(uiModeProvider).isSimple;
     final o = _delivery?['orders'] as Map<String, dynamic>?;
@@ -872,10 +882,11 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
               leading: IconButton(
                   icon: const Icon(Icons.arrow_back),
                   onPressed: () {
-                    if (context.canPop())
+                    if (context.canPop()) {
                       context.pop();
-                    else
+                    } else {
                       context.go(R.agentDeliveries);
+                    }
                   }),
               title: Text(shopName)),
           body: Center(
@@ -910,10 +921,11 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
                     const SizedBox(height: 12),
                     OutlinedButton(
                         onPressed: () {
-                          if (context.canPop())
+                          if (context.canPop()) {
                             context.pop();
-                          else
+                          } else {
                             context.go(R.agentDeliveries);
+                          }
                         },
                         child: const Text('← Back to Deliveries')),
                   ]))));
@@ -928,10 +940,11 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
             leading: IconButton(
                 icon: const Icon(Icons.arrow_back),
                 onPressed: () {
-                  if (context.canPop())
+                  if (context.canPop()) {
                     context.pop();
-                  else
+                  } else {
                     context.go(R.agentDeliveries);
+                  }
                 }),
             title: Text(shopName)),
         body: Form(
@@ -1072,7 +1085,7 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
                             _transferAgentName = null;
                           }
                         }),
-                        activeColor: Colors.orange,
+                        activeThumbColor: Colors.orange,
                         secondary: Icon(
                             _isPartial
                                 ? Icons.splitscreen_outlined
@@ -1207,16 +1220,16 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
                                     color: Colors.white, size: 20),
                               ])))),
 
-                  Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 6),
+                  const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 6),
                       child: Row(children: [
-                        const Expanded(child: Divider()),
+                        Expanded(child: Divider()),
                         Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 10),
+                            padding: EdgeInsets.symmetric(horizontal: 10),
                             child: Text('or enter manually',
                                 style:
                                 TextStyle(fontSize: 11, color: kTextHint))),
-                        const Expanded(child: Divider()),
+                        Expanded(child: Divider()),
                       ])),
 
                   if (_stock != null) _stockBanner(),
@@ -1301,9 +1314,9 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
                                         : Colors.grey),
                               ]),
                               if (_remainingBirds <= 0 && _isPartial)
-                                Padding(
-                                    padding: const EdgeInsets.only(top: 8),
-                                    child: const Text(
+                                const Padding(
+                                    padding: EdgeInsets.only(top: 8),
+                                    child: Text(
                                         '⚠ No remaining birds — switch to Full Delivery',
                                         style: TextStyle(
                                             fontSize: 11,
@@ -1595,10 +1608,11 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
         leading: IconButton(
             icon: const Icon(Icons.arrow_back),
             onPressed: () {
-              if (context.canPop())
+              if (context.canPop()) {
                 context.pop();
-              else
+              } else {
                 context.go(R.agentDeliveries);
+              }
             }),
         title: Text('📦 $shopName',
             style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
@@ -1643,10 +1657,11 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
                   height: 56,
                   child: OutlinedButton(
                     onPressed: () {
-                      if (context.canPop())
+                      if (context.canPop()) {
                         context.pop();
-                      else
+                      } else {
                         context.go(R.agentDeliveries);
+                      }
                     },
                     style: OutlinedButton.styleFrom(
                         shape: RoundedRectangleBorder(
@@ -1678,10 +1693,11 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
         leading: IconButton(
             icon: const Icon(Icons.arrow_back),
             onPressed: () {
-              if (context.canPop())
+              if (context.canPop()) {
                 context.pop();
-              else
+              } else {
                 context.go(R.agentDeliveries);
+              }
             }),
         title: Text('🚚 $shopName',
             style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
@@ -1993,7 +2009,7 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
         // Order info
         Row(children: [
           _simpleHeroStat('📦', '$_orderBirds', 'birds'),
-          _simpleHeroStat('⚖️', '${_orderWeight.toStringAsFixed(1)}', 'kg'),
+          _simpleHeroStat('⚖️', _orderWeight.toStringAsFixed(1), 'kg'),
           if (_dcBirds > 0) _simpleHeroStat('📋', '$_dcBirds', 'DC birds'),
         ]),
         if (isAlreadyPartial) ...[
@@ -2155,16 +2171,16 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
                       if (isSelected)
                         Icon(Icons.check_circle_rounded, color: color, size: 20)
                       else
-                        Icon(Icons.radio_button_unchecked_rounded,
+                        const Icon(Icons.radio_button_unchecked_rounded,
                             color: kTextHint, size: 20),
                     ]),
                   ),
                 );
               }),
               if (_selectedOrderItemId == null)
-                Padding(
-                  padding: const EdgeInsets.only(top: 4),
-                  child: Row(children: const [
+                const Padding(
+                  padding: EdgeInsets.only(top: 4),
+                  child: Row(children: [
                     Icon(Icons.info_outline, size: 13, color: Colors.orange),
                     SizedBox(width: 4),
                     Text('Select the product you are delivering',
@@ -2335,11 +2351,11 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
         const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(kRadiusCard),
-          borderSide: BorderSide(color: kBorder),
+          borderSide: const BorderSide(color: kBorder),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(kRadiusCard),
-          borderSide: BorderSide(color: kBorder),
+          borderSide: const BorderSide(color: kBorder),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(kRadiusCard),

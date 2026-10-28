@@ -65,7 +65,11 @@ class _S extends ConsumerState<CreateSupervisorScreen> {
 
       if (mounted) {
         showSuccess(context, 'Supervisor added! Share your Company Code with them.');
-        if (context.canPop()) context.pop(); else context.go(R.userMgmt);
+        if (context.canPop()) {
+          context.pop();
+        } else {
+          context.go(R.userMgmt);
+        }
       }
     } catch (e) {
       if (mounted) showError(context, e.toString().replaceAll('Exception: ', ''));
@@ -127,7 +131,11 @@ class _S extends ConsumerState<CreateSupervisorScreen> {
                       value: _selectedRetailers.contains(id),
                       title: Text(r['shop_name'] as String? ?? '—', style: const TextStyle(fontSize: 13)),
                       onChanged: (v) => setState(() {
-                        if (v == true) _selectedRetailers.add(id); else _selectedRetailers.remove(id);
+                        if (v == true) {
+                          _selectedRetailers.add(id);
+                        } else {
+                          _selectedRetailers.remove(id);
+                        }
                       }),
                     );
                   }).toList()),

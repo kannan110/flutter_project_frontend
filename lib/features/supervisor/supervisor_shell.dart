@@ -16,8 +16,9 @@ class SupervisorShell extends ConsumerWidget {
     final isSubScreen = loc.startsWith('/s/ledger/') || loc.startsWith('/s/collect/');
 
     int idx = 0;
-    if (loc.startsWith('/s/retailers'))       idx = 1;
-    else if (loc.startsWith('/s/history'))    idx = 2;
+    if (loc.startsWith('/s/retailers')) {
+      idx = 1;
+    } else if (loc.startsWith('/s/history'))    idx = 2;
     else if (loc.startsWith('/s/summary'))    idx = 3;
     else if (loc.startsWith('/s/profile'))    idx = 4;
 

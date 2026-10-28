@@ -102,7 +102,7 @@ class CustomerLedgerRowBuilder {
       // this raw row, so it shows once per order/invoice, not repeated on
       // every product line of a multi-product invoice.
       final orderRemarks = (r['order_remarks'] as String?)?.trim();
-      String _withRemarks(String base) =>
+      String withRemarks(String base) =>
           (orderRemarks == null || orderRemarks.isEmpty) ? base : '$base  ·  Remarks: $orderRemarks';
 
       final rateBreakdown = (r['rate_breakdown'] as List?)
@@ -126,7 +126,7 @@ class CustomerLedgerRowBuilder {
             date: i == 0 ? entryDateStr : null,
             refNo: i == 0 ? refNumber : null,
             type: i == 0 ? typeLabel(sourceType) : null,
-            description: i == 0 ? _withRemarks((line['product_name'] as String?) ?? '—') : (line['product_name'] as String?) ?? '—',
+            description: i == 0 ? withRemarks((line['product_name'] as String?) ?? '—') : (line['product_name'] as String?) ?? '—',
             kg: hasWeight ? weightKg : null,
             rate: hasWeight ? _numOrNull(line['applied_rate']) : null,
             saleAmt: isDebit ? lineTotal : null,
@@ -146,7 +146,7 @@ class CustomerLedgerRowBuilder {
           date: entryDateStr,
           refNo: refNumber,
           type: typeLabel(sourceType),
-          description: _withRemarks(description.isEmpty ? 'Sale' : description),
+          description: withRemarks(description.isEmpty ? 'Sale' : description),
           kg: weightKg,
           rate: _numOrNull(r['rate_per_kg']),
           saleAmt: isDebit ? amount : null,
@@ -168,7 +168,7 @@ class CustomerLedgerRowBuilder {
           date: entryDateStr,
           refNo: refNumber,
           type: typeLabel(sourceType),
-          description: _withRemarks(desc),
+          description: withRemarks(desc),
           kg: hasWeight ? weightKg : null,
           rate: hasWeight ? _numOrNull(r['rate_per_kg']) : null,
           saleAmt: isDebit ? amount : null,
@@ -187,7 +187,7 @@ class CustomerLedgerRowBuilder {
           date: entryDateStr,
           refNo: refNumber,
           type: typeLabel(sourceType),
-          description: _withRemarks(desc),
+          description: withRemarks(desc),
           saleAmt: isDebit ? amount : null,
           paymentAmt: !isDebit ? amount : null,
           balance: runningBalance,
@@ -201,7 +201,7 @@ class CustomerLedgerRowBuilder {
         date: entryDateStr,
         refNo: refNumber,
         type: typeLabel(sourceType),
-        description: _withRemarks(description.isEmpty ? typeLabel(sourceType) : description),
+        description: withRemarks(description.isEmpty ? typeLabel(sourceType) : description),
         saleAmt: isDebit ? amount : null,
         paymentAmt: !isDebit ? amount : null,
         balance: runningBalance,

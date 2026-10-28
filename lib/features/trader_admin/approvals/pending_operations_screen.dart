@@ -77,13 +77,13 @@ class _S extends ConsumerState<PendingOperationsScreen> {
     backgroundColor: kBgPage,
     appBar: AppBar(
       backgroundColor: kSurface,
-      title: Column(
+      title: const Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Pending Operations',
+          Text('Pending Operations',
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
           Text('Deliveries stuck > $_stuckHours hours',
-              style: const TextStyle(fontSize: 11, color: kTextHint)),
+              style: TextStyle(fontSize: 11, color: kTextHint)),
         ],
       ),
       actions: [
@@ -203,7 +203,7 @@ class _StuckDeliveryCardState extends ConsumerState<_StuckDeliveryCard> {
                             style: const TextStyle(
                                 fontWeight: FontWeight.w800, fontSize: 14)),
                         Row(children: [
-                          Icon(Icons.delivery_dining,
+                          const Icon(Icons.delivery_dining,
                               size: 12, color: kPrimary),
                           const SizedBox(width: 4),
                           Text(agentName,
@@ -582,7 +582,7 @@ class _ResolveFormState extends ConsumerState<_ResolveForm> {
                 const SizedBox(width: 10),
                 Expanded(
                   child: DropdownButtonFormField<String>(
-                    value: _paymentMode,
+                    initialValue: _paymentMode,
                     decoration: const InputDecoration(
                         labelText: 'Payment Mode', isDense: true),
                     items: _paymentModes

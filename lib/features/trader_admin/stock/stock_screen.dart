@@ -137,8 +137,9 @@ class _S extends ConsumerState<StockScreen> {
       });
     } catch (e) {
       if (mounted) setState(() => _loading = false);
-      if (mounted)
+      if (mounted) {
         showError(context, e.toString().replaceAll('Exception: ', ''));
+      }
     }
   }
 
@@ -226,8 +227,9 @@ class _S extends ConsumerState<StockScreen> {
                             'p_created_by': uid,
                           });
                           _load();
-                          if (mounted)
+                          if (mounted) {
                             showSuccess(context, 'Opening stock recorded ✓');
+                          }
                         } catch (e) {
                           if (mounted) showError(context, e.toString());
                         }
@@ -573,7 +575,7 @@ class _S extends ConsumerState<StockScreen> {
           icon: Icons.receipt_long_outlined, message: 'No movements recorded');
     }
     // BUG 5 FIX: transferred_in is an INFLOW — must be in isIn list so it shows '+'
-    final isIn = (String t) =>
+    bool isIn(String t) =>
         ['opening', 'purchased', 'returned_in', 'transferred_in'].contains(t);
     final ledgerList = _filterLedger();
     return ListView.separated(

@@ -15,12 +15,11 @@ dependencies:
   scoped_model: ^2.0.0-nullsafety.0
   cupertino_icons: ^1.0.3
 
+  flutter_bluetooth_serial: any
 dev_dependencies:
   flutter_test:
     sdk: flutter
 
-  flutter_bluetooth_serial:
-    path: ../
   integration_test:
     sdk: flutter
 

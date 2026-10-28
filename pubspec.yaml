@@ -29,6 +29,8 @@ dependencies:
   audioplayers: ^5.2.1
   shared_preferences: ^2.5.5
 
+  http: any
+  archive: any
 dev_dependencies:
   flutter_test:
     sdk: flutter

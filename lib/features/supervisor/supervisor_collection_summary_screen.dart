@@ -42,12 +42,14 @@ class _S extends ConsumerState<SupervisorCollectionSummaryScreen> {
           case 'bank': bank += amt; break;
         }
       }
-      if (mounted) setState(() {
+      if (mounted) {
+        setState(() {
         _cash = cash; _upi = upi; _bank = bank;
         _count = list.length;
         _customers = list.map((p) => p['retailer_id']).toSet().length;
         _loading = false;
       });
+      }
     } catch (e) {
       if (mounted) { setState(() => _loading = false); showError(context, e.toString()); }
     }

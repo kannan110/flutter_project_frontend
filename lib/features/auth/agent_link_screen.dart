@@ -40,23 +40,29 @@ class _AgentLinkState extends ConsumerState<AgentLinkScreen> {
       final res = await _c.rpc('get_trader_by_code', params: {'p_company_code': code});
       if (!mounted) return;
       if (res != null && res is Map && res['found'] == true) {
-        if (mounted) setState(() {
+        if (mounted) {
+          setState(() {
           _traderName = res['company_name'] as String? ?? 'Found';
           _checking   = false;
         });
+        }
       } else {
-        if (mounted) setState(() {
+        if (mounted) {
+          setState(() {
           _err      = _t(
               'Code "$code" not found. Ask your admin for the correct code.',
               '"$code" கோட் கிடைக்கவில்லை. உங்கள் அட்மினிடம் சரியான கோட் கேளுங்கள்.');
           _checking = false;
         });
+        }
       }
     } catch (_) {
-      if (mounted) setState(() {
+      if (mounted) {
+        setState(() {
         _err      = _t('Network error. Try again.', 'நெட்வொர்க் பிழை. மீண்டும் முயற்சிக்கவும்.');
         _checking = false;
       });
+      }
     }
   }
 
@@ -65,9 +71,11 @@ class _AgentLinkState extends ConsumerState<AgentLinkScreen> {
     final name = _nameCtrl.text.trim();
 
     if (!_isSignedIn) {
-      if (mounted) setState(() => _err = _t(
+      if (mounted) {
+        setState(() => _err = _t(
           'Not signed in. Go back and sign in first.',
           'உள்நுழையவில்லை. திரும்பி Sign In செய்யுங்கள்.'));
+      }
       return;
     }
     if (code.isEmpty) {
@@ -75,9 +83,11 @@ class _AgentLinkState extends ConsumerState<AgentLinkScreen> {
       return;
     }
     if (name.isEmpty) {
-      if (mounted) setState(() => _err = _t(
+      if (mounted) {
+        setState(() => _err = _t(
           'Enter your name exactly as admin typed it',
           'அட்மின் தட்டச்சு செய்த பெயரை சரியாக உள்ளிடவும்'));
+      }
       return;
     }
 

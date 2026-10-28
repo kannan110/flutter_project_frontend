@@ -370,11 +370,11 @@ class _S extends ConsumerState<DailyReportScreen> {
                   _dStat('Loss', '${lossPct.toStringAsFixed(1)}%', isHigh ? Colors.red : kTextSub),
                 ]),
                 if (d['mortality_proof_url'] != null)
-                  Padding(padding: const EdgeInsets.only(top: 6),
+                  const Padding(padding: EdgeInsets.only(top: 6),
                       child: Row(children: [
-                        const Icon(Icons.photo_outlined, size: 13, color: Colors.purple),
-                        const SizedBox(width: 4),
-                        const Text('Mortality proof attached', style: TextStyle(fontSize: 11, color: Colors.purple)),
+                        Icon(Icons.photo_outlined, size: 13, color: Colors.purple),
+                        SizedBox(width: 4),
+                        Text('Mortality proof attached', style: TextStyle(fontSize: 11, color: Colors.purple)),
                       ])),
               ]));
         });
@@ -475,7 +475,7 @@ class _S extends ConsumerState<DailyReportScreen> {
                 if (isHigh) Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                     decoration: BoxDecoration(color: Colors.orange.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(kRadiusChip)),
-                    child: Text('⚠️ High Loss', style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: Colors.deepOrange))),
+                    child: const Text('⚠️ High Loss', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: Colors.deepOrange))),
               ]),
               const SizedBox(height: 10),
               Row(children: [

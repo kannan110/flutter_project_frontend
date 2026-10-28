@@ -10,7 +10,6 @@ import '../../../shared/layouts/responsive_layout.dart';
 import '../../../shared/widgets/common/async_state_view.dart';
 import '../../../shared/widgets/common/status_chip.dart';
 import '../../../shared/widgets/filters/filter_bar.dart';
-import '../../../shared/widgets/filters/search_bar.dart' hide ListToolbar;
 import '../../../shared/widgets/tables/app_table.dart';
 
 class OrdersScreen extends ConsumerStatefulWidget {
@@ -78,11 +77,12 @@ class _S extends ConsumerState<OrdersScreen> {
   Future<void> _load() async {
     final tid = ref.read(appUserProvider).valueOrNull?.traderId;
     if (tid == null) return;
-    if (mounted)
+    if (mounted) {
       setState(() {
         _loading = true;
         _error = null;
       });
+    }
     try {
       var q = _c
           .from('orders')
@@ -101,11 +101,12 @@ class _S extends ConsumerState<OrdersScreen> {
       });
       _applySearch(_searchCtrl.text);
     } catch (e) {
-      if (mounted)
+      if (mounted) {
         setState(() {
           _error = e.toString();
           _loading = false;
         });
+      }
     }
   }
 
@@ -424,7 +425,7 @@ class _OrderCard extends StatelessWidget {
                 width: 44,
                 height: 44,
                 decoration: BoxDecoration(
-                  gradient: LinearGradient(
+                  gradient: const LinearGradient(
                     colors: [kNavy, kNavyMid],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,

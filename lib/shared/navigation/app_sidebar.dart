@@ -54,7 +54,7 @@ class AppSidebar extends ConsumerWidget {
       duration: const Duration(milliseconds: 200),
       curve:    Curves.easeInOut,
       width:    w,
-      decoration: BoxDecoration(
+      decoration: const BoxDecoration(
         color:  _bg,
         border: Border(right: BorderSide(color: _border, width: 0.5)),
       ),
@@ -117,10 +117,10 @@ class _Brand extends StatelessWidget {
       ),
       if (!collapsed) ...[
       const SizedBox(width: 14),
-      Expanded(child: Column(
+      const Expanded(child: Column(
         mainAxisAlignment:  MainAxisAlignment.center,
         crossAxisAlignment: CrossAxisAlignment.start,
-        children: const [
+        children: [
           Text('ROOSTER',
               style: TextStyle(fontSize: 13, fontWeight: FontWeight.w900,
                   color: Colors.white, letterSpacing: 1.0)),
@@ -352,11 +352,11 @@ class _Footer extends StatelessWidget {
       cursor: SystemMouseCursors.click,
       child: GestureDetector(
         onTap: onSignOut,
-        child: Center(
+        child: const Center(
           child: Tooltip(
             message: 'Sign out',
             child: Icon(Icons.logout_rounded,
-                size: 18, color: const Color(0xFF6E7681)),
+                size: 18, color: Color(0xFF6E7681)),
           ),
         ),
       ),

@@ -1,8 +1,6 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:rooster_trader/features/trader_admin/agents/hub/trader_addexpense_sheet.dart' show showTraderAddExpenseSheet;
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -2178,7 +2176,7 @@ class _InstantOrderSheetState extends ConsumerState<_InstantOrderSheet> {
       useRootNavigator: true,
       builder: (c) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kRadiusCard)),
-        title: Row(children: const [
+        title: const Row(children: [
           Icon(Icons.info_outline, color: Colors.orange, size: 20),
           SizedBox(width: 8),
           Text('Possible Duplicate Order', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
@@ -2402,7 +2400,7 @@ class _InstantOrderSheetState extends ConsumerState<_InstantOrderSheet> {
             if (_products.isNotEmpty) ...[
               const SectionHeader('PRODUCT (OPTIONAL)'),
               DropdownButtonFormField<Map<String, dynamic>>(
-                value: _selProduct,
+                initialValue: _selProduct,
                 decoration: const InputDecoration(
                     hintText: 'Select product'),
                 items: [

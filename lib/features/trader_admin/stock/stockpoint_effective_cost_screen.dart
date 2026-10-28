@@ -181,8 +181,8 @@ class _StockPointEffectiveCostScreenState extends ConsumerState<StockPointEffect
       children: [
         _currentCostCard(),
         const SizedBox(height: 16),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(4, 0, 4, 8),
+        const Padding(
+          padding: EdgeInsets.fromLTRB(4, 0, 4, 8),
           child: Text('COST HISTORY', style: TextStyle(
               fontSize: 11, fontWeight: FontWeight.w800, color: kTextHint, letterSpacing: 0.8)),
         ),
@@ -203,10 +203,10 @@ class _StockPointEffectiveCostScreenState extends ConsumerState<StockPointEffect
         boxShadow: kCardShadow,
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [
-          const Icon(Icons.today_outlined, size: 16, color: kTextHint),
-          const SizedBox(width: 6),
-          const Text('TODAY\'S EFFECTIVE STOCK POINT COST',
+        const Row(children: [
+          Icon(Icons.today_outlined, size: 16, color: kTextHint),
+          SizedBox(width: 6),
+          Text('TODAY\'S EFFECTIVE STOCK POINT COST',
               style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, color: kTextHint, letterSpacing: 0.5)),
         ]),
         const SizedBox(height: 10),
@@ -217,8 +217,8 @@ class _StockPointEffectiveCostScreenState extends ConsumerState<StockPointEffect
             Text('₹${_todaysConfirmedCost!.toStringAsFixed(2)}',
                 style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w900, color: kNavy)),
             const SizedBox(width: 4),
-            Padding(
-              padding: const EdgeInsets.only(bottom: 4),
+            const Padding(
+              padding: EdgeInsets.only(bottom: 4),
               child: Text('/kg', style: TextStyle(fontSize: 13, color: kTextSub)),
             ),
           ]),
@@ -257,11 +257,11 @@ class _StockPointEffectiveCostScreenState extends ConsumerState<StockPointEffect
               ]),
             )
           else
-            Padding(
-              padding: const EdgeInsets.only(bottom: 8),
+            const Padding(
+              padding: EdgeInsets.only(bottom: 8),
               child: Row(children: [
                 Icon(Icons.info_outline, size: 14, color: kTextHint),
-                const SizedBox(width: 6),
+                SizedBox(width: 6),
                 Expanded(child: Text(
                     'No prior cost on record for this product — enter today\'s working cost.',
                     style: TextStyle(fontSize: 12, color: kTextSub))),
@@ -320,7 +320,7 @@ class _StockPointEffectiveCostScreenState extends ConsumerState<StockPointEffect
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(color: kSurface, borderRadius: BorderRadius.circular(kRadiusCard),
             border: Border.all(color: kBorderLight)),
-        child: Center(child: Text('No confirmations recorded yet.', style: TextStyle(fontSize: 13, color: kTextSub))),
+        child: const Center(child: Text('No confirmations recorded yet.', style: TextStyle(fontSize: 13, color: kTextSub))),
       );
     }
     final currentUserId = ref.read(appUserProvider).valueOrNull?.userId;
@@ -341,11 +341,11 @@ class _StockPointEffectiveCostScreenState extends ConsumerState<StockPointEffect
               flex: 3,
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text(_fd(row['effective_from']), style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700)),
-                Text('Confirmed by $confirmedByLabel', style: TextStyle(fontSize: 11, color: kTextSub)),
+                Text('Confirmed by $confirmedByLabel', style: const TextStyle(fontSize: 11, color: kTextSub)),
                 if ((row['reason'] as String?)?.isNotEmpty == true)
                   Padding(
                     padding: const EdgeInsets.only(top: 2),
-                    child: Text(row['reason'] as String, style: TextStyle(fontSize: 11, color: kTextHint, fontStyle: FontStyle.italic)),
+                    child: Text(row['reason'] as String, style: const TextStyle(fontSize: 11, color: kTextHint, fontStyle: FontStyle.italic)),
                   ),
               ]),
             ),
@@ -356,7 +356,7 @@ class _StockPointEffectiveCostScreenState extends ConsumerState<StockPointEffect
                     style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800)),
                 if (createdAt != null)
                   Text(DateFormat('d MMM, h:mm a').format(createdAt),
-                      style: TextStyle(fontSize: 10.5, color: kTextHint)),
+                      style: const TextStyle(fontSize: 10.5, color: kTextHint)),
               ]),
             ),
           ]),

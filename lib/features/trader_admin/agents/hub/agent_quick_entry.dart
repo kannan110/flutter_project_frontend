@@ -190,7 +190,9 @@ class _AgentQuickEntrySheetState extends ConsumerState<AgentQuickEntrySheet> {
 
   @override
   void dispose() {
-    for (final l in _lines) l.dispose();
+    for (final l in _lines) {
+      l.dispose();
+    }
     _customerScrollCtrl.dispose();
     _productScrollCtrl.dispose();
     remarksCtrl.dispose();
@@ -387,7 +389,9 @@ class _AgentQuickEntrySheetState extends ConsumerState<AgentQuickEntrySheet> {
     setState(() => _selRetailer = r);
     // Customer Rate & Bill Preview: refresh every line now that a customer
     // (and therefore a Zone) is known.
-    for (int i = 0; i < _lines.length; i++) _fetchRate(i);
+    for (int i = 0; i < _lines.length; i++) {
+      _fetchRate(i);
+    }
   }
 
   // Customer Rate & Bill Preview — same RPC, same params, same cascade
@@ -539,7 +543,7 @@ class _AgentQuickEntrySheetState extends ConsumerState<AgentQuickEntrySheet> {
       useRootNavigator: true,
       builder: (c) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kRadiusCard)),
-        title: Row(children: const [
+        title: const Row(children: [
           Icon(Icons.info_outline, color: Colors.orange, size: 20),
           SizedBox(width: 8),
           Text('Possible Duplicate Order', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
@@ -1403,11 +1407,11 @@ class _AgentQuickEntrySheetState extends ConsumerState<AgentQuickEntrySheet> {
     if (!_showWeightDetails) {
       return InkWell(
         onTap: () => setState(() => _showWeightDetails = true),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 4),
+        child: const Padding(
+          padding: EdgeInsets.symmetric(vertical: 4),
           child: Row(children: [
-            const Icon(Icons.add_circle_outline, size: 16, color: kTextHint),
-            const SizedBox(width: 6),
+            Icon(Icons.add_circle_outline, size: 16, color: kTextHint),
+            SizedBox(width: 6),
             Text('Add Box / Gross / Empty Weight (optional)',
                 style: TextStyle(fontSize: 12, color: kTextHint, fontWeight: FontWeight.w600)),
           ]),

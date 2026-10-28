@@ -85,7 +85,9 @@ class _S extends ConsumerState<InHouseSaleScreen> {
     _notesCtrl.dispose();
     _customerScrollCtrl.dispose();
     _productScrollCtrl.dispose();
-    for (final l in _lines) l.dispose();
+    for (final l in _lines) {
+      l.dispose();
+    }
     super.dispose();
   }
 
@@ -318,7 +320,7 @@ class _S extends ConsumerState<InHouseSaleScreen> {
       backgroundColor: kBgPage,
       appBar: AppBar(
         backgroundColor: kSurface,
-        title: Row(children: const [
+        title: const Row(children: [
           Icon(Icons.storefront, color: Color(0xFF16A34A), size: 22),
           SizedBox(width: 8),
           Text('Stock Point Sale'),
@@ -732,9 +734,9 @@ class _S extends ConsumerState<InHouseSaleScreen> {
     final total = _grandTotal;
     return Container(
       padding: EdgeInsets.fromLTRB(16, 10, 16, MediaQuery.viewInsetsOf(context).bottom > 0 ? 10 : 20),
-      decoration: BoxDecoration(
+      decoration: const BoxDecoration(
         color: kSurface,
-        border: const Border(top: BorderSide(color: kBorderLight)),
+        border: Border(top: BorderSide(color: kBorderLight)),
       ),
       child: SafeArea(
         top: false,

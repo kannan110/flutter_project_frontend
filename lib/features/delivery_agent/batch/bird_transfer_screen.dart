@@ -120,12 +120,17 @@ class _S extends ConsumerState<BirdTransferScreen> {
           '✅ Transfer complete!\n'
               '$birds birds → ${_toAgent!['name']}\n'
               'Transfer ID: ${(result['transfer_id'] as String).substring(0, 8)}...');
-      if (context.canPop()) context.pop();
-      else context.go(R.agentHome);
+      if (context.canPop()) {
+        context.pop();
+      } else {
+        context.go(R.agentHome);
+      }
     } catch (e) {
-      if (mounted) showError(context, e.toString()
+      if (mounted) {
+        showError(context, e.toString()
           .replaceAll('Exception: ', '')
           .replaceAll('PostgrestException(message: ', ''));
+      }
     } finally {
       if (mounted) setState(() => _submitting = false);
     }
@@ -133,9 +138,11 @@ class _S extends ConsumerState<BirdTransferScreen> {
 
   @override
   Widget build(BuildContext context) {
-    if (_loading) return Scaffold(
+    if (_loading) {
+      return Scaffold(
         appBar: AppBar(title: const Text('Transfer Birds')),
         body: const LoadingList());
+    }
 
     final fromAgent = _batch?['delivery_agents'] as Map<String,dynamic>?;
     final batchBirds = _deliveries.fold(0, (s, d) =>
@@ -148,7 +155,11 @@ class _S extends ConsumerState<BirdTransferScreen> {
     return Scaffold(
       appBar: AppBar(
           leading: IconButton(icon: const Icon(Icons.arrow_back),
-              onPressed: () { if (context.canPop()) context.pop(); else context.go(R.agentHome); }),
+              onPressed: () { if (context.canPop()) {
+                context.pop();
+              } else {
+                context.go(R.agentHome);
+              } }),
           title: const Text('Transfer Birds'),
           actions: [IconButton(icon: const Icon(Icons.refresh), onPressed: _load)]),
       body: ListView(padding: const EdgeInsets.fromLTRB(16, 16, 16, kBottomNavClearance), children: [
@@ -231,8 +242,11 @@ class _S extends ConsumerState<BirdTransferScreen> {
             final checked = _selectedDeliveryIds.contains(dId);
             return GestureDetector(
                 onTap: () => setState(() {
-                  if (checked) _selectedDeliveryIds.remove(dId);
-                  else _selectedDeliveryIds.add(dId);
+                  if (checked) {
+                    _selectedDeliveryIds.remove(dId);
+                  } else {
+                    _selectedDeliveryIds.add(dId);
+                  }
                 }),
                 child: Container(
                     margin: const EdgeInsets.only(bottom: 6),
@@ -333,7 +347,11 @@ class _S extends ConsumerState<BirdTransferScreen> {
       appBar: AppBar(
         backgroundColor: Colors.white,
         leading: IconButton(icon: const Icon(Icons.arrow_back),
-            onPressed: () { if (context.canPop()) context.pop(); else context.go(R.agentHome); }),
+            onPressed: () { if (context.canPop()) {
+              context.pop();
+            } else {
+              context.go(R.agentHome);
+            } }),
         title: const Text('🔄 Transfer Birds',
             style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
         actions: [IconButton(icon: const Icon(Icons.refresh), onPressed: _load)],
@@ -554,11 +572,11 @@ class _S extends ConsumerState<BirdTransferScreen> {
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide: BorderSide(color: kBorder),
+          borderSide: const BorderSide(color: kBorder),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide: BorderSide(color: kBorder),
+          borderSide: const BorderSide(color: kBorder),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
