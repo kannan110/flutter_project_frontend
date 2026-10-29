@@ -1642,9 +1642,28 @@ class _DcCardState extends State<_DcCard> {
                 // Empty → Net computation, same as every other weight
                 // entry point in the app.
                 const SizedBox(height: 8),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: GestureDetector(
+                Row(mainAxisAlignment: MainAxisAlignment.end, children: [
+                  // Delete — only while the DC is still unverified and the
+                  // shift unapproved; delete_batch_dc enforces the rest.
+                  if (!widget.isShiftApproved && ch['dc_verified'] != true &&
+                      ch['source_type'] != 'inhouse_stock') ...[
+                    GestureDetector(
+                      onTap: () => _confirmDelete(context),
+                      child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                          decoration: BoxDecoration(
+                              color: Colors.red.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(6)),
+                          child: const Row(mainAxisSize: MainAxisSize.min, children: [
+                            Icon(Icons.delete_outline, size: 13, color: Colors.red),
+                            SizedBox(width: 4),
+                            Text('Delete', style: TextStyle(fontSize: 11,
+                                fontWeight: FontWeight.w700, color: Colors.red)),
+                          ])),
+                    ),
+                    const SizedBox(width: 8),
+                  ],
+                  GestureDetector(
                     onTap: () => _showEditSheet(context),
                     child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
@@ -1660,7 +1679,7 @@ class _DcCardState extends State<_DcCard> {
                                   color: widget.isShiftApproved ? Colors.deepOrange : kPrimary)),
                         ])),
                   ),
-                ),
+                ]),
 
                 // Extra info
                 if (ch['farm_location'] != null) ...[
@@ -1923,6 +1942,56 @@ class _DcCardState extends State<_DcCard> {
                     const SizedBox(height: 10),
                   ])));
         }));
+  }
+
+  // ── Delete DC — reverses its stock and draft purchase entry ──────────────
+  Future<void> _confirmDelete(BuildContext context) async {
+    final ch = widget.challan;
+    final reasonCtrl = TextEditingController();
+    final reason = await showDialog<String>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: Text('Delete DC ${ch['dc_number'] ?? ''}?'),
+          content: Column(mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start, children: [
+            const Text(
+                'The DC, its stock entry and its purchase entry will be removed. '
+                'Stock is reversed with an audit entry. This cannot be undone.',
+                style: TextStyle(fontSize: 12, color: kTextSub)),
+            const SizedBox(height: 12),
+            TextField(controller: reasonCtrl, maxLines: 2, autofocus: true,
+                decoration: const InputDecoration(
+                    labelText: 'Reason (required)', alignLabelWithHint: true)),
+          ]),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx),
+                child: const Text('Cancel')),
+            TextButton(
+                onPressed: () {
+                  final r = reasonCtrl.text.trim();
+                  if (r.isEmpty) {
+                    showError(ctx, 'Please enter a reason');
+                    return;
+                  }
+                  Navigator.pop(ctx, r);
+                },
+                child: const Text('Delete', style: TextStyle(color: Colors.red))),
+          ],
+        ));
+    if (reason == null) return;
+
+    try {
+      await Supabase.instance.client.rpc('delete_batch_dc', params: {
+        'p_challan_id': ch['id'],
+        'p_reason': reason,
+      }).timeout(const Duration(seconds: 12));
+      if (context.mounted) showSuccess(context, 'DC deleted ✓');
+      widget.onChanged();
+    } on PostgrestException catch (e) {
+      if (context.mounted) showError(context, e.message);
+    } catch (e) {
+      if (context.mounted) showError(context, e.toString().replaceAll('Exception: ', ''));
+    }
   }
 
   Widget _row(String l, String v, [Color? c]) =>
