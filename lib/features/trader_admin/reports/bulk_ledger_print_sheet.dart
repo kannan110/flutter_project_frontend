@@ -603,17 +603,23 @@ class _RetailerMultiSelectSheetState extends State<_RetailerMultiSelectSheet> {
   final _searchCtrl = TextEditingController();
   String _query = '';
   final Set<String> _selected = {};
-
+    // Always A→Z (case-insensitive), whatever order the caller passed in.
+  late final List<Map<String, dynamic>> _sorted =
+      List<Map<String, dynamic>>.of(widget.retailers)
+        ..sort((a, b) => (a['shop_name'] as String? ?? '')
+            .trim()
+            .toLowerCase()
+            .compareTo((b['shop_name'] as String? ?? '').trim().toLowerCase()));
   @override
   void dispose() {
     _searchCtrl.dispose();
     super.dispose();
   }
 
-  List<Map<String, dynamic>> get _filtered {
+    List<Map<String, dynamic>> get _filtered {
     final q = _query.trim().toLowerCase();
-    if (q.isEmpty) return widget.retailers;
-    return widget.retailers
+    if (q.isEmpty) return _sorted;
+    return _sorted
         .where((r) => (r['shop_name'] as String? ?? '').toLowerCase().contains(q))
         .toList();
   }
@@ -638,7 +644,7 @@ class _RetailerMultiSelectSheetState extends State<_RetailerMultiSelectSheet> {
   @override
   Widget build(BuildContext context) {
     final filtered = _filtered;
-    final selectedRetailers = widget.retailers.where((r) => _selected.contains(r['id'])).toList();
+    final selectedRetailers = _sorted.where((r) => _selected.contains(r['id'])).toList();
 
     return DraggableScrollableSheet(
       initialChildSize: 0.85,

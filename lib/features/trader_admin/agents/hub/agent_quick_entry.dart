@@ -6,6 +6,7 @@ import '../../../../core/providers/session_provider.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/util/weight_calc.dart';
 import '../../../../shared/widgets/common/horizontalscroll_wheel.dart';
+import 'package:flutter/services.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // AGENT QUICK ENTRY (multi-product)  — formerly "Simple Entry"
@@ -69,7 +70,22 @@ class AgentQuickEntrySheet extends ConsumerStatefulWidget {
   ConsumerState<AgentQuickEntrySheet> createState() =>
       _AgentQuickEntrySheetState();
 }
+/// Allows at most ONE decimal point. If an edit would add a second one,
+/// the edit is rejected (field keeps its previous text) and [onInvalid] fires.
+class SingleDecimalFormatter extends TextInputFormatter {
+  SingleDecimalFormatter({this.onInvalid});
+  final VoidCallback? onInvalid;
 
+  @override
+  TextEditingValue formatEditUpdate(
+      TextEditingValue oldValue, TextEditingValue newValue) {
+    if ('.'.allMatches(newValue.text).length > 1) {
+      onInvalid?.call();
+      return oldValue;
+    }
+    return newValue;
+  }
+}
 class _QuickLine {
   Map<String, dynamic>? product;
   final birdsCtrl = TextEditingController();
@@ -777,7 +793,15 @@ class _AgentQuickEntrySheetState extends ConsumerState<AgentQuickEntrySheet> {
 
     if (mounted) setState(() => _submitting = false);
   }
-
+    void _showDecimalWarning() {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(const SnackBar(
+        content: Text('Please type a valid weight. Only one decimal point is allowed (e.g. 75.3)'),
+        duration: Duration(seconds: 2),
+      ));
+  }
   String _cleanError(Object e) => e
       .toString()
       .replaceAll('Exception: ', '')
@@ -1207,6 +1231,10 @@ class _AgentQuickEntrySheetState extends ConsumerState<AgentQuickEntrySheet> {
               controller: line.weightCtrl,
               icon: Icons.scale_outlined,
               decimal: true,
+              inputFormatters: [
+                FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
+                SingleDecimalFormatter(onInvalid: _showDecimalWarning),
+              ],
               onChanged: () {
                 setState(() {});
                 _fetchRate(idx);
@@ -1349,6 +1377,7 @@ class _AgentQuickEntrySheetState extends ConsumerState<AgentQuickEntrySheet> {
     required VoidCallback onChanged,
     bool decimal = false,
     FocusNode? focusNode,
+    List<TextInputFormatter>? inputFormatters, 
   }) =>
       Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text(label, style: const TextStyle(fontSize: 10, color: kTextHint)),
@@ -1356,6 +1385,7 @@ class _AgentQuickEntrySheetState extends ConsumerState<AgentQuickEntrySheet> {
         TextField(
           controller: controller,
           focusNode: focusNode,
+          inputFormatters: inputFormatters,
           textAlign: TextAlign.center,
           keyboardType:
           decimal ? const TextInputType.numberWithOptions(decimal: true) : TextInputType.number,

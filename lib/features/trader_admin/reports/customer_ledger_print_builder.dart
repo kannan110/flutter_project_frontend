@@ -246,6 +246,19 @@ class CustomerLedgerPrintBuilder {
     return math.max(1, (avail / _halfRowH).floor());
   }
 
+  /// Case-insensitive A→Z by retailer name. Bulk Print / Bulk Download
+  /// always go through this, so the printed pages and the downloaded files
+  /// come out in alphabetical order no matter what order the caller passes
+  /// the jobs in. Returns a NEW list — the caller's list is never mutated.
+  static List<RetailerLedgerJob> _alphabetical(List<RetailerLedgerJob> jobs) {
+    final sorted = List<RetailerLedgerJob>.of(jobs);
+    sorted.sort((a, b) => a.retailerName
+        .trim()
+        .toLowerCase()
+        .compareTo(b.retailerName.trim().toLowerCase()));
+    return sorted;
+  }
+
   /// Builds the Full Sheet / Half Sheet PDF document. [data] is the raw,
   /// unmodified get_retailer_statement() response — the exact same map
   /// the Header PDF and Table PDF already consume. Optional pre-loaded
@@ -289,7 +302,7 @@ class CustomerLedgerPrintBuilder {
   /// starting on its own page (each retailer is its own set of pages, so a
   /// retailer whose ledger itself spans multiple pages keeps working
   /// exactly as it does today — "Page X of Y" local to that retailer's own
-  /// pages).
+  /// pages). Retailers are always laid out in ALPHABETICAL order.
   ///
   /// Reuses the EXACT same [_addLedgerPage] the single-retailer build()
   /// above uses — same header/BILL TO/table/calculations, so a batch PDF
@@ -333,16 +346,19 @@ class CustomerLedgerPrintBuilder {
       return const BatchLedgerResult(document: null, totalRequested: 0, succeeded: 0, failures: []);
     }
 
+    // Alphabetical A→Z, regardless of the order the caller passed in.
+    final ordered = _alphabetical(jobs);
+
     final font = await PdfGoogleFonts.notoSansRegular();
     final bold = await PdfGoogleFonts.notoSansBold();
     final doc = pw.Document(theme: pw.ThemeData.withFont(base: font, bold: bold));
 
-    final firstHeader = (jobs.first.data['header'] as Map?)?.cast<String, dynamic>() ?? {};
+    final firstHeader = (ordered.first.data['header'] as Map?)?.cast<String, dynamic>() ?? {};
     final logo = await ReportPdfGenerator.fetchLogo(firstHeader['company_logo'] as String?);
 
     final failures = <BatchLedgerFailure>[];
-    for (var i = 0; i < jobs.length; i++) {
-      final job = jobs[i];
+    for (var i = 0; i < ordered.length; i++) {
+      final job = ordered[i];
       try {
         _addLedgerPage(
           doc,
@@ -362,13 +378,13 @@ class CustomerLedgerPrintBuilder {
           reason: e.toString().replaceAll('Exception: ', ''),
         ));
       }
-      onProgress?.call(i + 1, jobs.length, job.retailerName);
+      onProgress?.call(i + 1, ordered.length, job.retailerName);
     }
 
-    final succeeded = jobs.length - failures.length;
+    final succeeded = ordered.length - failures.length;
     return BatchLedgerResult(
       document: succeeded == 0 ? null : doc,
-      totalRequested: jobs.length,
+      totalRequested: ordered.length,
       succeeded: succeeded,
       failures: failures,
     );
@@ -383,7 +399,7 @@ class CustomerLedgerPrintBuilder {
   /// any other file or on this app still being open. That per-file
   /// duplication (rather than the byte-size optimization buildBatch does)
   /// is the necessary cost of "N separate files" being the actual
-  /// deliverable.
+  /// deliverable. Files are produced in ALPHABETICAL order.
   ///
   /// Because each retailer's pw.Document is independent, a failure for
   /// one retailer — whether in the eager CustomerLedgerTableData.from()
@@ -404,20 +420,23 @@ class CustomerLedgerPrintBuilder {
       return const IndividualBuildResult(files: [], totalRequested: 0, failures: []);
     }
 
+    // Alphabetical A→Z, regardless of the order the caller passed in.
+    final ordered = _alphabetical(jobs);
+
     final font = await PdfGoogleFonts.notoSansRegular();
     final bold = await PdfGoogleFonts.notoSansBold();
 
     // Same trader for every retailer in the batch → same logo URL.
     // Fetched once, reused by reference across every independent
     // document rather than re-downloaded per retailer.
-    final firstHeader = (jobs.first.data['header'] as Map?)?.cast<String, dynamic>() ?? {};
+    final firstHeader = (ordered.first.data['header'] as Map?)?.cast<String, dynamic>() ?? {};
     final logo = await ReportPdfGenerator.fetchLogo(firstHeader['company_logo'] as String?);
 
     final files = <IndividualLedgerFile>[];
     final failures = <BatchLedgerFailure>[];
 
-    for (var i = 0; i < jobs.length; i++) {
-      final job = jobs[i];
+    for (var i = 0; i < ordered.length; i++) {
+      final job = ordered[i];
       try {
         final doc = pw.Document(theme: pw.ThemeData.withFont(base: font, bold: bold));
         _addLedgerPage(
@@ -445,10 +464,10 @@ class CustomerLedgerPrintBuilder {
           reason: e.toString().replaceAll('Exception: ', ''),
         ));
       }
-      onProgress?.call(i + 1, jobs.length, job.retailerName);
+      onProgress?.call(i + 1, ordered.length, job.retailerName);
     }
 
-    return IndividualBuildResult(files: files, totalRequested: jobs.length, failures: failures);
+    return IndividualBuildResult(files: files, totalRequested: ordered.length, failures: failures);
   }
 
   /// `CustomerName_CustomerLedger_<date>.pdf` — sanitized for
@@ -609,11 +628,11 @@ class CustomerLedgerPrintBuilder {
     }
     final totalHalves = chunks.length;
 
-    // One complete half (header block → table → closing block / spacer →
+    // One complete half (header block → table → closing block → spacer →
     // footer pinned to the bottom of the half). Fresh widget instances every
     // call. On the LAST half, the Closing Balance row is taken out of the
-    // table and shown as a big block filling all the space between the
-    // table and the footer.
+    // table and shown as a bold, header-sized line right below the table
+    // (it does NOT expand to fill the leftover space).
     pw.Widget half(int idx) {
       final isLast = idx == totalHalves - 1;
       var tableRows = chunks[idx];
@@ -870,7 +889,7 @@ class CustomerLedgerPrintBuilder {
     return out;
   }
 
-    // HALF SHEET: Closing Balance shown right below the table (last half only),
+  // HALF SHEET: Closing Balance shown right below the table (last half only),
   // bold and header-sized. Fixed height (_halfClosingH), so it never grows to
   // fill the leftover space. FittedBox(scaleDown) keeps long amounts on one line.
   static const double _halfClosingH = 18;

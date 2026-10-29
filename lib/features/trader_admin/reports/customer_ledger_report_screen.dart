@@ -93,10 +93,15 @@ class _S extends ConsumerState<CustomerLedgerReportScreen> {
           .eq('trader_id', tid)
           .eq('is_active', true)
           .order('shop_name');
-      if (mounted) {
+            if (mounted) {
+        final retailerList = List<Map<String, dynamic>>.from(retailers)
+          ..sort((a, b) => (a['shop_name'] as String? ?? '')
+              .trim()
+              .toLowerCase()
+              .compareTo((b['shop_name'] as String? ?? '').trim().toLowerCase()));
         setState(() {
           _agents = List<Map<String, dynamic>>.from(agents);
-          _retailers = List<Map<String, dynamic>>.from(retailers);
+          _retailers = retailerList;
           _refLoading = false;
         });
       }

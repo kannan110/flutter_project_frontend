@@ -416,12 +416,23 @@ class _RS extends ConsumerState<RetailerScreen>
   // auth check built into that function. No separate calculation lives
   // here; this only renders the JSON that RPC returns.
   Widget _tabLedger() {
-    final opening = (_ledgerData?['opening_balance'] as num?)?.toDouble() ?? 0;
-    final closing = (_ledgerData?['closing_balance'] as num?)?.toDouble() ?? 0;
-    final rows    = List<Map<String,dynamic>>.from(_ledgerData?['rows'] as List? ?? []);
-    final summary = _ledgerData?['summary'] as Map<String,dynamic>?;
-    final debit   = (summary?['total_debits']  as num?)?.toDouble() ?? 0;
-    final credit  = (summary?['total_credits'] as num?)?.toDouble() ?? 0;
+   // final opening = (_ledgerData?['opening_balance'] as num?)?.toDouble() ?? 0;
+    //final closing = (_ledgerData?['closing_balance'] as num?)?.toDouble() ?? 0;
+  final rows    = List<Map<String,dynamic>>.from(
+    (_ledgerData?['rows'] ?? _ledgerData?['entries']) as List? ?? []);
+final summary = _ledgerData?['summary'] as Map<String,dynamic>?;
+final debit   = ((summary?['total_debits'] ?? summary?['total_debit']) as num?)?.toDouble() ?? 0;
+final credit  = ((summary?['total_credits'] ?? summary?['total_credit']) as num?)?.toDouble() ?? 0;
+final closing = ((_ledgerData?['closing_balance'] ?? summary?['balance']) as num?)?.toDouble() ?? 0;
+
+// opening balance is not in the response, so derive it from the first row
+double opening = (_ledgerData?['opening_balance'] as num?)?.toDouble() ?? 0;
+if (_ledgerData?['opening_balance'] == null && rows.isNotEmpty) {
+  final f   = rows.first;
+  final amt = (f['amount'] as num?)?.toDouble() ?? 0;
+  final rb  = (f['running_balance'] as num?)?.toDouble() ?? 0;
+  opening = f['entry_type'] == 'debit' ? rb - amt : rb + amt;
+}
     return Column(children: [
       _dateRangeBar(),
       Container(decoration: const BoxDecoration(
