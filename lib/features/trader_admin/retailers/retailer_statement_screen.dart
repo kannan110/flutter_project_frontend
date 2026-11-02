@@ -7,6 +7,7 @@ import '../../../core/providers/session_provider.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_theme.dart';
 import '../reports/report_pdf_generator.dart';
+import 'package:rooster_trader/shared/widgets/web/app_scaffold.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // RETAILER ACCOUNT STATEMENT
@@ -263,7 +264,7 @@ class _RetailerStatementScreenState
   // BUILD
   // ═══════════════════════════════════════════════════════════════════════════
   @override
-  Widget build(BuildContext context) => Scaffold(
+  Widget build(BuildContext context) => AppScaffold(
     backgroundColor: kBgPage,
     appBar: _appBar(),
     body: Column(children: [

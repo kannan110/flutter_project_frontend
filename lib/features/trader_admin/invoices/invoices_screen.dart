@@ -12,6 +12,7 @@ import '../../../shared/widgets/common/async_state_view.dart';
 import '../../../shared/widgets/common/status_chip.dart';
 import '../../../shared/widgets/filters/search_bar.dart';
 import '../../../shared/widgets/tables/app_table.dart' hide ListToolbar;
+import '../../../shared/widgets/web/web.dart';
 
 class InvoicesScreen extends ConsumerStatefulWidget {
   const InvoicesScreen({super.key});
@@ -92,6 +93,7 @@ class _S extends ConsumerState<InvoicesScreen> {
   @override
   Widget build(BuildContext context) {
     final isDesktop = context.isDesktop;
+    if (isDesktop) return _buildWebPage();
 
     return ListScreenScaffold(
       appBar: isDesktop ? null : AppBar(
@@ -141,147 +143,216 @@ class _S extends ConsumerState<InvoicesScreen> {
         onRetry:      _load,
         child: ResponsiveLayout(
           mobile:  (_) => _buildMobileList(),
-          desktop: (_) => _buildDesktopTable(),
         ),
       ),
     );
   }
 
-  // ── Desktop table ─────────────────────────────────────────────────────────
+  // ── Web page (desktop) ────────────────────────────────────────────────────
 
-  Widget _buildDesktopTable() {
-    return AppTable<Map<String, dynamic>>(
-      columns: [
-        AppTableColumn(
-          label: 'Invoice #',
-          width: 120,
-          cellBuilder: (inv) => Text(
-            inv['invoice_number'] as String? ?? '—',
-            style: const TextStyle(fontSize: 12, color: kTextSub),
-          ),
-        ),
-        AppTableColumn(
-          label: 'Date',
-          width: 100,
-          cellBuilder: (inv) {
-            final date = DateTime.tryParse(inv['invoice_date'] as String? ?? '');
-            return Text(
-              date != null ? DateFormat('d MMM y').format(date) : '—',
-              style: const TextStyle(fontSize: 13, color: kTextSub),
-            );
-          },
-        ),
-        AppTableColumn(
-          label: 'Retailer',
-          flex:  3,
-          cellBuilder: (inv) {
-            final r = inv['retailers'] as Map<String, dynamic>?;
-            return Text(
-              r?['shop_name'] as String? ?? '—',
-              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-              overflow: TextOverflow.ellipsis,
-            );
-          },
-        ),
-        AppTableColumn(
-          label:     'Birds',
-          width:     70,
-          alignment: Alignment.centerRight,
-          cellBuilder: (inv) => Text(
-            '${inv['bird_count'] ?? 0}',
-            style: const TextStyle(fontSize: 13, color: kTextSub),
-          ),
-        ),
-        AppTableColumn(
-          label:     'Qty (kg)',
-          width:     90,
-          alignment: Alignment.centerRight,
-          cellBuilder: (inv) => Text(
+  static const _webTabs = ['all', 'due', 'paid', 'cancelled'];
+  String _webTab = 'all';
+  String _sortKey = 'date';
+  bool _sortAsc = false;
+  bool _dense = true;
+  int _page = 0;
+  int _rowsPerPage = 25;
+
+  static const _webColumns = [
+    WebColumn('Invoice #', width: 130, sortKey: 'number'),
+    WebColumn('Date', width: 120, sortKey: 'date'),
+    WebColumn('Retailer', flex: 3, sortKey: 'retailer'),
+    WebColumn('Birds', width: 90, sortKey: 'birds', align: TextAlign.right),
+    WebColumn('Qty', width: 110, sortKey: 'kg', align: TextAlign.right),
+    WebColumn('Total', width: 130, sortKey: 'total', align: TextAlign.right),
+    WebColumn('Balance', width: 130, sortKey: 'balance', align: TextAlign.right),
+    WebColumn('Status', width: 140, align: TextAlign.center),
+    WebColumn('Action', width: 80, align: TextAlign.center),
+  ];
+
+  bool _isCancelled(Map<String, dynamic> i) => i['status'] == 'cancelled';
+  double _bal(Map<String, dynamic> i) => _isCancelled(i)
+      ? 0 : (i['balance_amount'] as num?)?.toDouble() ?? 0;
+
+  bool _inTab(Map<String, dynamic> i, String t) => switch (t) {
+    'due'       => !_isCancelled(i) && _bal(i) > 0,
+    'paid'      => !_isCancelled(i) && _bal(i) <= 0,
+    'cancelled' => _isCancelled(i),
+    _           => true,
+  };
+
+  Comparable<Object> _sortValue(Map<String, dynamic> i) {
+    switch (_sortKey) {
+      case 'number':
+        return i['invoice_number'] as String? ?? '';
+      case 'date':
+        return i['invoice_date'] as String? ?? '';
+      case 'retailer':
+        return ((i['retailers'] as Map?)?['shop_name'] as String? ?? '')
+            .toLowerCase();
+      case 'birds':
+        return (i['bird_count'] as num?) ?? 0;
+      case 'kg':
+        return (i['quantity_kg'] as num?) ?? 0;
+      case 'total':
+        return (i['total_amount'] as num?) ?? 0;
+      case 'balance':
+        return _bal(i);
+      default:
+        return i['invoice_date'] as String? ?? '';
+    }
+  }
+
+  Widget _webCell(Map<String, dynamic> inv, int col) {
+    final cancelled = _isCancelled(inv);
+    switch (col) {
+      case 0:
+        return Text(inv['invoice_number'] as String? ?? '—',
+            style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600,
+                color: WebColors.text1));
+      case 1:
+        final d = DateTime.tryParse(inv['invoice_date'] as String? ?? '');
+        return Text(d != null ? DateFormat('d MMM y').format(d) : '—',
+            style: const TextStyle(fontSize: 13, color: WebColors.text2));
+      case 2:
+        final name = (inv['retailers'] as Map?)?['shop_name'] as String? ?? '—';
+        return Text(name, maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600,
+                color: cancelled ? WebColors.text3 : WebColors.text1));
+      case 3:
+        return Text('${inv['bird_count'] ?? 0}',
+            style: const TextStyle(fontSize: 13.5, color: WebColors.text2));
+      case 4:
+        return Text(
             '${(inv['quantity_kg'] as num?)?.toStringAsFixed(1) ?? '0'} kg',
-            style: const TextStyle(fontSize: 13, color: kTextSub),
-          ),
-        ),
-        AppTableColumn(
-          label:     'Total',
-          width:     110,
-          alignment: Alignment.centerRight,
-          cellBuilder: (inv) {
-            final total = (inv['total_amount'] as num?)?.toDouble() ?? 0;
-            return Text(
-              Fmt.amount(total),
-              style: const TextStyle(
-                  fontSize: 13, fontWeight: FontWeight.w700, color: kPrimary),
-            );
-          },
-        ),
-        AppTableColumn(
-          label:     'Balance',
-          width:     110,
-          alignment: Alignment.centerRight,
-          cellBuilder: (inv) {
-            if (inv['status'] == 'cancelled') {
-              return const Text('—', style: TextStyle(fontSize: 13, color: kTextHint));
-            }
-            final bal = (inv['balance_amount'] as num?)?.toDouble() ?? 0;
-            return Text(
-              bal > 0 ? Fmt.amount(bal) : '—',
-              style: TextStyle(
-                fontSize:   13,
-                fontWeight: FontWeight.w600,
-                color:      bal > 0 ? Colors.orange : kTextHint,
-              ),
-            );
-          },
-        ),
-        AppTableColumn(
-          label:     'Status',
-          width:     100,
-          alignment: Alignment.center,
-          cellBuilder: (inv) {
-            final status = inv['status'] as String? ?? 'draft';
-            // Cancelled invoices get neutral grey styling rather than the
-            // shared SC.order() red (used trader-wide for order cancellation,
-            // a different, alarming context) — a cancelled-and-corrected
-            // invoice is an expected, benign state, not an error.
-            if (status == 'cancelled') {
-              return const StatusChip(
-                  label: 'cancelled', color: kTextHint, size: StatusChipSize.small);
-            }
-            return StatusChip.order(status, size: StatusChipSize.small);
-          },
-        ),
-        AppTableColumn(
-          label:     '',
-          width:     40,
-          alignment: Alignment.center,
-          cellBuilder: (_) => const Icon(Icons.chevron_right, size: 16, color: kTextHint),
-        ),
-      ],
-      rows:     _filtered,
-      onRowTap: (inv) => context.push(R.invoiceDetailPath(inv['id'])),
-      desktopPadding: const EdgeInsets.symmetric(horizontal: 16),
-      rowDecoration: (inv) {
-        final bal = (inv['balance_amount'] as num?)?.toDouble() ?? 0;
-        final isCancelled = inv['status'] == 'cancelled';
-        if (isCancelled) {
-          return const BoxDecoration(
-            color: Color(0xFFF5F5F5),
-            border: Border(bottom: BorderSide(color: kBorder, width: 0.5)),
-          );
-        }
-        return BoxDecoration(
-          color:  bal > 0
-              ? Colors.orange.withValues(alpha: 0.02)
-              : Colors.transparent,
-          border: const Border(bottom: BorderSide(color: kBorder, width: 0.5)),
+            style: const TextStyle(fontSize: 13.5, color: WebColors.text2));
+      case 5:
+        return Text(
+            Fmt.amount((inv['total_amount'] as num?)?.toDouble() ?? 0),
+            style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700,
+                color: cancelled ? WebColors.text3 : WebColors.text1,
+                decoration: cancelled ? TextDecoration.lineThrough : null));
+      case 6:
+        final bal = _bal(inv);
+        return Text(bal > 0 ? Fmt.amount(bal) : '—',
+            style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700,
+                color: bal > 0 ? WebColors.warning : WebColors.text3));
+      case 7:
+        final status = inv['status'] as String? ?? 'draft';
+        final label = status.replaceAll('_', ' ');
+        return WebLabel(label[0].toUpperCase() + label.substring(1),
+            color: cancelled ? WebColors.text3 : SC.order(status));
+      default:
+        return WebIconButton(
+          icon: Icons.visibility_outlined,
+          tooltip: 'View details',
+          size: 32,
+          outlined: false,
+          onTap: () => context.push(R.invoiceDetailPath(inv['id'])),
         );
-      },
-      emptyWidget: AsyncStateView(
-        loading: false, empty: true,
-        emptyIcon: Icons.receipt_long_outlined,
-        emptyMessage: 'No invoices found',
-        child: const SizedBox.shrink(),
+    }
+  }
+
+
+  Widget _buildWebPage() {
+    final rows = _filtered.where((i) => _inTab(i, _webTab)).toList()
+      ..sort((a, b) {
+        final c = Comparable.compare(_sortValue(a), _sortValue(b));
+        return _sortAsc ? c : -c;
+      });
+    final lastPage = rows.isEmpty ? 0 : (rows.length - 1) ~/ _rowsPerPage;
+    final page = _page.clamp(0, lastPage);
+    final pageRows =
+        rows.skip(page * _rowsPerPage).take(_rowsPerPage).toList();
+    final collected = _list.where((i) => !_isCancelled(i)).fold<double>(0,
+        (s, i) => s + ((i['collected_amount'] as num?)?.toDouble() ?? 0));
+
+    return WebPage(
+      header: PageBreadcrumbsHeader(
+        title: 'Invoices',
+        subtitle: 'Every bill raised, what was collected and what is due',
+        crumbs: const [Crumb('Dashboard', R.dashboard), Crumb('Invoices')],
+        action: WebIconButton(icon: Icons.refresh_rounded,
+            tooltip: 'Refresh', onTap: _load),
       ),
+      children: [
+        WebKpiRow(children: [
+          WebKpiCard(label: 'Total Revenue', value: Fmt.amount(_totalRevenue),
+              icon: Icons.trending_up_rounded, color: WebColors.navy),
+          WebKpiCard(label: 'Collected', value: Fmt.amount(collected),
+              icon: Icons.payments_outlined, color: WebColors.success),
+          WebKpiCard(label: 'Outstanding',
+              value: Fmt.amount(_totalOutstanding),
+              icon: Icons.account_balance_wallet_outlined,
+              color: _totalOutstanding > 0
+                  ? WebColors.warning : WebColors.success),
+          WebKpiCard(label: 'Invoices', value: '${_filtered.length}',
+              sub: 'latest 200 loaded',
+              icon: Icons.receipt_long_outlined, color: WebColors.gold),
+        ]),
+        const SizedBox(height: WebSpace.lg),
+        WebListCard(children: [
+          WebListTabs(
+            tabs: [
+              WebTab('All', count: _filtered.length),
+              WebTab('Due', count: _filtered.where((i) => _inTab(i, 'due')).length,
+                  color: WebColors.warning),
+              WebTab('Paid', count: _filtered.where((i) => _inTab(i, 'paid')).length,
+                  color: WebColors.success),
+              WebTab('Cancelled',
+                  count: _filtered.where((i) => _inTab(i, 'cancelled')).length,
+                  color: WebColors.text3),
+            ],
+            selected: _webTabs.indexOf(_webTab),
+            onChanged: (i) => setState(() { _webTab = _webTabs[i]; _page = 0; }),
+          ),
+          WebListToolbar(
+            search: WebSearchField(
+              controller: _searchCtrl,
+              hint: 'Search by retailer or invoice number…',
+              debounce: const Duration(milliseconds: 250),
+              onChanged: (v) { _applySearch(v); setState(() => _page = 0); },
+            ),
+          ),
+          if (_error != null)
+            Padding(
+              padding: const EdgeInsets.all(WebSpace.xl),
+              child: AsyncStateView(loading: false, error: _error,
+                  onRetry: _load, child: const SizedBox.shrink()),
+            )
+          else
+            WebDataTable<Map<String, dynamic>>(
+              columns: _webColumns,
+              rows: pageRows,
+              cellBuilder: _webCell,
+              onRowTap: (inv) => context.push(R.invoiceDetailPath(inv['id'])),
+              sortKey: _sortKey,
+              sortAscending: _sortAsc,
+              onSort: (k) => setState(() {
+                if (_sortKey == k) {
+                  _sortAsc = !_sortAsc;
+                } else {
+                  _sortKey = k;
+                  _sortAsc = k == 'retailer';
+                }
+                _page = 0;
+              }),
+              dense: _dense,
+              loading: _loading,
+              emptyText: _list.isEmpty ? 'No invoices yet' : 'No invoices match',
+            ),
+          WebTablePagination(
+            page: page,
+            rowsPerPage: _rowsPerPage,
+            total: rows.length,
+            onPage: (p) => setState(() => _page = p),
+            onRowsPerPage: (n) => setState(() { _rowsPerPage = n; _page = 0; }),
+            dense: _dense,
+            onDense: (v) => setState(() => _dense = v),
+          ),
+        ]),
+      ],
     );
   }
 

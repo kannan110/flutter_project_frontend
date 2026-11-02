@@ -9,6 +9,7 @@ import '../../../../core/providers/session_provider.dart';
 import '../../../../core/router/app_router.dart';
 import '../../../../core/theme/app_theme.dart';
 import 'entry_mode_selector.dart';
+import 'package:rooster_trader/shared/widgets/web/app_scaffold.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TRADER DELIVERY SCREEN
@@ -588,7 +589,7 @@ class _TraderDeliveryScreenState
   @override
   Widget build(BuildContext context) {
     if (!_loaded) {
-      return Scaffold(
+      return AppScaffold(
         appBar: AppBar(
           leading: IconButton(
             icon: const Icon(Icons.arrow_back),
@@ -609,7 +610,7 @@ class _TraderDeliveryScreenState
     final isReady  = ['assigned','picked_up','out_for_delivery'].contains(_deliveryStatus);
 
     if (!isReady) {
-      return Scaffold(
+      return AppScaffold(
         appBar: AppBar(
           leading: IconButton(icon: const Icon(Icons.arrow_back),
               onPressed: () => context.canPop() ? context.pop() : null),
@@ -636,7 +637,7 @@ class _TraderDeliveryScreenState
       );
     }
 
-    return Scaffold(
+    return AppScaffold(
       backgroundColor: kBgPage,
       appBar: AppBar(
         backgroundColor: kNavy,

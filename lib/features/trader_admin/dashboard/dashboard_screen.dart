@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import '../../../shared/widgets/web/web.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart' hide TextDirection;
@@ -17,34 +18,25 @@ import '../dashboard/trader_shell.dart';
 final langProvider = StateProvider<String>((ref) => 'en');
 
 // ── Design tokens (enterprise SaaS — desktop-first) ──────────────────────────
-const _kPageBg = Color(0xFFF8F9FB); // near-white, not cream
-const _kPanel = Color(0xFFFFFFFF);
-const _kBorder = Color(0xFFE5E7EB);
-const _kNavBg = Color(0xFF0F172A); // slate-900
-const _kNavBorder = Color(0xFF1E293B);
-const _kText1 = Color(0xFF0F172A);
-const _kText2 = Color(0xFF475569);
-const _kText3 = Color(0xFF94A3B8);
-const _kBlue = Color(0xFF2563EB);
-const _kBlueLt = Color(0xFFEFF6FF);
-const _kGreen = Color(0xFF059669);
-const _kGreenLt = Color(0xFFECFDF5);
-const _kOrange = Color(0xFFD97706);
-const _kOrangeLt = Color(0xFFFFFBEB);
-const _kRed = Color(0xFFDC2626);
-const _kRedLt = Color(0xFFFEF2F2);
-const _kIndigo = Color(0xFF4F46E5);
-const _kColorsViolet = Color(0xFF7C3AED);
-const _kTeal = Color(0xFF0D9488);
+const _kPageBg = WebColors.pageBg;
+// Brand palette: navy = primary, gold = accent, semantic colours for status.
+const _kPanel = WebColors.surface;
+const _kBorder = WebColors.border;
+const _kNavBg = WebColors.navy;
+const _kText1 = WebColors.text1;
+const _kText2 = WebColors.text2;
+const _kText3 = WebColors.text3;
+const _kBlue = WebColors.navy;          // primary accent
+const _kGold = Color(0xFFB8913F);       // gold, darkened for text/lines on white
+const _kGreen = WebColors.success;
+const _kGreenLt = WebColors.successBg;
+const _kOrange = WebColors.warning;
+const _kRed = WebColors.error;
+const _kRedLt = WebColors.errorBg;
+const _kIndigo = WebColors.info;
+const _kColorsViolet = _kGold;
 
-const _kShadow = [
-  BoxShadow(color: Color(0x08000000), blurRadius: 1, offset: Offset(0, 1)),
-  BoxShadow(color: Color(0x06000000), blurRadius: 4, offset: Offset(0, 2)),
-];
-const _kShadowMd = [
-  BoxShadow(color: Color(0x0D000000), blurRadius: 6, offset: Offset(0, 2)),
-  BoxShadow(color: Color(0x0A000000), blurRadius: 12, offset: Offset(0, 4)),
-];
+const _kShadow = WebShadow.card;
 
 // ─────────────────────────────────────────────────────────────────────────────
 class DashboardScreen extends ConsumerStatefulWidget {
@@ -196,63 +188,97 @@ class _S extends ConsumerState<DashboardScreen> {
 
     return ColoredBox(
       color: _kPageBg,
-      child: Column(children: [
-        _CommandHeader(user: user, data: d, onRefresh: _load, now: now),
-        Expanded(child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
+      child: SingleChildScrollView(
+          padding: WebSpace.page,
           child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start, children: [
+            crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            _CommandHeader(user: user, data: d, onRefresh: _load, now: now),
             _MetricStrip(data: d, stock: _stock),
-            const SizedBox(height: 20),
-            _BusinessHealthCard(
+            const SizedBox(height: _gap),
+            _BusinessHealthWeb(
               data: d,
               stockValueByProduct: _stockValueByProduct,
               onPnl: () => context.push(R.pnlStatement),
               onCashFlow: () => context.push(R.cashFlowStatement),
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: _gap),
             _OpsBoard(data: d, onNavigate: (r) => context.go(r)),
-            const SizedBox(height: 20),
-            Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Expanded(flex: 7, child: Column(children: [
-                _RevenueTrendPanel(data: d, trend: _revenueTrend),
-                const SizedBox(height: 16),
-                _LiveStockPanel(stock: _stock, data: d),
-              ])),
-              const SizedBox(width: 16),
-              Expanded(flex: 4, child: Column(children: [
-                _NavigatorAgentShift(agents: d.agentStatus,
-                    onTap: () => context.go(R.agents)),
-                const SizedBox(height: 16),
-                _CollectionIntelligencePanel(
-                    data: d,
-                    aging: _dashboardAging,
-                    onLedger: () => context.go(R.ledger),
-                    onClosure: () => context.go(R.dayClosure)),
-                if (_topRetailers.isNotEmpty) ...[
-                  const SizedBox(height: 16),
+            const SizedBox(height: _gap),
+            // Row 1 — sales trend + collections (equal height)
+            _equalRow([
+              (8, _RevenueTrendPanel(data: d, trend: _revenueTrend)),
+              (4, _CollectionIntelligencePanel(
+                  data: d,
+                  aging: _dashboardAging,
+                  onLedger: () => context.go(R.ledger),
+                  onClosure: () => context.go(R.dayClosure))),
+            ]),
+            const SizedBox(height: _gap),
+            // Row 2 — stock · agents · (top retailers / alerts)
+            LayoutBuilder(builder: (_, c) {
+              final stockPanel = _LiveStockPanel(stock: _stock, data: d);
+              final agentPanel = _NavigatorAgentShift(
+                  agents: d.agentStatus, onTap: () => context.go(R.agents));
+              final side = <Widget>[
+                if (_topRetailers.isNotEmpty)
                   _TopRetailersToday(
                       retailers: _topRetailers,
                       onViewAll: () => context.go(R.retailers)),
-                ],
-                if (d.unreadAlerts > 0 || d.remainingBirds < 50) ...[
-                  const SizedBox(height: 16),
+                if (d.unreadAlerts > 0 || d.remainingBirds < 50)
                   _AlertsPanel(data: d, stock: _stock,
                       onTap: () => context.go(R.alerts)),
-                ],
-              ])),
-            ]),
-            const SizedBox(height: 20),
+              ];
+              // Stack the side panels; the last one fills leftover height
+              Widget? sideCol;
+              if (side.isNotEmpty) {
+                sideCol = Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    for (var i = 0; i < side.length; i++)
+                      if (i == side.length - 1)
+                        Expanded(child: side[i])
+                      else ...[side[i], const SizedBox(height: _gap)],
+                  ],
+                );
+              }
+              final wide = c.maxWidth >= 1100;
+              if (sideCol == null || wide) {
+                return _equalRow([
+                  (1, stockPanel),
+                  (1, agentPanel),
+                  if (sideCol != null) (1, sideCol),
+                ]);
+              }
+              // Narrower screens: two per row so nothing gets squashed
+              return Column(children: [
+                _equalRow([(1, stockPanel), (1, agentPanel)]),
+                const SizedBox(height: _gap),
+                _equalRow([(1, sideCol)]),
+              ]);
+            }),
+            const SizedBox(height: _gap),
             _RecentOrdersTable(
               orders: _recentOrders,
               onViewAll: () => context.go(R.orders),
               onOrder: (id) => context.push(R.orderDetailPath(id)),
             ),
           ]),
-        )),
-      ]),
+      ),
     );
   }
+
+  // One gap size for the whole desktop dashboard
+  static const double _gap = WebSpace.lg;
+
+  /// Cards side by side, all stretched to the tallest one (no ragged gaps).
+  Widget _equalRow(List<(int, Widget)> cells) => IntrinsicHeight(
+    child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      for (var i = 0; i < cells.length; i++) ...[
+        if (i > 0) const SizedBox(width: _gap),
+        Expanded(flex: cells[i].$1, child: cells[i].$2),
+      ],
+    ]),
+  );
 
   Widget _buildMobileScaffold(dynamic user, String lang,
       String Function(String) t) {
@@ -858,6 +884,7 @@ class _S extends ConsumerState<DashboardScreen> {
     final soldToday = _data?.todayDelivered ?? 0;
     final fraction = totalBirds > 0 ? (totalBirds / (totalBirds + soldToday))
         .clamp(0.0, 1.0) : 0.0;
+    final survDays = _data?.stockSurvivalDays;
     return Padding(padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
         child: GestureDetector(onTap: () => context.push(R.stockDetail),
             child: Container(decoration: BoxDecoration(color: kSurface,
@@ -883,35 +910,51 @@ class _S extends ConsumerState<DashboardScreen> {
                   ]),
                   const SizedBox(height: 20),
                   Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
-                    SizedBox(width: 140,
-                        height: 140,
-                        child: Stack(alignment: Alignment.center, children: [
-                          Transform.rotate(angle: -1.5708,
-                              child: CustomPaint(size: const Size(140, 140),
-                                  painter: _DonutPainter(
-                                      fraction: fraction.toDouble(),
-                                      ringColor: kGoldLight,
-                                      trackColor: const Color(0xFFF3F4F6),
-                                      strokeWidth: 12))),
-                          Column(mainAxisSize: MainAxisSize.min, children: [
-                            Text(_stock.isEmpty ? '0' : '$totalBirds',
-                                style: const TextStyle(fontSize: 30,
-                                    fontWeight: FontWeight.w900,
-                                    color: kNavy,
-                                    letterSpacing: -0.5)),
-                            const Text('TOTAL BIRDS', style: TextStyle(
-                                fontSize: 8,
-                                fontWeight: FontWeight.w900,
-                                color: kTextHint,
-                                letterSpacing: 0.8)),
-                            const SizedBox(height: 2),
-                            Text(
-                                '${_stock.fold(0.0, (s, p) => s + p.availableKg).toStringAsFixed(2)} Kg',
-                                style: const TextStyle(fontSize: 12,
-                                    fontWeight: FontWeight.w800,
-                                    color: kTextSub)),
-                          ]),
-                        ])),
+                    Tooltip(
+                      message: 'Total Stock: ${_stock.isEmpty ? 0 : totalBirds} birds\n'
+                          'Weight: ${_stock.fold(0.0, (s, p) => s + p.availableKg).toStringAsFixed(2)} Kg\n'
+                          'Survival: ${survDays != null ? (survDays < 1 ? "< 1 day" : "${survDays.toStringAsFixed(1)} days") : "—"}',
+                      waitDuration: const Duration(milliseconds: 200),
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      textStyle: const TextStyle(
+                          fontSize: 11,
+                          color: Colors.white,
+                          height: 1.5,
+                          fontWeight: FontWeight.w500),
+                      decoration: const BoxDecoration(
+                        color: kNavy,
+                        borderRadius: BorderRadius.all(Radius.circular(8)),
+                      ),
+                      child: SizedBox(width: 140,
+                          height: 140,
+                          child: Stack(alignment: Alignment.center, children: [
+                            Transform.rotate(angle: -1.5708,
+                                child: CustomPaint(size: const Size(140, 140),
+                                    painter: _DonutPainter(
+                                        fraction: fraction.toDouble(),
+                                        ringColor: kGoldLight,
+                                        trackColor: const Color(0xFFF3F4F6),
+                                        strokeWidth: 12))),
+                            Column(mainAxisSize: MainAxisSize.min, children: [
+                              Text(_stock.isEmpty ? '0' : '$totalBirds',
+                                  style: const TextStyle(fontSize: 30,
+                                      fontWeight: FontWeight.w900,
+                                      color: kNavy,
+                                      letterSpacing: -0.5)),
+                              const Text('TOTAL BIRDS', style: TextStyle(
+                                  fontSize: 8,
+                                  fontWeight: FontWeight.w900,
+                                  color: kTextHint,
+                                  letterSpacing: 0.8)),
+                              const SizedBox(height: 2),
+                              Text(
+                                  '${_stock.fold(0.0, (s, p) => s + p.availableKg).toStringAsFixed(2)} Kg',
+                                  style: const TextStyle(fontSize: 12,
+                                      fontWeight: FontWeight.w800,
+                                      color: kTextSub)),
+                            ]),
+                          ])),
+                    ),
                     const SizedBox(width: 20),
                     Expanded(child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1406,33 +1449,17 @@ class _CommandHeader extends StatelessWidget {
       _            => ('NO DATA',   _kText3,                   Icons.help_outline_rounded),
     };
 
-    return Container(
-      decoration: const BoxDecoration(
-        color: _kPanel,
-        border: Border(bottom: BorderSide(color: _kBorder)),
-      ),
-      padding: const EdgeInsets.fromLTRB(24, 0, 24, 0),
-      child: Row(children: [
-        Expanded(child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text('$greeting, ${user?.companyName ?? "Trader"}! 👋',
-                  style: const TextStyle(
-                      fontSize: 22, fontWeight: FontWeight.w800,
-                      color: _kText1, letterSpacing: -0.4)),
-              const SizedBox(height: 2),
-              Text('$dayStr  •  $timeStr',
-                  style: const TextStyle(fontSize: 12, color: _kText3,
-                      fontWeight: FontWeight.w500)),
-            ])),
-
+    return PageBreadcrumbsHeader(
+      title: '$greeting, ${user?.companyName ?? "Trader"}! 👋',
+      subtitle: '$dayStr  •  $timeStr',
+      crumbs: const [Crumb('Home', R.dashboard), Crumb('Dashboard')],
+      action: Row(mainAxisSize: MainAxisSize.min, children: [
         if (rate != null) ...[
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
             decoration: BoxDecoration(
               color: rateUp ? _kGreenLt : rateDown ? _kRedLt : const Color(0xFFF8FAFC),
-              borderRadius: BorderRadius.circular(6),
+              borderRadius: BorderRadius.circular(WebRadius.sm),
               border: Border.all(color: rateUp
                   ? _kGreen.withValues(alpha: 0.3)
                   : rateDown
@@ -1466,10 +1493,10 @@ class _CommandHeader extends StatelessWidget {
         ],
 
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
           decoration: BoxDecoration(
             color: sigColor.withValues(alpha: 0.08),
-            borderRadius: BorderRadius.circular(6),
+            borderRadius: BorderRadius.circular(WebRadius.sm),
             border: Border.all(color: sigColor.withValues(alpha: 0.3)),
           ),
           child: Row(mainAxisSize: MainAxisSize.min, children: [
@@ -1483,16 +1510,16 @@ class _CommandHeader extends StatelessWidget {
         const SizedBox(width: 12),
 
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
           decoration: BoxDecoration(
             color: data.isDayClosed ? _kRedLt : _kGreenLt,
-            borderRadius: BorderRadius.circular(6),
+            borderRadius: BorderRadius.circular(WebRadius.sm),
             border: Border.all(
                 color: data.isDayClosed
                     ? _kRed.withValues(alpha: 0.3)
                     : _kGreen.withValues(alpha: 0.3)),
           ),
-          child: Row(children: [
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
             Container(width: 6, height: 6,
                 decoration: BoxDecoration(shape: BoxShape.circle,
                     color: data.isDayClosed ? _kRed : _kGreen)),
@@ -1503,48 +1530,11 @@ class _CommandHeader extends StatelessWidget {
           ]),
         ),
         const SizedBox(width: 12),
-        _HdrBtn(
+        WebIconButton(
             icon: Icons.refresh_rounded, onTap: onRefresh, tooltip: 'Refresh'),
-        const SizedBox(width: 4),
       ]),
-      height: 64,
     );
   }
-}
-
-class _HdrBtn extends StatefulWidget {
-  const _HdrBtn(
-      {required this.icon, required this.onTap, required this.tooltip});
-
-  final IconData icon;
-  final VoidCallback onTap;
-  final String tooltip;
-
-  @override State<_HdrBtn> createState() => _HdrBtnState();
-}
-
-class _HdrBtnState extends State<_HdrBtn> {
-  bool _hov = false;
-
-  @override
-  Widget build(BuildContext c) =>
-      Tooltip(message: widget.tooltip,
-          child: MouseRegion(
-              onEnter: (_) => setState(() => _hov = true),
-              onExit: (_) => setState(() => _hov = false),
-              child: GestureDetector(onTap: widget.onTap,
-                  child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 120),
-                      width: 36,
-                      height: 36,
-                      decoration: BoxDecoration(
-                        color: _hov ? const Color(0xFFF1F5F9) : Colors
-                            .transparent,
-                        borderRadius: BorderRadius.circular(6),
-                        border: Border.all(
-                            color: _hov ? _kBorder : Colors.transparent),
-                      ),
-                      child: Icon(widget.icon, size: 18, color: _kText2)))));
 }
 
 class _MetricStrip extends StatelessWidget {
@@ -1564,7 +1554,7 @@ class _MetricStrip extends StatelessWidget {
         value: _fmt(totalBirds),
         sub: '${_fmt(stock.fold(0, (s, p) => s + p.agentBirds))} with agents',
         icon: Icons.egg_alt_outlined,
-        grad: [const Color(0xFFDC2626), const Color(0xFFB91C1C)],
+        grad: [_kNavBg, _kNavBg],
         trend: null,
       ),
       _MetricDef(
@@ -1572,7 +1562,7 @@ class _MetricStrip extends StatelessWidget {
         value: '${data.todayDelivered}',
         sub: '${data.todayDeliveredKgLedger.toStringAsFixed(0)} kg',
         icon: Icons.local_shipping_outlined,
-        grad: [const Color(0xFFD97706), const Color(0xFFB45309)],
+        grad: [_kGold, _kGold],
         trend: null,
       ),
       _MetricDef(
@@ -1580,7 +1570,7 @@ class _MetricStrip extends StatelessWidget {
         value: '${data.activeDeliveries}',
         sub: '${data.todayDcWeight.toStringAsFixed(0)} kg on road',
         icon: Icons.local_shipping_rounded,
-        grad: [const Color(0xFF1D4ED8), const Color(0xFF1E40AF)],
+        grad: [_kIndigo, _kIndigo],
         trend: null,
       ),
       _MetricDef(
@@ -1588,7 +1578,7 @@ class _MetricStrip extends StatelessWidget {
         value: Fmt.amount(data.totalOutstanding),
         sub: '${data.totalRetailers} Customers',
         icon: Icons.account_balance_wallet_outlined,
-        grad: [const Color(0xFF059669), const Color(0xFF047857)],
+        grad: [_kGreen, _kGreen],
         trend: null,
       ),
       _MetricDef(
@@ -1598,7 +1588,7 @@ class _MetricStrip extends StatelessWidget {
             ? '0% of stock' : '${(data.todayMortalityBirdsLedger /
             math.max(totalBirds, 1) * 100).toStringAsFixed(2)}% of stock',
         icon: Icons.warning_amber_outlined,
-        grad: [const Color(0xFF7C3AED), const Color(0xFF6D28D9)],
+        grad: [_kRed, _kRed],
         trend: null,
       ),
     ];
@@ -1609,7 +1599,7 @@ class _MetricStrip extends StatelessWidget {
         .map((e) =>
         Expanded(
           child: Padding(
-            padding: EdgeInsets.only(left: e.key > 0 ? 12 : 0),
+            padding: EdgeInsets.only(left: e.key > 0 ? WebSpace.lg : 0),
             child: _MetricPanel(def: e.value),
           ),
         )).toList());
@@ -1635,46 +1625,12 @@ class _MetricPanel extends StatelessWidget {
   final _MetricDef def;
 
   @override
-  Widget build(BuildContext context) =>
-      Container(
-        padding: const EdgeInsets.all(18),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-              colors: def.grad,
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight),
-          borderRadius: BorderRadius.circular(10),
-          boxShadow: [BoxShadow(
-              color: def.grad.first.withValues(alpha: 0.3),
-              blurRadius: 12, offset: const Offset(0, 4))
-          ],
-        ),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(children: [
-            Container(
-              width: 36, height: 36,
-              decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(8)),
-              child: Icon(def.icon, color: Colors.white, size: 18),
-            ),
-            const Spacer(),
-            const SizedBox(width: 48, height: 24),
-          ]),
-          const SizedBox(height: 12),
-          Text(def.value,
-              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w800,
-                  color: Colors.white, letterSpacing: -0.5),
-              maxLines: 1, overflow: TextOverflow.ellipsis),
-          const SizedBox(height: 2),
-          Text(def.label,
-              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600,
-                  color: Colors.white.withValues(alpha: 0.75))),
-          const SizedBox(height: 6),
-          Text(def.sub,
-              style: TextStyle(fontSize: 11,
-                  color: Colors.white.withValues(alpha: 0.6))),
-        ]),
+  Widget build(BuildContext context) => WebKpiCard(
+        label: def.label,
+        value: def.value,
+        sub:   def.sub,
+        icon:  def.icon,
+        color: def.grad.first,
       );
 }
 
@@ -2066,6 +2022,417 @@ class _BusinessHealthCard extends StatelessWidget {
       ]));
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// BUSINESS HEALTH — desktop/web layout.
+// Same figures and actions as _BusinessHealthCard (mobile keeps that one);
+// only the layout and colours differ. Reads DashboardData verbatim.
+// ─────────────────────────────────────────────────────────────────────────────
+class _BusinessHealthWeb extends StatelessWidget {
+  const _BusinessHealthWeb({
+    required this.data,
+    required this.onPnl,
+    required this.onCashFlow,
+    this.stockValueByProduct = const [],
+  });
+
+  final DashboardData data;
+  final VoidCallback onPnl;
+  final VoidCallback onCashFlow;
+  final List<Map<String, dynamic>> stockValueByProduct;
+
+  @override
+  Widget build(BuildContext context) {
+    final d = data;
+    final costPending = d.todayLinesCostPending > 0;
+    final revenue = d.todayRevenue > 0 ? d.todayRevenue : d.todayCollected;
+    final cash = d.todayCashIn - d.todayCashOut;
+
+    final tiles = <Widget>[
+      _tile('Revenue', Fmt.amount(revenue),
+          Icons.trending_up_rounded, _kGreen),
+      _tile('Purchase Cost',
+          d.todayPurchaseCostActual == null
+              ? 'Pending' : Fmt.amount(d.todayPurchaseCostActual!),
+          Icons.shopping_cart_outlined, _kBlue,
+          pending: d.todayPurchaseCostActual == null),
+      _tile('Outstanding', Fmt.amount(d.totalOutstanding),
+          Icons.account_balance_wallet_outlined, _kOrange),
+      _tile('Supplier Payable', Fmt.amount(d.totalSupplierPayable),
+          Icons.agriculture_outlined, _kGold),
+      _expenseTile(d),
+      _tile('Cash Position', Fmt.amount(cash),
+          Icons.water_drop_outlined, cash >= 0 ? _kGreen : _kRed,
+          valueColor: cash >= 0 ? _kGreen : _kRed, onTap: onCashFlow),
+      _tile('Mortality Loss', Fmt.amount(d.todayMortalityLossAmount),
+          Icons.health_and_safety_outlined, _kRed),
+      _tile('Transit Shrinkage', Fmt.amount(d.todayShrinkageLossAmount),
+          Icons.compress_rounded, _kIndigo),
+      if (d.todayUnexplainedLossAmount > 0) ...[
+        _tile('Weight Variance', Fmt.amount(d.todayUnexplainedLossAmount),
+            Icons.balance_outlined, _kIndigo),
+        _tile('Total Loss ₹', Fmt.amount(d.todayTotalLossAmount),
+            Icons.crisis_alert_outlined, _kRed, valueColor: _kRed),
+      ],
+    ];
+
+    // 4 tiles per row, each row equal height
+    final rows = <Widget>[];
+    for (var i = 0; i < tiles.length; i += 4) {
+      final slice = tiles.sublist(i, (i + 4).clamp(0, tiles.length));
+      if (rows.isNotEmpty) rows.add(const SizedBox(height: 12));
+      rows.add(IntrinsicHeight(child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (var j = 0; j < 4; j++) ...[
+            if (j > 0) const SizedBox(width: 12),
+            Expanded(child: j < slice.length ? slice[j] : const SizedBox()),
+          ],
+        ],
+      )));
+    }
+
+    return Container(
+      decoration: WebDecor.card(),
+      clipBehavior: Clip.antiAlias,
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        // ── Header ────────────────────────────────────────────────────────
+        WebCardHeader(
+          title: 'Business Health — Today',
+          subtitle: DateFormat('EEEE, d MMM y').format(DateTime.now()),
+          icon: Icons.monitor_heart_outlined,
+          action: Row(mainAxisSize: MainAxisSize.min, children: [
+            WebButton(
+              label: 'Expense',
+              icon: Icons.add_rounded,
+              outlined: true,
+              color: _kOrange,
+              onPressed: () async {
+                final added = await showTraderExpenseSheet(context);
+                if (added) onPnl(); // refresh triggers dashboard reload
+              },
+            ),
+            const SizedBox(width: 8),
+            WebButton(
+              label: 'Full P&L',
+              icon: Icons.arrow_forward_rounded,
+              onPressed: onPnl,
+            ),
+          ]),
+        ),
+        const Divider(height: 1, color: _kBorder),
+
+        Padding(
+          padding: const EdgeInsets.all(WebSpace.xl),
+          child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            // ── Pending banner ────────────────────────────────────────────
+            if (costPending) ...[
+              Container(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 14, vertical: 10),
+                decoration: BoxDecoration(
+                  color: WebColors.warningBg,
+                  borderRadius: BorderRadius.circular(WebRadius.sm),
+                  border: Border.all(color: _kOrange.withValues(alpha: 0.25)),
+                ),
+                child: Row(children: [
+                  const Icon(Icons.info_outline_rounded,
+                      size: 16, color: _kOrange),
+                  const SizedBox(width: 8),
+                  Expanded(child: Text(
+                      '${d.todayLinesCostPending} line${d.todayLinesCostPending == 1 ? '' : 's'} '
+                          'not yet costed — Gross/Net Profit pending',
+                      style: const TextStyle(fontSize: 12.5,
+                          color: _kOrange, fontWeight: FontWeight.w600))),
+                ]),
+              ),
+              const SizedBox(height: WebSpace.lg),
+            ],
+
+            // ── Tiles (left) + profit panel (right) ───────────────────────
+            IntrinsicHeight(child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(flex: 8, child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: rows)),
+                const SizedBox(width: WebSpace.lg),
+                Expanded(flex: 4, child: _profitPanel(d)),
+              ],
+            )),
+
+            // ── Per-KG strip ──────────────────────────────────────────────
+            const SizedBox(height: WebSpace.lg),
+            _perKg(d),
+
+            // ── Current Stock Value by Product ────────────────────────────
+            if (stockValueByProduct.isNotEmpty) ...[
+              const SizedBox(height: WebSpace.lg),
+              _stockValueTable(),
+            ],
+          ]),
+        ),
+      ]),
+    );
+  }
+
+  // ── Metric tile ────────────────────────────────────────────────────────────
+  Widget _tile(String label, String value, IconData icon, Color c,
+      {Color? valueColor, bool pending = false, VoidCallback? onTap,
+        Widget? extra}) {
+    final tile = Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: _kPanel,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: _kBorder),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          WebIconTile(icon: icon, color: c, size: 32),
+          const Spacer(),
+          if (onTap != null)
+            const Icon(Icons.arrow_outward_rounded, size: 14, color: _kText3),
+        ]),
+        const SizedBox(height: 10),
+        Text(value, maxLines: 1, overflow: TextOverflow.ellipsis,
+            style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800,
+                letterSpacing: -0.3,
+                color: pending ? _kOrange : valueColor ?? _kText1)),
+        const SizedBox(height: 2),
+        Text(label, maxLines: 1, overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 12, color: _kText2,
+                fontWeight: FontWeight.w500)),
+        if (extra != null) extra,
+      ]),
+    );
+    if (onTap == null) return tile;
+    return MouseRegion(cursor: SystemMouseCursors.click,
+        child: GestureDetector(onTap: onTap, child: tile));
+  }
+
+  Widget _expenseTile(DashboardData d) {
+    final parts = <(String, double)>[
+      if (d.todayTripExpenses > 0) ('Agent', d.todayTripExpenses),
+      if (d.todayTraderExpenses > 0) ('Trader', d.todayTraderExpenses),
+      if (d.todayFixedExpenses > 0) ('Fixed', d.todayFixedExpenses),
+    ];
+    return _tile('Total Expenses', Fmt.amount(d.todayExpenseTotal),
+        Icons.receipt_long_outlined, _kOrange,
+        extra: parts.isEmpty ? null : Padding(
+          padding: const EdgeInsets.only(top: 6),
+          child: Wrap(spacing: 6, runSpacing: 4, children: [
+            for (final p in parts)
+              Text('${p.$1}: ${Fmt.amount(p.$2)}',
+                  style: const TextStyle(fontSize: 11, color: _kText3)),
+          ]),
+        ));
+  }
+
+  // ── Profit panel (navy brand card) ─────────────────────────────────────────
+  Widget _profitPanel(DashboardData d) {
+    final net = d.todayNetProfit;
+    final netColor = net == null ? WebColors.goldLight
+        : net >= 0 ? const Color(0xFF6EE7B7) : const Color(0xFFFCA5A5);
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+            colors: [WebColors.navy, WebColors.navyMid],
+            begin: Alignment.topLeft, end: Alignment.bottomRight),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+        Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          const Text('Net Profit', style: TextStyle(fontSize: 12.5,
+              color: Colors.white70, fontWeight: FontWeight.w600)),
+          const SizedBox(height: 6),
+          Text(net == null ? 'Pending' : Fmt.amount(net),
+              style: TextStyle(fontSize: 28, fontWeight: FontWeight.w800,
+                  color: netColor, letterSpacing: -0.6)),
+          if (d.todayNetMarginPct != null) ...[
+            const SizedBox(height: 4),
+            Text('${d.todayNetMarginPct!.toStringAsFixed(1)}% net margin',
+                style: TextStyle(fontSize: 12, color: netColor,
+                    fontWeight: FontWeight.w600)),
+          ],
+        ]),
+        const SizedBox(height: 16),
+        Container(height: 1, color: Colors.white.withValues(alpha: 0.12)),
+        const SizedBox(height: 16),
+        Row(children: [
+          Expanded(child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start, children: [
+            const Text('Gross Profit', style: TextStyle(fontSize: 12,
+                color: WebColors.sideText, fontWeight: FontWeight.w600)),
+            const SizedBox(height: 4),
+            Text(d.todayGrossProfit == null
+                ? 'Pending' : Fmt.amount(d.todayGrossProfit!),
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800,
+                    color: d.todayGrossProfit == null
+                        ? WebColors.goldLight : Colors.white)),
+          ])),
+          if (d.todayGrossMarginPct != null)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: WebColors.gold.withValues(alpha: 0.18),
+                borderRadius: BorderRadius.circular(WebRadius.label),
+              ),
+              child: Text('${d.todayGrossMarginPct!.toStringAsFixed(1)}% margin',
+                  style: const TextStyle(fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: WebColors.goldLight)),
+            ),
+        ]),
+      ]),
+    );
+  }
+
+  // ── Per-KG strip ───────────────────────────────────────────────────────────
+  Widget _perKg(DashboardData d) {
+    if (d.todayCostPerKg == null) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: WebDecor.inset(),
+        child: const Row(children: [
+          Icon(Icons.straighten_rounded, size: 16, color: _kText3),
+          SizedBox(width: 8),
+          Text('Per-KG metrics available after first batch is approved today',
+              style: TextStyle(fontSize: 12.5, color: _kText2)),
+        ]),
+      );
+    }
+    final profitKg = d.todayNetProfitPerKg ?? 0;
+    final items = <(String, String, Color)>[
+      ('Cost/kg', _perKgFmt(d.todayCostPerKg), _kBlue),
+      ('Sell/kg', _perKgFmt(d.todaySellingPricePerKg), _kGreen),
+      ('Profit/kg', _perKgFmt(d.todayNetProfitPerKg),
+          profitKg >= 0 ? _kGreen : _kRed),
+      ('Expense/kg', _perKgFmt(d.todayExpensePerKg), _kOrange),
+      ('Loss/kg', _perKgFmt(d.todayLossPerKg), _kRed),
+      ('G.Margin', d.todayGrossMarginPct == null ? '—'
+          : '${d.todayGrossMarginPct!.toStringAsFixed(1)}%', _kGold),
+    ];
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+      decoration: WebDecor.inset(),
+      child: Row(children: [
+        const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            Icon(Icons.straighten_rounded, size: 15, color: _kBlue),
+            SizedBox(width: 6),
+            Text('Per KG', style: TextStyle(fontSize: 13,
+                fontWeight: FontWeight.w800, color: _kText1)),
+          ]),
+          SizedBox(height: 2),
+          Text("Today's averages", style: TextStyle(fontSize: 11.5,
+              color: _kText3)),
+        ]),
+        const SizedBox(width: 20),
+        for (final it in items)
+          Expanded(child: Container(
+            margin: const EdgeInsets.only(left: 8),
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            decoration: BoxDecoration(
+              color: _kPanel,
+              borderRadius: BorderRadius.circular(WebRadius.sm),
+              border: Border.all(color: _kBorder),
+            ),
+            child: Column(children: [
+              Text(it.$2, style: TextStyle(fontSize: 14,
+                  fontWeight: FontWeight.w800, color: it.$3)),
+              const SizedBox(height: 2),
+              Text(it.$1, style: const TextStyle(fontSize: 11,
+                  color: _kText3)),
+            ]),
+          )),
+      ]),
+    );
+  }
+
+  String _perKgFmt(double? v) => v == null ? '—' : '${Fmt.amount(v)}/kg';
+
+  // ── Current stock value by product ─────────────────────────────────────────
+  Widget _stockValueTable() {
+    const head = TextStyle(fontSize: 12, fontWeight: FontWeight.w700,
+        color: _kText2);
+    Widget cell(String t, {TextStyle? s, TextAlign a = TextAlign.right,
+      int flex = 2}) => Expanded(flex: flex, child: Text(t, textAlign: a,
+        maxLines: 1, overflow: TextOverflow.ellipsis,
+        style: s ?? const TextStyle(fontSize: 13, color: _kText1)));
+
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: _kBorder),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(children: [
+        Container(
+          color: WebColors.surfaceAlt,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          child: Row(children: [
+            const Icon(Icons.inventory_2_outlined, size: 15, color: _kBlue),
+            const SizedBox(width: 8),
+            const Expanded(flex: 3, child: Text(
+                'Current Stock Value — By Product', style: TextStyle(
+                    fontSize: 13, fontWeight: FontWeight.w800,
+                    color: _kText1))),
+            cell('Stock', s: head),
+            cell('Cost/kg', s: head),
+            cell('Stock Value', s: head),
+            cell('Mkt Rate', s: head),
+            cell('Mkt Value', s: head),
+          ]),
+        ),
+        for (final r in stockValueByProduct) () {
+          final kg = (r['current_stock_kg'] as num?)?.toDouble() ?? 0;
+          final costPerKg = (r['cost_per_kg'] as num?)?.toDouble();
+          final stockValue = (r['current_stock_value'] as num?)?.toDouble();
+          final marketRate = (r['market_rate_per_kg'] as num?)?.toDouble();
+          final marketValue = (r['market_value'] as num?)?.toDouble();
+          final isPending = r['is_pending_cost'] == true;
+          final pendStyle = TextStyle(fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: isPending ? _kOrange : _kText1);
+          return Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
+            decoration: const BoxDecoration(
+                border: Border(top: BorderSide(color: WebColors.divider))),
+            child: Row(children: [
+              const SizedBox(width: 23),
+              Expanded(flex: 3, child: Row(children: [
+                Flexible(child: Text(r['product_name'] as String? ?? '—',
+                    maxLines: 1, overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 13,
+                        fontWeight: FontWeight.w700, color: _kText1))),
+                if (isPending) ...[
+                  const SizedBox(width: 8),
+                  const WebLabel('Cost pending', color: _kOrange),
+                ],
+              ])),
+              cell('${kg.toStringAsFixed(0)} kg',
+                  s: const TextStyle(fontSize: 13, color: _kText2)),
+              cell(costPerKg == null ? '—' : '₹${costPerKg.toStringAsFixed(0)}',
+                  s: pendStyle),
+              cell(stockValue == null ? '—' : Fmt.amount(stockValue),
+                  s: pendStyle),
+              cell(marketRate == null
+                  ? '—' : '₹${marketRate.toStringAsFixed(0)}/kg',
+                  s: const TextStyle(fontSize: 13, color: _kText2)),
+              cell(marketValue == null ? '—' : Fmt.amount(marketValue),
+                  s: const TextStyle(fontSize: 13,
+                      fontWeight: FontWeight.w700, color: _kBlue)),
+            ]),
+          );
+        }(),
+      ]),
+    );
+  }
+}
+
 class _OpsBoard extends StatelessWidget {
   const _OpsBoard({required this.data, required this.onNavigate});
 
@@ -2077,9 +2444,9 @@ class _OpsBoard extends StatelessWidget {
     final cols = [
       _OpsCol('New Orders', data.pendingOrders, _kBlue,
           Icons.shopping_cart_outlined, R.orders),
-      _OpsCol('Approval Pending', data.pendingApprovals, _kOrange,
+      _OpsCol('Approval Pending', data.pendingApprovals, _kGold,
           Icons.verified_outlined, R.approvals),
-      _OpsCol('Dispatch Pending', data.activeDeliveries, _kBlue,
+      _OpsCol('Dispatch Pending', data.activeDeliveries, _kIndigo,
           Icons.local_shipping_outlined, R.dispatch),
       _OpsCol('Delivered Today', data.todayDelivered, _kGreen,
           Icons.check_circle_outline, R.approvals),
@@ -2093,7 +2460,7 @@ class _OpsBoard extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         color: _kPanel,
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(WebRadius.card),
         border: Border.all(color: _kBorder),
         boxShadow: _kShadow,
       ),
@@ -2101,9 +2468,7 @@ class _OpsBoard extends StatelessWidget {
         Padding(
           padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
           child: Row(children: [
-            const Text('OPERATIONS BOARD',
-                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800,
-                    color: _kText1, letterSpacing: 0.8)),
+            const Text('Operations Board', style: WebText.cardTitle),
             const Spacer(),
             Text(DateFormat('d MMM y').format(DateTime.now()),
                 style: const TextStyle(fontSize: 11, color: _kText3)),
@@ -2160,13 +2525,7 @@ class _OpsBoardCol extends StatelessWidget {
               border: Border(right: BorderSide(color: _kBorder)))
               : null,
           child: Row(children: [
-            Container(
-              width: 40, height: 40,
-              decoration: BoxDecoration(
-                  color: col.color.withValues(alpha: 0.08),
-                  borderRadius: BorderRadius.circular(8)),
-              child: Icon(col.icon, color: col.color, size: 20),
-            ),
+            WebIconTile(icon: col.icon, color: col.color, size: 44),
             const SizedBox(width: 12),
             Expanded(child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -2178,22 +2537,106 @@ class _OpsBoardCol extends StatelessWidget {
                   const SizedBox(height: 2),
                   Text('${col.count}',
                       style: TextStyle(
-                          fontSize: 26, fontWeight: FontWeight.w800,
-                          color: col.count > 0 ? col.color : _kText2,
+                          fontSize: 24, fontWeight: FontWeight.w800,
+                          color: col.count > 0 ? _kText1 : _kText3,
                           letterSpacing: -0.5)),
                 ])),
-            Icon(Icons.arrow_forward_rounded, size: 14,
-                color: col.color.withValues(alpha: 0.5)),
+            Icon(Icons.chevron_right_rounded, size: 18,
+                color: col.color.withValues(alpha: 0.6)),
           ]),
         ),
       );
 }
 
-class _RevenueTrendPanel extends StatelessWidget {
+class _HoverBadge extends StatelessWidget {
+  const _HoverBadge({
+    required this.date,
+    required this.revenue,
+    required this.kg,
+  });
+
+  final DateTime? date;
+  final double revenue, kg;
+
+  @override
+  Widget build(BuildContext context) {
+    final dStr = date != null ? DateFormat('d MMM: ').format(date!) : '';
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF1F5F9),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: _kBlue.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(dStr,
+              style: const TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: _kText1)),
+          Text(Fmt.amount(revenue),
+              style: const TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: _kBlue)),
+          const Text('  •  ',
+              style: TextStyle(fontSize: 11, color: _kText3)),
+          Text('${NumberFormat('#,##,##0.00').format(kg)} kg',
+              style: const TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: _kGold)),
+        ],
+      ),
+    );
+  }
+}
+
+class _RevenueTrendPanel extends StatefulWidget {
   const _RevenueTrendPanel({required this.data, required this.trend});
 
   final DashboardData data;
   final List<Map<String, dynamic>> trend;
+
+  @override
+  State<_RevenueTrendPanel> createState() => _RevenueTrendPanelState();
+}
+
+class _RevenueTrendPanelState extends State<_RevenueTrendPanel> {
+  int? _hoveredIndex;
+  final GlobalKey _chartKey = GlobalKey();
+
+  void _handleHover(Offset localPos, int count) {
+    if (count <= 0) return;
+    final box = _chartKey.currentContext?.findRenderObject() as RenderBox?;
+    if (box == null || !box.hasSize) return;
+
+    final width = box.size.width;
+    const leftPad = 54.0;
+    const rightPad = 14.0;
+    final plotW = width - leftPad - rightPad;
+    if (plotW <= 0) return;
+
+    int idx;
+    if (count == 1) {
+      idx = 0;
+    } else {
+      final progress = ((localPos.dx - leftPad) / plotW).clamp(0.0, 1.0);
+      idx = (progress * (count - 1)).round().clamp(0, count - 1);
+    }
+
+    if (_hoveredIndex != idx) {
+      setState(() => _hoveredIndex = idx);
+    }
+  }
+
+  void _clearHover() {
+    if (_hoveredIndex != null) {
+      setState(() => _hoveredIndex = null);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -2201,12 +2644,12 @@ class _RevenueTrendPanel extends StatelessWidget {
     final revenueList = <double>[];
     final kgList = <double>[];
     final dateList = <DateTime?>[];
-    for (final row in trend) {
+    for (final row in widget.trend) {
       revenueList.add((row['revenue'] as num?)?.toDouble() ?? 0.0);
       kgList.add((row['kg_delivered'] as num?)?.toDouble() ?? 0.0);
       dateList.add(DateTime.tryParse(row['day_date'] as String? ?? ''));
     }
-    final hasData = trend.isNotEmpty &&
+    final hasData = widget.trend.isNotEmpty &&
         (revenueList.any((v) => v > 0) || kgList.any((v) => v > 0));
 
     final maxRev = revenueList.isEmpty
@@ -2214,9 +2657,9 @@ class _RevenueTrendPanel extends StatelessWidget {
         : revenueList.reduce((a, b) => a > b ? a : b);
     final maxKg = kgList.isEmpty ? 0.0 : kgList.reduce((a, b) => a > b ? a : b);
     final revFractions =
-    revenueList.map((v) => maxRev > 0 ? v / maxRev : 0.0).toList();
+        revenueList.map((v) => maxRev > 0 ? v / maxRev : 0.0).toList();
     final kgFractions =
-    kgList.map((v) => maxKg > 0 ? v / maxKg : 0.0).toList();
+        kgList.map((v) => maxKg > 0 ? v / maxKg : 0.0).toList();
 
     // ── Y-axis labels: real amounts, plain rupee formatting (no K/L) ─────────
     const tickCount = 5;
@@ -2225,63 +2668,107 @@ class _RevenueTrendPanel extends StatelessWidget {
       return v <= 0 ? '₹0' : Fmt.amount(v);
     });
 
+    final safeHoverIndex = (_hoveredIndex != null &&
+            _hoveredIndex! < revenueList.length)
+        ? _hoveredIndex
+        : null;
+
     return Container(
       decoration: BoxDecoration(
         color: _kPanel,
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(WebRadius.card),
         border: Border.all(color: _kBorder),
         boxShadow: _kShadow,
       ),
       padding: const EdgeInsets.all(20),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
-          const Text('SALES & REVENUE TREND',
-              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800,
-                  color: _kText1, letterSpacing: 0.8)),
+          const Text('Sales & Revenue Trend', style: WebText.cardTitle),
           const Spacer(),
+          if (safeHoverIndex != null) ...[
+            _HoverBadge(
+              date: dateList[safeHoverIndex],
+              revenue: revenueList[safeHoverIndex],
+              kg: kgList[safeHoverIndex],
+            ),
+            const SizedBox(width: 8),
+          ],
           const _ChipFilter('Last 7 Days'),
         ]),
         const SizedBox(height: 4),
         Row(children: [
-          _Legend(color: _kBlue, label: 'Revenue (₹)'),
+          const _Legend(color: _kBlue, label: 'Revenue (₹)'),
           const SizedBox(width: 16),
-          _Legend(color: _kText3, label: 'Sold (kg)'),
+          const _Legend(color: _kGold, label: 'Sold (kg)'),
+          const Spacer(),
+          if (hasData)
+            const Text(
+              'Hover over graph to view values',
+              style: TextStyle(
+                fontSize: 10,
+                color: _kText3,
+                fontStyle: FontStyle.italic,
+              ),
+            ),
         ]),
         const SizedBox(height: 16),
         if (!hasData)
-          Container(
-            height: 160,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-                color: const Color(0xFFF8FAFC),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: _kBorder)),
-            child: Column(mainAxisSize: MainAxisSize.min, children: [
-              const Icon(Icons.show_chart_rounded, size: 22, color: _kText3),
-              const SizedBox(height: 6),
-              const Text('No sales recorded in the last 7 days',
-                  style: TextStyle(fontSize: 12, color: _kText3,
-                      fontWeight: FontWeight.w600)),
-            ]),
-          )
-        else ...[
-          SizedBox(height: 160, child: CustomPaint(
-            size: const Size(double.infinity, 160),
-            painter: _AreaChartPainter(
-              primaryColor: _kBlue,
-              secondaryColor: _kText3,
-              revenueFractions: revFractions,
-              kgFractions: kgFractions,
-              yAxisLabels: yAxisLabels,
+          Expanded(
+            child: Container(
+              constraints: const BoxConstraints(minHeight: 160),
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                  color: const Color(0xFFF8FAFC),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: _kBorder)),
+              child: const Column(mainAxisSize: MainAxisSize.min, children: [
+                Icon(Icons.show_chart_rounded, size: 22, color: _kText3),
+                SizedBox(height: 6),
+                Text('No sales recorded in the last 7 days',
+                    style: TextStyle(
+                        fontSize: 12,
+                        color: _kText3,
+                        fontWeight: FontWeight.w600)),
+              ]),
             ),
-          )),
-          const SizedBox(height: 8),
-          Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-            for (final dt in dateList)
-              Text(dt != null ? DateFormat('d MMM').format(dt) : '—',
-                  style: const TextStyle(fontSize: 9, color: _kText3)),
-          ]),
-        ],
+          )
+        else
+          // Grows to fill the card when its row is taller than the chart
+          Expanded(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(minHeight: 160),
+              child: MouseRegion(
+                key: _chartKey,
+                cursor: SystemMouseCursors.precise,
+                onHover: (e) =>
+                    _handleHover(e.localPosition, revenueList.length),
+                onExit: (_) => _clearHover(),
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTapDown: (e) =>
+                      _handleHover(e.localPosition, revenueList.length),
+                  onHorizontalDragUpdate: (e) =>
+                      _handleHover(e.localPosition, revenueList.length),
+                  onHorizontalDragEnd: (_) => _clearHover(),
+                  onTapCancel: () => _clearHover(),
+                  child: CustomPaint(
+                    size: const Size(double.infinity, 160),
+                    painter: _AreaChartPainter(
+                      primaryColor: _kBlue,
+                      secondaryColor: _kGold,
+                      revenueFractions: revFractions,
+                      kgFractions: kgFractions,
+                      revenueList: revenueList,
+                      kgList: kgList,
+                      dateList: dateList,
+                      yAxisLabels: yAxisLabels,
+                      hoveredIndex: safeHoverIndex,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
         const SizedBox(height: 16),
         Container(
           padding: const EdgeInsets.all(12),
@@ -2291,16 +2778,16 @@ class _RevenueTrendPanel extends StatelessWidget {
               border: Border.all(color: _kBorder)),
           child: Row(children: [
             _MiniStat(
-                'Today\'s Revenue', Fmt.amount(data.todayCollected), _kBlue),
+                'Today\'s Revenue', Fmt.amount(widget.data.todayCollected), _kBlue),
             _Divider(),
-            _MiniStat('Cash Collected', Fmt.amount(data.todayCashCollected),
-                _kGreen),
-            _Divider(),
-            _MiniStat('UPI Collected', Fmt.amount(data.todayUpiCollected),
-                _kIndigo),
+            _MiniStat('Cash Collected',
+                Fmt.amount(widget.data.todayCashCollected), _kGreen),
             _Divider(),
             _MiniStat(
-                'Outstanding', Fmt.amount(data.totalOutstanding), _kOrange),
+                'UPI Collected', Fmt.amount(widget.data.todayUpiCollected), _kIndigo),
+            _Divider(),
+            _MiniStat('Outstanding',
+                Fmt.amount(widget.data.totalOutstanding), _kOrange),
           ]),
         ),
       ]),
@@ -2374,136 +2861,568 @@ class _AreaChartPainter extends CustomPainter {
     required this.secondaryColor,
     required this.revenueFractions,
     required this.kgFractions,
+    required this.revenueList,
+    required this.kgList,
+    required this.dateList,
     required this.yAxisLabels,
+    this.hoveredIndex,
   });
 
   final Color primaryColor, secondaryColor;
   final List<double> revenueFractions;
   final List<double> kgFractions;
+  final List<double> revenueList;
+  final List<double> kgList;
+  final List<DateTime?> dateList;
   final List<String> yAxisLabels;
+  final int? hoveredIndex;
+
+  static const double _kLeftPad = 54.0;
+  static const double _kRightPad = 14.0;
+  static const double _kTopPad = 14.0;
+  static const double _kBottomPad = 26.0;
+
+  double _getX(int i, int count, double plotW) {
+    if (count <= 1) return _kLeftPad + plotW * 0.5;
+    return _kLeftPad + plotW * i / (count - 1);
+  }
+
+  double _getY(double fraction, double plotH) {
+    return _kTopPad + plotH * (1.0 - fraction) * 0.86 + plotH * 0.07;
+  }
 
   @override
   void paint(Canvas canvas, Size size) {
-    _drawAreaLine(canvas, size, revenueFractions, primaryColor);
-    _drawLine(canvas, size, kgFractions, secondaryColor);
+    final plotW = math.max(0.0, size.width - _kLeftPad - _kRightPad);
+    final plotH = math.max(0.0, size.height - _kTopPad - _kBottomPad);
+    final count = revenueFractions.length;
 
+    // ── 1. Horizontal grid lines & Y-axis labels ─────────────────────────
+    final gridPaint = Paint()
+      ..color = const Color(0xFFF1F5F9)
+      ..strokeWidth = 1.0;
     final tp = TextPainter(textDirection: TextDirection.ltr);
+
     for (int i = 0; i < yAxisLabels.length; i++) {
-      tp.text = TextSpan(text: yAxisLabels[i],
-          style: const TextStyle(fontSize: 8, color: _kText3));
+      final yTick = _kTopPad + (yAxisLabels.length > 1
+          ? plotH * i / (yAxisLabels.length - 1)
+          : 0.0);
+      canvas.drawLine(
+        Offset(_kLeftPad, yTick),
+        Offset(_kLeftPad + plotW, yTick),
+        gridPaint,
+      );
+
+      tp.text = TextSpan(
+        text: yAxisLabels[i],
+        style: const TextStyle(
+          fontSize: 8.5,
+          color: _kText3,
+          fontWeight: FontWeight.w500,
+        ),
+      );
       tp.layout();
-      tp.paint(canvas, Offset(0, size.height * i / (yAxisLabels.length - 1) - 6));
+      tp.paint(canvas, Offset(_kLeftPad - 8 - tp.width, yTick - tp.height / 2));
     }
-  }
 
-  void _drawAreaLine(Canvas canvas, Size size, List<double> pts, Color color) {
-    final lp = Paint()
-      ..color = color
-      ..strokeWidth = 2
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round;
-    final ap = Paint()
+    if (count == 0) return;
+
+    // ── 2. Revenue area gradient fill & line ─────────────────────────────
+    final areaPath = Path();
+    final revPath = Path();
+
+    for (int i = 0; i < count; i++) {
+      final x = _getX(i, count, plotW);
+      final y = _getY(revenueFractions[i], plotH);
+      if (i == 0) {
+        areaPath.moveTo(x, y);
+        revPath.moveTo(x, y);
+      } else {
+        areaPath.lineTo(x, y);
+        revPath.lineTo(x, y);
+      }
+    }
+
+    final lastX = _getX(count - 1, count, plotW);
+    final firstX = _getX(0, count, plotW);
+    areaPath.lineTo(lastX, _kTopPad + plotH);
+    areaPath.lineTo(firstX, _kTopPad + plotH);
+    areaPath.close();
+
+    final areaPaint = Paint()
       ..shader = LinearGradient(
-        colors: [color.withOpacity(0.15), color.withOpacity(0)],
-        begin: Alignment.topCenter, end: Alignment.bottomCenter,
-      ).createShader(Rect.fromLTWH(0, 0, size.width, size.height))
+        colors: [
+          primaryColor.withValues(alpha: 0.18),
+          primaryColor.withValues(alpha: 0.01),
+        ],
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+      ).createShader(Rect.fromLTWH(_kLeftPad, _kTopPad, plotW, plotH))
       ..style = PaintingStyle.fill;
+    canvas.drawPath(areaPath, areaPaint);
 
-    final path = Path(),
-        area = Path();
-    final w = size.width * 0.85,
-        ox = size.width * 0.15;
-
-    for (int i = 0; i < pts.length; i++) {
-      final x = ox + w * i / (pts.length - 1);
-      final y = size.height * (1 - pts[i]) * 0.9 + size.height * 0.05;
-      i == 0 ? path.moveTo(x, y) : path.lineTo(x, y);
-      i == 0 ? area.moveTo(x, y) : area.lineTo(x, y);
-    }
-    area.lineTo(ox + w, size.height);
-    area.lineTo(ox, size.height);
-    area.close();
-
-    canvas.drawPath(area, ap);
-    canvas.drawPath(path, lp);
-
-    final dp = Paint()
-      ..color = color
-      ..style = PaintingStyle.fill;
-    for (int i = 0; i < pts.length; i++) {
-      final x = ox + w * i / (pts.length - 1);
-      final y = size.height * (1 - pts[i]) * 0.9 + size.height * 0.05;
-      canvas.drawCircle(Offset(x, y), 3, dp);
-    }
-  }
-
-  void _drawLine(Canvas canvas, Size size, List<double> pts, Color color) {
-    final lp = Paint()
-      ..color = color
-      ..strokeWidth = 1.5
+    final revLinePaint = Paint()
+      ..color = primaryColor
+      ..strokeWidth = 2.2
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round
       ..strokeJoin = StrokeJoin.round;
-    final path = Path();
-    final w = size.width * 0.85,
-        ox = size.width * 0.15;
-    for (int i = 0; i < pts.length; i++) {
-      final x = ox + w * i / (pts.length - 1);
-      final y = size.height * (1 - pts[i]) * 0.9 + size.height * 0.05;
-      i == 0 ? path.moveTo(x, y) : path.lineTo(x, y);
+    canvas.drawPath(revPath, revLinePaint);
+
+    // ── 3. Sold (KG) line ────────────────────────────────────────────────
+    if (kgFractions.isNotEmpty) {
+      final kgCount = kgFractions.length;
+      final kgPath = Path();
+      for (int i = 0; i < kgCount; i++) {
+        final x = _getX(i, kgCount, plotW);
+        final y = _getY(kgFractions[i], plotH);
+        if (i == 0) {
+          kgPath.moveTo(x, y);
+        } else {
+          kgPath.lineTo(x, y);
+        }
+      }
+      final kgLinePaint = Paint()
+        ..color = secondaryColor
+        ..strokeWidth = 1.8
+        ..style = PaintingStyle.stroke
+        ..strokeCap = StrokeCap.round
+        ..strokeJoin = StrokeJoin.round;
+      canvas.drawPath(kgPath, kgLinePaint);
     }
-    canvas.drawPath(path, lp);
+
+    // ── 4. Regular data point dots (unhovered) ───────────────────────────
+    final revDotPaint = Paint()
+      ..color = primaryColor
+      ..style = PaintingStyle.fill;
+    final kgDotPaint = Paint()
+      ..color = secondaryColor
+      ..style = PaintingStyle.fill;
+
+    for (int i = 0; i < count; i++) {
+      if (i == hoveredIndex) continue;
+      final x = _getX(i, count, plotW);
+      final ry = _getY(revenueFractions[i], plotH);
+      canvas.drawCircle(Offset(x, ry), 2.5, revDotPaint);
+
+      if (i < kgFractions.length) {
+        final ky = _getY(kgFractions[i], plotH);
+        canvas.drawCircle(Offset(x, ky), 2.5, kgDotPaint);
+      }
+    }
+
+    // ── 5. Date labels at the bottom ─────────────────────────────────────
+    for (int i = 0; i < count; i++) {
+      final x = _getX(i, count, plotW);
+      final dt = (i < dateList.length) ? dateList[i] : null;
+      final dateText = dt != null ? DateFormat('d MMM').format(dt) : '—';
+      final isHovered = (i == hoveredIndex);
+
+      tp.text = TextSpan(
+        text: dateText,
+        style: TextStyle(
+          fontSize: 9.5,
+          fontWeight: isHovered ? FontWeight.w700 : FontWeight.w500,
+          color: isHovered ? _kBlue : _kText3,
+        ),
+      );
+      tp.layout();
+
+      final textY = size.height - _kBottomPad / 2 + 1 - tp.height / 2;
+
+      if (isHovered) {
+        final pillRect = RRect.fromRectAndRadius(
+          Rect.fromCenter(
+            center: Offset(x, size.height - _kBottomPad / 2 + 1),
+            width: tp.width + 10,
+            height: 17,
+          ),
+          const Radius.circular(4),
+        );
+        canvas.drawRRect(pillRect, Paint()..color = _kBlue.withValues(alpha: 0.12));
+      }
+
+      tp.paint(canvas, Offset(x - tp.width / 2, textY));
+    }
+
+    // ── 6. Hover overlay: vertical guideline, glowing rings & tooltip ────
+    if (hoveredIndex != null && hoveredIndex! < count) {
+      final hIdx = hoveredIndex!;
+      final hx = _getX(hIdx, count, plotW);
+      final ry = _getY(revenueFractions[hIdx], plotH);
+      final ky = (hIdx < kgFractions.length)
+          ? _getY(kgFractions[hIdx], plotH)
+          : ry;
+
+      // Dashed vertical guideline
+      final guidePaint = Paint()
+        ..color = const Color(0xFF64748B).withValues(alpha: 0.4)
+        ..strokeWidth = 1.2
+        ..style = PaintingStyle.stroke;
+      const dashH = 4.0;
+      const dashSpace = 3.0;
+      double curY = _kTopPad;
+      final bottomGuideY = _kTopPad + plotH;
+      while (curY < bottomGuideY) {
+        canvas.drawLine(
+          Offset(hx, curY),
+          Offset(hx, math.min(curY + dashH, bottomGuideY)),
+          guidePaint,
+        );
+        curY += dashH + dashSpace;
+      }
+
+      final whitePaint = Paint()
+        ..color = Colors.white
+        ..style = PaintingStyle.fill;
+
+      // Revenue point glow & rings
+      canvas.drawCircle(
+          Offset(hx, ry), 7.5, Paint()..color = primaryColor.withValues(alpha: 0.22));
+      canvas.drawCircle(Offset(hx, ry), 5.0, whitePaint);
+      canvas.drawCircle(Offset(hx, ry), 3.5, revDotPaint);
+
+      // Sold KG point glow & rings
+      if (hIdx < kgFractions.length) {
+        canvas.drawCircle(Offset(hx, ky), 7.5,
+            Paint()..color = secondaryColor.withValues(alpha: 0.22));
+        canvas.drawCircle(Offset(hx, ky), 5.0, whitePaint);
+        canvas.drawCircle(Offset(hx, ky), 3.5, kgDotPaint);
+      }
+
+      // Floating Tooltip Card
+      final dt = (hIdx < dateList.length) ? dateList[hIdx] : null;
+      final dateStr =
+          dt != null ? DateFormat('EEE, d MMM yyyy').format(dt) : '—';
+      final revVal = (hIdx < revenueList.length) ? revenueList[hIdx] : 0.0;
+      final kgVal = (hIdx < kgList.length) ? kgList[hIdx] : 0.0;
+      final revStr = Fmt.amount(revVal);
+      final kgStr = '${NumberFormat('#,##,##0.00').format(kgVal)} kg';
+      final avgRate = (kgVal > 0 && revVal > 0) ? revVal / kgVal : null;
+
+      const tooltipW = 168.0;
+      final tooltipH = avgRate != null ? 82.0 : 66.0;
+
+      double tx;
+      if (hx + 12.0 + tooltipW <= size.width - 6.0) {
+        tx = hx + 12.0;
+      } else {
+        tx = hx - 12.0 - tooltipW;
+      }
+      tx = tx.clamp(_kLeftPad, math.max(_kLeftPad, size.width - tooltipW - 4.0));
+      final ty = _kTopPad + 4.0;
+
+      final tooltipRect = RRect.fromRectAndRadius(
+        Rect.fromLTWH(tx, ty, tooltipW, tooltipH),
+        const Radius.circular(8),
+      );
+
+      // Drop shadow
+      final shadowPath = Path()..addRRect(tooltipRect);
+      canvas.drawShadow(shadowPath, const Color(0x24000000), 8, false);
+
+      // Background
+      canvas.drawRRect(tooltipRect, whitePaint);
+
+      // Border
+      canvas.drawRRect(
+        tooltipRect,
+        Paint()
+          ..color = const Color(0xFFE2E8F0)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.0,
+      );
+
+      // Header: Date
+      tp.text = TextSpan(
+        text: dateStr,
+        style: const TextStyle(
+          fontSize: 10,
+          fontWeight: FontWeight.w700,
+          color: _kText1,
+        ),
+      );
+      tp.layout();
+      tp.paint(canvas, Offset(tx + 10, ty + 7));
+
+      // Divider
+      canvas.drawLine(
+        Offset(tx + 10, ty + 22),
+        Offset(tx + tooltipW - 10, ty + 22),
+        Paint()
+          ..color = const Color(0xFFF1F5F9)
+          ..strokeWidth = 1.0,
+      );
+
+      // Revenue line
+      canvas.drawCircle(Offset(tx + 14, ty + 33), 3.0, revDotPaint);
+      tp.text = const TextSpan(
+        text: 'Revenue',
+        style: TextStyle(
+          fontSize: 9.5,
+          color: _kText2,
+          fontWeight: FontWeight.w500,
+        ),
+      );
+      tp.layout();
+      tp.paint(canvas, Offset(tx + 22, ty + 28));
+
+      tp.text = TextSpan(
+        text: revStr,
+        style: const TextStyle(
+          fontSize: 10,
+          color: _kBlue,
+          fontWeight: FontWeight.w700,
+        ),
+      );
+      tp.layout();
+      tp.paint(canvas, Offset(tx + tooltipW - 10 - tp.width, ty + 28));
+
+      // Sold line
+      canvas.drawCircle(Offset(tx + 14, ty + 49), 3.0, kgDotPaint);
+      tp.text = const TextSpan(
+        text: 'Sold',
+        style: TextStyle(
+          fontSize: 9.5,
+          color: _kText2,
+          fontWeight: FontWeight.w500,
+        ),
+      );
+      tp.layout();
+      tp.paint(canvas, Offset(tx + 22, ty + 44));
+
+      tp.text = TextSpan(
+        text: kgStr,
+        style: const TextStyle(
+          fontSize: 10,
+          color: _kGold,
+          fontWeight: FontWeight.w700,
+        ),
+      );
+      tp.layout();
+      tp.paint(canvas, Offset(tx + tooltipW - 10 - tp.width, ty + 44));
+
+      // Rate line
+      if (avgRate != null) {
+        tp.text = TextSpan(
+          text: 'Rate: ₹${avgRate.toStringAsFixed(2)}/kg',
+          style: const TextStyle(
+            fontSize: 9,
+            color: _kText3,
+            fontWeight: FontWeight.w600,
+          ),
+        );
+        tp.layout();
+        tp.paint(canvas, Offset(tx + tooltipW - 10 - tp.width, ty + 62));
+      }
+    }
   }
 
-  @override bool shouldRepaint(_AreaChartPainter o) =>
-      o.revenueFractions != revenueFractions || o.kgFractions != kgFractions;
+  @override
+  bool shouldRepaint(_AreaChartPainter o) =>
+      o.revenueFractions != revenueFractions ||
+      o.kgFractions != kgFractions ||
+      o.revenueList != revenueList ||
+      o.kgList != kgList ||
+      o.dateList != dateList ||
+      o.hoveredIndex != hoveredIndex;
 }
 
-class _LiveStockPanel extends StatelessWidget {
+class _DonutSegmentData {
+  const _DonutSegmentData({
+    required this.label,
+    required this.value,
+    required this.color,
+  });
+
+  final String label;
+  final double value;
+  final Color color;
+}
+
+class _LiveStockHoverBadge extends StatelessWidget {
+  const _LiveStockHoverBadge({
+    required this.label,
+    required this.count,
+    required this.color,
+    required this.pct,
+  });
+
+  final String label;
+  final int count;
+  final Color color;
+  final double pct;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 7,
+            height: 7,
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+          ),
+          const SizedBox(width: 6),
+          Text(
+            '$label: ',
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: color,
+            ),
+          ),
+          Text(
+            '${NumberFormat('#,##,###').format(count)} (${pct.toStringAsFixed(1)}%)',
+            style: const TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: _kText1,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _LiveStockPanel extends StatefulWidget {
   const _LiveStockPanel({required this.stock, required this.data});
 
   final List<StockPosition> stock;
   final DashboardData data;
 
   @override
+  State<_LiveStockPanel> createState() => _LiveStockPanelState();
+}
+
+class _LiveStockPanelState extends State<_LiveStockPanel> {
+  int? _hoveredIndex;
+
+  void _onDonutHover(
+      Offset localPos, double grandTotal, List<_DonutSegmentData> segments) {
+    final dx = localPos.dx - 70;
+    final dy = localPos.dy - 70;
+    final dist = math.sqrt(dx * dx + dy * dy);
+
+    if (dist < 28 || dist > 76) {
+      if (_hoveredIndex != null) {
+        setState(() => _hoveredIndex = null);
+      }
+      return;
+    }
+
+    double angle = math.atan2(dy, dx) + math.pi / 2;
+    if (angle < 0) angle += 2 * math.pi;
+    final progress = angle / (2 * math.pi);
+
+    int? hitIndex;
+    if (grandTotal > 0) {
+      double accumulated = 0.0;
+      for (int i = 0; i < segments.length; i++) {
+        if (segments[i].value <= 0) continue;
+        final segProgress = segments[i].value / grandTotal;
+        if (progress >= accumulated && progress <= accumulated + segProgress) {
+          hitIndex = i;
+          break;
+        }
+        accumulated += segProgress;
+      }
+    }
+
+    if (_hoveredIndex != hitIndex) {
+      setState(() => _hoveredIndex = hitIndex);
+    }
+  }
+
+  void _onDonutExit() {
+    if (_hoveredIndex != null) {
+      setState(() => _hoveredIndex = null);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final totalBirds = stock.isEmpty ? data.remainingBirds
-        : stock.fold(0, (s, p) => s + p.availableBirds);
-    final availBirds = stock.fold(0, (s, p) => s + p.availableBirds);
-    final inTransit  = data.agentStatus.fold(0, (s, a) => s + a.liveStockBirds);
-    final soldToday  = data.todayDelivered;
-    final mortality  = data.todayMortalityBirdsLedger;
-    final survival   = data.stockSurvivalDays;
+    final totalBirds = widget.stock.isEmpty
+        ? widget.data.remainingBirds
+        : widget.stock.fold(0, (s, p) => s + p.availableBirds);
+    final availBirds = widget.stock.fold(0, (s, p) => s + p.availableBirds);
+    final inTransit =
+        widget.data.agentStatus.fold(0, (s, a) => s + a.liveStockBirds);
+    final soldToday = widget.data.todayDelivered;
+    final mortality = widget.data.todayMortalityBirdsLedger;
+    final survival = widget.data.stockSurvivalDays;
+    final totalKg = widget.stock.fold(0.0, (s, p) => s + p.availableKg);
 
     final ringColor = survival == null
         ? _kGreen
         : survival < 1
-        ? _kRed
-        : survival < 3
-        ? _kOrange
-        : _kGreen;
+            ? _kRed
+            : survival < 3
+                ? _kOrange
+                : _kGreen;
 
     final items = [
-      ('Available',  availBirds, _kGreen),
-      ('In Transit', inTransit,  _kBlue),
-      ('Sold Today', soldToday,  _kOrange),
-      ('Mortality',  mortality,  _kRed),
+      ('Available', availBirds, _kGreen),
+      ('In Transit', inTransit, _kBlue),
+      ('Sold Today', soldToday, _kOrange),
+      ('Mortality', mortality, _kRed),
     ];
+
+    final grandTotal =
+        (availBirds + inTransit + soldToday + mortality).toDouble();
+
+    final segments = [
+      _DonutSegmentData(
+          label: 'Available', value: availBirds.toDouble(), color: _kGreen),
+      _DonutSegmentData(
+          label: 'In Transit', value: inTransit.toDouble(), color: _kBlue),
+      _DonutSegmentData(
+          label: 'Sold Today', value: soldToday.toDouble(), color: _kOrange),
+      _DonutSegmentData(
+          label: 'Mortality', value: mortality.toDouble(), color: _kRed),
+    ];
+
+    final tooltipText = 'Live Stock Breakdown:\n'
+        '• Available: ${NumberFormat('#,##,###').format(availBirds)} birds (${grandTotal > 0 ? (availBirds / grandTotal * 100).toStringAsFixed(1) : 0}%)\n'
+        '• In Transit: ${NumberFormat('#,##,###').format(inTransit)} birds (${grandTotal > 0 ? (inTransit / grandTotal * 100).toStringAsFixed(1) : 0}%)\n'
+        '• Sold Today: ${NumberFormat('#,##,###').format(soldToday)} birds (${grandTotal > 0 ? (soldToday / grandTotal * 100).toStringAsFixed(1) : 0}%)\n'
+        '• Mortality: ${NumberFormat('#,##,###').format(mortality)} birds (${grandTotal > 0 ? (mortality / grandTotal * 100).toStringAsFixed(1) : 0}%)\n'
+        '• Total Weight: ${totalKg.toStringAsFixed(2)} kg\n'
+        '• Stock Survival: ${survival != null ? (survival < 1 ? "< 1 day" : "${survival.toStringAsFixed(1)} days") : "—"}';
 
     return Container(
       decoration: BoxDecoration(
         color: _kPanel,
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(WebRadius.card),
         border: Border.all(color: _kBorder),
         boxShadow: _kShadow,
       ),
       padding: const EdgeInsets.all(20),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
-          const Text('LIVE STOCK OVERVIEW',
-              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800,
-                  color: _kText1, letterSpacing: 0.8)),
+          const Text('Live Stock Overview', style: WebText.cardTitle),
           const Spacer(),
+          if (_hoveredIndex != null &&
+              _hoveredIndex! >= 0 &&
+              _hoveredIndex! < items.length) ...[
+            _LiveStockHoverBadge(
+              label: items[_hoveredIndex!].$1,
+              count: items[_hoveredIndex!].$2,
+              color: items[_hoveredIndex!].$3,
+              pct: grandTotal > 0
+                  ? (items[_hoveredIndex!].$2 / grandTotal * 100)
+                  : 0.0,
+            ),
+            const SizedBox(width: 8),
+          ],
           InkWell(
             onTap: () => context.push(R.stockDetail),
             child: const Text('View Detail →',
@@ -2513,64 +3432,232 @@ class _LiveStockPanel extends StatelessWidget {
         ]),
         const SizedBox(height: 16),
         Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
-          SizedBox(width: 140, height: 140,
-            child: Stack(alignment: Alignment.center, children: [
-              Transform.rotate(angle: -math.pi / 2,
-                  child: CustomPaint(size: const Size(140, 140),
-                      painter: _DonutPainter(
-                        fraction: totalBirds > 0
-                            ? (availBirds / totalBirds).clamp(0.0, 1.0) : 0.0,
-                        ringColor:  ringColor,
-                        trackColor: const Color(0xFFF1F5F9),
-                        strokeWidth: 14,
-                      ))),
-              Column(mainAxisSize: MainAxisSize.min, children: [
-                Text(NumberFormat('#,##,###').format(totalBirds),
-                    style: const TextStyle(
-                        fontSize: 22, fontWeight: FontWeight.w800,
-                        color: _kText1, letterSpacing: -0.5)),
-                const Text('Birds',
-                    style: TextStyle(fontSize: 9, color: _kText3,
-                        fontWeight: FontWeight.w500)),
-                const SizedBox(height: 2),
-                Text(
-                    '${stock.fold(0.0, (s, p) => s + p.availableKg).toStringAsFixed(2)} Kg',
-                    style: const TextStyle(fontSize: 10, color: _kText3,
-                        fontWeight: FontWeight.w700)),
-                if (survival != null) ...[
-                  const SizedBox(height: 2),
-                  Text(
-                      survival < 1
-                          ? '< 1 day'
-                          : '${survival.toStringAsFixed(1)}d',
-                      style: TextStyle(
-                          fontSize: 11, fontWeight: FontWeight.w800,
-                          color: ringColor)),
-                ],
-              ]),
-            ]),
+          Tooltip(
+            message: tooltipText,
+            waitDuration: const Duration(milliseconds: 200),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            textStyle: const TextStyle(
+                fontSize: 11,
+                color: _kText1,
+                height: 1.5,
+                fontWeight: FontWeight.w500),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: const Color(0xFFE2E8F0)),
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0x1F000000),
+                  blurRadius: 10,
+                  offset: Offset(0, 4),
+                ),
+              ],
+            ),
+            child: MouseRegion(
+              cursor: SystemMouseCursors.click,
+              onHover: (e) =>
+                  _onDonutHover(e.localPosition, grandTotal, segments),
+              onExit: (_) => _onDonutExit(),
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTapDown: (e) =>
+                    _onDonutHover(e.localPosition, grandTotal, segments),
+                onHorizontalDragUpdate: (e) =>
+                    _onDonutHover(e.localPosition, grandTotal, segments),
+                onHorizontalDragEnd: (_) => _onDonutExit(),
+                child: SizedBox(
+                  width: 140,
+                  height: 140,
+                  child: Stack(alignment: Alignment.center, children: [
+                    Transform.rotate(
+                      angle: -math.pi / 2,
+                      child: CustomPaint(
+                        size: const Size(140, 140),
+                        painter: _DonutPainter(
+                          segments: segments,
+                          hoveredIndex: _hoveredIndex,
+                          trackColor: const Color(0xFFF1F5F9),
+                          strokeWidth: 14,
+                        ),
+                      ),
+                    ),
+                    AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 180),
+                      child: (_hoveredIndex != null &&
+                              _hoveredIndex! >= 0 &&
+                              _hoveredIndex! < items.length)
+                          ? Column(
+                              key: ValueKey('hovered_$_hoveredIndex'),
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  items[_hoveredIndex!].$1.toUpperCase(),
+                                  style: TextStyle(
+                                    fontSize: 9.5,
+                                    fontWeight: FontWeight.w800,
+                                    color: items[_hoveredIndex!].$3,
+                                    letterSpacing: 0.5,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  NumberFormat('#,##,###')
+                                      .format(items[_hoveredIndex!].$2),
+                                  style: const TextStyle(
+                                    fontSize: 22,
+                                    fontWeight: FontWeight.w900,
+                                    color: _kText1,
+                                    letterSpacing: -0.5,
+                                  ),
+                                ),
+                                Text(
+                                  grandTotal > 0
+                                      ? '${((items[_hoveredIndex!].$2 / grandTotal) * 100).toStringAsFixed(1)}%'
+                                      : 'Birds',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w700,
+                                    color: items[_hoveredIndex!].$3,
+                                  ),
+                                ),
+                              ],
+                            )
+                          : Column(
+                              key: const ValueKey('default_center'),
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  NumberFormat('#,##,###').format(totalBirds),
+                                  style: const TextStyle(
+                                    fontSize: 22,
+                                    fontWeight: FontWeight.w800,
+                                    color: _kText1,
+                                    letterSpacing: -0.5,
+                                  ),
+                                ),
+                                const Text(
+                                  'Birds',
+                                  style: TextStyle(
+                                    fontSize: 9,
+                                    color: _kText3,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  '${totalKg.toStringAsFixed(2)} Kg',
+                                  style: const TextStyle(
+                                    fontSize: 10,
+                                    color: _kText3,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                                if (survival != null) ...[
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    survival < 1
+                                        ? '< 1 day'
+                                        : '${survival.toStringAsFixed(1)}d',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w800,
+                                      color: ringColor,
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                    ),
+                  ]),
+                ),
+              ),
+            ),
           ),
           const SizedBox(width: 24),
-          Expanded(child: Column(children: items.map((item) =>
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 6),
-                child: Row(children: [
-                  Container(width: 10, height: 10,
-                      decoration: BoxDecoration(
-                          shape: BoxShape.circle, color: item.$3)),
-                  const SizedBox(width: 8),
-                  Expanded(child: Text(item.$1,
-                      style: const TextStyle(fontSize: 13, color: _kText2,
-                          fontWeight: FontWeight.w500))),
-                  Text('${item.$2}',
-                      style: const TextStyle(
-                          fontSize: 13, fontWeight: FontWeight.w700,
-                          color: _kText1)),
-                ]),
-              )).toList())),
+          Expanded(
+            child: Column(
+              children: [
+                for (int i = 0; i < items.length; i++)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 3),
+                    child: MouseRegion(
+                      cursor: SystemMouseCursors.click,
+                      onEnter: (_) => setState(() => _hoveredIndex = i),
+                      onExit: (_) => setState(() => _hoveredIndex = null),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 150),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 5),
+                        decoration: BoxDecoration(
+                          color: (_hoveredIndex == i)
+                              ? items[i].$3.withValues(alpha: 0.1)
+                              : Colors.transparent,
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(
+                            color: (_hoveredIndex == i)
+                                ? items[i].$3.withValues(alpha: 0.3)
+                                : Colors.transparent,
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 10,
+                              height: 10,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: items[i].$3,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                items[i].$1,
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: (_hoveredIndex == i)
+                                      ? _kText1
+                                      : _kText2,
+                                  fontWeight: (_hoveredIndex == i)
+                                      ? FontWeight.w700
+                                      : FontWeight.w500,
+                                ),
+                              ),
+                            ),
+                            Text(
+                              NumberFormat('#,##,###').format(items[i].$2),
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                                color: (_hoveredIndex == i)
+                                    ? items[i].$3
+                                    : _kText1,
+                              ),
+                            ),
+                            if (grandTotal > 0) ...[
+                              const SizedBox(width: 6),
+                              Text(
+                                '(${((items[i].$2 / grandTotal) * 100).toStringAsFixed(0)}%)',
+                                style: TextStyle(
+                                  fontSize: 10.5,
+                                  fontWeight: FontWeight.w600,
+                                  color: (_hoveredIndex == i)
+                                      ? items[i].$3
+                                      : _kText3,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
         ]),
         const SizedBox(height: 12),
-        if (data.agingStockBatches > 0)
+        if (widget.data.agingStockBatches > 0)
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             decoration: BoxDecoration(
@@ -2581,16 +3668,22 @@ class _LiveStockPanel extends StatelessWidget {
             child: Row(children: [
               const Icon(Icons.warning_amber_rounded, color: _kRed, size: 14),
               const SizedBox(width: 8),
-              Expanded(child: Text(
-                  '${data.agingStockBatches} batch${data.agingStockBatches > 1 ? "es" : ""} '
-                      'with stock older than 2 days — quality risk',
-                  style: const TextStyle(fontSize: 11, color: _kRed,
-                      fontWeight: FontWeight.w600))),
+              Expanded(
+                child: Text(
+                  '${widget.data.agingStockBatches} batch${widget.data.agingStockBatches > 1 ? "es" : ""} '
+                  'with stock older than 2 days — quality risk',
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: _kRed,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
             ]),
           )
         else
-          Text('Updated just now',
-              style: const TextStyle(fontSize: 11, color: _kText3)),
+          const Text('Updated just now',
+              style: TextStyle(fontSize: 11, color: _kText3)),
       ]),
     );
   }
@@ -2608,7 +3701,7 @@ class _NavigatorAgentShift extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         color: _kPanel,
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(WebRadius.card),
         border: Border.all(color: _kBorder),
         boxShadow: _kShadow,
       ),
@@ -2616,9 +3709,7 @@ class _NavigatorAgentShift extends StatelessWidget {
         Padding(
           padding: const EdgeInsets.fromLTRB(18, 16, 18, 12),
           child: Row(children: [
-            const Text('AGENTS ON SHIFT',
-                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800,
-                    color: _kText1, letterSpacing: 0.8)),
+            const Text('Agents on Shift', style: WebText.cardTitle),
             const Spacer(),
             InkWell(onTap: onTap,
                 child: const Text('View All',
@@ -2728,7 +3819,7 @@ class _CollectionIntelligencePanel extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         color: _kPanel,
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(WebRadius.card),
         border: Border.all(color: _kBorder),
         boxShadow: _kShadow,
       ),
@@ -2736,9 +3827,7 @@ class _CollectionIntelligencePanel extends StatelessWidget {
         Padding(
           padding: const EdgeInsets.fromLTRB(18, 16, 18, 12),
           child: Row(children: [
-            const Text('COLLECTION INTELLIGENCE',
-                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800,
-                    color: _kText1, letterSpacing: 0.8)),
+            const Text('Collection Intelligence', style: WebText.cardTitle),
             const Spacer(),
             InkWell(onTap: onLedger,
                 child: const Text('View All',
@@ -2937,7 +4026,7 @@ class _TopRetailersToday extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         color: _kPanel,
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(WebRadius.card),
         border: Border.all(color: _kBorder),
         boxShadow: _kShadow,
       ),
@@ -2945,9 +4034,7 @@ class _TopRetailersToday extends StatelessWidget {
         Padding(
           padding: const EdgeInsets.fromLTRB(18, 16, 18, 12),
           child: Row(children: [
-            const Text('TOP RETAILERS TODAY',
-                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800,
-                    color: _kText1, letterSpacing: 0.8)),
+            const Text('Top Retailers Today', style: WebText.cardTitle),
             const Spacer(),
             InkWell(onTap: onViewAll,
                 child: const Text('View All',
@@ -3054,7 +4141,7 @@ class _AlertsPanel extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         color: _kPanel,
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(WebRadius.card),
         border: Border.all(color: _kBorder),
         boxShadow: _kShadow,
       ),
@@ -3062,9 +4149,7 @@ class _AlertsPanel extends StatelessWidget {
         Padding(
           padding: const EdgeInsets.fromLTRB(18, 16, 18, 12),
           child: Row(children: [
-            const Text('CRITICAL ALERTS',
-                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800,
-                    color: _kText1, letterSpacing: 0.8)),
+            const Text('Critical Alerts', style: WebText.cardTitle),
             const Spacer(),
             InkWell(onTap: onTap,
                 child: const Text('View All',
@@ -3119,37 +4204,45 @@ class _RecentOrdersTable extends StatefulWidget {
 }
 
 class _RecentOrdersTableState extends State<_RecentOrdersTable> {
-  String _statusFilter = 'All Status';
-  final TextEditingController _searchCtrl = TextEditingController();
-  String _searchQuery = '';
-  final List<String> _statuses = [
+  // Status filter — shown as tabs with counts (was a dropdown)
+  static const _statuses = [
     'All Status',
     'pending',
     'confirmed',
     'dispatched',
     'delivered'
   ];
+  String _statusFilter = 'All Status';
+  String _searchQuery = '';
 
-  @override
-  void initState() {
-    super.initState();
-    _searchCtrl.addListener(() {
-      setState(() => _searchQuery = _searchCtrl.text.trim().toLowerCase());
-    });
-  }
+  // Table state
+  String _sortKey = 'time';
+  bool _sortAsc = false;
+  bool _dense = true;
+  int _page = 0;
+  int _rowsPerPage = 10;
 
-  @override
-  void dispose() {
-    _searchCtrl.dispose();
-    super.dispose();
-  }
+  static const _columns = [
+    WebColumn('Order ID', width: 110, sortKey: 'id'),
+    WebColumn('Customer', flex: 3, sortKey: 'customer'),
+    WebColumn('Area', width: 120),
+    WebColumn('Birds', width: 85, align: TextAlign.right),
+    WebColumn('Weight', width: 100, sortKey: 'weight', align: TextAlign.right),
+    WebColumn('Amount', width: 120, sortKey: 'amount',
+        align: TextAlign.right),
+    WebColumn('Status', width: 120, align: TextAlign.center),
+    WebColumn('Agent', flex: 2),
+    WebColumn('Time', width: 100, sortKey: 'time'),
+    WebColumn('Action', width: 80, align: TextAlign.center),
+  ];
+
+  List<Map<String, dynamic>> _byStatus(String s) => s == 'All Status'
+      ? widget.orders
+      : widget.orders.where((o) =>
+          (o['status'] as String? ?? '') == s).toList();
 
   List<Map<String, dynamic>> get _filtered {
-    var rows = widget.orders;
-    if (_statusFilter != 'All Status') {
-      rows = rows.where((o) =>
-      (o['status'] as String? ?? '') == _statusFilter).toList();
-    }
+    var rows = _byStatus(_statusFilter);
     if (_searchQuery.isNotEmpty) {
       rows = rows.where((o) {
         final shopName = ((o['retailers'] as Map?)?['shop_name']
@@ -3159,7 +4252,27 @@ class _RecentOrdersTableState extends State<_RecentOrdersTable> {
             orderId.contains(_searchQuery);
       }).toList();
     }
+    rows = [...rows]..sort((a, b) {
+      final c = Comparable.compare(_sortValue(a), _sortValue(b));
+      return _sortAsc ? c : -c;
+    });
     return rows;
+  }
+
+  Comparable<Object> _sortValue(Map<String, dynamic> o) {
+    switch (_sortKey) {
+      case 'id':
+        return o['id'] as String? ?? '';
+      case 'customer':
+        return ((o['retailers'] as Map?)?['shop_name'] as String? ?? '')
+            .toLowerCase();
+      case 'weight':
+        return (o['total_quantity'] as num?) ?? 0;
+      case 'amount':
+        return (o['total_amount'] as num?) ?? 0;
+      default:
+        return o['created_at'] as String? ?? '';
+    }
   }
 
   // ── Extract the delivery agent name for an order, if one is assigned ──────
@@ -3183,280 +4296,236 @@ class _RecentOrdersTableState extends State<_RecentOrdersTable> {
         _ => _kText3,
       };
 
+  String _label(String s) => s == 'All Status'
+      ? 'All' : s.replaceAll('_', ' ').capitalize();
+
+  void _sort(String key) => setState(() {
+    if (_sortKey == key) {
+      _sortAsc = !_sortAsc;
+    } else {
+      _sortKey = key;
+      _sortAsc = true;
+    }
+    _page = 0;
+  });
+
+  Widget _cell(Map<String, dynamic> o, int col) {
+    final retailer = o['retailers'] as Map<String, dynamic>?;
+    final shopName = retailer?['shop_name'] as String? ?? '—';
+    final id = o['id'] as String? ?? '';
+    switch (col) {
+      case 0:
+        return Text('#${id.length >= 6 ? id.substring(0, 6).toUpperCase() : id}',
+            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700,
+                color: _kBlue));
+      case 1:
+        return Text(shopName, maxLines: 1, overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600, color: _kText1));
+      case 2:
+        final area = retailer?['area'] as String? ?? retailer?['phone'] as String? ?? '—';
+        return Text(area, maxLines: 1, overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 13, color: _kText2));
+      case 3:
+        final birds = (o['estimated_birds'] as num?)?.toInt() ?? 0;
+        return Text(birds > 0 ? '$birds' : '—', style: const TextStyle(fontSize: 13.5, color: _kText2));
+      case 4:
+        final wt = (o['total_quantity'] as num?)?.toDouble() ?? 0;
+        return Text(wt > 0 ? '${wt.toStringAsFixed(0)} kg' : '—', style: const TextStyle(fontSize: 13.5, color: _kText2));
+      case 5:
+        final amt = (o['total_amount'] as num?)?.toDouble() ?? 0;
+        return Text(Fmt.amount(amt), style: const TextStyle(
+            fontSize: 13.5, fontWeight: FontWeight.w700, color: _kText1));
+      case 6:
+        final status = o['status'] as String? ?? 'pending';
+        return WebLabel(_label(status), color: _statusColor(status));
+      case 7:
+        final agent = _agentFor(o);
+        return Text(agent ?? '—', maxLines: 1, overflow: TextOverflow.ellipsis,
+            style: TextStyle(fontSize: 13,
+                color: agent == null ? _kText3 : _kText2));
+      case 8:
+        final createdAt = DateTime.tryParse(o['created_at'] as String? ?? '');
+        return Text(createdAt != null
+            ? DateFormat('hh:mm a').format(createdAt.toLocal()) : '—',
+            style: const TextStyle(fontSize: 13, color: _kText2));
+      default:
+        return WebIconButton(
+          icon: Icons.visibility_outlined,
+          tooltip: 'View order',
+          size: 32,
+          outlined: false,
+          onTap: () => widget.onOrder(id),
+        );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final rows = _filtered;
-    return Container(
-      decoration: BoxDecoration(
-        color: _kPanel,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: _kBorder),
-        boxShadow: _kShadow,
+    final lastPage = rows.isEmpty ? 0 : (rows.length - 1) ~/ _rowsPerPage;
+    final page = _page.clamp(0, lastPage);
+    final pageRows = rows.skip(page * _rowsPerPage).take(_rowsPerPage).toList();
+
+    return WebListCard(children: [
+      WebCardHeader(
+        title: 'Recent Orders',
+        subtitle: 'Showing ${rows.length} of ${widget.orders.length} orders',
+        action: WebButton(
+          label: 'View All Orders',
+          icon: Icons.arrow_forward_rounded,
+          onPressed: widget.onViewAll,
+        ),
       ),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(18, 16, 18, 12),
-          child: Row(children: [
-            const Text('RECENT ORDERS',
-                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800,
-                    color: _kText1, letterSpacing: 0.8)),
-            const SizedBox(width: 12),
-            Container(
-              width: 220, height: 32,
-              decoration: BoxDecoration(
-                  color: const Color(0xFFF8FAFC),
-                  borderRadius: BorderRadius.circular(6),
-                  border: Border.all(color: _kBorder)),
-              child: TextField(
-                controller: _searchCtrl,
-                decoration: const InputDecoration(
-                  hintText: 'Search orders...',
-                  hintStyle: TextStyle(fontSize: 12, color: _kText3),
-                  prefixIcon: Icon(
-                      Icons.search_rounded, size: 14, color: _kText3),
-                  border: InputBorder.none,
-                  enabledBorder: InputBorder.none,
-                  focusedBorder: InputBorder.none,
-                  contentPadding: EdgeInsets.symmetric(vertical: 8),
-                ),
-                style: const TextStyle(fontSize: 12, color: _kText1),
-              ),
-            ),
-            const SizedBox(width: 8),
-            _DropFilter(
-              value: _statusFilter,
-              options: _statuses,
-              onChanged: (v) => setState(() => _statusFilter = v),
-            ),
-            const Spacer(),
-            Text('Showing ${rows.length} of ${widget.orders.length} orders',
-                style: const TextStyle(fontSize: 11, color: _kText3)),
-            const SizedBox(width: 12),
-            InkWell(onTap: widget.onViewAll,
-                child: Container(padding: const EdgeInsets.symmetric(
-                    horizontal: 14, vertical: 7),
-                    decoration: BoxDecoration(color: _kNavBg,
-                        borderRadius: BorderRadius.circular(6)),
-                    child: const Text('View All Orders',
-                        style: TextStyle(
-                            fontSize: 12, fontWeight: FontWeight.w600,
-                            color: Colors.white)))),
-          ]),
-        ),
-        Container(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(colors: [_kNavBg, Color(0xFF1E293B)]),
-          ),
-          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 11),
-          child: Row(children: const [
-            _TH('Order ID', 90),
-            _TH('Customer', 200),
-            _TH('Birds / Weight', 140),
-            _TH('Amount', 120, right: true),
-            _TH('Status', 110, center: true),
-            _TH('Agent', 120),
-            _TH('Time', 90),
-            _TH('Action', 60, center: true),
-          ]),
-        ),
-        if (rows.isEmpty)
-          const Padding(padding: EdgeInsets.all(32),
-              child: Center(child: Text('No orders found',
-                  style: TextStyle(color: _kText3))))
-        else
-          ...rows
-              .asMap()
-              .entries
-              .map((e) {
-            final i = e.key;
-            final o = e.value;
-            final status = o['status'] as String? ?? 'pending';
-            final retailer = o['retailers'] as Map<String, dynamic>?;
-            final shopName = retailer?['shop_name'] as String? ?? '—';
-            final birds = (o['estimated_birds'] as num?)?.toInt() ?? 0;
-            final wt = (o['total_quantity'] as num?)?.toDouble() ?? 0;
-            final amt = (o['total_amount'] as num?)?.toDouble() ?? 0;
-            final createdAt = DateTime.tryParse(
-                o['created_at'] as String? ?? '');
-            final timeStr = createdAt != null
-                ? DateFormat('hh:mm a').format(createdAt) : '—';
-            final sc = _statusColor(status);
-
-            return _OrderRow(
-              index: i,
-              orderId: '#${(o['id'] as String? ?? '')
-                  .substring(0, 6)
-                  .toUpperCase()}',
-              shopName: shopName,
-              birds: birds,
-              weight: wt,
-              amount: amt,
-              status: status,
-              statusColor: sc,
-              agent: _agentFor(o) ?? '—',
-              time: timeStr,
-              onTap: () => widget.onOrder(o['id'] as String? ?? ''),
-            );
+      WebListTabs(
+        tabs: [
+          for (final s in _statuses)
+            WebTab(_label(s),
+                count: _byStatus(s).length,
+                color: s == 'All Status' ? null : _statusColor(s)),
+        ],
+        selected: _statuses.indexOf(_statusFilter),
+        onChanged: (i) => setState(() {
+          _statusFilter = _statuses[i];
+          _page = 0;
+        }),
+      ),
+      WebListToolbar(
+        search: WebSearchField(
+          hint: 'Search orders...',
+          debounce: const Duration(milliseconds: 250),
+          onChanged: (v) => setState(() {
+            _searchQuery = v.toLowerCase();
+            _page = 0;
           }),
-        Container(
-          padding: const EdgeInsets.fromLTRB(18, 12, 18, 12),
-          decoration: const BoxDecoration(
-              border: Border(top: BorderSide(color: _kBorder))),
-          child: Row(children: [
-            Text('Showing latest ${widget.orders.length} orders',
-                style: const TextStyle(fontSize: 11, color: _kText3)),
-          ]),
         ),
-      ]),
-    );
+      ),
+      WebDataTable<Map<String, dynamic>>(
+        columns: _columns,
+        rows: pageRows,
+        cellBuilder: _cell,
+        onRowTap: (o) => widget.onOrder(o['id'] as String? ?? ''),
+        sortKey: _sortKey,
+        sortAscending: _sortAsc,
+        onSort: _sort,
+        dense: _dense,
+        emptyText: 'No orders found',
+      ),
+      WebTablePagination(
+        page: page,
+        rowsPerPage: _rowsPerPage,
+        total: rows.length,
+        rowsPerPageOptions: const [5, 10, 25, 50],
+        onPage: (p) => setState(() => _page = p),
+        onRowsPerPage: (n) => setState(() { _rowsPerPage = n; _page = 0; }),
+        dense: _dense,
+        onDense: (v) => setState(() => _dense = v),
+      ),
+    ]);
   }
-}
-
-class _TH extends StatelessWidget {
-  const _TH(this.label, this.width, {this.right = false, this.center = false});
-
-  final String label;
-  final double width;
-  final bool right, center;
-
-  @override
-  Widget build(BuildContext c) =>
-      SizedBox(width: width, child: Text(label,
-          style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800,
-              color: Color(0xFF94A3B8), letterSpacing: 0.6),
-          textAlign: right ? TextAlign.right : center
-              ? TextAlign.center
-              : TextAlign.left));
-}
-
-class _OrderRow extends StatefulWidget {
-  const _OrderRow({required this.index, required this.orderId,
-    required this.shopName, required this.birds, required this.weight,
-    required this.amount, required this.status, required this.statusColor,
-    required this.agent, required this.time, required this.onTap});
-
-  final int index;
-  final String orderId, shopName, status, agent, time;
-  final int birds;
-  final double weight, amount;
-  final Color statusColor;
-  final VoidCallback onTap;
-
-  @override State<_OrderRow> createState() => _OrderRowState();
-}
-
-class _OrderRowState extends State<_OrderRow> {
-  bool _hov = false;
-
-  @override
-  Widget build(BuildContext c) =>
-      MouseRegion(
-        onEnter: (_) => setState(() => _hov = true),
-        onExit: (_) => setState(() => _hov = false),
-        cursor: SystemMouseCursors.click,
-        child: GestureDetector(onTap: widget.onTap,
-          child: AnimatedContainer(duration: const Duration(milliseconds: 100),
-            color: _hov ? const Color(0xFFF8FAFC)
-                : widget.index.isEven ? _kPanel : const Color(0xFFFBFCFD),
-            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 13),
-            child: Row(children: [
-              SizedBox(width: 90, child: Text(widget.orderId,
-                  style: const TextStyle(
-                      fontSize: 12, fontWeight: FontWeight.w600,
-                      color: _kBlue))),
-              SizedBox(width: 200, child: Text(widget.shopName,
-                  style: const TextStyle(fontSize: 13, color: _kText1,
-                      fontWeight: FontWeight.w500),
-                  maxLines: 1, overflow: TextOverflow.ellipsis)),
-              SizedBox(width: 140,
-                  child: Text('${widget.birds} birds  •  ${widget.weight
-                      .toStringAsFixed(0)} kg',
-                      style: const TextStyle(fontSize: 12, color: _kText2))),
-              SizedBox(width: 120, child: Text(Fmt.amount(widget.amount),
-                  textAlign: TextAlign.right,
-                  style: const TextStyle(
-                      fontSize: 13, fontWeight: FontWeight.w700,
-                      color: _kText1))),
-              SizedBox(width: 110, child: Center(child: Container(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                    color: widget.statusColor.withValues(alpha: 0.08),
-                    borderRadius: BorderRadius.circular(99),
-                    border: Border.all(
-                        color: widget.statusColor.withValues(alpha: 0.25))),
-                child: Text(widget.status.replaceAll('_', ' ').capitalize(),
-                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700,
-                        color: widget.statusColor)),
-              ))),
-              SizedBox(width: 120, child: Text(widget.agent,
-                  style: const TextStyle(fontSize: 12, color: _kText2),
-                  maxLines: 1, overflow: TextOverflow.ellipsis)),
-              SizedBox(width: 90, child: Text(widget.time,
-                  style: const TextStyle(fontSize: 12, color: _kText3))),
-              SizedBox(width: 60,
-                  child: Center(child: Icon(Icons.visibility_outlined,
-                      size: 16, color: _kText3))),
-            ]),
-          ),
-        ),
-      );
-}
-
-class _DropFilter extends StatelessWidget {
-  const _DropFilter({required this.value, required this.options,
-    required this.onChanged});
-
-  final String value;
-  final List<String> options;
-  final void Function(String) onChanged;
-
-  @override
-  Widget build(BuildContext c) =>
-      Container(
-        height: 32, padding: const EdgeInsets.symmetric(horizontal: 10),
-        decoration: BoxDecoration(color: const Color(0xFFF8FAFC),
-            borderRadius: BorderRadius.circular(6),
-            border: Border.all(color: _kBorder)),
-        child: DropdownButtonHideUnderline(child: DropdownButton<String>(
-          value: value,
-          isDense: true,
-          style: const TextStyle(fontSize: 12, color: _kText1),
-          items: options.map((o) =>
-              DropdownMenuItem(value: o,
-                  child: Text(o, style: const TextStyle(fontSize: 12))))
-              .toList(),
-          onChanged: (v) {
-            if (v != null) onChanged(v);
-          },
-        )),
-      );
 }
 
 class _DonutPainter extends CustomPainter {
-  const _DonutPainter({required this.fraction, required this.ringColor,
-    required this.trackColor, required this.strokeWidth});
+  const _DonutPainter({
+    this.fraction,
+    this.ringColor,
+    this.segments,
+    this.hoveredIndex,
+    required this.trackColor,
+    required this.strokeWidth,
+  });
 
-  final double fraction;
-  final Color ringColor, trackColor;
+  final double? fraction;
+  final Color? ringColor;
+  final List<_DonutSegmentData>? segments;
+  final int? hoveredIndex;
+  final Color trackColor;
   final double strokeWidth;
 
-  @override void paint(Canvas canvas, Size size) {
+  @override
+  void paint(Canvas canvas, Size size) {
     final c = Offset(size.width / 2, size.height / 2);
     final r = (size.width - strokeWidth) / 2;
-    final p = Paint()
+    final trackPaint = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = strokeWidth
-      ..strokeCap = StrokeCap.round;
-    p.color = trackColor;
-    canvas.drawCircle(c, r, p);
-    p.color = ringColor;
-    canvas.drawArc(Rect.fromCircle(center: c, radius: r), 0,
-        2 * 3.14159 * fraction.clamp(0.0, 1.0), false, p);
+      ..strokeCap = StrokeCap.round
+      ..color = trackColor;
+
+    canvas.drawCircle(c, r, trackPaint);
+
+    if (segments != null && segments!.isNotEmpty) {
+      final total = segments!.fold(0.0, (sum, s) => sum + s.value);
+      if (total <= 0) return;
+
+      double startAngle = 0.0;
+      final nonZeroCount = segments!.where((s) => s.value > 0).length;
+      final gap = nonZeroCount > 1 ? 0.06 : 0.0;
+
+      for (int i = 0; i < segments!.length; i++) {
+        final seg = segments![i];
+        if (seg.value <= 0) continue;
+        final sweep = 2 * math.pi * (seg.value / total);
+        final isHovered = (hoveredIndex == i);
+
+        // Highlight halo for hovered segment
+        if (isHovered) {
+          final haloPaint = Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = strokeWidth + 6
+            ..strokeCap = StrokeCap.round
+            ..color = seg.color.withValues(alpha: 0.28);
+          canvas.drawArc(
+            Rect.fromCircle(center: c, radius: r),
+            startAngle + gap / 2,
+            math.max(0.01, sweep - gap),
+            false,
+            haloPaint,
+          );
+        }
+
+        final segPaint = Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = isHovered ? strokeWidth + 2.5 : strokeWidth
+          ..strokeCap = StrokeCap.round
+          ..color = (hoveredIndex != null && !isHovered)
+              ? seg.color.withValues(alpha: 0.45)
+              : seg.color;
+
+        canvas.drawArc(
+          Rect.fromCircle(center: c, radius: r),
+          startAngle + gap / 2,
+          math.max(0.01, sweep - gap),
+          false,
+          segPaint,
+        );
+
+        startAngle += sweep;
+      }
+      return;
+    }
+
+    if (ringColor != null && fraction != null && fraction! > 0) {
+      final p = Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = strokeWidth
+        ..strokeCap = StrokeCap.round
+        ..color = ringColor!;
+      canvas.drawArc(
+        Rect.fromCircle(center: c, radius: r),
+        0,
+        2 * math.pi * fraction!.clamp(0.0, 1.0),
+        false,
+        p,
+      );
+    }
   }
 
-  @override bool shouldRepaint(_DonutPainter o) =>
-      o.fraction != fraction || o.ringColor != ringColor;
+  @override
+  bool shouldRepaint(_DonutPainter o) =>
+      o.fraction != fraction ||
+      o.ringColor != ringColor ||
+      o.hoveredIndex != hoveredIndex ||
+      o.segments != segments;
 }
 
 class _QA {

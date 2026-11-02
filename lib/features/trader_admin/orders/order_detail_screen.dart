@@ -7,6 +7,7 @@ import '../../../core/providers/session_provider.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../shared/layouts/responsive_layout.dart';
+import '../../../shared/widgets/web/web.dart';
 
 class OrderDetailScreen extends ConsumerStatefulWidget {
   const OrderDetailScreen({super.key, required this.id});
@@ -630,41 +631,437 @@ class _S extends ConsumerState<OrderDetailScreen> {
       );
     }
 
-    // ── Desktop 2-column layout ──────────────────────────────────────────
-    // Split: first N sections go left, financial + actions go right
-    // We put the last 2 whitecard blocks (billing + actions) in the right panel
-    final leftSections  = contentSections.length > 3
-        ? contentSections.sublist(0, contentSections.length - 2)
-        : contentSections;
-    final rightSections = contentSections.length > 3
-        ? contentSections.sublist(contentSections.length - 2)
-        : <Widget>[];
+    // ── Desktop / web layout ─────────────────────────────────────────────
+    return _buildWeb(
+      r: r, status: status, date: date, birds: birds, totalKg: totalKg,
+      hasInv: hasInv, sc: sc, displayAmt: displayAmt, balAmt: balAmt,
+      collAmt: collAmt, rateKg: rateKg, invKg: invKg,
+    );
+  }
 
-    return Scaffold(
-      backgroundColor: kBgPage,
-      appBar: AppBar(
-        backgroundColor: kSurface,
-        title: const Text('Order Detail'),
-        actions: [IconButton(icon: const Icon(Icons.refresh_rounded), onPressed: _load)],
+  // ═══════════════════════════════════════════════════════════════════════════
+  // WEB — breadcrumbs header, left: customer / progress / items,
+  // right: amount, invoices, actions. Same data and actions as mobile.
+  // ═══════════════════════════════════════════════════════════════════════════
+  Widget _buildWeb({
+    required Map<String, dynamic>? r,
+    required String status,
+    required DateTime? date,
+    required int birds,
+    required double totalKg,
+    required bool hasInv,
+    required Color sc,
+    required double displayAmt,
+    required double balAmt,
+    required double collAmt,
+    required double? rateKg,
+    required double? invKg,
+  }) {
+    final shortId = widget.id.length >= 6
+        ? widget.id.substring(0, 6).toUpperCase() : widget.id;
+    final source = _order!['source'] as String?;
+    final active = !['cancelled', 'invoiced', 'closed'].contains(status);
+    final awaiting = active && status == 'pending' &&
+        (source == 'retailer' || source == 'delivery_agent');
+    final shop = r?['shop_name'] as String? ?? '—';
+
+    // ── Left column ─────────────────────────────────────────────────────
+    final left = <Widget>[
+      if (awaiting) ...[
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: WebColors.warningBg,
+            borderRadius: BorderRadius.circular(WebRadius.card),
+            border: Border.all(color: WebColors.warning.withValues(alpha: 0.3)),
+          ),
+          child: Row(children: [
+            WebIconTile(
+                icon: source == 'retailer'
+                    ? Icons.store_outlined : Icons.delivery_dining_outlined,
+                color: WebColors.warning, size: 40),
+            const SizedBox(width: 14),
+            Expanded(child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(source == 'retailer'
+                  ? 'Retailer Order — Awaiting Confirmation'
+                  : 'Agent Order — Awaiting Approval',
+                  style: const TextStyle(fontSize: 14,
+                      fontWeight: FontWeight.w800, color: WebColors.warning)),
+              const SizedBox(height: 2),
+              Text(source == 'retailer'
+                  ? 'Review the order, set delivery date and confirm.'
+                  : 'Entered by delivery agent before shift. Review and approve, or cancel below.',
+                  style: WebText.bodySub),
+            ])),
+          ]),
+        ),
+        const SizedBox(height: WebSpace.lg),
+      ],
+
+      // Customer
+      WebSectionCard(
+        title: 'Customer',
+        icon: Icons.storefront_outlined,
+        child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(shop, style: const TextStyle(fontSize: 17,
+              fontWeight: FontWeight.w800, color: WebColors.text1)),
+          const SizedBox(height: 6),
+          Wrap(spacing: 20, runSpacing: 6, children: [
+            if (r?['owner_name'] != null)
+              _infoChip(Icons.person_outline_rounded,
+                  r!['owner_name'] as String),
+            if (r?['phone'] != null)
+              _infoChip(Icons.phone_outlined, r!['phone'] as String),
+            if ((r?['address'] as String?)?.trim().isNotEmpty == true)
+              _infoChip(Icons.location_on_outlined, r!['address'] as String),
+          ]),
+        ]),
       ),
-      body: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        // ── Left: customer + items ─────────────────────────────────────
-        Expanded(
-          flex: 6,
-          child: ListView(
-            padding: const EdgeInsets.fromLTRB(24, 16, 16, 40),
-            children: leftSections,
+      const SizedBox(height: WebSpace.lg),
+
+      // Partial delivery progress
+      if (_order!['is_partial_delivery'] == true ||
+          _order!['status'] == 'partially_delivered') ...[
+        _webPartialProgress(),
+        const SizedBox(height: WebSpace.lg),
+      ],
+
+      // Order items
+      WebSectionCard(
+        title: 'Order Items',
+        subtitle: '${_items.length} item${_items.length == 1 ? '' : 's'}',
+        icon: Icons.shopping_basket_outlined,
+        divider: true,
+        bodyPadding: EdgeInsets.zero,
+        child: _items.isEmpty
+            ? const Padding(
+                padding: EdgeInsets.all(WebSpace.xl),
+                child: Text('No items', style: WebText.caption))
+            : Column(children: [
+                Container(
+                  color: WebColors.surfaceAlt,
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: WebSpace.xl, vertical: 12),
+                  child: const Row(children: [
+                    Expanded(flex: 4, child: Text('Product',
+                        style: WebText.tableHead)),
+                    Expanded(flex: 2, child: Text('Birds',
+                        textAlign: TextAlign.right, style: WebText.tableHead)),
+                    Expanded(flex: 2, child: Text('Weight',
+                        textAlign: TextAlign.right, style: WebText.tableHead)),
+                  ]),
+                ),
+                for (final item in _items)
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: WebSpace.xl, vertical: 14),
+                    decoration: const BoxDecoration(border: Border(
+                        top: BorderSide(color: WebColors.divider))),
+                    child: Row(children: [
+                      Expanded(flex: 4, child: Row(children: [
+                        const WebIconTile(icon: Icons.egg_alt_outlined,
+                            color: WebColors.navy, size: 32),
+                        const SizedBox(width: 12),
+                        Flexible(child: Text(
+                            (item['master_products']
+                                as Map<String, dynamic>?)?['name']
+                                as String? ?? '—',
+                            style: const TextStyle(fontSize: 14,
+                                fontWeight: FontWeight.w700,
+                                color: WebColors.text1))),
+                      ])),
+                      Expanded(flex: 2, child: Text(
+                          item['bird_count'] != null
+                              ? '${item['bird_count']}' : '—',
+                          textAlign: TextAlign.right,
+                          style: const TextStyle(fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                              color: WebColors.text1))),
+                      Expanded(flex: 2, child: Text(
+                          (item['total_weight'] as num?) != null
+                              ? '${(item['total_weight'] as num).toDouble().toStringAsFixed(2)} kg'
+                              : '—',
+                          textAlign: TextAlign.right,
+                          style: const TextStyle(fontSize: 14,
+                              color: WebColors.text2))),
+                    ]),
+                  ),
+              ]),
+      ),
+    ];
+
+    // ── Right column ────────────────────────────────────────────────────
+    final right = <Widget>[
+      // Amount
+      WebSectionCard(
+        title: 'Amount',
+        icon: Icons.currency_rupee_rounded,
+        action: WebLabel(hasInv ? 'Billed ✓' : 'Estimate',
+            color: hasInv ? WebColors.success : WebColors.warning),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+          if (birds > 0)   _amtRow('Birds ordered', '$birds'),
+          if (totalKg > 0) _amtRow('Weight ordered',
+              '${totalKg.toStringAsFixed(2)} kg'),
+          if (hasInv) ...[
+            _amtRow('Delivered weight', '${(invKg ?? 0).toStringAsFixed(2)} kg'),
+            if (_items.length <= 1 && rateKg != null)
+              _amtRow('Rate', '₹${rateKg.toStringAsFixed(2)} / kg')
+            else if (_items.length > 1)
+              ..._items.map((item) {
+                final name = (item['master_products']
+                as Map<String, dynamic>?)?['name'] as String? ?? 'Product';
+                final rt = (item['applied_rate'] as num?)?.toDouble() ??
+                    (item['rate_per_kg'] as num?)?.toDouble();
+                if (rt == null) return const SizedBox.shrink();
+                return _amtRow('$name rate', '₹${rt.toStringAsFixed(2)} / kg');
+              }),
+          ],
+          if (_order!['payment_type'] != null)
+            _amtRow('Payment', (_order!['payment_type'] as String).toUpperCase()),
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                  colors: [WebColors.navy, WebColors.navyMid],
+                  begin: Alignment.topLeft, end: Alignment.bottomRight),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(hasInv ? 'Invoice Amount' : 'Estimated Amount',
+                  style: const TextStyle(fontSize: 12.5,
+                      color: Colors.white70, fontWeight: FontWeight.w600)),
+              const SizedBox(height: 4),
+              Text(Fmt.amount(displayAmt),
+                  style: const TextStyle(fontSize: 26,
+                      fontWeight: FontWeight.w800, color: Colors.white,
+                      letterSpacing: -0.5)),
+              if (hasInv) ...[
+                const SizedBox(height: 12),
+                Row(children: [
+                  Expanded(child: _darkStat('Collected', Fmt.amount(collAmt),
+                      const Color(0xFF6EE7B7))),
+                  Expanded(child: _darkStat('Balance', Fmt.amount(balAmt),
+                      balAmt > 0 ? WebColors.goldLight
+                          : const Color(0xFF6EE7B7))),
+                ]),
+              ] else ...[
+                const SizedBox(height: 4),
+                const Text('Actual amount set at delivery approval',
+                    style: TextStyle(fontSize: 11.5,
+                        color: WebColors.sideText)),
+              ],
+            ]),
+          ),
+          if (_order!['notes'] != null) ...[
+            const SizedBox(height: 8),
+            _amtRow('Notes', _order!['notes'] as String),
+          ],
+          if ((_order!['remarks'] as String?)?.trim().isNotEmpty == true) ...[
+            const SizedBox(height: 8),
+            _amtRow('Remarks', _order!['remarks'] as String),
+          ],
+        ]),
+      ),
+
+      // Invoices
+      if (_invoices.isNotEmpty) ...[
+        const SizedBox(height: WebSpace.lg),
+        WebSectionCard(
+          title: 'Invoices',
+          icon: Icons.receipt_long_outlined,
+          child: Column(crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+            for (final inv in _invoices)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: WebButton(
+                  label: _invoices.length > 1
+                      ? 'View Invoice ${inv['invoice_number'] ?? ''} '
+                      '(${Fmt.amount((inv['total_amount'] as num?)?.toDouble() ?? 0)})'
+                      : 'View Invoice ${inv['invoice_number'] ?? ''}',
+                  icon: Icons.receipt_long_outlined,
+                  outlined: true,
+                  onPressed: () =>
+                      context.push(R.invoiceDetailPath(inv['id'])),
+                ),
+              ),
+          ]),
+        ),
+      ],
+
+      // Actions — same visibility rules as the mobile layout
+      const SizedBox(height: WebSpace.lg),
+      WebSectionCard(
+          title: 'Actions',
+          icon: Icons.bolt_rounded,
+          child: Column(crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+            if (active && status == 'pending' && source == 'retailer') ...[
+              WebButton(
+                label: 'Confirm Order + Set Delivery Date',
+                icon: Icons.check_circle_outline,
+                color: WebColors.success,
+                onPressed: _confirmRetailerOrder,
+              ),
+              const SizedBox(height: 8),
+            ],
+            if (active && status == 'pending' && source == 'delivery_agent') ...[
+              WebButton(
+                label: 'Approve Order + Set Delivery Date',
+                icon: Icons.check_circle_outline,
+                color: WebColors.success,
+                onPressed: _confirmRetailerOrder,
+              ),
+              const SizedBox(height: 8),
+            ],
+            if (status == 'confirmed') ...[
+              WebButton(
+                label: 'Assign to Batch → Dispatch',
+                icon: Icons.local_shipping_outlined,
+                outlined: true,
+                onPressed: () => context.go(R.dispatch),
+              ),
+              const SizedBox(height: 8),
+            ],
+            WebButton(
+              label: 'Cancel Order',
+              icon: Icons.cancel_outlined,
+              outlined: true,
+              color: WebColors.error,
+              onPressed: _cancelOrder,
+            ),
+          ]),
+        ),
+    ];
+
+    return ColoredBox(
+      color: WebColors.pageBg,
+      child: SingleChildScrollView(
+        padding: WebSpace.page,
+        child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            PageBreadcrumbsHeader(
+              title: 'Order #$shortId',
+              titleTrailing: WebLabel(
+                  status.replaceAll('_', ' ').split(' ')
+                      .map((w) => w.isEmpty ? '' : w[0].toUpperCase() + w.substring(1))
+                      .join(' '),
+                  color: sc, dot: true),
+              subtitle: date != null
+                  ? 'Placed ${DateFormat('d MMM y · h:mm a').format(date.toLocal())}'
+                  : null,
+              crumbs: [
+                const Crumb('Dashboard', R.dashboard),
+                const Crumb('Orders', R.orders),
+                Crumb('#$shortId'),
+              ],
+              action: Row(mainAxisSize: MainAxisSize.min, children: [
+                WebIconButton(icon: Icons.arrow_back_rounded, tooltip: 'Back',
+                  onTap: () => context.canPop()
+                      ? context.pop() : context.go(R.orders)),
+                const SizedBox(width: 8),
+                WebIconButton(
+                    icon: Icons.refresh_rounded, tooltip: 'Refresh',
+                    onTap: _load),
+              ]),
+            ),
+            Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Expanded(flex: 8, child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: left)),
+              const SizedBox(width: WebSpace.lg),
+              Expanded(flex: 4, child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: right)),
+            ]),
+          ]),
+      ),
+    );
+  }
+
+  Widget _infoChip(IconData icon, String text) =>
+      Row(mainAxisSize: MainAxisSize.min, children: [
+        Icon(icon, size: 15, color: WebColors.text3),
+        const SizedBox(width: 6),
+        ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 360),
+          child: Text(text, maxLines: 1, overflow: TextOverflow.ellipsis,
+              style: WebText.bodySub),
+        ),
+      ]);
+
+  Widget _darkStat(String label, String value, Color c) => Column(
+      crossAxisAlignment: CrossAxisAlignment.start, children: [
+    Text(label, style: const TextStyle(fontSize: 11.5,
+        color: WebColors.sideText)),
+    const SizedBox(height: 2),
+    Text(value, style: TextStyle(fontSize: 15,
+        fontWeight: FontWeight.w800, color: c)),
+  ]);
+
+  Widget _webPartialProgress() {
+    final o            = _order!;
+    final totalBirds   = (o['estimated_birds']   as num?)?.toInt()    ?? 0;
+    final totalKg      = (o['total_quantity']     as num?)?.toDouble() ?? 0;
+    final fulfilledB   = (o['fulfilled_birds']    as num?)?.toInt()    ?? 0;
+    final fulfilledKg  = (o['fulfilled_quantity'] as num?)?.toDouble() ?? 0;
+    final backorderB   = (o['backorder_birds']    as num?)?.toInt()    ?? 0;
+    final backorderKg  = (o['backorder_quantity'] as num?)?.toDouble() ?? 0;
+    final partialCount = (o['partial_count']      as num?)?.toInt()    ?? 0;
+    final pct = totalBirds > 0 ? (fulfilledB / totalBirds).clamp(0.0, 1.0) : 0.0;
+
+    Widget col(String l, String b, String kg, Color c) => Expanded(
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: c.withValues(alpha: 0.06),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(l, style: TextStyle(fontSize: 12, color: c,
+              fontWeight: FontWeight.w700)),
+          const SizedBox(height: 6),
+          Text(b, style: const TextStyle(fontSize: 17,
+              fontWeight: FontWeight.w800, color: WebColors.text1)),
+          Text(kg, style: WebText.caption),
+        ]),
+      ),
+    );
+
+    return WebSectionCard(
+      title: 'Partial Delivery',
+      subtitle: 'Attempt $partialCount',
+      icon: Icons.timelapse_rounded,
+      action: Text('${(pct * 100).toStringAsFixed(0)}% fulfilled',
+          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800,
+              color: WebColors.warning)),
+      child: Column(children: [
+        ClipRRect(
+          borderRadius: BorderRadius.circular(6),
+          child: LinearProgressIndicator(
+            value: pct,
+            minHeight: 8,
+            backgroundColor: WebColors.warningBg,
+            valueColor: const AlwaysStoppedAnimation(WebColors.warning),
           ),
         ),
-        Container(width: 1, color: kBorderLight),
-        // ── Right: billing + actions ───────────────────────────────────
-        SizedBox(
-          width: 340,
-          child: ListView(
-            padding: const EdgeInsets.fromLTRB(20, 16, 24, 40),
-            children: rightSections,
-          ),
-        ),
+        const SizedBox(height: WebSpace.lg),
+        Row(children: [
+          col('Ordered', '$totalBirds birds',
+              '${totalKg.toStringAsFixed(1)} kg', WebColors.navy),
+          const SizedBox(width: 12),
+          col('Delivered', '$fulfilledB birds',
+              '${fulfilledKg.toStringAsFixed(1)} kg', WebColors.success),
+          const SizedBox(width: 12),
+          col('Remaining', '$backorderB birds',
+              '${backorderKg.toStringAsFixed(1)} kg',
+              backorderB > 0 ? WebColors.warning : WebColors.text3),
+        ]),
       ]),
     );
   }

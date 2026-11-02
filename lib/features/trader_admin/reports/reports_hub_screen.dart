@@ -12,6 +12,7 @@ import 'customer_ledger_row_builder.dart';
 import 'bulk_ledger_print_sheet.dart';
 import 'report_pdf_generator.dart';
 import '../../../shared/layouts/responsive_layout.dart';
+import 'package:rooster_trader/shared/widgets/web/app_scaffold.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // REPORTS HUB  — designed for 40+ age traders
@@ -333,7 +334,7 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
   // ─── BUILD ────────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
-    final _scaffold = Scaffold(
+    final _scaffold = AppScaffold(
         backgroundColor: kBgPage,
         appBar: AppBar(
             backgroundColor: kSurface, elevation: 0,

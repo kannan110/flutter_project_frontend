@@ -6,6 +6,7 @@ import '../../../core/providers/session_provider.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../shared/layouts/responsive_layout.dart';
+import 'package:rooster_trader/shared/widgets/web/app_scaffold.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // RETAILER LINK SCREEN
@@ -61,7 +62,7 @@ class _RLS extends ConsumerState<RetailerLinkScreen> {
     }
   }
 
-  Widget _buildScaffold(BuildContext context) => Scaffold(
+  Widget _buildScaffold(BuildContext context) => AppScaffold(
       backgroundColor: kBgPage,
       body: SafeArea(
           child: Padding(

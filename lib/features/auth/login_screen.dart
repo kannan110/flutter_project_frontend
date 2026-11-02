@@ -5,6 +5,12 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/router/app_router.dart';
 import '../../core/theme/app_theme.dart';
 
+// Muted role accents for the role picker
+const _kRoleTrader     = Color(0xFF34466D);
+const _kRoleRetailer   = Color(0xFF4F7D5C);
+const _kRoleAgent      = Color(0xFF4A6A9B);
+const _kRoleSupervisor = Color(0xFF3F7A76);
+
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
   @override ConsumerState<LoginScreen> createState() => _S();
@@ -137,43 +143,24 @@ class _S extends ConsumerState<LoginScreen> {
   // ═══════════════════════════════════════════════════════════════════════════
   // BUILD — premium Navy-Gold login screen
   // ═══════════════════════════════════════════════════════════════════════════
+  bool _wide = false;
+
   @override
   Widget build(BuildContext context) {
+    _wide = MediaQuery.of(context).size.width >= 1000;
+    if (_wide) return _buildWeb(context);
     return Scaffold(
       backgroundColor: kBgPage,
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.symmetric(horizontal: 24),
-          child: Column(children: [
-            const SizedBox(height: 48),
+          child: Center(child: ConstrainedBox(
+           constraints: const BoxConstraints(maxWidth: 480),
+           child: Column(children: [
+            const SizedBox(height: 40),
 
-            // ── Brand header — navy gradient pill ─────────────────────
-            Container(
-              child: Row(mainAxisSize: MainAxisSize.min, children: [
-                const SizedBox(width: 14),
-                Column(
-                    children: [
-                      SizedBox(
-                        width: MediaQuery.of(context).size.width * 0.72,
-                        child: Image.asset(
-                          'assets/images/logo.png',
-                          fit: BoxFit.contain,
-                        ),
-                      ),
-
-                      const SizedBox(height: 2),
-
-                      Text(
-                        'Smart Poultry Trading',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500,
-                          letterSpacing: 0.5,
-                        ),
-                      ),
-                    ]),
-              ]),
-            ),
+            // ── Brand header — cropped wordmark + gold tagline ──────────
+            _brandHeader(context),
 
             const SizedBox(height: 36),
 
@@ -185,58 +172,202 @@ class _S extends ConsumerState<LoginScreen> {
                 boxShadow:    kCardShadow,
               ),
               padding: const EdgeInsets.all(24),
-              child: Column(children: [
-                if (_step == 0)
-                  _buildRolePicker()
-                else if (_step == 1)
-                  _buildSignIn(title: 'Trader Sign In', hint: 'Sign in to your trader account')
-                else if (_step == 2)
-                    _buildTraderRegister()
-                  else if (_step == 4)
-                      _buildRetailerLogin()
-                    else if (_step == 5)
-                        _buildSupervisorSection()
-                      else
-                        _buildAgentSection(),
-              ]),
+              child: _stepContent(),
             ),
 
             const SizedBox(height: 32),
           ]),
+          )),
         ),
       ),
     );
   }
 
+  Widget _stepContent() => Column(children: [
+    if (_step == 0)
+      _buildRolePicker()
+    else if (_step == 1)
+      _buildSignIn(title: 'Trader Sign In', hint: 'Sign in to your trader account')
+    else if (_step == 2)
+        _buildTraderRegister()
+      else if (_step == 4)
+          _buildRetailerLogin()
+        else if (_step == 5)
+            _buildSupervisorSection()
+          else
+            _buildAgentSection(),
+  ]);
+
+  // ── Web (≥1000px): navy brand panel left, content right ───────────────────
+  Widget _buildWeb(BuildContext context) => Scaffold(
+    backgroundColor: kBgPage,
+    body: Row(children: [
+      Expanded(flex: 5, child: _webBrandPanel()),
+      Expanded(flex: 7, child: Center(child: SingleChildScrollView(
+        padding: const EdgeInsets.symmetric(horizontal: 48, vertical: 40),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: _step == 0 ? 720 : 480),
+          child: _step == 0
+              ? _stepContent()
+              : Container(
+                  decoration: BoxDecoration(
+                    color:        kSurface,
+                    borderRadius: BorderRadius.circular(kRadiusCard),
+                    border:       Border.all(color: kBorderLight),
+                    boxShadow:    kCardShadow,
+                  ),
+                  padding: const EdgeInsets.all(32),
+                  child: _stepContent(),
+                ),
+        ),
+      ))),
+    ]),
+  );
+
+  Widget _webBrandPanel() => Container(
+    decoration: const BoxDecoration(
+      gradient: LinearGradient(
+        begin: Alignment.topLeft, end: Alignment.bottomRight,
+        colors: [Color(0xFFF5F7FB), Color(0xFFECEFF5)],
+      ),
+    ),
+    child: Stack(children: [
+      // soft gold glow, decorative
+      Positioned(right: -120, top: -120, child: Container(
+        width: 360, height: 360,
+        decoration: BoxDecoration(shape: BoxShape.circle,
+            color: kGold.withValues(alpha: 0.10)),
+      )),
+      Positioned(left: -80, bottom: -80, child: Container(
+        width: 260, height: 260,
+        decoration: BoxDecoration(shape: BoxShape.circle,
+            color: kNavy.withValues(alpha: 0.04)),
+      )),
+      Padding(
+        padding: const EdgeInsets.fromLTRB(56, 48, 56, 40),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          // logo on a white plate (asset has a white background)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+            decoration: BoxDecoration(
+              color:        Colors.white,
+              borderRadius: BorderRadius.circular(kRadiusChip),
+              border:       Border.all(color: kBorderLight),
+            ),
+            child: SizedBox(width: 180, child: ClipRect(child: Align(
+              heightFactor: 0.46,
+              child: Image.asset('assets/images/logo.png', fit: BoxFit.contain),
+            ))),
+          ),
+          const Spacer(),
+          Row(children: [
+            Container(width: 28, height: 2, color: kGold),
+            const SizedBox(width: 10),
+            const Text('SMART POULTRY TRADING',
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800,
+                    letterSpacing: 2.6, color: kWarning)),
+          ]),
+          const SizedBox(height: 18),
+          const Text('Run your poultry\ntrade in one place.',
+              style: TextStyle(fontSize: 40, height: 1.15, fontWeight: FontWeight.w900,
+                  color: kNavy, letterSpacing: -0.8)),
+          const SizedBox(height: 16),
+          const Text('Orders, deliveries, invoices, ledgers and collections —\n'
+              'connected for traders, shops, agents and supervisors.',
+              style: TextStyle(fontSize: 15, height: 1.6, color: kTextSub)),
+          const SizedBox(height: 32),
+          _webFeature(Icons.receipt_long_rounded, 'Orders & invoices in real time'),
+          const SizedBox(height: 14),
+          _webFeature(Icons.local_shipping_rounded, 'Track agents and deliveries'),
+          const SizedBox(height: 14),
+          _webFeature(Icons.account_balance_rounded, 'Ledgers, payments & day closure'),
+          const Spacer(),
+          Text('© ${DateTime.now().year} Rooster',
+              style: const TextStyle(fontSize: 12, color: kTextHint)),
+        ]),
+      ),
+    ]),
+  );
+
+  Widget _webFeature(IconData icon, String label) => Row(children: [
+    Container(
+      width: 34, height: 34,
+      decoration: BoxDecoration(
+        color:        kGold.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(kRadiusInner),
+      ),
+      child: Icon(icon, size: 18, color: kWarning),
+    ),
+    const SizedBox(width: 14),
+    Text(label, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600,
+        color: kTextMain)),
+  ]);
+
+  Widget _brandHeader(BuildContext context) {
+    final logoW = (MediaQuery.of(context).size.width * 0.7).clamp(200.0, 300.0);
+    return Column(children: [
+      // logo.png has large white margins — clip to the wordmark band
+      SizedBox(
+        width: logoW,
+        child: ClipRect(child: Align(
+          heightFactor: 0.46,
+          child: Image.asset('assets/images/logo.png', fit: BoxFit.contain),
+        )),
+      ),
+      const SizedBox(height: 10),
+      Row(mainAxisSize: MainAxisSize.min, children: [
+        Container(width: 28, height: 1.5, color: kGold),
+        const SizedBox(width: 10),
+        const Text('SMART POULTRY TRADING',
+            style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800,
+                letterSpacing: 2.4, color: kNavyLight)),
+        const SizedBox(width: 10),
+        Container(width: 28, height: 1.5, color: kGold),
+      ]),
+    ]);
+  }
+
   // ── Step 0: Role picker ────────────────────────────────────────────────────
-  Widget _buildRolePicker() => Column(children: [
+  Widget _buildRolePicker() => _wide ? _buildRolePickerWeb() : Column(children: [
+    Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+      decoration: BoxDecoration(
+        color:        kGold.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: const Text('WELCOME',
+          style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900,
+              letterSpacing: 2, color: kWarning)),
+    ),
+    const SizedBox(height: 12),
     const Text('Who are you?',
-        style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900, color: kNavy)),
+        style: TextStyle(fontSize: 26, fontWeight: FontWeight.w900, color: kNavy,
+            letterSpacing: -0.5)),
     const SizedBox(height: 6),
     const Text('Select your role to get started',
         style: TextStyle(fontSize: 14, color: kTextSub)),
-    const SizedBox(height: 28),
+    const SizedBox(height: 24),
 
-    _roleCard(icon: '🏪', title: 'I am a Trader',
+    _roleCard(icon: Icons.storefront_rounded, title: 'I am a Trader',
         subtitle: 'I run a poultry trading business\nI manage orders, agents & deliveries',
-        color: kNavy, onTap: () => setState(() { _step = 1; _err = null; })),
+        color: _kRoleTrader, onTap: () => setState(() { _step = 1; _err = null; })),
     const SizedBox(height: 14),
 
-    _roleCard(icon: '🏬', title: 'I am a Retailer / Shop',
+    _roleCard(icon: Icons.shopping_basket_rounded, title: 'I am a Retailer / Shop',
         subtitle: 'I buy chicken from a trader\nI track my orders and payments',
-        color: Colors.green.shade700,
+        color: _kRoleRetailer,
         onTap: () => setState(() { _step = 4; _err = null; })),
     const SizedBox(height: 14),
 
-    _roleCard(icon: '🚚', title: 'I am a Delivery Agent',
+    _roleCard(icon: Icons.local_shipping_rounded, title: 'I am a Delivery Agent',
         subtitle: 'I deliver chicken to shops\nI use the app during my shift',
-        color: Colors.blue.shade700,
+        color: _kRoleAgent,
         onTap: () => setState(() { _step = 3; _err = null; })),
     const SizedBox(height: 14),
 
-    _roleCard(icon: '💰', title: 'I am a Supervisor',
+    _roleCard(icon: Icons.account_balance_wallet_rounded, title: 'I am a Supervisor',
         subtitle: 'I collect cash from retailers\nI record payments for my trader',
-        color: Colors.teal.shade700,
+        color: _kRoleSupervisor,
         onTap: () => setState(() { _step = 5; _err = null; })),
     const SizedBox(height: 24),
 
@@ -250,39 +381,61 @@ class _S extends ConsumerState<LoginScreen> {
     ]),
   ]);
 
-  Widget _roleCard({
-    required String icon, required String title, required String subtitle,
-    required Color color, required VoidCallback onTap,
-  }) => GestureDetector(
-    onTap: onTap,
-    child: Container(
-      width:   double.infinity,
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color:        kSurface,
-        borderRadius: BorderRadius.circular(kRadiusCard),
-        border:       Border.all(color: color.withValues(alpha: 0.25), width: 1.5),
-        boxShadow:    kCardShadow,
-      ),
-      child: Row(children: [
-        Container(
-          width: 52, height: 52,
-          decoration: BoxDecoration(
-            color:        color.withValues(alpha: 0.08),
-            borderRadius: BorderRadius.circular(kRadiusChip),
-          ),
-          child: Center(child: Text(icon, style: const TextStyle(fontSize: 26))),
+  Widget _buildRolePickerWeb() {
+    Widget card(IconData icon, String title, String subtitle, Color color, int step) =>
+        Expanded(child: _RoleCard(icon: icon, title: title, subtitle: subtitle,
+            color: color, vertical: true,
+            onTap: () => setState(() { _step = step; _err = null; })));
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+        decoration: BoxDecoration(
+          color:        kGold.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(20),
         ),
-        const SizedBox(width: 14),
-        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(title, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: color)),
-          const SizedBox(height: 3),
-          Text(subtitle, style: const TextStyle(fontSize: 12, color: kTextSub, height: 1.4)),
-        ])),
-        Icon(Icons.arrow_forward_ios_rounded, size: 14, color: color),
+        child: const Text('WELCOME',
+            style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900,
+                letterSpacing: 2, color: kWarning)),
+      ),
+      const SizedBox(height: 14),
+      const Text('Who are you?',
+          style: TextStyle(fontSize: 34, fontWeight: FontWeight.w900, color: kNavy,
+              letterSpacing: -0.8)),
+      const SizedBox(height: 6),
+      const Text('Select your role to get started',
+          style: TextStyle(fontSize: 15, color: kTextSub)),
+      const SizedBox(height: 32),
+      IntrinsicHeight(child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        card(Icons.storefront_rounded, 'I am a Trader',
+            'I run a poultry trading business\nI manage orders, agents & deliveries', _kRoleTrader, 1),
+        const SizedBox(width: 20),
+        card(Icons.shopping_basket_rounded, 'I am a Retailer / Shop',
+            'I buy chicken from a trader\nI track my orders and payments', _kRoleRetailer, 4),
+      ])),
+      const SizedBox(height: 20),
+      IntrinsicHeight(child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        card(Icons.local_shipping_rounded, 'I am a Delivery Agent',
+            'I deliver chicken to shops\nI use the app during my shift', _kRoleAgent, 3),
+        const SizedBox(width: 20),
+        card(Icons.account_balance_wallet_rounded, 'I am a Supervisor',
+            'I collect cash from retailers\nI record payments for my trader', _kRoleSupervisor, 5),
+      ])),
+      const SizedBox(height: 28),
+      Row(children: [
+        const Text('Already signed in before? ',
+            style: TextStyle(fontSize: 14, color: kTextSub)),
+        MouseRegion(cursor: SystemMouseCursors.click, child: GestureDetector(
+            onTap: () => setState(() { _step = 1; _err = null; }),
+            child: const Text('Sign In',
+                style: TextStyle(fontSize: 14, color: kNavy, fontWeight: FontWeight.w900)))),
       ]),
-    ),
-  );
+    ]);
+  }
+
+  Widget _roleCard({
+    required IconData icon, required String title, required String subtitle,
+    required Color color, required VoidCallback onTap,
+  }) => _RoleCard(icon: icon, title: title, subtitle: subtitle, color: color, onTap: onTap);
 
   // ── Sign In form ────────────────────────────────────────────────────────────
   Widget _buildSignIn({required String title, required String hint}) => Column(
@@ -721,6 +874,107 @@ class _S extends ConsumerState<LoginScreen> {
               ? const SizedBox(width: 22, height: 22,
               child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white))
               : Text(label, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w900))));
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// Role card — gradient icon tile, hover lift on web
+// ═══════════════════════════════════════════════════════════════════
+class _RoleCard extends StatefulWidget {
+  const _RoleCard({required this.icon, required this.title, required this.subtitle,
+      required this.color, required this.onTap, this.vertical = false});
+  final IconData icon;
+  final String title, subtitle;
+  final Color color;
+  final VoidCallback onTap;
+  final bool vertical; // web grid tile: icon top, arrow bottom
+  @override State<_RoleCard> createState() => _RoleCardState();
+}
+
+class _RoleCardState extends State<_RoleCard> {
+  bool _hover = false;
+
+  Widget _iconTile(Color c, double size) => Container(
+    width: size, height: size,
+    decoration: BoxDecoration(
+      color:        c.withValues(alpha: 0.10),
+      borderRadius: BorderRadius.circular(kRadiusChip),
+    ),
+    child: Icon(widget.icon, color: c, size: size * 0.46),
+  );
+
+  Widget _arrow(Color c) => AnimatedContainer(
+    duration: const Duration(milliseconds: 160),
+    width: 32, height: 32,
+    decoration: BoxDecoration(
+      color: c.withValues(alpha: _hover ? 0.14 : 0.06),
+      shape: BoxShape.circle,
+    ),
+    child: Icon(Icons.arrow_forward_rounded, size: 16, color: c),
+  );
+
+  Widget _verticalBody(Color c) => Padding(
+    padding: const EdgeInsets.all(24),
+    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        _iconTile(c, 58),
+        const Spacer(),
+        _arrow(c),
+      ]),
+      const SizedBox(height: 20),
+      Text(widget.title, style: const TextStyle(
+          fontSize: 18, fontWeight: FontWeight.w900, color: kTextMain)),
+      const SizedBox(height: 6),
+      Text(widget.subtitle, style: const TextStyle(
+          fontSize: 13, color: kTextSub, height: 1.55)),
+    ]),
+  );
+
+  @override
+  Widget build(BuildContext context) {
+    final c = widget.color;
+    return MouseRegion(
+      cursor:  SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hover = true),
+      onExit:  (_) => setState(() => _hover = false),
+      child: AnimatedContainer(
+        duration:  const Duration(milliseconds: 160),
+        transform: Matrix4.translationValues(0, _hover ? -2 : 0, 0),
+        decoration: BoxDecoration(
+          color:        _hover ? c.withValues(alpha: 0.02) : kSurface,
+          borderRadius: BorderRadius.circular(kRadiusCard),
+          border: Border.all(
+              color: _hover ? c.withValues(alpha: 0.30) : kBorderLight,
+              width: 1.5),
+          boxShadow: _hover
+              ? [BoxShadow(color: Colors.black.withValues(alpha: 0.06), blurRadius: 16, offset: const Offset(0, 6))]
+              : kCardShadow,
+        ),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap:        widget.onTap,
+            borderRadius: BorderRadius.circular(kRadiusCard),
+            child: widget.vertical ? _verticalBody(c) : Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(children: [
+                _iconTile(c, 54),
+                const SizedBox(width: 16),
+                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text(widget.title, style: const TextStyle(
+                      fontSize: 16, fontWeight: FontWeight.w900, color: kTextMain)),
+                  const SizedBox(height: 4),
+                  Text(widget.subtitle, style: const TextStyle(
+                      fontSize: 12, color: kTextSub, height: 1.45)),
+                ])),
+                const SizedBox(width: 8),
+                _arrow(c),
+              ]),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════

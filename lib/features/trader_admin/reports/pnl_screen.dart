@@ -4,6 +4,9 @@ import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/providers/session_provider.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/router/app_router.dart';
+import '../../../shared/layouts/responsive_layout.dart';
+import '../../../shared/widgets/web/web.dart';
 import 'report_pdf_generator.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -148,6 +151,7 @@ class _PnLScreenState extends ConsumerState<PnLScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (context.isDesktop) return _buildWeb();
     return Scaffold(
       backgroundColor: kBgPage,
       appBar: AppBar(
@@ -179,6 +183,337 @@ class _PnLScreenState extends ConsumerState<PnLScreen> {
         ),
       ]),
     );
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // WEB (desktop) — filters, KPI row, statement + losses side by side,
+  // period breakdown table. Display only; every figure is from the RPC.
+  // ═══════════════════════════════════════════════════════════════════════
+  Widget _buildWeb() {
+    final range = '${DateFormat("d MMM").format(_from)} – '
+        '${DateFormat("d MMM yyyy").format(_to)}';
+
+    final filters = WebCard(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+      child: Wrap(
+        spacing: 16, runSpacing: 12,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        alignment: WrapAlignment.spaceBetween,
+        children: [
+          Row(mainAxisSize: MainAxisSize.min, children: [
+            const Text('View', style: WebText.bodySub),
+            const SizedBox(width: 10),
+            WebSegmented<_Gran>(
+              options: _Gran.values,
+              selected: _gran,
+              label: (g) => g.label,
+              onChanged: (g) { setState(() => _gran = g); _load(); },
+            ),
+          ]),
+          Row(mainAxisSize: MainAxisSize.min, children: [
+            WebSegmented<_DatePreset>(
+              options: _DatePreset.values
+                  .where((p) => p != _DatePreset.custom).toList(),
+              selected: _preset,
+              label: (p) => p.label,
+              onChanged: (p) {
+                final (f, t) = p.range;
+                setState(() { _preset = p; _from = f; _to = t; });
+                _load();
+              },
+            ),
+            const SizedBox(width: 8),
+            WebButton(
+              label: _preset == _DatePreset.custom ? range : 'Custom',
+              icon: Icons.date_range_outlined,
+              outlined: _preset != _DatePreset.custom,
+              onPressed: _pickCustomRange,
+            ),
+          ]),
+        ],
+      ),
+    );
+
+    Widget body;
+    if (_loading) {
+      body = const WebCard(child: WebTableState.loading());
+    } else if (_error != null) {
+      body = WebCard(child: Column(children: [
+        const Icon(Icons.error_outline, color: WebColors.error, size: 40),
+        const SizedBox(height: 12),
+        Text(_error ?? 'Error loading P&L', textAlign: TextAlign.center,
+            style: const TextStyle(fontSize: 14, color: WebColors.error)),
+        const SizedBox(height: 16),
+        WebButton(label: 'Retry', icon: Icons.refresh, onPressed: _load),
+      ]));
+    } else if (_data == null) {
+      body = const SizedBox.shrink();
+    } else {
+      body = _webReport();
+    }
+
+    return WebPage(
+      header: PageBreadcrumbsHeader(
+        title: 'Profit & Loss',
+        subtitle: range,
+        crumbs: const [Crumb('Dashboard', R.dashboard), Crumb('P&L')],
+        action: Row(mainAxisSize: MainAxisSize.min, children: [
+          WebIconButton(icon: Icons.refresh_rounded, tooltip: 'Refresh',
+              onTap: _load),
+          const SizedBox(width: 8),
+          WebButton(label: 'Export PDF', icon: Icons.picture_as_pdf_outlined,
+              outlined: true, onPressed: _exportPdf),
+        ]),
+      ),
+      children: [filters, const SizedBox(height: WebSpace.lg), body],
+    );
+  }
+
+  Widget _webReport() {
+    final s = _summary;
+    final pendingCount = _i(s, 'lines_cost_pending');
+    final revenue = _d(s, 'revenue');
+    final grossSales = _d(s, 'gross_sales');
+    final returnsAmount = _d(s, 'returns_amount');
+    final cogs = _dn(s, 'cogs');
+    final grossProfit = _dn(s, 'gross_profit');
+    final netProfit = _dn(s, 'net_profit');
+    final mortality = _d(s, 'mortality_loss_amount');
+    final shrinkage = _d(s, 'shrinkage_loss_amount');
+    final totalLoss = _d(s, 'total_loss_amount');
+    final tripExp = _d(s, 'trip_expenses');
+    final traderExp = _d(s, 'trader_expenses');
+    final fixedExp = _d(s, 'fixed_expenses');
+    final totalExp = _d(s, 'total_expenses');
+    final grossMarginPct = _dn(s, 'gross_margin_pct');
+    final netMarginPct = _dn(s, 'net_margin_pct');
+    final expensePct = _dn(s, 'expense_pct');
+
+    Widget line(String label, double value, Color c, String sign,
+        {bool strong = false}) => Container(
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      decoration: const BoxDecoration(
+          border: Border(bottom: BorderSide(color: WebColors.divider))),
+      child: Row(children: [
+        Container(width: 4, height: 18, margin: const EdgeInsets.only(right: 12),
+            decoration: BoxDecoration(color: c,
+                borderRadius: BorderRadius.circular(2))),
+        Expanded(child: Text(label, style: TextStyle(fontSize: 13.5,
+            fontWeight: strong ? FontWeight.w700 : FontWeight.w500,
+            color: WebColors.text1))),
+        Text('$sign ${Fmt.amount(value)}', style: TextStyle(fontSize: 14,
+            fontWeight: FontWeight.w700,
+            color: sign == '+' ? WebColors.success : WebColors.text1)),
+      ]),
+    );
+
+    final npColor = netProfit == null ? WebColors.goldLight
+        : netProfit >= 0 ? const Color(0xFF6EE7B7) : const Color(0xFFFCA5A5);
+
+    final statement = WebSectionCard(
+      title: 'Statement',
+      subtitle: 'Revenue less costs, losses and expenses',
+      icon: Icons.trending_up_outlined,
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        line('Revenue', revenue, WebColors.success, '+', strong: true),
+        line(cogs == null ? 'COGS (Pending)' : 'Cost of Goods (COGS)',
+            cogs ?? 0, WebColors.navy, '-'),
+        line('Mortality Loss', mortality, WebColors.error, '-'),
+        line('Transit Shrinkage', shrinkage, WebColors.info, '-'),
+        if (totalLoss > 0 && totalLoss != mortality + shrinkage)
+          line('Total Loss ₹', totalLoss, WebColors.error, '-'),
+        line('Agent Expenses', tripExp, WebColors.warning, '-'),
+        if (traderExp > 0)
+          line('Trader Expenses', traderExp, WebColors.warning, '-'),
+        if (fixedExp > 0)
+          line('Fixed Overhead', fixedExp, WebColors.gold, '-'),
+        const SizedBox(height: 14),
+        Container(
+          padding: const EdgeInsets.all(18),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+                colors: [WebColors.navy, WebColors.navyMid],
+                begin: Alignment.topLeft, end: Alignment.bottomRight),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Row(children: [
+            const Expanded(child: Text('= Net Profit', style: TextStyle(
+                fontSize: 15, fontWeight: FontWeight.w800,
+                color: Colors.white70))),
+            Text(netProfit == null ? 'Pending' : Fmt.amount(netProfit),
+                style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800,
+                    color: npColor, letterSpacing: -0.4)),
+          ]),
+        ),
+      ]),
+    );
+
+    Widget pill(String label, String value, Color c) => Expanded(child: Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: c.withValues(alpha: 0.07),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(value, style: TextStyle(fontSize: 17,
+            fontWeight: FontWeight.w800, color: c)),
+        const SizedBox(height: 2),
+        Text(label, style: WebText.caption),
+      ]),
+    ));
+
+    final losses = WebSectionCard(
+      title: 'Losses & Expenses',
+      subtitle: 'Where the money went in this period',
+      icon: Icons.pie_chart_outline_rounded,
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Row(children: [
+          pill('Total Expenses', Fmt.amount(totalExp), WebColors.warning),
+          const SizedBox(width: 10),
+          pill('Mortality', Fmt.amount(mortality), WebColors.error),
+          const SizedBox(width: 10),
+          pill('Shrinkage + Variance', Fmt.amount(shrinkage), WebColors.info),
+        ]),
+        if (traderExp > 0 || fixedExp > 0) ...[
+          const SizedBox(height: 10),
+          Row(children: [
+            if (tripExp > 0) ...[
+              pill('Agent Exp', Fmt.amount(tripExp), WebColors.warning),
+              const SizedBox(width: 10),
+            ],
+            if (traderExp > 0) ...[
+              pill('Trader Exp', Fmt.amount(traderExp), WebColors.warning),
+              const SizedBox(width: 10),
+            ],
+            if (fixedExp > 0)
+              pill('Fixed', Fmt.amount(fixedExp), WebColors.gold),
+          ]),
+        ],
+        if (grossMarginPct != null || netMarginPct != null || expensePct != null) ...[
+          const SizedBox(height: WebSpace.lg),
+          const Text('Margins', style: WebText.cardTitle),
+          const SizedBox(height: 10),
+          Row(children: [
+            if (grossMarginPct != null) ...[
+              pill('Gross Margin', '${grossMarginPct.toStringAsFixed(1)}%',
+                  WebColors.success),
+              const SizedBox(width: 10),
+            ],
+            if (netMarginPct != null) ...[
+              pill('Net Margin', '${netMarginPct.toStringAsFixed(1)}%',
+                  netMarginPct >= 0 ? WebColors.success : WebColors.error),
+              const SizedBox(width: 10),
+            ],
+            if (expensePct != null)
+              pill('Expense %', '${expensePct.toStringAsFixed(1)}%',
+                  WebColors.warning),
+          ]),
+        ],
+        if (returnsAmount > 0) ...[
+          const SizedBox(height: WebSpace.lg),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: WebDecor.inset(),
+            child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+              Text('Gross Sales: ${Fmt.amount(grossSales)}',
+                  style: WebText.bodySub),
+              Text('Returns: −${Fmt.amount(returnsAmount)}',
+                  style: const TextStyle(fontSize: 13,
+                      color: WebColors.warning, fontWeight: FontWeight.w700)),
+            ]),
+          ),
+        ],
+      ]),
+    );
+
+    final buckets = _buckets;
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      if (pendingCount > 0) ...[
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          decoration: BoxDecoration(
+            color: WebColors.warningBg,
+            borderRadius: BorderRadius.circular(WebRadius.sm),
+            border: Border.all(color: WebColors.warning.withValues(alpha: 0.3)),
+          ),
+          child: Row(children: [
+            const Icon(Icons.info_outline, size: 16, color: WebColors.warning),
+            const SizedBox(width: 8),
+            Expanded(child: Text(
+                '$pendingCount line${pendingCount == 1 ? '' : 's'} not yet costed — '
+                'Gross/Net Profit shown as "Pending" until batch costing completes.',
+                style: const TextStyle(fontSize: 12.5, color: WebColors.warning,
+                    fontWeight: FontWeight.w600))),
+          ]),
+        ),
+        const SizedBox(height: WebSpace.lg),
+      ],
+      WebKpiRow(children: [
+        WebKpiCard(label: 'Revenue', value: Fmt.amount(revenue),
+            icon: Icons.currency_rupee, color: WebColors.navy),
+        WebKpiCard(label: 'Gross Profit',
+            value: grossProfit == null ? 'Pending' : Fmt.amount(grossProfit),
+            sub: grossMarginPct == null ? null
+                : '${grossMarginPct.toStringAsFixed(1)}% gross margin',
+            icon: Icons.calculate_outlined,
+            color: grossProfit == null ? WebColors.warning
+                : grossProfit >= 0 ? WebColors.success : WebColors.error),
+        WebKpiCard(label: 'Net Profit',
+            value: netProfit == null ? 'Pending' : Fmt.amount(netProfit),
+            sub: netMarginPct == null ? null
+                : '${netMarginPct.toStringAsFixed(1)}% net margin',
+            icon: Icons.savings_outlined,
+            color: netProfit == null ? WebColors.warning
+                : netProfit >= 0 ? WebColors.success : WebColors.error),
+        WebKpiCard(label: 'Total Expenses', value: Fmt.amount(totalExp),
+            sub: expensePct == null ? null
+                : '${expensePct.toStringAsFixed(1)}% of revenue',
+            icon: Icons.receipt_long_outlined, color: WebColors.gold),
+      ]),
+      const SizedBox(height: WebSpace.lg),
+      WebKpiRow(children: [statement, losses]),
+      const SizedBox(height: WebSpace.lg),
+      WebListCard(children: [
+        WebCardHeader(
+          title: '${_gran.label} Breakdown',
+          subtitle: '${buckets.length} period${buckets.length == 1 ? '' : 's'}',
+          icon: Icons.table_chart_outlined,
+        ),
+        WebDataTable<Map<String, dynamic>>(
+          columns: const [
+            WebColumn('Period', flex: 2),
+            WebColumn('Revenue', flex: 2, align: TextAlign.right),
+            WebColumn('COGS', flex: 2, align: TextAlign.right),
+            WebColumn('Gross Profit', flex: 2, align: TextAlign.right),
+            WebColumn('Net Profit', flex: 2, align: TextAlign.right),
+          ],
+          rows: buckets,
+          paginate: true,
+          dense: true,
+          emptyText: 'No data for this period',
+          cellBuilder: (b, col) {
+            final gp = _dn(b, 'gross_profit');
+            final np = _dn(b, 'net_profit');
+            final pend = _i(b, 'lines_cost_pending') > 0;
+            const plain = TextStyle(fontSize: 13.5, color: WebColors.text2);
+            TextStyle money(double? v) => TextStyle(fontSize: 13.5,
+                fontWeight: FontWeight.w800,
+                color: v == null ? WebColors.warning
+                    : v >= 0 ? WebColors.success : WebColors.error);
+            return switch (col) {
+              0 => Text(_fd(b['period_start']), style: const TextStyle(
+                  fontSize: 13.5, fontWeight: FontWeight.w600,
+                  color: WebColors.text1)),
+              1 => Text(Fmt.amount(_d(b, 'revenue')), style: plain),
+              2 => Text(pend ? 'Pending' : Fmt.amount(_dn(b, 'cogs') ?? 0),
+                  style: plain),
+              3 => Text(gp == null ? 'Pending' : Fmt.amount(gp), style: money(gp)),
+              _ => Text(np == null ? 'Pending' : Fmt.amount(np), style: money(np)),
+            };
+          },
+        ),
+      ]),
+    ]);
   }
 
   Widget _buildGranBar() => Container(
@@ -534,8 +869,8 @@ class _PnLScreenState extends ConsumerState<PnLScreen> {
           borderRadius: BorderRadius.circular(kRadiusCard),
           border: Border.all(color: kBorderLight),
           boxShadow: kCardShadow),
-      child: SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
+      child: ScrollableTableWrapper(
+          maxHeight: 480,
           child: DataTable(
               columnSpacing: 18,
               headingRowHeight: 40,

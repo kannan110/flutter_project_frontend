@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:rooster_trader/core/theme/app_theme.dart';
 import 'package:rooster_trader/shared/layouts/responsive_layout.dart';
+export 'scrollable_table_wrapper.dart';
 
 // ── AppTableColumn ─────────────────────────────────────────────────────────
 class AppTableColumn<T> {
@@ -88,7 +89,7 @@ class AppTable<T> extends StatelessWidget {
 }
 
 // ── Desktop table ──────────────────────────────────────────────────────────
-class _DesktopTable<T> extends StatelessWidget {
+class _DesktopTable<T> extends StatefulWidget {
   const _DesktopTable({
     required this.columns,
     required this.rows,
@@ -118,57 +119,106 @@ class _DesktopTable<T> extends StatelessWidget {
   final BoxDecoration Function(T)? rowDecoration;
 
   @override
-  Widget build(BuildContext context) {
-    return Column(children: [
-      // ── Navy header ──────────────────────────────────────────────────────
-      Container(
-        height:  headerHeight,
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            colors: [kNavy, kNavyMid],
-            begin:  Alignment.centerLeft,
-            end:    Alignment.centerRight,
-          ),
-        ),
-        padding: padding,
-        child: Row(
-          children: columns.map((col) => _headerCell(col)).toList(),
-        ),
-      ),
+  State<_DesktopTable<T>> createState() => _DesktopTableState<T>();
+}
 
-      // ── Rows ─────────────────────────────────────────────────────────────
-      if (rows.isEmpty && emptyWidget != null)
-        Expanded(child: emptyWidget!)
-      else
-        Expanded(
-          child: ListView.builder(
-            padding:     EdgeInsets.zero,
-            itemCount:   rows.length + (footerWidget != null ? 1 : 0),
-            itemBuilder: (_, i) {
-              if (footerWidget != null && i == rows.length) {
-                return Padding(
-                  padding: const EdgeInsets.all(16),
-                  child:   footerWidget,
-                );
-              }
-              return _TableRow<T>(
-                item:       rows[i],
-                columns:    columns,
-                height:     rowHeight,
-                padding:    padding,
-                onTap:      onRowTap != null ? () => onRowTap!(rows[i]) : null,
-                isEven:     i.isEven,
-                decoration: rowDecoration?.call(rows[i]),
-              );
-            },
+class _DesktopTableState<T> extends State<_DesktopTable<T>> {
+  final ScrollController _hScroll = ScrollController();
+  final ScrollController _vScroll = ScrollController();
+
+  @override
+  void dispose() {
+    _hScroll.dispose();
+    _vScroll.dispose();
+    super.dispose();
+  }
+
+  double _minTableWidth() {
+    double total = 0;
+    for (final col in widget.columns) {
+      total += col.width ?? (col.flex * 120.0);
+    }
+    return total;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final minW = _minTableWidth();
+
+    return LayoutBuilder(builder: (context, constraints) {
+      final tableWidth = constraints.maxWidth > minW ? constraints.maxWidth : minW;
+
+      final content = SizedBox(
+        width: tableWidth,
+        child: Column(children: [
+          // ── Navy header ──────────────────────────────────────────────────────
+          Container(
+            height:  widget.headerHeight,
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                colors: [kNavy, kNavyMid],
+                begin:  Alignment.centerLeft,
+                end:    Alignment.centerRight,
+              ),
+            ),
+            padding: widget.padding,
+            child: Row(
+              children: widget.columns.map((col) => _headerCell(col)).toList(),
+            ),
           ),
+
+          // ── Rows ─────────────────────────────────────────────────────────────
+          if (widget.rows.isEmpty && widget.emptyWidget != null)
+            Expanded(child: widget.emptyWidget!)
+          else
+            Expanded(
+              child: Scrollbar(
+                controller: _vScroll,
+                thumbVisibility: true,
+                notificationPredicate: (notif) => notif.metrics.axis == Axis.vertical,
+                child: ListView.builder(
+                  controller: _vScroll,
+                  padding:     EdgeInsets.zero,
+                  itemCount:   widget.rows.length + (widget.footerWidget != null ? 1 : 0),
+                  itemBuilder: (_, i) {
+                    if (widget.footerWidget != null && i == widget.rows.length) {
+                      return Padding(
+                        padding: const EdgeInsets.all(16),
+                        child:   widget.footerWidget,
+                      );
+                    }
+                    return _TableRow<T>(
+                      item:       widget.rows[i],
+                      columns:    widget.columns,
+                      height:     widget.rowHeight,
+                      padding:    widget.padding,
+                      onTap:      widget.onRowTap != null ? () => widget.onRowTap!(widget.rows[i]) : null,
+                      isEven:     i.isEven,
+                      decoration: widget.rowDecoration?.call(widget.rows[i]),
+                    );
+                  },
+                ),
+              ),
+            ),
+        ]),
+      );
+
+      return Scrollbar(
+        controller: _hScroll,
+        thumbVisibility: true,
+        notificationPredicate: (notif) => notif.metrics.axis == Axis.horizontal,
+        child: SingleChildScrollView(
+          controller: _hScroll,
+          scrollDirection: Axis.horizontal,
+          child: content,
         ),
-    ]);
+      );
+    });
   }
 
   Widget _headerCell(AppTableColumn<T> col) {
-    final canSort  = col.sortKey != null && onSort != null;
-    final isActive = sortColumn == col.sortKey;
+    final canSort  = col.sortKey != null && widget.onSort != null;
+    final isActive = widget.sortColumn == col.sortKey;
 
     Widget label = Text(
       col.label.toUpperCase(),
@@ -182,14 +232,14 @@ class _DesktopTable<T> extends StatelessWidget {
 
     if (canSort) {
       label = InkWell(
-        onTap:        () => onSort!(col.sortKey!),
+        onTap:        () => widget.onSort!(col.sortKey!),
         borderRadius: BorderRadius.circular(2),
         child: Row(mainAxisSize: MainAxisSize.min, children: [
           label,
           const SizedBox(width: 4),
           Icon(
             isActive
-                ? (sortAscending
+                ? (widget.sortAscending
                 ? Icons.arrow_upward_rounded
                 : Icons.arrow_downward_rounded)
                 : Icons.unfold_more_rounded,

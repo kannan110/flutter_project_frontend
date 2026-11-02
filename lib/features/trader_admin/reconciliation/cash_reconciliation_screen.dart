@@ -4,6 +4,9 @@ import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/providers/session_provider.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/router/app_router.dart';
+import '../../../shared/layouts/responsive_layout.dart';
+import '../../../shared/widgets/web/web.dart';
 
 class CashReconciliationScreen extends ConsumerStatefulWidget {
   const CashReconciliationScreen({super.key});
@@ -90,13 +93,8 @@ class _S extends ConsumerState<CashReconciliationScreen> {
     final cashCtrl = TextEditingController(text: expected.toStringAsFixed(2));
     final notesCtrl = TextEditingController();
 
-    await showModalBottomSheet(
-        context: context,
-        isScrollControlled: true,
-        useRootNavigator: true,
-        shape: const RoundedRectangleBorder(
-            borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-        builder: (ctx) => Padding(
+    // Same form for both: bottom sheet on mobile, centred dialog on web.
+    Widget form(BuildContext ctx) => Padding(
             padding: EdgeInsets.fromLTRB(
                 20, 20, 20, MediaQuery.of(ctx).viewInsets.bottom + 20),
             child: Column(
@@ -150,12 +148,177 @@ class _S extends ConsumerState<CashReconciliationScreen> {
                         }
                       },
                       child: const Text('Submit Reconciliation')),
-                ])));
+                ]));
+    if (context.isDesktop) {
+      await showDialog(
+          context: context,
+          useRootNavigator: true,
+          builder: (ctx) => Dialog(
+                backgroundColor: WebColors.surface,
+                surfaceTintColor: Colors.transparent,
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(WebRadius.dialog)),
+                child: SizedBox(width: WebSize.dialogMd, child: form(ctx)),
+              ));
+    } else {
+      await showModalBottomSheet(
+          context: context,
+          isScrollControlled: true,
+          useRootNavigator: true,
+          shape: const RoundedRectangleBorder(
+              borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+          builder: form);
+    }
     // controllers are ephemeral locals — GC handles disposal
   }
 
+  // ═══════════════════════════════════════════════════════════════════════
+  // WEB (desktop) — header, KPI row, Pending / History tabs as tables.
+  // ═══════════════════════════════════════════════════════════════════════
+  int _webTab = 0;
+  bool _dense = true;
+
+  Widget _buildWeb() {
+    final pendingCash = _pendingShifts.fold<double>(0,
+        (s, x) => s + ((x['total_cash_collected'] as num?)?.toDouble() ?? 0));
+    final netDisc = _history.fold<double>(0,
+        (s, h) => s + ((h['discrepancy_amount'] as num?)?.toDouble() ?? 0));
+    final exact = _history.where((h) =>
+        (((h['discrepancy_amount'] as num?)?.toDouble() ?? 0).abs()) < 0.01).length;
+
+    String fmtDate(String? iso) {
+      final d = DateTime.tryParse(iso ?? '');
+      return d != null ? DateFormat('d MMM y').format(d) : '—';
+    }
+
+    Widget agentCell(Map<String, dynamic> r) {
+      final name = (r['delivery_agents'] as Map?)?['name'] as String? ?? '—';
+      return Text(name, maxLines: 1, overflow: TextOverflow.ellipsis,
+          style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600,
+              color: WebColors.text1));
+    }
+
+    final pendingTable = WebDataTable<Map<String, dynamic>>(
+      columns: const [
+        WebColumn('Shift Date', width: 150),
+        WebColumn('Agent', flex: 3),
+        WebColumn('Expected Cash', width: 170, align: TextAlign.right),
+        WebColumn('Action', width: 160, align: TextAlign.center),
+      ],
+      rows: _filteredPending,
+      paginate: true,
+      dense: _dense,
+      loading: _loading,
+      emptyText: 'All shifts reconciled ✓',
+      cellBuilder: (s, col) => switch (col) {
+        0 => Text(fmtDate(s['shift_start_at'] as String?),
+            style: const TextStyle(fontSize: 13, color: WebColors.text2)),
+        1 => agentCell(s),
+        2 => Text(Fmt.amount((s['total_cash_collected'] as num?)?.toDouble() ?? 0),
+            style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700,
+                color: WebColors.text1)),
+        _ => WebButton(label: 'Reconcile', icon: Icons.fact_check_outlined,
+            onPressed: () => _reconcile(s)),
+      },
+    );
+
+    final historyTable = WebDataTable<Map<String, dynamic>>(
+      columns: const [
+        WebColumn('Reconciled', width: 150),
+        WebColumn('Agent', flex: 3),
+        WebColumn('Expected', width: 150, align: TextAlign.right),
+        WebColumn('Handed In', width: 150, align: TextAlign.right),
+        WebColumn('Difference', width: 180, align: TextAlign.center),
+      ],
+      rows: _filteredHistory,
+      paginate: true,
+      dense: _dense,
+      loading: _loading,
+      emptyText: 'No reconciliations yet',
+      cellBuilder: (h, col) {
+        final disc = (h['discrepancy_amount'] as num?)?.toDouble() ?? 0;
+        return switch (col) {
+          0 => Text(fmtDate(h['reconciled_at'] as String?),
+              style: const TextStyle(fontSize: 13, color: WebColors.text2)),
+          1 => agentCell(h),
+          2 => Text(Fmt.amount((h['expected_cash_total'] as num?)?.toDouble() ?? 0),
+              style: const TextStyle(fontSize: 13.5, color: WebColors.text2)),
+          3 => Text(Fmt.amount((h['cash_handed_in'] as num?)?.toDouble() ?? 0),
+              style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700,
+                  color: WebColors.text1)),
+          _ => disc.abs() < 0.01
+              ? const WebLabel('Exact ✓', color: WebColors.success)
+              : disc > 0
+                  ? WebLabel('+${Fmt.amount(disc.abs())} excess',
+                      color: WebColors.info)
+                  : WebLabel('${Fmt.amount(disc.abs())} short',
+                      color: WebColors.error),
+        };
+      },
+    );
+
+    return WebPage(
+      header: PageBreadcrumbsHeader(
+        title: 'Cash Reconciliation',
+        subtitle: "Match each closed shift's cash against what the agent handed in",
+        crumbs: const [
+          Crumb('Dashboard', R.dashboard),
+          Crumb('Cash Reconciliation'),
+        ],
+        action: WebIconButton(icon: Icons.refresh_rounded,
+            tooltip: 'Refresh', onTap: _load),
+      ),
+      children: [
+        WebKpiRow(children: [
+          WebKpiCard(label: 'Shifts to Reconcile',
+              value: '${_pendingShifts.length}',
+              icon: Icons.pending_actions_outlined,
+              color: _pendingShifts.isEmpty
+                  ? WebColors.success : WebColors.warning),
+          WebKpiCard(label: 'Cash Expected', value: Fmt.amount(pendingCash),
+              sub: 'from shifts not yet reconciled',
+              icon: Icons.payments_outlined, color: WebColors.navy),
+          WebKpiCard(label: 'Exact Matches', value: '$exact',
+              sub: 'of last ${_history.length} reconciliations',
+              icon: Icons.verified_outlined, color: WebColors.success),
+          WebKpiCard(label: 'Net Difference', value: Fmt.amount(netDisc),
+              sub: netDisc < 0 ? 'short overall' : 'excess / even overall',
+              icon: Icons.compare_arrows_rounded,
+              color: netDisc < 0 ? WebColors.error : WebColors.info),
+        ]),
+        const SizedBox(height: WebSpace.lg),
+        WebListCard(children: [
+          WebListTabs(
+            tabs: [
+              WebTab('Pending', count: _filteredPending.length,
+                  color: WebColors.warning),
+              WebTab('History', count: _filteredHistory.length),
+            ],
+            selected: _webTab,
+            onChanged: (i) => setState(() => _webTab = i),
+          ),
+          WebListToolbar(
+            search: WebSearchField(
+              controller: _searchCtrl,
+              hint: 'Search by agent name…',
+              debounce: const Duration(milliseconds: 200),
+              onChanged: _applySearch,
+            ),
+            trailing: [
+              const Text('Dense', style: WebText.bodySub),
+              Switch(value: _dense,
+                  activeTrackColor: WebColors.navy,
+                  onChanged: (v) => setState(() => _dense = v)),
+            ],
+          ),
+          _webTab == 0 ? pendingTable : historyTable,
+        ]),
+      ],
+    );
+  }
+
   @override
-  Widget build(BuildContext context) => Scaffold(
+  Widget build(BuildContext context) => context.isDesktop ? _buildWeb() : Scaffold(
         backgroundColor: kBgPage,
         appBar: AppBar(
             backgroundColor: kSurface,

@@ -7,6 +7,7 @@ import '../../../core/providers/session_provider.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../shared/layouts/responsive_layout.dart';
+import '../../../shared/widgets/web/web.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -231,6 +232,156 @@ class SettingsScreen extends ConsumerWidget {
     );
   }
 
+  // ═══════════════════════════════════════════════════════════════════════
+  // WEB (desktop) — profile + company code, then every menu section as a
+  // card in a two-column grid. Same items, same routes, same sign out.
+  // ═══════════════════════════════════════════════════════════════════════
+  Widget _buildWeb(BuildContext context, WidgetRef ref) {
+    final user = ref.watch(appUserProvider).valueOrNull;
+
+    final profile = Container(
+      padding: const EdgeInsets.all(22),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+            colors: [WebColors.navy, WebColors.navyMid],
+            begin: Alignment.topLeft, end: Alignment.bottomRight),
+        borderRadius: BorderRadius.circular(WebRadius.card),
+      ),
+      child: Row(children: [
+        Container(
+          width: 60, height: 60,
+          decoration: BoxDecoration(shape: BoxShape.circle,
+              border: Border.all(color: WebColors.goldLight, width: 2)),
+          padding: const EdgeInsets.all(2),
+          child: CircleAvatar(
+            backgroundColor: Colors.white.withValues(alpha: 0.15),
+            child: Text(_initials(user?.companyName), style: const TextStyle(
+                fontSize: 20, fontWeight: FontWeight.w900,
+                color: WebColors.goldLight)),
+          ),
+        ),
+        const SizedBox(width: 16),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min, children: [
+          Text(user?.companyName ?? 'Rooster Trader', style: const TextStyle(
+              fontSize: 20, fontWeight: FontWeight.w800, color: Colors.white)),
+          const SizedBox(height: 4),
+          Text(user?.role.label ?? '—', style: const TextStyle(
+              fontSize: 13, color: Colors.white70,
+              fontWeight: FontWeight.w600)),
+        ])),
+        WebButton(
+          label: 'Profile',
+          icon: Icons.storefront_outlined,
+          color: WebColors.gold,
+          onPressed: () => context.go(R.traderProfile),
+        ),
+      ]),
+    );
+
+    final code = user?.companyCode == null ? null : WebCard(
+      padding: const EdgeInsets.all(20),
+      child: Row(children: [
+        const WebIconTile(icon: Icons.qr_code_rounded, color: WebColors.navy,
+            size: 48),
+        const SizedBox(width: 16),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min, children: [
+          const Text('Company Code', style: WebText.bodySub),
+          Text(user!.companyCode!, style: const TextStyle(fontSize: 26,
+              fontWeight: FontWeight.w900, color: WebColors.navy,
+              letterSpacing: 3)),
+          const Text('Share with agents', style: WebText.caption),
+        ])),
+      ]),
+    );
+
+    Widget section(String title, IconData icon, List<(IconData, String, String)> items) =>
+        WebListCard(children: [
+          WebCardHeader(title: title, icon: icon,
+              subtitle: '${items.length} item${items.length == 1 ? '' : 's'}'),
+          const Divider(height: 1, color: WebColors.border),
+          for (final it in items)
+            _WebMenuRow(icon: it.$1, label: it.$2,
+                onTap: () => context.go(it.$3)),
+          const SizedBox(height: 6),
+        ]);
+
+    final sections = [
+      section('Account', Icons.person_outline_rounded, [
+        (Icons.storefront_outlined, 'Profile', R.traderProfile),
+      ]),
+      section('Operations', Icons.local_shipping_outlined, [
+        (Icons.analytics_outlined, 'Analytics', R.analytics),
+        (Icons.summarize_outlined, 'Reports & Analytics', R.reportsHub),
+        (Icons.shopping_cart_outlined, 'Purchase Management', R.purchase),
+        (Icons.receipt_long_outlined, 'Daily Report', R.dailyReport),
+        (Icons.calendar_month_outlined, 'Daily Stock Snapshots', R.dailyStock),
+        (Icons.account_balance_outlined, 'Cash Reconciliation', R.cashRecon),
+        (Icons.lock_clock_outlined, 'Day Closure', R.dayClosure),
+      ]),
+      section('Catalogue', Icons.category_outlined, [
+        (Icons.store_outlined, 'Retailers', R.retailers),
+        (Icons.delivery_dining_outlined, 'Delivery Agents', R.agents),
+        if (user?.supervisorModuleEnabled == true)
+          (Icons.payments_outlined, 'Supervisors', R.supervisorList),
+        (Icons.map_outlined, 'Delivery Areas', R.areaManagement),
+        (Icons.manage_accounts_outlined, 'User Management', R.userMgmt),
+        (Icons.local_offer_outlined, 'Pricing', R.pricingHub),
+        (Icons.history_outlined, 'Rate History', R.zoneRateHistory),
+        (Icons.receipt_long_outlined, 'Expense Rules', R.expenseRules),
+      ]),
+      section('Inventory', Icons.inventory_2_outlined, [
+        (Icons.inventory_outlined, 'Stock', R.stock),
+        (Icons.inventory_2_outlined, 'Crates', R.crates),
+        (Icons.assignment_return_outlined, 'Returns', R.returns),
+      ]),
+      section('Reports', Icons.bar_chart_rounded, [
+        (Icons.receipt_long_outlined, 'Invoices', R.invoices),
+        (Icons.account_balance_wallet_outlined, 'Ledger', R.ledger),
+        (Icons.schedule_outlined, 'Shifts', R.shifts),
+        (Icons.warning_amber_outlined, 'Alerts', R.alerts),
+      ]),
+    ];
+
+    return WebPage(
+      header: PageBreadcrumbsHeader(
+        title: 'Settings',
+        subtitle: 'Your business profile and every module in one place',
+        crumbs: const [Crumb('Dashboard', R.dashboard), Crumb('Settings')],
+        action: WebButton(
+          label: 'Sign Out',
+          icon: Icons.logout_rounded,
+          outlined: true,
+          color: WebColors.error,
+          onPressed: () async {
+            final ok = await confirmDialog(context,
+                title: 'Sign Out', message: 'Sign out of Rooster Trader?');
+            if (ok && context.mounted) {
+              ref.read(appUserProvider.notifier).signOut();
+            }
+          },
+        ),
+      ),
+      children: [
+        if (code != null)
+          IntrinsicHeight(child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            Expanded(flex: 3, child: profile),
+            const SizedBox(width: WebSpace.lg),
+            Expanded(flex: 2, child: code),
+          ]))
+        else
+          profile,
+        const SizedBox(height: WebSpace.lg),
+        WebMasonry(columns: 2, children: sections),
+        const SizedBox(height: WebSpace.xl),
+        const Center(child: Text('Rooster Trader PTOS v2.0',
+            style: WebText.caption)),
+      ],
+    );
+  }
+
   Widget _sectionLabel(String label) => Padding(
     padding: const EdgeInsets.only(bottom: 8),
     child: Text(label,
@@ -293,6 +444,44 @@ class SettingsScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) => ResponsiveLayout(
     mobile: (_) => _buildScaffold(context, ref),
-    desktop: (_) => _buildScaffold(context, ref),
+    desktop: (_) => _buildWeb(context, ref),
+  );
+}
+
+// ── Web menu row (hover highlight) ─────────────────────────────────────────
+class _WebMenuRow extends StatefulWidget {
+  const _WebMenuRow({required this.icon, required this.label,
+    required this.onTap});
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+  @override
+  State<_WebMenuRow> createState() => _WebMenuRowState();
+}
+
+class _WebMenuRowState extends State<_WebMenuRow> {
+  bool _hov = false;
+  @override
+  Widget build(BuildContext context) => MouseRegion(
+    cursor: SystemMouseCursors.click,
+    onEnter: (_) => setState(() => _hov = true),
+    onExit: (_) => setState(() => _hov = false),
+    child: GestureDetector(
+      onTap: widget.onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 100),
+        color: _hov ? WebColors.hover : Colors.transparent,
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 11),
+        child: Row(children: [
+          WebIconTile(icon: widget.icon, color: WebColors.navy, size: 34),
+          const SizedBox(width: 14),
+          Expanded(child: Text(widget.label, style: TextStyle(
+              fontSize: 14, fontWeight: FontWeight.w600,
+              color: _hov ? WebColors.navy : WebColors.text1))),
+          Icon(Icons.chevron_right_rounded, size: 20,
+              color: _hov ? WebColors.navy : WebColors.text3),
+        ]),
+      ),
+    ),
   );
 }

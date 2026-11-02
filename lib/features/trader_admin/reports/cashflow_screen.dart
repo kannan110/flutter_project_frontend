@@ -4,6 +4,9 @@ import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/providers/session_provider.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/router/app_router.dart';
+import '../../../shared/layouts/responsive_layout.dart';
+import '../../../shared/widgets/web/web.dart';
 import 'report_pdf_generator.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -130,6 +133,7 @@ class _CashFlowScreenState extends ConsumerState<CashFlowScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (context.isDesktop) return _buildWeb();
     return Scaffold(
       backgroundColor: kBgPage,
       appBar: AppBar(
@@ -159,6 +163,181 @@ class _CashFlowScreenState extends ConsumerState<CashFlowScreen> {
               : _buildBody(),
         ),
       ]),
+    );
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // WEB (desktop) — filters, cash position + KPIs, daily table.
+  // Display only; every figure is from get_cash_flow_statement.
+  // ═══════════════════════════════════════════════════════════════════════
+  Widget _buildWeb() {
+    final range = '${DateFormat("d MMM").format(_from)} – '
+        '${DateFormat("d MMM yyyy").format(_to)}';
+
+    final filters = WebCard(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+      child: Row(children: [
+        const Text('Period', style: WebText.bodySub),
+        const SizedBox(width: 10),
+        WebSegmented<_DatePreset>(
+          options: _DatePreset.values
+              .where((p) => p != _DatePreset.custom).toList(),
+          selected: _preset,
+          label: (p) => p.label,
+          onChanged: (p) {
+            final (f, t) = p.range;
+            setState(() { _preset = p; _from = f; _to = t; });
+            _load();
+          },
+        ),
+        const SizedBox(width: 8),
+        WebButton(
+          label: _preset == _DatePreset.custom ? range : 'Custom',
+          icon: Icons.date_range_outlined,
+          outlined: _preset != _DatePreset.custom,
+          onPressed: _pickCustomRange,
+        ),
+      ]),
+    );
+
+    Widget body;
+    if (_loading) {
+      body = const WebCard(child: WebTableState.loading());
+    } else if (_error != null) {
+      body = WebCard(child: Column(children: [
+        const Icon(Icons.error_outline, color: WebColors.error, size: 40),
+        const SizedBox(height: 12),
+        Text(_error ?? 'Error loading cash flow', textAlign: TextAlign.center,
+            style: const TextStyle(fontSize: 14, color: WebColors.error)),
+        const SizedBox(height: 16),
+        WebButton(label: 'Retry', icon: Icons.refresh, onPressed: _load),
+      ]));
+    } else if (_data == null) {
+      body = const SizedBox.shrink();
+    } else {
+      final s = _summary;
+      final cashIn = _d(s, 'total_cash_in');
+      final cashOut = _d(s, 'total_cash_out');
+      final net = _d(s, 'net_movement');
+      final daily = _daily;
+      final currentBalance =
+          daily.isNotEmpty ? _d(daily.first, 'running_balance') : 0.0;
+
+      final position = Container(
+        padding: const EdgeInsets.all(22),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+              colors: [WebColors.navy, WebColors.navyMid],
+              begin: Alignment.topLeft, end: Alignment.bottomRight),
+          borderRadius: BorderRadius.circular(WebRadius.card),
+        ),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.center, children: [
+          const Text('Cash Position (movement)', style: TextStyle(
+              fontSize: 13, color: Colors.white70,
+              fontWeight: FontWeight.w600)),
+          const SizedBox(height: 8),
+          Text(Fmt.amount(currentBalance), style: const TextStyle(
+              fontSize: 30, fontWeight: FontWeight.w800, color: Colors.white,
+              letterSpacing: -0.6)),
+          const SizedBox(height: 6),
+          Text('Net movement over selected period: '
+              '${net >= 0 ? "+" : ""}${Fmt.amount(net)}',
+              style: TextStyle(fontSize: 12.5,
+                  color: Colors.white.withValues(alpha: 0.75))),
+        ]),
+      );
+
+      body = Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        WebKpiRow(children: [
+          position,
+          WebKpiCard(label: 'Cash In', value: Fmt.amount(cashIn),
+              icon: Icons.arrow_downward_rounded, color: WebColors.success),
+          WebKpiCard(label: 'Cash Out', value: Fmt.amount(cashOut),
+              icon: Icons.arrow_upward_rounded, color: WebColors.error),
+          WebKpiCard(label: 'Net Movement',
+              value: '${net >= 0 ? "+" : ""}${Fmt.amount(net)}',
+              icon: Icons.swap_vert_rounded,
+              color: net >= 0 ? WebColors.success : WebColors.error),
+        ]),
+        const SizedBox(height: WebSpace.md),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          decoration: BoxDecoration(
+            color: WebColors.warningBg,
+            borderRadius: BorderRadius.circular(WebRadius.sm),
+          ),
+          child: const Row(children: [
+            Icon(Icons.info_outline, size: 16, color: WebColors.warning),
+            SizedBox(width: 8),
+            Expanded(child: Text(
+                'Cash position shows movement within the selected range, '
+                'not an absolute till balance.',
+                style: TextStyle(fontSize: 12.5, color: WebColors.warning,
+                    fontWeight: FontWeight.w600))),
+          ]),
+        ),
+        const SizedBox(height: WebSpace.lg),
+        WebListCard(children: [
+          WebCardHeader(
+            title: 'Daily Cash Flow',
+            subtitle: '${daily.length} day${daily.length == 1 ? '' : 's'}',
+            icon: Icons.table_chart_outlined,
+          ),
+          WebDataTable<Map<String, dynamic>>(
+            columns: const [
+              WebColumn('Date', flex: 2),
+              WebColumn('Cash In', flex: 2, align: TextAlign.right),
+              WebColumn('Supplier Paid', flex: 2, align: TextAlign.right),
+              WebColumn('Trip Exp', flex: 2, align: TextAlign.right),
+              WebColumn('Fixed Exp', flex: 2, align: TextAlign.right),
+              WebColumn('Net', flex: 2, align: TextAlign.right),
+              WebColumn('Balance', flex: 2, align: TextAlign.right),
+            ],
+            rows: daily,
+            paginate: true,
+            dense: true,
+            emptyText: 'No cash movement in this period',
+            cellBuilder: (d, col) {
+              const plain = TextStyle(fontSize: 13.5, color: WebColors.text2);
+              final netM = _d(d, 'net_movement');
+              return switch (col) {
+                0 => Text(_fd(d['date']), style: const TextStyle(
+                    fontSize: 13.5, fontWeight: FontWeight.w600,
+                    color: WebColors.text1)),
+                1 => Text(Fmt.amount(_d(d, 'cash_in_total')),
+                    style: const TextStyle(fontSize: 13.5,
+                        color: WebColors.success, fontWeight: FontWeight.w600)),
+                2 => Text(Fmt.amount(_d(d, 'cash_out_supplier')), style: plain),
+                3 => Text(Fmt.amount(_d(d, 'cash_out_trip')), style: plain),
+                4 => Text(Fmt.amount(_d(d, 'cash_out_fixed')), style: plain),
+                5 => Text('${netM >= 0 ? "+" : ""}${Fmt.amount(netM)}',
+                    style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800,
+                        color: netM >= 0 ? WebColors.success : WebColors.error)),
+                _ => Text(Fmt.amount(_d(d, 'running_balance')),
+                    style: const TextStyle(fontSize: 13.5,
+                        fontWeight: FontWeight.w800, color: WebColors.navy)),
+              };
+            },
+          ),
+        ]),
+      ]);
+    }
+
+    return WebPage(
+      header: PageBreadcrumbsHeader(
+        title: 'Cash Flow',
+        subtitle: range,
+        crumbs: const [Crumb('Dashboard', R.dashboard), Crumb('Cash Flow')],
+        action: Row(mainAxisSize: MainAxisSize.min, children: [
+          WebIconButton(icon: Icons.refresh_rounded, tooltip: 'Refresh',
+              onTap: _load),
+          const SizedBox(width: 8),
+          WebButton(label: 'Export PDF', icon: Icons.picture_as_pdf_outlined,
+              outlined: true, onPressed: _exportPdf),
+        ]),
+      ),
+      children: [filters, const SizedBox(height: WebSpace.lg), body],
     );
   }
 
@@ -336,8 +515,8 @@ class _CashFlowScreenState extends ConsumerState<CashFlowScreen> {
           borderRadius: BorderRadius.circular(kRadiusCard),
           border: Border.all(color: kBorderLight),
           boxShadow: kCardShadow),
-      child: SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
+      child: ScrollableTableWrapper(
+          maxHeight: 480,
           child: DataTable(
               columnSpacing: 16,
               headingRowHeight: 40,

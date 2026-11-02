@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/providers/session_provider.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_theme.dart';
+import 'package:rooster_trader/shared/widgets/web/app_scaffold.dart';
 
 class CreateAgentScreen extends ConsumerStatefulWidget {
   const CreateAgentScreen({super.key});
@@ -66,7 +67,7 @@ class _S extends ConsumerState<CreateAgentScreen> {
   @override
   Widget build(BuildContext context) {
     final code = ref.watch(appUserProvider).valueOrNull?.companyCode ?? '—';
-    return Scaffold(
+    return AppScaffold(
       backgroundColor: kBgPage,
       appBar: AppBar(
           backgroundColor: kSurface, title: const Text('Add Delivery Agent')),

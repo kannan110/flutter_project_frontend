@@ -7,6 +7,7 @@ import '../../../core/providers/session_provider.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../shared/layouts/responsive_layout.dart';
+import 'package:rooster_trader/shared/widgets/web/app_scaffold.dart';
 
 class RetailerLedgerScreen extends ConsumerStatefulWidget {
   const RetailerLedgerScreen({super.key, required this.retailerId});
@@ -309,8 +310,8 @@ class _S extends ConsumerState<RetailerLedgerScreen> {
   }
 
   Widget _buildScaffold(BuildContext context) {
-    if (_loading) return const Scaffold(body: LoadingList());
-    return Scaffold(
+    if (_loading) return const AppScaffold(body: LoadingList());
+    return AppScaffold(
       backgroundColor: kBgPage,
       appBar: AppBar(
         backgroundColor: kSurface,

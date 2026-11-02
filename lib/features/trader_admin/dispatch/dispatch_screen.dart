@@ -7,6 +7,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/providers/session_provider.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../shared/layouts/responsive_layout.dart';
+import '../../../shared/widgets/web/web.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // DISPATCH — Area-based workflow
@@ -430,7 +432,7 @@ class _S extends ConsumerState<DispatchScreen> with SingleTickerProviderStateMix
   double get _totalPendingAmount => _confirmedOrders.fold(0.0, (s, o) => s + _amt(o));
 
   @override
-  Widget build(BuildContext context) => Scaffold(
+  Widget build(BuildContext context) => context.isDesktop ? _buildWeb() : Scaffold(
     backgroundColor: kBgPage,
     appBar: AppBar(
       backgroundColor: kSurface,
@@ -494,6 +496,219 @@ class _S extends ConsumerState<DispatchScreen> with SingleTickerProviderStateMix
       ),
     )
         : TabBarView(controller: _tab, children: [_pendingTab(), _liveTab()]),
+  );
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // WEB (desktop) — breadcrumbs header, KPI row, Pending / Live tabs.
+  // Same data, same actions as the mobile layout below.
+  // ═══════════════════════════════════════════════════════════════════════════
+  Widget _buildWeb() {
+    final header = PageBreadcrumbsHeader(
+      title: 'Dispatch',
+      subtitle: 'Group confirmed orders by delivery area and assign them to agents',
+      crumbs: const [Crumb('Dashboard', R.dashboard), Crumb('Dispatch')],
+      action: Row(mainAxisSize: MainAxisSize.min, children: [
+        if (_pendingCount > 0) ...[
+          Badge(
+            label: Text('$_pendingCount'),
+            backgroundColor: WebColors.error,
+            child: WebButton(
+              label: 'Pending Operations',
+              icon: Icons.warning_amber_outlined,
+              outlined: true,
+              color: WebColors.warning,
+              onPressed: () => context.push(R.pendingOps),
+            ),
+          ),
+          const SizedBox(width: 8),
+        ],
+        WebButton(
+          label: 'History',
+          icon: Icons.history,
+          outlined: true,
+          onPressed: () => context.push(R.dispatchHistory),
+        ),
+        const SizedBox(width: 8),
+        WebIconButton(
+            icon: Icons.refresh_rounded, tooltip: 'Refresh', onTap: _load),
+      ]),
+    );
+
+    if (_loading) {
+      return WebPage(header: header, children: const [
+        WebCard(child: WebTableState.loading()),
+      ]);
+    }
+    if (_lastError != null) {
+      return WebPage(header: header, children: [
+        WebCard(child: Column(children: [
+          const Icon(Icons.error_outline, size: 40, color: WebColors.error),
+          const SizedBox(height: 12),
+          const Text('Could not load Dispatch', style: WebText.cardTitle),
+          const SizedBox(height: 6),
+          Text(_lastError!, style: WebText.caption,
+              textAlign: TextAlign.center),
+          const SizedBox(height: 16),
+          WebButton(label: 'Retry', onPressed: _load),
+        ])),
+      ]);
+    }
+
+    final groups = _filteredAreaGroups;
+    final pendingTab = _tab.index == 0;
+
+    return WebPage(
+      header: header,
+      footer: pendingTab && _cart.isNotEmpty ? _webCartBar() : null,
+      children: [
+        WebKpiRow(children: [
+          WebKpiCard(label: 'Pending Orders',
+              value: '${_confirmedOrders.length}',
+              sub: '${groups.length} area${groups.length == 1 ? '' : 's'}',
+              icon: Icons.receipt_long_rounded, color: WebColors.navy),
+          WebKpiCard(label: 'Birds to Dispatch',
+              value: '$_totalPendingBirds',
+              icon: Icons.egg_alt_outlined, color: WebColors.gold),
+          WebKpiCard(label: 'Weight',
+              value: '${_totalPendingWeight.toStringAsFixed(0)} kg',
+              icon: Icons.scale_outlined, color: WebColors.info),
+          WebKpiCard(label: 'Order Value',
+              value: Fmt.amount(_totalPendingAmount),
+              icon: Icons.currency_rupee_rounded, color: WebColors.success),
+          WebKpiCard(label: 'Live Batches',
+              value: '${_liveBatches.length}',
+              icon: Icons.local_shipping_outlined, color: WebColors.warning),
+        ]),
+        const SizedBox(height: WebSpace.lg),
+        WebListCard(children: [
+          WebListTabs(
+            tabs: [
+              WebTab('Pending', count: _confirmedOrders.length),
+              WebTab('Live', count: _liveBatches.length,
+                  color: WebColors.success),
+            ],
+            selected: _tab.index,
+            onChanged: (i) => setState(() => _tab.index = i),
+          ),
+          if (pendingTab) ...[
+            WebListToolbar(
+              search: WebSearchField(
+                controller: _searchCtrl,
+                hint: 'Search customer or area…',
+                debounce: const Duration(milliseconds: 200),
+                onChanged: (_) {},
+              ),
+              trailing: [
+                Text('${_cart.length} selected · '
+                    '${groups.fold(0, (s, g) => s + g.orders.length)} shown',
+                    style: WebText.caption),
+                WebButton(label: 'Select all', outlined: true,
+                    icon: Icons.done_all_rounded,
+                    onPressed: () => _selectAllVisible(groups)),
+                WebButton(label: 'Clear', outlined: true,
+                    icon: Icons.clear_rounded,
+                    onPressed: _clearCart),
+              ],
+            ),
+            if (groups.any((g) => g.id == null)) _unassignedBanner(),
+            Padding(
+              padding: const EdgeInsets.all(20),
+              child: groups.isEmpty
+                  ? WebTableState.empty(
+                      text: _search.isNotEmpty
+                          ? 'No matches for "$_search"'
+                          : 'No confirmed orders waiting')
+                  : WebMasonry(
+                      columns: 2,
+                      children: [for (final g in groups) _areaCard(g)]),
+            ),
+          ] else
+            Padding(
+              padding: const EdgeInsets.all(20),
+              child: _liveBatches.isEmpty
+                  ? Column(crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                      const WebTableState.empty(text: 'No live deliveries'),
+                      if (_pendingCount == 0)
+                        Container(
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(
+                            color: WebColors.infoBg,
+                            borderRadius: BorderRadius.circular(WebRadius.sm),
+                          ),
+                          child: const Row(children: [
+                            Icon(Icons.info_outline, color: WebColors.info,
+                                size: 18),
+                            SizedBox(width: 10),
+                            Expanded(child: Text(
+                                'Assign orders from the Pending tab — a batch '
+                                'opens automatically the moment you assign.',
+                                style: TextStyle(fontSize: 13,
+                                    color: WebColors.info))),
+                          ]),
+                        ),
+                    ])
+                  : WebMasonry(columns: 3, children: [
+                      for (final b in _liveBatches) _webLiveCard(b),
+                    ]),
+            ),
+        ]),
+      ],
+    );
+  }
+
+  Widget _webLiveCard(Map<String, dynamic> b) {
+    final deliveries = (b['deliveries'] as List? ?? [])
+        .where((d) => d['status'] != 'cancelled');
+    final challans = (b['delivery_challans'] as List? ?? []);
+    final birds = challans.isNotEmpty
+        ? challans.fold(0, (s, c) => s + ((c['bird_count'] as num?)?.toInt() ?? 0))
+        : deliveries.fold(0, (s, d) => s + (((d['orders'] as Map?)?['estimated_birds'] as num?)?.toInt() ?? 0));
+    final weight = challans.isNotEmpty
+        ? challans.fold(0.0, (s, c) => s + ((c['net_weight'] as num?)?.toDouble() ?? 0))
+        : deliveries.fold(0.0, (s, d) => s + (((d['orders'] as Map?)?['total_quantity'] as num?)?.toDouble() ?? 0));
+    return _LiveBatchCard(
+      batch: b, birds: birds, weight: weight, orders: deliveries.length,
+      onTap: () => context.push(R.batchDetailPath(b['id'])),
+    );
+  }
+
+  Widget _webCartBar() => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+    decoration: const BoxDecoration(
+      color: WebColors.navy,
+      boxShadow: WebShadow.raised,
+    ),
+    child: Row(children: [
+      const WebIconTile(icon: Icons.shopping_cart_checkout_rounded,
+          color: WebColors.goldLight, size: 40),
+      const SizedBox(width: 14),
+      Expanded(child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min, children: [
+        Text('${_cart.length} orders selected',
+            style: const TextStyle(fontSize: 15,
+                fontWeight: FontWeight.w800, color: Colors.white)),
+        const SizedBox(height: 2),
+        Text('$_cartBirds birds · ${_cartWeight.toStringAsFixed(0)} kg · '
+            '${Fmt.amount(_cartAmount)}',
+            style: const TextStyle(fontSize: 12.5,
+                color: WebColors.sideText)),
+      ])),
+      WebButton(
+        label: 'Clear',
+        outlined: true,
+        color: Colors.white,
+        onPressed: _clearCart,
+      ),
+      const SizedBox(width: 10),
+      WebButton(
+        label: 'Assign (${_cart.length})',
+        icon: Icons.local_shipping_rounded,
+        color: WebColors.gold,
+        onPressed: _confirmAssignment,
+      ),
+    ]),
   );
 
   Widget _tabLabel(String label, int count) => Row(mainAxisSize: MainAxisSize.min, children: [

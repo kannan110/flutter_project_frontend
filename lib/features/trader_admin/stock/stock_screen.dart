@@ -7,6 +7,8 @@ import '../../../core/models/dashboard_models.dart';
 import '../../../core/providers/session_provider.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../shared/layouts/responsive_layout.dart';
+import '../../../shared/widgets/web/web.dart';
 
 class StockScreen extends ConsumerStatefulWidget {
   const StockScreen({super.key});
@@ -238,7 +240,7 @@ class _S extends ConsumerState<StockScreen> {
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
+  Widget build(BuildContext context) => context.isDesktop ? _buildWeb() : Scaffold(
     backgroundColor: kBgPage,
     appBar: AppBar(
         backgroundColor: kSurface,
@@ -288,6 +290,255 @@ class _S extends ConsumerState<StockScreen> {
           RefreshIndicator(onRefresh: _load, child: _buildTab())),
     ]),
   );
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // WEB (desktop) — header, KPI row, Summary / Movements / DCs tabs.
+  // ═══════════════════════════════════════════════════════════════════════
+  bool _dense = true;
+  int _page = 0;
+  int _rowsPerPage = 25;
+
+  Widget _buildWeb() {
+    final header = PageBreadcrumbsHeader(
+      title: 'Stock Management',
+      subtitle: 'Live stock by product, every movement and farm DCs',
+      crumbs: const [Crumb('Dashboard', R.dashboard), Crumb('Stock')],
+      action: Row(mainAxisSize: MainAxisSize.min, children: [
+        WebIconButton(icon: Icons.refresh_rounded, tooltip: 'Refresh',
+            onTap: _load),
+        const SizedBox(width: 8),
+        WebButton(
+          label: 'Adjust',
+          icon: Icons.balance,
+          outlined: true,
+          color: Colors.deepOrange,
+          onPressed: () => context.push(R.stockAdjustment),
+        ),
+      ]),
+    );
+
+    if (_loading) {
+      return WebPage(header: header, children: const [
+        WebCard(child: WebTableState.loading()),
+      ]);
+    }
+
+    final birds = _positions.fold<int>(0, (s, p) => s + p.availableBirds);
+    final kg = _positions.fold<double>(0, (s, p) => s + p.availableKg);
+    final agentBirds = _positions.fold<int>(0, (s, p) => s + p.agentBirds);
+    final inHouse = _positions.fold<int>(0, (s, p) => s + p.inHouseBirds);
+
+    Widget content;
+    switch (_tab) {
+      case 1:
+        content = _webMovements();
+      case 2:
+        content = _webDCs();
+      default:
+        content = Padding(
+          padding: const EdgeInsets.all(20),
+          child: _positions.isEmpty
+              ? Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: WebColors.warningBg,
+                    borderRadius: BorderRadius.circular(WebRadius.sm),
+                  ),
+                  child: const Row(children: [
+                    Icon(Icons.warning_amber_rounded,
+                        color: WebColors.warning, size: 18),
+                    SizedBox(width: 8),
+                    Expanded(child: Text(
+                        'No stock yet. Record opening stock or add a DC.',
+                        style: TextStyle(fontSize: 13,
+                            color: WebColors.warning))),
+                  ]))
+              : WebMasonry(columns: 2, rowGap: 2, children: [
+                  for (final p in _positions) _stockCard(p),
+                ]),
+        );
+    }
+
+    return WebPage(header: header, children: [
+      WebKpiRow(children: [
+        WebKpiCard(label: 'Available Birds', value: '$birds',
+            sub: '${_positions.length} product${_positions.length == 1 ? '' : 's'}',
+            icon: Icons.egg_alt_outlined, color: WebColors.navy),
+        WebKpiCard(label: 'Available Weight',
+            value: '${kg.toStringAsFixed(1)} kg',
+            icon: Icons.scale_outlined, color: WebColors.info),
+        WebKpiCard(label: 'At Stock Point', value: '$inHouse',
+            sub: 'birds in-house',
+            icon: Icons.warehouse_outlined, color: WebColors.gold),
+        WebKpiCard(label: 'With Agents', value: '$agentBirds',
+            sub: 'birds on the road',
+            icon: Icons.local_shipping_outlined, color: WebColors.success),
+      ]),
+      const SizedBox(height: WebSpace.lg),
+      WebListCard(children: [
+        WebListTabs(
+          tabs: [
+            WebTab('Summary', count: _positions.length),
+            WebTab('Movements', count: _ledger.length),
+            WebTab('DCs', count: _challans.length),
+          ],
+          selected: _tab,
+          onChanged: (i) => setState(() { _tab = i; _page = 0; }),
+        ),
+        if (_tab != 0)
+          WebListToolbar(
+            search: WebSearchField(
+              controller: _searchCtrl,
+              hint: _tab == 1 ? 'Search movements…' : 'Search DCs by farm or DC#…',
+              debounce: const Duration(milliseconds: 250),
+              onChanged: (v) { _applySearch(v); setState(() => _page = 0); },
+            ),
+          ),
+        content,
+      ]),
+    ]);
+  }
+
+  // Paginates a list and returns (pageRows, pagination bar)
+  (List<Map<String, dynamic>>, Widget) _paged(List<Map<String, dynamic>> rows) {
+    final lastPage = rows.isEmpty ? 0 : (rows.length - 1) ~/ _rowsPerPage;
+    final page = _page.clamp(0, lastPage);
+    return (
+      rows.skip(page * _rowsPerPage).take(_rowsPerPage).toList(),
+      WebTablePagination(
+        page: page,
+        rowsPerPage: _rowsPerPage,
+        total: rows.length,
+        onPage: (p) => setState(() => _page = p),
+        onRowsPerPage: (n) => setState(() { _rowsPerPage = n; _page = 0; }),
+        dense: _dense,
+        onDense: (v) => setState(() => _dense = v),
+      ),
+    );
+  }
+
+  Widget _webMovements() {
+    bool isIn(String t) =>
+        ['opening', 'purchased', 'returned_in', 'transferred_in'].contains(t);
+    final (rows, pager) = _paged(_filterLedger());
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      WebDataTable<Map<String, dynamic>>(
+        columns: const [
+          WebColumn('Date', width: 120),
+          WebColumn('Product', flex: 2),
+          WebColumn('Movement', width: 180),
+          WebColumn('Birds', width: 120, align: TextAlign.right),
+          WebColumn('Weight', width: 120, align: TextAlign.right),
+          WebColumn('Notes', flex: 3),
+        ],
+        rows: rows,
+        dense: _dense,
+        emptyText: 'No movements recorded',
+        cellBuilder: (l, col) {
+          final mt = l['movement_type'] as String? ?? '—';
+          final c = _movementColor(mt);
+          switch (col) {
+            case 0:
+              final d = DateTime.tryParse(l['entry_date'] as String? ?? '');
+              return Text(d != null ? DateFormat('d MMM y').format(d) : '—',
+                  style: const TextStyle(fontSize: 13, color: WebColors.text2));
+            case 1:
+              return Text(
+                  (l['master_products'] as Map?)?['name'] as String? ?? '—',
+                  style: const TextStyle(fontSize: 13.5,
+                      fontWeight: FontWeight.w600, color: WebColors.text1));
+            case 2:
+              return WebLabel(mt.replaceAll('_', ' '), color: c,
+                  icon: _movementIcon(mt));
+            case 3:
+              final b = (l['quantity_birds'] as num?)?.toInt() ?? 0;
+              return Text('${isIn(mt) ? '+' : '−'}$b',
+                  style: TextStyle(fontSize: 13.5,
+                      fontWeight: FontWeight.w700, color: c));
+            case 4:
+              final kg = (l['quantity_kg'] as num?)?.toDouble() ?? 0;
+              return Text(kg > 0 ? '${kg.toStringAsFixed(1)} kg' : '—',
+                  style: const TextStyle(fontSize: 13, color: WebColors.text2));
+            default:
+              return Text(l['notes'] as String? ?? '',
+                  maxLines: 1, overflow: TextOverflow.ellipsis,
+                  style: WebText.caption);
+          }
+        },
+      ),
+      pager,
+    ]);
+  }
+
+  Widget _webDCs() {
+    final (rows, pager) = _paged(_filterChallans());
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      WebDataTable<Map<String, dynamic>>(
+        columns: const [
+          WebColumn('DC #', width: 110),
+          WebColumn('Date', width: 110),
+          WebColumn('Farmer', flex: 2),
+          WebColumn('Location', flex: 2),
+          WebColumn('Vehicle', width: 110),
+          WebColumn('Agent', width: 110),
+          WebColumn('Birds', width: 80, align: TextAlign.right),
+          WebColumn('Net Wt', width: 95, align: TextAlign.right),
+          WebColumn('Crates', width: 80, align: TextAlign.right),
+          WebColumn('Rate', width: 95, align: TextAlign.right),
+          WebColumn('Photo', width: 85, align: TextAlign.center),
+        ],
+        rows: rows,
+        dense: _dense,
+        emptyText: 'No DCs recorded',
+        cellBuilder: (ch, col) {
+          final agent = (ch['delivery_batches'] as Map?)?['delivery_agents']
+              as Map?;
+          switch (col) {
+            case 0:
+              return Text(ch['dc_number'] as String? ?? '—',
+                  style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600, color: WebColors.text1));
+            case 1:
+              final d = DateTime.tryParse(ch['dc_date'] as String? ?? '');
+              return Text(d != null ? DateFormat('d MMM y').format(d) : '—',
+                  style: const TextStyle(fontSize: 13, color: WebColors.text2));
+            case 2:
+              return Text(ch['farmer_name'] as String? ?? '—', maxLines: 1, overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600, color: WebColors.text1));
+            case 3:
+              return Text(ch['farm_location'] as String? ?? '—', maxLines: 1, overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 13, color: WebColors.text2));
+            case 4:
+              return Text(ch['vehicle_number'] as String? ?? '—',
+                  style: const TextStyle(fontSize: 13, color: WebColors.text2));
+            case 5:
+              return Text(agent?['name'] as String? ?? '—', maxLines: 1, overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 13, color: WebColors.text2));
+            case 6:
+              return Text('${(ch['bird_count'] as num?)?.toInt() ?? 0}',
+                  style: const TextStyle(fontSize: 13.5,
+                      fontWeight: FontWeight.w700, color: WebColors.text1));
+            case 7:
+              return Text(
+                  '${((ch['net_weight'] as num?)?.toDouble() ?? 0).toStringAsFixed(1)} kg',
+                  style: const TextStyle(fontSize: 13, color: WebColors.text2));
+            case 8:
+              return Text('${(ch['crates_count'] as num?)?.toInt() ?? 0}',
+                  style: const TextStyle(fontSize: 13, color: WebColors.text2));
+            case 9:
+              final rate = (ch['farm_rate'] as num?)?.toDouble();
+              return Text(rate != null ? '₹${rate.toStringAsFixed(0)}/kg' : '—',
+                  style: const TextStyle(fontSize: 13, color: WebColors.text2));
+            default:
+              return ch['dc_photo_url'] != null
+                  ? const WebLabel('Photo', color: WebColors.success,
+                      icon: Icons.photo_outlined)
+                  : const Text('—', style: WebText.caption);
+          }
+        },
+      ),
+      pager,
+    ]);
+  }
 
   Widget _tabBtn(int idx, String label) => Expanded(
       child: InkWell(

@@ -7,6 +7,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/providers/session_provider.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../shared/layouts/responsive_layout.dart';
+import '../../../shared/widgets/web/web.dart';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // PRICING MANAGEMENT HUB — Phase 2 (Daily Rate UI removed)
@@ -32,7 +34,62 @@ class _PricingHubScreenState extends ConsumerState<PricingHubScreen>
   void initState() {
     super.initState();
     _tab = TabController(length: 5, vsync: this);
+    // Keeps the web tab strip in sync (e.g. "Go to Zones" jumps tabs)
+    _tab.addListener(() { if (mounted) setState(() {}); });
   }
+
+  List<Widget> get _tabViews => [
+        _ZoneRatesTab(onGoToZones: () => _tab.animateTo(3)),
+        const _CustomerRatesTab(),
+        const _ProductsTab(),
+        const _ZonesTab(),
+        const _ZoneAssignTab(),
+      ];
+
+  // ── Web (desktop): page header + card with tab strip; tab contents are
+  // the same widgets as mobile, so every pricing form works unchanged.
+  Widget _buildWeb() => ColoredBox(
+        color: WebColors.pageBg,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+              PageBreadcrumbsHeader(
+                title: 'Pricing Management',
+                subtitle: 'Rate cascade: Customer Rate → Zone Rate',
+                crumbs: const [Crumb('Dashboard', R.dashboard), Crumb('Pricing')],
+                padding: const EdgeInsets.only(bottom: WebSpace.lg),
+                action: WebButton(
+                  label: 'Zone Rate History',
+                  icon: Icons.history_rounded,
+                  outlined: true,
+                  onPressed: () => context.push(R.zoneRateHistory),
+                ),
+              ),
+              Expanded(child: Container(
+                decoration: WebDecor.card(),
+                clipBehavior: Clip.antiAlias,
+                child: Column(children: [
+                  WebListTabs(
+                    tabs: const [
+                      WebTab('Zone Rates'),
+                      WebTab('Customer Rates'),
+                      WebTab('Products'),
+                      WebTab('Zones'),
+                      WebTab('Assign'),
+                    ],
+                    selected: _tab.index,
+                    onChanged: (i) => _tab.animateTo(i),
+                  ),
+                  Expanded(child: ColoredBox(
+                    color: kBgPage,
+                    child: TabBarView(controller: _tab, children: _tabViews),
+                  )),
+                ]),
+              )),
+            ]),
+        ),
+      );
 
   @override
   void dispose() {
@@ -41,7 +98,7 @@ class _PricingHubScreenState extends ConsumerState<PricingHubScreen>
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
+  Widget build(BuildContext context) => context.isDesktop ? _buildWeb() : Scaffold(
     backgroundColor: kBgPage,
     appBar: AppBar(
       backgroundColor: kSurface,
@@ -75,13 +132,7 @@ class _PricingHubScreenState extends ConsumerState<PricingHubScreen>
     ),
     body: TabBarView(
       controller: _tab,
-      children: [
-        _ZoneRatesTab(onGoToZones: () => _tab.animateTo(3)),
-        const _CustomerRatesTab(),
-        const _ProductsTab(),
-        const _ZonesTab(),
-        const _ZoneAssignTab(),
-      ],
+      children: _tabViews,
     ),
   );
 }

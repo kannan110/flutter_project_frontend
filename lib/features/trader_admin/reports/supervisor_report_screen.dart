@@ -9,6 +9,8 @@ import '../../../core/providers/session_provider.dart';
 import '../../../core/theme/app_theme.dart';
 import 'report_dataset.dart';
 import 'report_pdf_generator.dart';
+import 'package:rooster_trader/shared/widgets/web/app_scaffold.dart';
+import 'package:rooster_trader/shared/widgets/tables/scrollable_table_wrapper.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Supervisor Report — standalone screen (not a ReportsHubScreen/_kR tab).
@@ -169,7 +171,7 @@ class _S extends ConsumerState<SupervisorReportScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return AppScaffold(
       backgroundColor: kBgPage,
       appBar: AppBar(title: const Text('Supervisor Report')),
       body: Column(children: [
@@ -268,8 +270,8 @@ class _S extends ConsumerState<SupervisorReportScreen> {
               if (_rows.isEmpty)
                 const Padding(padding: EdgeInsets.only(top: 30), child: Center(child: Text('No collections in this range.', style: TextStyle(color: kTextHint)))),
               if (_rows.isNotEmpty)
-                SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
+                ScrollableTableWrapper(
+                  maxHeight: 480,
                   child: DataTable(
                     headingRowColor: WidgetStateProperty.all(kBgPage),
                     columns: _headers.map((h) => DataColumn(label: Text(h, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12)))).toList(),

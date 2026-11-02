@@ -6,6 +6,7 @@ import '../../../core/models/dashboard_models.dart';
 import '../../../core/providers/session_provider.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../shared/layouts/responsive_layout.dart';
+import 'package:rooster_trader/shared/widgets/web/app_scaffold.dart';
 
 /// Full reconciliation drill-down opened when trader taps the Live Stock card.
 /// Shows: Opening → DC → Transfers → Returns → Mortality → Current Balance
@@ -140,7 +141,7 @@ class _S extends ConsumerState<StockDetailScreen> {
   double get _liveBalanceKg    => _positions.isNotEmpty ? _positions.first.availableKg    : 0;
 
 
-  Widget _buildScaffold(BuildContext context) => Scaffold(
+  Widget _buildScaffold(BuildContext context) => AppScaffold(
       backgroundColor: kBgGrey,
       appBar: AppBar(
           backgroundColor: Colors.white,

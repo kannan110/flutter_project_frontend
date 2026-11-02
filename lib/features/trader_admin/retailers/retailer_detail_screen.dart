@@ -7,6 +7,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/providers/session_provider.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_theme.dart';
+import 'package:rooster_trader/shared/widgets/web/app_scaffold.dart';
 
 class RetailerDetailScreen extends ConsumerStatefulWidget {
   const RetailerDetailScreen({super.key, required this.id});
@@ -331,13 +332,13 @@ class _S extends ConsumerState<RetailerDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    if (_loading) return const Scaffold(body: LoadingList());
-    if (_r == null) return Scaffold(
+    if (_loading) return const AppScaffold(body: LoadingList());
+    if (_r == null) return AppScaffold(
         appBar: AppBar(), body: const Center(child: Text('Not found')));
     final r = _r!;
     final isActive = r['is_active'] as bool? ?? true;
 
-    return Scaffold(
+    return AppScaffold(
       backgroundColor: kBgPage,
       appBar: AppBar(
         backgroundColor: kSurface,

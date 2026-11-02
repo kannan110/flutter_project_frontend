@@ -5,6 +5,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/providers/session_provider.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../shared/layouts/responsive_layout.dart';
+import '../../../core/router/app_router.dart';
+import '../../../shared/widgets/web/web.dart';
 
 class AlertsScreen extends ConsumerStatefulWidget {
   const AlertsScreen({super.key});
@@ -52,6 +54,119 @@ class _S extends ConsumerState<AlertsScreen> {
     _ => Icons.notifications_outlined,
   };
 
+  // ═══════════════════════════════════════════════════════════════════════
+  // WEB (desktop) — KPIs, severity tabs, alert list with dismiss.
+  // ═══════════════════════════════════════════════════════════════════════
+  int _webTab = 0; // 0 all · 1 critical · 2 other
+
+  Future<void> _dismissAll(String? tid) async {
+    await _c.from('alerts').update({'is_read': true})
+        .eq('trader_id', tid!).eq('is_read', false);
+    if (mounted) setState(() => _alerts.clear());
+  }
+
+  Widget _buildWeb(String? tid) {
+    bool critical(Map<String, dynamic> a) => a['severity'] == 'critical';
+    final crit = _alerts.where(critical).length;
+    final rows = switch (_webTab) {
+      1 => _alerts.where(critical).toList(),
+      2 => _alerts.where((a) => !critical(a)).toList(),
+      _ => _alerts,
+    };
+    final types = <String>{for (final a in _alerts) a['alert_type'] as String? ?? ''};
+
+    return WebPage(
+      header: PageBreadcrumbsHeader(
+        title: 'Alerts',
+        titleTrailing: _alerts.isEmpty ? null
+            : WebLabel('${_alerts.length} unread', color: WebColors.error,
+                dot: true),
+        subtitle: 'Things that need your attention',
+        crumbs: const [Crumb('Dashboard', R.dashboard), Crumb('Alerts')],
+        action: Row(mainAxisSize: MainAxisSize.min, children: [
+          WebIconButton(icon: Icons.refresh_rounded, tooltip: 'Refresh',
+              onTap: _load),
+          if (_alerts.isNotEmpty) ...[
+            const SizedBox(width: 8),
+            WebButton(label: 'Dismiss All', icon: Icons.done_all_rounded,
+                outlined: true, onPressed: () => _dismissAll(tid)),
+          ],
+        ]),
+      ),
+      children: [
+        WebKpiRow(children: [
+          WebKpiCard(label: 'Unread Alerts', value: '${_alerts.length}',
+              icon: Icons.notifications_active_outlined,
+              color: WebColors.navy),
+          WebKpiCard(label: 'Critical', value: '$crit',
+              icon: Icons.error_outline_rounded, color: WebColors.error),
+          WebKpiCard(label: 'Other', value: '${_alerts.length - crit}',
+              icon: Icons.info_outline_rounded, color: WebColors.warning),
+          WebKpiCard(label: 'Alert Types', value: '${types.length}',
+              icon: Icons.category_outlined, color: WebColors.info),
+        ]),
+        const SizedBox(height: WebSpace.lg),
+        WebListCard(children: [
+          WebListTabs(
+            tabs: [
+              WebTab('All', count: _alerts.length),
+              WebTab('Critical', count: crit, color: WebColors.error),
+              WebTab('Other', count: _alerts.length - crit,
+                  color: WebColors.warning),
+            ],
+            selected: _webTab,
+            onChanged: (i) => setState(() => _webTab = i),
+          ),
+          if (_loading)
+            const WebTableState.loading()
+          else if (rows.isEmpty)
+            const WebTableState.empty(text: "All clear! No alerts.")
+          else
+            for (final a in rows) _webAlertRow(a),
+          const SizedBox(height: WebSpace.sm),
+        ]),
+      ],
+    );
+  }
+
+  Widget _webAlertRow(Map<String, dynamic> a) {
+    final type = a['alert_type'] as String? ?? '';
+    final sev = a['severity'] as String? ?? 'info';
+    final date = DateTime.tryParse(a['created_at'] as String? ?? '');
+    final color = _color(type);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+      decoration: BoxDecoration(
+        color: sev == 'critical' ? WebColors.errorBg : null,
+        border: const Border(bottom: BorderSide(color: WebColors.divider)),
+      ),
+      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        WebIconTile(icon: _icon(type), color: color, size: 40),
+        const SizedBox(width: 14),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+          Row(children: [
+            Flexible(child: Text(a['title'] as String? ?? type,
+                style: const TextStyle(fontSize: 14,
+                    fontWeight: FontWeight.w700, color: WebColors.text1))),
+            const SizedBox(width: 8),
+            WebLabel(sev[0].toUpperCase() + sev.substring(1),
+                color: sev == 'critical' ? WebColors.error : color),
+          ]),
+          const SizedBox(height: 4),
+          Text(a['message'] as String? ?? '—', style: WebText.bodySub),
+        ])),
+        const SizedBox(width: 16),
+        if (date != null)
+          Text(DateFormat('d MMM, h:mm a').format(date),
+              style: WebText.caption),
+        const SizedBox(width: 12),
+        WebIconButton(icon: Icons.check_rounded, tooltip: 'Dismiss',
+            size: 32, onTap: () => _dismiss(a['id'] as String)),
+      ]),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final tid = ref.read(appUserProvider).valueOrNull?.traderId;
@@ -66,10 +181,8 @@ class _S extends ConsumerState<AlertsScreen> {
                 child: Text('${_alerts.length}', style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700)))],
         ]),
         actions: [
-          if (_alerts.isNotEmpty) TextButton(onPressed: () async {
-            await _c.from('alerts').update({'is_read': true}).eq('trader_id', tid!).eq('is_read', false);
-            if (mounted) setState(() => _alerts.clear());
-          }, child: const Text('Dismiss All')),
+          if (_alerts.isNotEmpty) TextButton(onPressed: () => _dismissAll(tid),
+              child: const Text('Dismiss All')),
           IconButton(icon: const Icon(Icons.refresh), onPressed: _load),
         ],
       ),
@@ -105,6 +218,7 @@ class _S extends ConsumerState<AlertsScreen> {
                     ])));
           }),
     );
-    return ResponsiveLayout(mobile: (_) => _scaffold, desktop: (_) => _scaffold);
+    return ResponsiveLayout(mobile: (_) => _scaffold,
+        desktop: (_) => _buildWeb(tid));
   }
 }

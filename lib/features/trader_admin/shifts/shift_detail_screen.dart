@@ -9,6 +9,7 @@ import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../shared/layouts/responsive_layout.dart';
 import 'shift_verification_screen.dart';
+import 'package:rooster_trader/shared/widgets/web/app_scaffold.dart';
 
 class ShiftDetailScreen extends ConsumerStatefulWidget {
   const ShiftDetailScreen({super.key, required this.id});
@@ -425,9 +426,9 @@ class _S extends ConsumerState<ShiftDetailScreen> {
 
   Widget _buildScaffold(BuildContext context) {
     if (_loading)
-      return const Scaffold(backgroundColor: kBgPage, body: LoadingList());
+      return const AppScaffold(backgroundColor: kBgPage, body: LoadingList());
     if (_summary == null)
-      return Scaffold(
+      return AppScaffold(
           backgroundColor: kBgPage,
           appBar: AppBar(
               backgroundColor: kSurface, title: const Text('Shift Detail')),
@@ -443,7 +444,7 @@ class _S extends ConsumerState<ShiftDetailScreen> {
     final approvalStatus =
         shift?['shift_approval_status'] as String? ?? 'pending';
 
-    return Scaffold(
+    return AppScaffold(
       backgroundColor: kBgPage,
       appBar: AppBar(
           backgroundColor: kSurface,
@@ -1056,9 +1057,9 @@ class _S extends ConsumerState<ShiftDetailScreen> {
 
   Widget _buildDesktopScaffold(BuildContext context) {
     if (_loading)
-      return const Scaffold(backgroundColor: kBgPage, body: LoadingList());
+      return const AppScaffold(backgroundColor: kBgPage, body: LoadingList());
     if (_summary == null)
-      return Scaffold(
+      return AppScaffold(
           backgroundColor: kBgPage,
           appBar: AppBar(
               backgroundColor: kSurface, title: const Text('Shift Approval')),
@@ -1095,7 +1096,7 @@ class _S extends ConsumerState<ShiftDetailScreen> {
         (c['dc_photo_url'] as String).isEmpty)
         .length;
 
-    return Scaffold(
+    return AppScaffold(
       backgroundColor: kBgPage,
       appBar: AppBar(
         backgroundColor: kSurface,

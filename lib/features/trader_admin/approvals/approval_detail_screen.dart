@@ -7,6 +7,7 @@ import '../../../core/providers/session_provider.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../shared/layouts/responsive_layout.dart';
+import 'package:rooster_trader/shared/widgets/web/app_scaffold.dart';
 
 class ApprovalDetailScreen extends ConsumerStatefulWidget {
   const ApprovalDetailScreen({super.key, required this.id});
@@ -495,9 +496,9 @@ class _S extends ConsumerState<ApprovalDetailScreen> {
   @override
   Widget build(BuildContext context) {
     if (_loading)
-      return const Scaffold(backgroundColor: kBgPage, body: LoadingList());
+      return const AppScaffold(backgroundColor: kBgPage, body: LoadingList());
     if (_delivery == null)
-      return Scaffold(
+      return AppScaffold(
           backgroundColor: kBgPage,
           appBar: AppBar(backgroundColor: kSurface),
           body: const Center(child: Text('Not found')));
@@ -509,7 +510,7 @@ class _S extends ConsumerState<ApprovalDetailScreen> {
     // (defense in depth), but a trader should never get as far as entering
     // rates for something that can't actually be approved.
     if (_delivery!['is_undone'] == true) {
-      return Scaffold(
+      return AppScaffold(
         backgroundColor: kBgPage,
         appBar: AppBar(
           backgroundColor: kSurface,
@@ -967,7 +968,7 @@ class _S extends ConsumerState<ApprovalDetailScreen> {
     ];
 
     if (!isDesktop) {
-      return Scaffold(
+      return AppScaffold(
         backgroundColor: kBgPage,
         appBar: appBar,
         body: ListView(
@@ -984,7 +985,7 @@ class _S extends ConsumerState<ApprovalDetailScreen> {
     final leftSections = allSections.sublist(0, splitIdx);
     final rightSections = allSections.sublist(splitIdx);
 
-    return Scaffold(
+    return AppScaffold(
       backgroundColor: kBgPage,
       appBar: appBar,
       body: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [

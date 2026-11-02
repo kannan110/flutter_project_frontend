@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/providers/session_provider.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../shared/widgets/tables/scrollable_table_wrapper.dart';
 import 'retailer_invoice_detail_screen.dart';
 
 class RetailerScreen extends ConsumerStatefulWidget {
@@ -529,9 +530,8 @@ class _RS extends ConsumerState<RetailerScreen>
   // Ledger PDF already uses. Ref No is tappable (View Invoice) when the
   // row is an invoice entry.
   Widget _ledgerTable(List<Map<String,dynamic>> rows, double opening, double closing) {
-    return SingleChildScrollView(
+    return ScrollableTableWrapper(
         padding: const EdgeInsets.all(12),
-        scrollDirection: Axis.horizontal,
         child: DataTable(
             headingRowHeight: 36, dataRowMinHeight: 40, dataRowMaxHeight: 52,
             columnSpacing: 18,

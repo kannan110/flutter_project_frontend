@@ -10,9 +10,9 @@ import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../shared/layouts/responsive_layout.dart';
 import '../../../shared/widgets/common/async_state_view.dart';
-import '../../../shared/widgets/common/status_chip.dart';
 import '../../../shared/widgets/filters/search_bar.dart' hide ListToolbar;
 import '../../../shared/widgets/tables/app_table.dart';
+import '../../../shared/widgets/web/web.dart';
 
 class ApprovalsScreen extends ConsumerStatefulWidget {
   const ApprovalsScreen({super.key});
@@ -301,6 +301,7 @@ class _S extends ConsumerState<ApprovalsScreen> {
     final isDesktop = context.isDesktop;
     final isMobile  = context.isMobile;
     final hasPending = _items.isNotEmpty;
+    if (isDesktop) return _buildWebPage();
 
     return ListScreenScaffold(
       appBar: isDesktop ? null : AppBar(
@@ -363,146 +364,233 @@ class _S extends ConsumerState<ApprovalsScreen> {
         onRetry:      _load,
         child: ResponsiveLayout(
           mobile:  (_) => _buildMobileList(),
-          desktop: (_) => _buildDesktopTable(),
         ),
       ),
     );
   }
 
-  // ── Desktop table ─────────────────────────────────────────────────────────
+  // ── Web page (desktop) ────────────────────────────────────────────────────
 
-  Widget _buildDesktopTable() {
-    return AppTable<Map<String, dynamic>>(
-      columns: [
-        AppTableColumn(
-          label: 'Delivered',
-          width: 120,
-          cellBuilder: (d) {
-            final dt = DateTime.tryParse(d['delivered_at'] as String? ?? '');
-            return Text(
-              dt != null ? DateFormat('d MMM, h:mm a').format(dt) : '—',
-              style: const TextStyle(fontSize: 12, color: kTextSub),
-            );
-          },
-        ),
-        AppTableColumn(
-          label: 'Retailer',
-          flex:  2,
-          cellBuilder: (d) {
-            final o   = d['orders']     as Map<String, dynamic>?;
-            final r   = o?['retailers'] as Map<String, dynamic>?;
-            final lbl = _ApprovalCard._productLabel(d);
-            final c   = _ApprovalCard._productColor(lbl);
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(r?['shop_name'] as String? ?? '—',
-                    style: const TextStyle(
-                        fontSize: 13, fontWeight: FontWeight.w600),
-                    overflow: TextOverflow.ellipsis),
-                if (lbl.isNotEmpty)
-                  Container(
-                    margin: const EdgeInsets.only(top: 2),
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                    decoration: BoxDecoration(
-                        color: c.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(4),
-                        border: Border.all(color: c.withValues(alpha: 0.3))),
-                    child: Text(lbl,
-                        style: TextStyle(fontSize: 9, fontWeight: FontWeight.w700, color: c)),
-                  ),
-              ],
-            );
-          },
-        ),
-        AppTableColumn(
-          label: 'Agent',
-          flex:  2,
-          cellBuilder: (d) {
-            final a = d['delivery_agents'] as Map<String, dynamic>?;
-            return Text(
-              a?['name'] as String? ?? '—',
-              style: const TextStyle(fontSize: 13, color: kTextSub),
-              overflow: TextOverflow.ellipsis,
-            );
-          },
-        ),
-        AppTableColumn(
-          label:     'Weight (kg)',
-          width:     110,
-          alignment: Alignment.centerRight,
-          cellBuilder: (d) {
-            final w = ((d['received_total_weight'] ?? d['delivered_total_weight']) as num?)
-                ?.toDouble() ?? 0;
-            return Text(
-              w > 0 ? '${w.toStringAsFixed(1)} kg' : '—',
-              style: const TextStyle(fontSize: 13, color: kTextSub),
-            );
-          },
-        ),
-        AppTableColumn(
-          label:     'Birds',
-          width:     70,
-          alignment: Alignment.centerRight,
-          cellBuilder: (d) {
-            final b = (d['delivered_bird_count'] as num?)?.toInt() ?? 0;
-            return Text(
-              b > 0 ? '$b' : '—',
-              style: const TextStyle(fontSize: 13, color: kTextSub),
-            );
-          },
-        ),
-        AppTableColumn(
-          label:     'Cash',
-          width:     100,
-          alignment: Alignment.centerRight,
-          cellBuilder: (d) {
-            final cash = (d['collected_amount'] as num?)?.toDouble() ?? 0;
-            return Text(
-              cash > 0 ? Fmt.amount(cash) : '—',
-              style: TextStyle(
-                fontSize:   13,
-                fontWeight: FontWeight.w600,
-                color:      cash > 0 ? Colors.green.shade700 : kTextHint,
-              ),
-            );
-          },
-        ),
-        AppTableColumn(
-          label:     'Type',
-          width:     90,
-          alignment: Alignment.center,
-          cellBuilder: (d) {
-            final isPartial = d['is_partial_delivery'] == true;
-            return StatusChip(
-              label: isPartial ? 'Partial' : 'Full',
-              color: isPartial ? Colors.orange : Colors.teal,
-              size:  StatusChipSize.small,
-            );
-          },
-        ),
-        AppTableColumn(
-          label:     '',
-          width:     40,
-          alignment: Alignment.center,
-          cellBuilder: (_) =>
-          const Icon(Icons.chevron_right, size: 16, color: kTextHint),
-        ),
+  static const _webTypes = ['all', 'full', 'partial'];
+  String _webType = 'all';
+  String _sortKey = 'delivered';
+  bool _sortAsc = false;
+  bool _dense = true;
+  int _page = 0;
+  int _rowsPerPage = 25;
+
+  static const _webColumns = [
+    WebColumn('Date & Time', width: 165, sortKey: 'delivered'),
+    WebColumn('Retailer', flex: 3, sortKey: 'retailer'),
+    WebColumn('Product', width: 120),
+    WebColumn('Agent', flex: 2, sortKey: 'agent'),
+    WebColumn('Weight', width: 110, sortKey: 'weight', align: TextAlign.right),
+    WebColumn('Birds', width: 85, sortKey: 'birds', align: TextAlign.right),
+    WebColumn('Cash', width: 115, sortKey: 'cash', align: TextAlign.right),
+    WebColumn('Type', width: 110, align: TextAlign.center),
+    WebColumn('Action', width: 80, align: TextAlign.center),
+  ];
+
+  bool _isPartial(Map<String, dynamic> d) => d['is_partial_delivery'] == true;
+  double _wt(Map<String, dynamic> d) =>
+      ((d['received_total_weight'] ?? d['delivered_total_weight']) as num?)
+          ?.toDouble() ?? 0;
+
+  Comparable<Object> _sortValue(Map<String, dynamic> d) {
+    switch (_sortKey) {
+      case 'retailer':
+        return (((d['orders'] as Map?)?['retailers'] as Map?)?['shop_name']
+                as String? ?? '').toLowerCase();
+      case 'agent':
+        return ((d['delivery_agents'] as Map?)?['name'] as String? ?? '')
+            .toLowerCase();
+      case 'weight':
+        return _wt(d);
+      case 'birds':
+        return (d['delivered_bird_count'] as num?) ?? 0;
+      case 'cash':
+        return (d['collected_amount'] as num?) ?? 0;
+      case 'delivered':
+      default:
+        return d['delivered_at'] as String? ?? '';
+    }
+  }
+
+  Widget _webCell(Map<String, dynamic> d, int col) {
+    switch (col) {
+      case 0:
+        final dt = DateTime.tryParse(d['delivered_at'] as String? ?? '');
+        return Text(
+          dt != null ? DateFormat('d MMM y, h:mm a').format(dt.toLocal()) : '—',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(fontSize: 13, color: WebColors.text2),
+        );
+      case 1:
+        final o = d['orders'] as Map<String, dynamic>?;
+        final name = (o?['retailers'] as Map?)?['shop_name'] as String? ?? '—';
+        return Text(name, maxLines: 1, overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 13.5,
+                fontWeight: FontWeight.w600, color: WebColors.text1));
+      case 2:
+        final lbl = _ApprovalCard._productLabel(d);
+        return lbl.isEmpty
+            ? const Text('—', style: WebText.caption)
+            : WebLabel(lbl, color: _ApprovalCard._productColor(lbl));
+      case 3:
+        final a = d['delivery_agents'] as Map<String, dynamic>?;
+        return Text(a?['name'] as String? ?? '—', maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 13.5, color: WebColors.text2));
+      case 4:
+        final w = _wt(d);
+        return Text(w > 0 ? '${w.toStringAsFixed(1)} kg' : '—',
+            style: const TextStyle(fontSize: 13.5, color: WebColors.text2));
+      case 5:
+        final b = (d['delivered_bird_count'] as num?)?.toInt() ?? 0;
+        return Text(b > 0 ? '$b' : '—',
+            style: const TextStyle(fontSize: 13.5, color: WebColors.text2));
+      case 6:
+        final cash = (d['collected_amount'] as num?)?.toDouble() ?? 0;
+        return Text(cash > 0 ? Fmt.amount(cash) : '—',
+            style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700,
+                color: cash > 0 ? WebColors.success : WebColors.text3));
+      case 7:
+        final p = _isPartial(d);
+        final attempt =
+            ((d['orders'] as Map?)?['partial_count'] as num?)?.toInt() ?? 1;
+        return WebLabel(p ? 'Partial #$attempt' : 'Full',
+            color: p ? WebColors.warning : WebColors.success);
+      default:
+        return WebIconButton(
+          icon: Icons.visibility_outlined,
+          tooltip: 'Review',
+          size: 32,
+          outlined: false,
+          onTap: () => context.push(R.approvalDetailPath(d['id'])),
+        );
+    }
+  }
+
+  Widget _buildWebPage() {
+    var rows = _filtered.where((d) => _webType == 'all' ||
+        (_webType == 'partial') == _isPartial(d)).toList();
+    rows.sort((a, b) {
+      final c = Comparable.compare(_sortValue(a), _sortValue(b));
+      return _sortAsc ? c : -c;
+    });
+    final lastPage = rows.isEmpty ? 0 : (rows.length - 1) ~/ _rowsPerPage;
+    final page = _page.clamp(0, lastPage);
+    final pageRows =
+        rows.skip(page * _rowsPerPage).take(_rowsPerPage).toList();
+
+    final totalWt = _items.fold<double>(0, (s, d) => s + _wt(d));
+    final totalCash = _items.fold<double>(0,
+        (s, d) => s + ((d['collected_amount'] as num?)?.toDouble() ?? 0));
+    final partials = _items.where(_isPartial).length;
+    int countOf(String t) => t == 'all' ? _items.length
+        : _items.where((d) => (t == 'partial') == _isPartial(d)).length;
+
+    return WebPage(
+      header: PageBreadcrumbsHeader(
+        title: 'Pending Approvals',
+        titleTrailing: _items.isEmpty ? null
+            : WebLabel('${_items.length} to review',
+                color: WebColors.warning, dot: true),
+        subtitle: 'Delivered orders waiting for your review',
+        crumbs: const [Crumb('Dashboard', R.dashboard), Crumb('Approvals')],
+        action: Row(mainAxisSize: MainAxisSize.min, children: [
+          WebIconButton(icon: Icons.refresh_rounded, tooltip: 'Refresh',
+              onTap: _load),
+          if (_items.isNotEmpty) ...[
+            const SizedBox(width: 8),
+            WebButton(
+              label: 'Approve All (${_items.length})',
+              icon: Icons.done_all_rounded,
+              onPressed: _approvingAll ? null : _approveAll,
+            ),
+          ],
+        ]),
+      ),
+      children: [
+        WebKpiRow(children: [
+          WebKpiCard(label: 'Awaiting Review', value: '${_items.length}',
+              icon: Icons.fact_check_outlined, color: WebColors.warning),
+          WebKpiCard(label: 'Delivered Weight',
+              value: '${totalWt.toStringAsFixed(1)} kg',
+              icon: Icons.scale_outlined, color: WebColors.navy),
+          WebKpiCard(label: 'Cash Collected', value: Fmt.amount(totalCash),
+              icon: Icons.payments_outlined, color: WebColors.success),
+          WebKpiCard(label: 'Partial Deliveries', value: '$partials',
+              icon: Icons.timelapse_rounded, color: WebColors.gold),
+        ]),
+        const SizedBox(height: WebSpace.lg),
+        WebListCard(children: [
+          WebListTabs(
+            tabs: [
+              WebTab('All', count: countOf('all')),
+              WebTab('Full', count: countOf('full'),
+                  color: WebColors.success),
+              WebTab('Partial', count: countOf('partial'),
+                  color: WebColors.warning),
+            ],
+            selected: _webTypes.indexOf(_webType),
+            onChanged: (i) => setState(() {
+              _webType = _webTypes[i];
+              _page = 0;
+            }),
+          ),
+          WebListToolbar(
+            search: WebSearchField(
+              controller: _searchCtrl,
+              hint: 'Search by retailer or agent…',
+              debounce: const Duration(milliseconds: 250),
+              onChanged: (v) {
+                _applySearch(v);
+                setState(() => _page = 0);
+              },
+            ),
+          ),
+          if (_error != null)
+            Padding(
+              padding: const EdgeInsets.all(WebSpace.xl),
+              child: AsyncStateView(loading: false, error: _error,
+                  onRetry: _load, child: const SizedBox.shrink()),
+            )
+          else
+            WebDataTable<Map<String, dynamic>>(
+              columns: _webColumns,
+              rows: pageRows,
+              cellBuilder: _webCell,
+              onRowTap: (d) => context.push(R.approvalDetailPath(d['id'])),
+              sortKey: _sortKey,
+              sortAscending: _sortAsc,
+              onSort: (k) => setState(() {
+                if (_sortKey == k) {
+                  _sortAsc = !_sortAsc;
+                } else {
+                  _sortKey = k;
+                  _sortAsc = true;
+                }
+                _page = 0;
+              }),
+              dense: _dense,
+              loading: _loading,
+              emptyText: _items.isEmpty
+                  ? 'No pending approvals' : 'No results match',
+            ),
+          WebTablePagination(
+            page: page,
+            rowsPerPage: _rowsPerPage,
+            total: rows.length,
+            onPage: (p) => setState(() => _page = p),
+            onRowsPerPage: (n) =>
+                setState(() { _rowsPerPage = n; _page = 0; }),
+            dense: _dense,
+            onDense: (v) => setState(() => _dense = v),
+          ),
+        ]),
       ],
-      rows:     _filtered,
-      onRowTap: (d) => context.push(R.approvalDetailPath(d['id'])),
-      desktopPadding: const EdgeInsets.symmetric(horizontal: 16),
-      rowDecoration: (d) => BoxDecoration(
-        border: const Border(bottom: BorderSide(color: kBorder, width: 0.5)),
-        color:  Colors.orange.withValues(alpha: 0.02),
-      ),
-      emptyWidget: AsyncStateView(
-        loading: false, empty: true,
-        emptyIcon: Icons.fact_check_outlined,
-        emptyMessage: 'No pending approvals',
-        child: const SizedBox.shrink(),
-      ),
     );
   }
 

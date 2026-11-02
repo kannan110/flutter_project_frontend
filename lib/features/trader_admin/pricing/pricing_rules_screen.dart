@@ -6,6 +6,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/providers/session_provider.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../shared/layouts/responsive_layout.dart';
+import '../../../shared/widgets/web/web.dart';
 
 class PricingRulesScreen extends ConsumerStatefulWidget {
   const PricingRulesScreen({super.key});
@@ -67,13 +69,8 @@ class _S extends ConsumerState<PricingRulesScreen> {
     final discPctCtrl = TextEditingController(text: '0');
     final minQtyCtrl = TextEditingController(text: '0');
 
-    await showModalBottomSheet(
-        context: context,
-        isScrollControlled: true,
-        useRootNavigator: true,
-        shape: const RoundedRectangleBorder(
-            borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-        builder: (ctx) => Padding(
+    // Same form: bottom sheet on mobile, centred dialog on web.
+    Widget form(BuildContext ctx) => Padding(
             padding: EdgeInsets.fromLTRB(
                 20, 20, 20, MediaQuery.of(ctx).viewInsets.bottom + 20),
             child: StatefulBuilder(
@@ -190,12 +187,163 @@ class _S extends ConsumerState<PricingRulesScreen> {
                                 }
                               },
                               child: const Text('Add Rule')),
-                        ]))));
+                        ])));
+    if (context.isDesktop) {
+      await showDialog(
+          context: context,
+          useRootNavigator: true,
+          builder: (ctx) => Dialog(
+                backgroundColor: WebColors.surface,
+                surfaceTintColor: Colors.transparent,
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(WebRadius.dialog)),
+                child: SizedBox(width: WebSize.dialogMd,
+                    child: SingleChildScrollView(child: form(ctx))),
+              ));
+    } else {
+      await showModalBottomSheet(
+          context: context,
+          isScrollControlled: true,
+          useRootNavigator: true,
+          shape: const RoundedRectangleBorder(
+              borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+          builder: form);
+    }
     // controllers are ephemeral locals — GC handles disposal
   }
 
+  Future<void> _deleteRule(Map<String, dynamic> rule) async {
+    final ok = await confirmDialog(context,
+        title: 'Delete Rule',
+        message: 'Delete this pricing rule?');
+    if (ok) {
+      await _c
+          .from('pricing_rules')
+          .delete()
+          .eq('id', rule['id']);
+      _load();
+    }
+  }
+
+  String _valueStr(Map<String, dynamic> rule) {
+    final type = rule['rule_type'] as String? ?? 'flat';
+    final rate = (rule['rate_per_kg'] as num?)?.toDouble();
+    final pct = (rule['discount_pct'] as num?)?.toDouble() ?? 0;
+    final abs = (rule['discount_amount'] as num?)?.toDouble() ?? 0;
+    return type == 'flat'
+        ? '₹${rate?.toStringAsFixed(2) ?? '—'}/kg'
+        : type == 'percentage_discount'
+            ? '${pct.toStringAsFixed(1)}% off'
+            : '₹${abs.toStringAsFixed(2)} off';
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // WEB (desktop) — KPIs and a rules table.
+  // ═══════════════════════════════════════════════════════════════════════
+  Widget _buildWeb() {
+    int countType(String t) =>
+        _rules.where((r) => (r['rule_type'] ?? 'flat') == t).length;
+    return WebPage(
+      header: PageBreadcrumbsHeader(
+        title: 'Pricing Rules',
+        subtitle: 'Custom rates and discounts per retailer or product',
+        crumbs: const [Crumb('Dashboard', R.dashboard), Crumb('Pricing Rules')],
+        action: Row(mainAxisSize: MainAxisSize.min, children: [
+          WebIconButton(icon: Icons.refresh_rounded, tooltip: 'Refresh',
+              onTap: _load),
+          const SizedBox(width: 8),
+          WebButton(label: 'Add Rule', icon: Icons.add_rounded,
+              onPressed: _addRule),
+        ]),
+      ),
+      children: [
+        WebKpiRow(children: [
+          WebKpiCard(label: 'Total Rules', value: '${_rules.length}',
+              icon: Icons.rule_outlined, color: WebColors.navy),
+          WebKpiCard(label: 'Flat Rate', value: '${countType('flat')}',
+              icon: Icons.currency_rupee, color: WebColors.info),
+          WebKpiCard(label: '% Discount',
+              value: '${countType('percentage_discount')}',
+              icon: Icons.percent_rounded, color: WebColors.success),
+          WebKpiCard(label: 'Amount Discount',
+              value: '${countType('absolute_discount')}',
+              icon: Icons.local_offer_outlined, color: WebColors.gold),
+        ]),
+        const SizedBox(height: WebSpace.lg),
+        WebListCard(children: [
+          const WebCardHeader(title: 'Rules', icon: Icons.rule_outlined),
+          WebDataTable<Map<String, dynamic>>(
+            columns: const [
+              WebColumn('Retailer', flex: 3),
+              WebColumn('Product', flex: 2),
+              WebColumn('Type', width: 190),
+              WebColumn('Value', width: 150, align: TextAlign.right),
+              WebColumn('Min Qty', width: 110, align: TextAlign.right),
+              WebColumn('Created', width: 130),
+              WebColumn('Delete', width: 90, align: TextAlign.center),
+            ],
+            rows: _rules,
+            paginate: true,
+            dense: true,
+            loading: _loading,
+            emptyText: 'No pricing rules',
+            emptyAction: WebButton(label: 'Add Rule', icon: Icons.add_rounded,
+                onPressed: _addRule),
+            cellBuilder: (rule, col) {
+              final retailer =
+                  (rule['retailers'] as Map?)?['shop_name'] as String?;
+              final product =
+                  (rule['master_products'] as Map?)?['name'] as String?;
+              final type = rule['rule_type'] as String? ?? 'flat';
+              switch (col) {
+                case 0:
+                  return Text(retailer ?? 'All Retailers',
+                      maxLines: 1, overflow: TextOverflow.ellipsis,
+                      style: TextStyle(fontSize: 13.5,
+                          fontWeight: FontWeight.w600,
+                          color: retailer == null
+                              ? WebColors.text2 : WebColors.text1));
+                case 1:
+                  return Text(product ?? 'All Products',
+                      style: const TextStyle(
+                          fontSize: 13.5, color: WebColors.text2));
+                case 2:
+                  return WebLabel(type.replaceAll('_', ' '),
+                      color: switch (type) {
+                        'percentage_discount' => WebColors.success,
+                        'absolute_discount'   => WebColors.gold,
+                        _                     => WebColors.info,
+                      });
+                case 3:
+                  return Text(_valueStr(rule), style: const TextStyle(
+                      fontSize: 14, fontWeight: FontWeight.w800,
+                      color: WebColors.navy));
+                case 4:
+                  final q = (rule['min_quantity_kg'] as num?)?.toDouble() ?? 0;
+                  return Text(q > 0 ? '${q.toStringAsFixed(0)} kg' : 'Always',
+                      style: const TextStyle(
+                          fontSize: 13, color: WebColors.text2));
+                case 5:
+                  final d =
+                      DateTime.tryParse(rule['created_at'] as String? ?? '');
+                  return Text(d != null ? DateFormat('d MMM y').format(d) : '—',
+                      style: WebText.caption);
+                default:
+                  return WebIconButton(icon: Icons.delete_outline,
+                      tooltip: 'Delete rule', color: WebColors.error,
+                      size: 32, outlined: false,
+                      onTap: () => _deleteRule(rule));
+              }
+            },
+          ),
+          const SizedBox(height: WebSpace.md),
+        ]),
+      ],
+    );
+  }
+
   @override
-  Widget build(BuildContext context) => Scaffold(
+  Widget build(BuildContext context) => context.isDesktop ? _buildWeb() : Scaffold(
         backgroundColor: kBgPage,
         appBar: AppBar(
             backgroundColor: kSurface,
@@ -268,18 +416,7 @@ class _S extends ConsumerState<PricingRulesScreen> {
                         IconButton(
                             icon: const Icon(Icons.delete_outline,
                                 size: 18, color: kError),
-                            onPressed: () async {
-                              final ok = await confirmDialog(context,
-                                  title: 'Delete Rule',
-                                  message: 'Delete this pricing rule?');
-                              if (ok) {
-                                await _c
-                                    .from('pricing_rules')
-                                    .delete()
-                                    .eq('id', rule['id']);
-                                _load();
-                              }
-                            }),
+                            onPressed: () => _deleteRule(rule)),
                       ]));
                     }),
       );

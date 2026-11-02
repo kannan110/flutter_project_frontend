@@ -4,6 +4,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/providers/session_provider.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../shared/layouts/responsive_layout.dart';
+import '../../../core/router/app_router.dart';
+import '../../../shared/widgets/web/web.dart';
 
 class UserManagementScreen extends ConsumerStatefulWidget {
   const UserManagementScreen({super.key});
@@ -235,6 +237,181 @@ class _S extends ConsumerState<UserManagementScreen> {
     );
   }
 
+  // ═══════════════════════════════════════════════════════════════════════
+  // WEB (desktop) — how-to card + KPIs, tabs, users table.
+  // ═══════════════════════════════════════════════════════════════════════
+  static const _webTabs = ['all', 'unassigned', 'assigned', 'inactive'];
+  String _webTab = 'all';
+  bool _dense = true;
+
+  bool _hasRole(Map<String, dynamic> u) => u['role_exists'] == true;
+  bool _isActiveU(Map<String, dynamic> u) => u['is_active'] as bool? ?? false;
+  bool _inTab(Map<String, dynamic> u, String t) => switch (t) {
+    'unassigned' => !_hasRole(u),
+    'assigned'   => _hasRole(u),
+    'inactive'   => _hasRole(u) && !_isActiveU(u),
+    _            => true,
+  };
+
+  (Color, String) _roleStyle(String? role) => switch (role) {
+    'trader_admin'   => (WebColors.navy, '👔 Trader Admin'),
+    'delivery_staff' => (const Color(0xFF0D9488), '🚛 Delivery Staff'),
+    'accountant'     => (const Color(0xFF7C3AED), '📊 Accountant'),
+    'supervisor'     => (WebColors.warning, '🔍 Supervisor'),
+    _                => (WebColors.text3, '⚠️ No Role'),
+  };
+
+  Widget _buildWeb() {
+    int count(String t) => _filtered.where((u) => _inTab(u, t)).length;
+    final rows = _filtered.where((u) => _inTab(u, _webTab)).toList();
+    final unassignedAll = _users.where((u) => !_hasRole(u)).length;
+    final activeAll = _users.where((u) => _hasRole(u) && _isActiveU(u)).length;
+
+    final howTo = Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+            colors: [WebColors.navy, WebColors.navyMid],
+            begin: Alignment.topLeft, end: Alignment.bottomRight),
+        borderRadius: BorderRadius.circular(WebRadius.card),
+      ),
+      child: const Column(crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min, children: [
+        Row(children: [
+          Icon(Icons.info_outline, color: WebColors.goldLight, size: 15),
+          SizedBox(width: 6),
+          Text('How to add users', style: TextStyle(fontSize: 12.5,
+              fontWeight: FontWeight.w800, color: WebColors.goldLight)),
+        ]),
+        SizedBox(height: 4),
+        Text(
+            '1. Create user in Supabase Auth  ·  2. Assign Role here  ·  3. Save\n'
+            'Agents self-register with company code RT001',
+            style: TextStyle(fontSize: 11, color: Colors.white70,
+                height: 1.35)),
+      ]),
+    );
+
+    return WebPage(
+      header: PageBreadcrumbsHeader(
+        title: 'User Management',
+        subtitle: 'Who can log in, and what each person can access',
+        crumbs: const [
+          Crumb('Dashboard', R.dashboard),
+          Crumb('User Management'),
+        ],
+        action: WebIconButton(icon: Icons.refresh_rounded,
+            tooltip: 'Refresh', onTap: _load),
+      ),
+      children: [
+        IntrinsicHeight(child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          Expanded(flex: 2, child: howTo),
+          const SizedBox(width: WebSpace.lg),
+          Expanded(child: WebKpiCard(label: 'Total Users',
+              value: '${_users.length}',
+              icon: Icons.people_outline, color: WebColors.navy)),
+          const SizedBox(width: WebSpace.lg),
+          Expanded(child: WebKpiCard(label: 'Active', value: '$activeAll',
+              sub: 'can log in',
+              icon: Icons.verified_user_outlined, color: WebColors.success)),
+          const SizedBox(width: WebSpace.lg),
+          Expanded(child: WebKpiCard(label: 'Without a Role',
+              value: '$unassignedAll', sub: 'cannot log in',
+              icon: Icons.warning_amber_rounded, color: WebColors.warning)),
+        ])),
+        const SizedBox(height: WebSpace.lg),
+        WebListCard(children: [
+          WebListTabs(
+            tabs: [
+              WebTab('All', count: count('all')),
+              WebTab('Needs Role', count: count('unassigned'),
+                  color: WebColors.warning),
+              WebTab('Assigned', count: count('assigned'),
+                  color: WebColors.success),
+              WebTab('Inactive', count: count('inactive'),
+                  color: WebColors.error),
+            ],
+            selected: _webTabs.indexOf(_webTab),
+            onChanged: (i) => setState(() => _webTab = _webTabs[i]),
+          ),
+          WebListToolbar(
+            search: WebSearchField(
+              controller: _searchCtrl,
+              hint: 'Search by email or role…',
+              debounce: const Duration(milliseconds: 200),
+              onChanged: _applySearch,
+            ),
+            trailing: [
+              const Text('Dense', style: WebText.bodySub),
+              Switch(value: _dense, activeTrackColor: WebColors.navy,
+                  onChanged: (v) => setState(() => _dense = v)),
+            ],
+          ),
+          WebDataTable<Map<String, dynamic>>(
+            columns: const [
+              WebColumn('Email', flex: 3),
+              WebColumn('Joined', width: 140),
+              WebColumn('Role', width: 180),
+              WebColumn('Status', width: 140),
+              WebColumn('Actions', width: 220, align: TextAlign.right),
+            ],
+            rows: rows,
+            paginate: true,
+            dense: _dense,
+            loading: _loading,
+            emptyText: _users.isEmpty ? 'No users found' : 'No users match',
+            cellBuilder: (u, col) {
+              final email = u['email'] as String? ?? '—';
+              final hasRole = _hasRole(u);
+              final (rc, rl) = _roleStyle(u['role'] as String?);
+              switch (col) {
+                case 0:
+                  return Text(email, maxLines: 1, overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600, color: WebColors.text1));
+                case 1:
+                  final created = u['created_at'] as String?;
+                  return Text(created == null ? '—' : _fmtDate(created),
+                      style: const TextStyle(fontSize: 13, color: WebColors.text2));
+                case 2:
+                  return WebLabel(rl, color: hasRole ? rc : WebColors.warning);
+                case 3:
+                  if (!hasRole) {
+                    return const Text('Cannot log in', style: TextStyle(
+                        fontSize: 12.5, color: WebColors.warning,
+                        fontWeight: FontWeight.w600));
+                  }
+                  return WebLabel(_isActiveU(u) ? 'Active' : 'Inactive',
+                      color: _isActiveU(u) ? WebColors.success : WebColors.error,
+                      dot: true);
+                default:
+                  return Row(mainAxisSize: MainAxisSize.min, children: [
+                    WebButton(
+                      label: hasRole ? 'Edit' : 'Assign Role',
+                      icon: hasRole ? Icons.edit_outlined
+                          : Icons.person_add_alt_outlined,
+                      color: hasRole ? WebColors.navy : WebColors.warning,
+                      onPressed: () => _assign(u),
+                    ),
+                    if (hasRole) ...[
+                      const SizedBox(width: 6),
+                      WebIconButton(
+                        icon: Icons.person_remove_outlined,
+                        tooltip: 'Remove access',
+                        color: WebColors.error,
+                        size: 36,
+                        onTap: () => _remove(u),
+                      ),
+                    ],
+                  ]);
+              }
+            },
+          ),
+        ]),
+      ],
+    );
+  }
+
   Widget _userCard(Map<String,dynamic> u, {required bool unassigned}) {
     final role     = u['role'] as String?;
     final isActive = u['is_active'] as bool? ?? false;
@@ -338,7 +515,7 @@ class _S extends ConsumerState<UserManagementScreen> {
   @override
   Widget build(BuildContext context) => ResponsiveLayout(
     mobile:  (_) => _buildScaffold(context),
-    desktop: (_) => _buildScaffold(context),
+    desktop: (_) => _buildWeb(),
   );
 
 }

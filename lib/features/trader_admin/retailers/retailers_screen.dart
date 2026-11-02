@@ -7,8 +7,8 @@ import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../shared/layouts/responsive_layout.dart';
 import '../../../shared/widgets/common/async_state_view.dart';
-import '../../../shared/widgets/common/status_chip.dart';
 import '../../../shared/widgets/tables/app_table.dart';
+import '../../../shared/widgets/web/web.dart';
 
 class RetailersScreen extends ConsumerStatefulWidget {
   const RetailersScreen({super.key});
@@ -94,6 +94,7 @@ class _S extends ConsumerState<RetailersScreen> {
   @override
   Widget build(BuildContext context) {
     final isDesktop = context.isDesktop;
+    if (isDesktop) return _buildWebPage();
 
     return ListScreenScaffold(
       appBar: isDesktop
@@ -145,150 +146,195 @@ class _S extends ConsumerState<RetailersScreen> {
         onRetry: _load,
         child: ResponsiveLayout(
           mobile: (_) => _buildMobileList(),
-          desktop: (_) => _buildDesktopTable(),
         ),
       ),
     );
   }
 
-  // ── Desktop table ─────────────────────────────────────────────────────────
+  // ── Web page (desktop) ────────────────────────────────────────────────────
 
-  Widget _buildDesktopTable() {
-    return AppTable<Map<String, dynamic>>(
-      columns: [
-        AppTableColumn(
-          label: 'Shop Name',
-          flex: 3,
-          cellBuilder: (r) {
-            final blocked = r['is_blocked'] as bool? ?? false;
-            final active = r['is_active'] as bool? ?? true;
-            return Row(children: [
-              // Avatar circle
-              Container(
-                width: 28,
-                height: 28,
-                decoration: BoxDecoration(
-                  color: blocked
-                      ? Colors.red.withValues(alpha: 0.1)
-                      : kPrimary.withValues(alpha: 0.08),
-                  shape: BoxShape.circle,
-                ),
-                child: Center(
-                    child: Text(
-                  (r['shop_name'] as String? ?? '?')[0].toUpperCase(),
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w800,
-                    color: blocked ? Colors.red : kPrimary,
-                  ),
-                )),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                  child: Text(
-                r['shop_name'] as String? ?? '—',
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: active ? kTextMain : kTextSub,
-                ),
-                overflow: TextOverflow.ellipsis,
-              )),
-            ]);
-          },
-        ),
-        AppTableColumn(
-          label: 'Owner',
-          flex: 2,
-          cellBuilder: (r) => Text(
-            r['owner_name'] as String? ?? '—',
-            style: const TextStyle(fontSize: 13, color: kTextSub),
+  static const _webTabs = ['all', 'active', 'risk', 'blocked', 'inactive'];
+  String _webTab = 'all';
+  String _sortKey = 'shop';
+  bool _sortAsc = true;
+  bool _dense = true;
+  int _page = 0;
+  int _rowsPerPage = 25;
+
+  static const _webColumns = [
+    WebColumn('Shop Name', flex: 3, sortKey: 'shop'),
+    WebColumn('Owner', flex: 2, sortKey: 'owner'),
+    WebColumn('Phone', width: 150),
+    WebColumn('Address', flex: 3),
+    WebColumn('Status', width: 140, align: TextAlign.center),
+    WebColumn('Action', width: 80, align: TextAlign.center),
+  ];
+
+  bool _blocked(Map<String, dynamic> r) => r['is_blocked'] as bool? ?? false;
+  bool _active(Map<String, dynamic> r) => r['is_active'] as bool? ?? true;
+  String _risk(Map<String, dynamic> r) => r['risk_level'] as String? ?? 'low';
+
+  bool _inTab(Map<String, dynamic> r, String t) => switch (t) {
+    'active'   => _active(r) && !_blocked(r),
+    'risk'     => !_blocked(r) && (_risk(r) == 'high' || _risk(r) == 'medium'),
+    'blocked'  => _blocked(r),
+    'inactive' => !_active(r),
+    _          => true,
+  };
+
+  Widget _webCell(Map<String, dynamic> r, int col) {
+    switch (col) {
+      case 0:
+        final name = r['shop_name'] as String? ?? '—';
+        return Text(name, maxLines: 1, overflow: TextOverflow.ellipsis,
+            style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600,
+                color: _active(r) ? WebColors.text1 : WebColors.text3));
+      case 1:
+        return Text(r['owner_name'] as String? ?? '—', maxLines: 1,
             overflow: TextOverflow.ellipsis,
-          ),
-        ),
-        AppTableColumn(
-          label: 'Phone',
-          width: 130,
-          cellBuilder: (r) => Text(
-            r['phone'] as String? ?? '—',
-            style: const TextStyle(fontSize: 13, color: kTextSub),
-          ),
-        ),
-        AppTableColumn(
-          label: 'Address',
-          flex: 2,
-          cellBuilder: (r) => Text(
-            r['address'] as String? ?? '—',
-            style: const TextStyle(fontSize: 12, color: kTextHint),
-            overflow: TextOverflow.ellipsis,
-          ),
-        ),
-        AppTableColumn(
-          label: 'Risk',
-          width: 90,
-          alignment: Alignment.center,
-          cellBuilder: (r) {
-            final risk = r['risk_level'] as String? ?? 'low';
-            final blocked = r['is_blocked'] as bool? ?? false;
-            final active = r['is_active'] as bool? ?? true;
-            if (blocked)
-              return const StatusChip(
-                  label: 'Blocked',
-                  color: Colors.red,
-                  size: StatusChipSize.small);
-            if (!active)
-              return const StatusChip(
-                  label: 'Inactive',
-                  color: Colors.grey,
-                  size: StatusChipSize.small);
-            if (risk == 'high')
-              return const StatusChip(
-                  label: 'High Risk',
-                  color: Colors.red,
-                  size: StatusChipSize.small);
-            if (risk == 'medium')
-              return const StatusChip(
-                  label: 'Med Risk',
-                  color: Colors.orange,
-                  size: StatusChipSize.small);
-            return const SizedBox.shrink();
-          },
-        ),
-        AppTableColumn(
-          label: '',
-          width: 40,
-          alignment: Alignment.center,
-          cellBuilder: (_) =>
-              const Icon(Icons.chevron_right, size: 16, color: kTextHint),
-        ),
-      ],
-      rows: _filtered,
-      onRowTap: (r) => context.push(R.retailerDetailPath(r['id'])),
-      desktopPadding: const EdgeInsets.symmetric(horizontal: 16),
-      rowDecoration: (r) {
-        final blocked = r['is_blocked'] as bool? ?? false;
-        final risk = r['risk_level'] as String? ?? 'low';
-        Color? tint;
-        if (blocked)
-          tint = Colors.red.withValues(alpha: 0.03);
-        else if (risk == 'high') tint = Colors.orange.withValues(alpha: 0.03);
-        return BoxDecoration(
-          color: tint ?? Colors.transparent,
-          border: const Border(bottom: BorderSide(color: kBorder, width: 0.5)),
+            style: const TextStyle(fontSize: 13.5, color: WebColors.text2));
+      case 2:
+        return Text(r['phone'] as String? ?? '—',
+            style: const TextStyle(fontSize: 13.5, color: WebColors.text2));
+      case 3:
+        return Text(r['address'] as String? ?? '—', maxLines: 1,
+            overflow: TextOverflow.ellipsis, style: WebText.caption);
+      case 4:
+        if (_blocked(r)) {
+          return const WebLabel('Blocked', color: WebColors.error, dot: true);
+        }
+        if (!_active(r)) {
+          return const WebLabel('Inactive', color: WebColors.text3, dot: true);
+        }
+        if (_risk(r) == 'high') {
+          return const WebLabel('High Risk', color: WebColors.error);
+        }
+        if (_risk(r) == 'medium') {
+          return const WebLabel('Med Risk', color: WebColors.warning);
+        }
+        return const WebLabel('Active', color: WebColors.success, dot: true);
+      default:
+        return WebIconButton(
+          icon: Icons.visibility_outlined,
+          tooltip: 'View retailer',
+          size: 32,
+          outlined: false,
+          onTap: () => context.push(R.retailerDetailPath(r['id'])),
         );
-      },
-      emptyWidget: const AsyncStateView(
-        loading: false,
-        empty: true,
-        emptyIcon: Icons.store_outlined,
-        emptyMessage: 'No retailers found',
-        child: SizedBox.shrink(),
+    }
+  }
+
+  Widget _buildWebPage() {
+    int count(String t) => _filtered.where((r) => _inTab(r, t)).length;
+    final rows = _filtered.where((r) => _inTab(r, _webTab)).toList()
+      ..sort((a, b) {
+        final k = _sortKey == 'owner' ? 'owner_name' : 'shop_name';
+        final c = (a[k] as String? ?? '').toLowerCase()
+            .compareTo((b[k] as String? ?? '').toLowerCase());
+        return _sortAsc ? c : -c;
+      });
+    final lastPage = rows.isEmpty ? 0 : (rows.length - 1) ~/ _rowsPerPage;
+    final page = _page.clamp(0, lastPage);
+    final pageRows =
+        rows.skip(page * _rowsPerPage).take(_rowsPerPage).toList();
+
+    final activeAll = _list.where((r) => _inTab(r, 'active')).length;
+    final riskAll = _list.where((r) => _inTab(r, 'risk')).length;
+    final blockedAll = _list.where(_blocked).length;
+
+    return WebPage(
+      header: PageBreadcrumbsHeader(
+        title: 'Retailers',
+        subtitle: 'Your customers — contact details, status and risk',
+        crumbs: const [Crumb('Dashboard', R.dashboard), Crumb('Retailers')],
+        action: Row(mainAxisSize: MainAxisSize.min, children: [
+          WebIconButton(icon: Icons.refresh_rounded, tooltip: 'Refresh',
+              onTap: _load),
+          const SizedBox(width: 8),
+          WebButton(
+            label: 'Add Retailer',
+            icon: Icons.add_rounded,
+            onPressed: () => context.push(R.retailerCreate),
+          ),
+        ]),
       ),
-      footerWidget: Text(
-        '${_filtered.length} retailers',
-        style: const TextStyle(fontSize: 12, color: kTextHint),
-        textAlign: TextAlign.center,
-      ),
+      children: [
+        WebKpiRow(children: [
+          WebKpiCard(label: 'Total Retailers', value: '${_list.length}',
+              icon: Icons.storefront_outlined, color: WebColors.navy),
+          WebKpiCard(label: 'Active', value: '$activeAll',
+              icon: Icons.check_circle_outline, color: WebColors.success),
+          WebKpiCard(label: 'High / Medium Risk', value: '$riskAll',
+              icon: Icons.warning_amber_rounded, color: WebColors.warning),
+          WebKpiCard(label: 'Blocked', value: '$blockedAll',
+              icon: Icons.block_rounded, color: WebColors.error),
+        ]),
+        const SizedBox(height: WebSpace.lg),
+        WebListCard(children: [
+          WebListTabs(
+            tabs: [
+              WebTab('All', count: count('all')),
+              WebTab('Active', count: count('active'), color: WebColors.success),
+              WebTab('At Risk', count: count('risk'), color: WebColors.warning),
+              WebTab('Blocked', count: count('blocked'), color: WebColors.error),
+              WebTab('Inactive', count: count('inactive'), color: WebColors.text3),
+            ],
+            selected: _webTabs.indexOf(_webTab),
+            onChanged: (i) => setState(() { _webTab = _webTabs[i]; _page = 0; }),
+          ),
+          WebListToolbar(
+            search: WebSearchField(
+              controller: _searchCtrl,
+              hint: 'Search by name, phone, address…',
+              debounce: const Duration(milliseconds: 250),
+              onChanged: (v) { _applySearch(v); setState(() => _page = 0); },
+            ),
+            trailing: [
+              Text('${rows.length} retailers', style: WebText.caption),
+            ],
+          ),
+          if (_error != null)
+            Padding(
+              padding: const EdgeInsets.all(WebSpace.xl),
+              child: AsyncStateView(loading: false, error: _error,
+                  onRetry: _load, child: const SizedBox.shrink()),
+            )
+          else
+            WebDataTable<Map<String, dynamic>>(
+              columns: _webColumns,
+              rows: pageRows,
+              cellBuilder: _webCell,
+              onRowTap: (r) => context.push(R.retailerDetailPath(r['id'])),
+              sortKey: _sortKey,
+              sortAscending: _sortAsc,
+              onSort: (k) => setState(() {
+                if (_sortKey == k) {
+                  _sortAsc = !_sortAsc;
+                } else {
+                  _sortKey = k;
+                  _sortAsc = true;
+                }
+                _page = 0;
+              }),
+              dense: _dense,
+              loading: _loading,
+              emptyText: _list.isEmpty ? 'No retailers yet' : 'No retailers match',
+              emptyAction: _list.isEmpty
+                  ? WebButton(label: 'Add Retailer', icon: Icons.add_rounded,
+                      onPressed: () => context.push(R.retailerCreate))
+                  : null,
+            ),
+          WebTablePagination(
+            page: page,
+            rowsPerPage: _rowsPerPage,
+            total: rows.length,
+            onPage: (p) => setState(() => _page = p),
+            onRowsPerPage: (n) => setState(() { _rowsPerPage = n; _page = 0; }),
+            dense: _dense,
+            onDense: (v) => setState(() => _dense = v),
+          ),
+        ]),
+      ],
     );
   }
 

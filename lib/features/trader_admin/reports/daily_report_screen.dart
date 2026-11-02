@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/providers/session_provider.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../shared/layouts/responsive_layout.dart';
+import 'package:rooster_trader/shared/widgets/web/app_scaffold.dart';
 
 class DailyReportScreen extends ConsumerStatefulWidget {
   const DailyReportScreen({super.key});
@@ -195,7 +196,7 @@ class _S extends ConsumerState<DailyReportScreen> {
     return buf.toString();
   }
 
-  Widget _buildScaffold(BuildContext context) => Scaffold(
+  Widget _buildScaffold(BuildContext context) => AppScaffold(
     backgroundColor: kBgPage,
     appBar: AppBar(
       backgroundColor: kSurface,

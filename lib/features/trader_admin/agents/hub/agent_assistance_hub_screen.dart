@@ -12,6 +12,7 @@ import '../../../../core/theme/app_theme.dart';
 import 'agent_quick_entry.dart';
 import 'current_batch_active_screen.dart';
 import 'entry_mode_selector.dart';
+import 'package:rooster_trader/shared/widgets/web/app_scaffold.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // AGENT ASSISTANCE HUB
@@ -729,7 +730,7 @@ class _AgentAssistanceHubScreenState
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return AppScaffold(
       backgroundColor: kBgPage,
       appBar: AppBar(
         backgroundColor: kNavy,

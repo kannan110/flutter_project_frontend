@@ -7,6 +7,7 @@ import '../../../core/providers/session_provider.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../shared/layouts/responsive_layout.dart';
+import '../../../shared/widgets/web/web.dart';
 
 class DayClosureScreen extends ConsumerStatefulWidget {
   const DayClosureScreen({super.key});
@@ -186,7 +187,13 @@ class _S extends ConsumerState<DayClosureScreen> {
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: isClosed ? Colors.green.shade600 : kPrimary,
+            gradient: LinearGradient(
+              colors: isClosed
+                  ? [const Color(0xFF047857), Colors.green.shade600]
+                  : [kNavy, kNavyMid],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
             borderRadius: BorderRadius.circular(14),
           ),
           child: Row(children: [
@@ -406,6 +413,315 @@ class _S extends ConsumerState<DayClosureScreen> {
     );
   }
 
+  // ═══════════════════════════════════════════════════════════════════════
+  // WEB (desktop) — status + checklist, shifts table, close-day actions.
+  // Same actions and the same show/hide rules as the mobile layout.
+  // ═══════════════════════════════════════════════════════════════════════
+  Future<void> _pickDate() async {
+    final d = await showDatePicker(context: context, initialDate: _date,
+        firstDate: DateTime.now().subtract(const Duration(days: 30)),
+        lastDate: DateTime.now());
+    if (d != null) {
+      if (mounted) setState(() { _date = d; _status = null; _shifts = []; });
+      _load();
+    }
+  }
+
+  Widget _buildWeb() {
+    final isClosed = _status?['status'] == 'closed' || _status?['status'] == 'locked';
+    final openShifts   = _shifts.where((s) => s['status'] == 'open').length;
+    final closedShifts = _shifts.where((s) => s['status'] == 'closed').length;
+
+    final header = PageBreadcrumbsHeader(
+      title: 'Close Day',
+      titleTrailing: _status == null ? null : WebLabel(
+          isClosed ? 'Closed & Locked' : 'Open',
+          color: isClosed ? WebColors.success : WebColors.warning, dot: true),
+      subtitle: DateFormat('EEEE, d MMMM y').format(_date),
+      crumbs: const [Crumb('Dashboard', R.dashboard), Crumb('Day Closure')],
+      action: Row(mainAxisSize: MainAxisSize.min, children: [
+        WebButton(
+          label: DateFormat('d MMM y').format(_date),
+          icon: Icons.calendar_today_outlined,
+          outlined: true,
+          onPressed: _pickDate,
+        ),
+        const SizedBox(width: 8),
+        WebIconButton(icon: Icons.refresh_rounded, tooltip: 'Refresh',
+            onTap: _load),
+      ]),
+    );
+
+    if (_loading) {
+      return WebPage(header: header, children: const [
+        WebCard(child: WebTableState.loading()),
+      ]);
+    }
+
+    // ── Status hero ─────────────────────────────────────────────────────
+    final hero = Container(
+      padding: const EdgeInsets.all(22),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+            colors: isClosed
+                ? [const Color(0xFF047857), WebColors.success]
+                : [WebColors.navy, WebColors.navyMid],
+            begin: Alignment.topLeft, end: Alignment.bottomRight),
+        borderRadius: BorderRadius.circular(WebRadius.card),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+        Row(children: [
+          WebIconTile(icon: isClosed ? Icons.lock : Icons.lock_open_outlined,
+              color: Colors.white, size: 48),
+          const SizedBox(width: 14),
+          Expanded(child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(DateFormat('EEEE, d MMMM y').format(_date),
+                style: const TextStyle(color: Colors.white70, fontSize: 12.5)),
+            const SizedBox(height: 2),
+            Text(isClosed ? 'Day is closed & locked' : 'Day is open',
+                style: const TextStyle(color: Colors.white, fontSize: 22,
+                    fontWeight: FontWeight.w800)),
+          ])),
+        ]),
+        const SizedBox(height: 18),
+        Row(children: [
+          _heroStat('Open shifts', '$openShifts'),
+          _heroStat('Closed shifts', '$closedShifts'),
+          _heroStat('Revenue', Fmt.amount(
+              (_status?['total_revenue'] as num?)?.toDouble() ?? 0)),
+          _heroStat('Cash Collected', Fmt.amount(
+              (_status?['total_cash_collected'] as num?)?.toDouble() ?? 0)),
+          _heroStat('Orders', '${_status?['total_orders'] ?? 0}'),
+        ]),
+      ]),
+    );
+
+    // ── Checklist ───────────────────────────────────────────────────────
+    final checks = <(String, bool)>[
+      ('All shifts closed', openShifts == 0),
+      ('Cash reconciled', _status?['cash_reconciled'] as bool? ?? false),
+      ('No pending approvals',
+          (_status?['pending_approvals_today'] as int? ?? 0) == 0),
+      ('No pending returns',
+          (_status?['pending_returns_today'] as int? ?? 0) == 0),
+      ('Cross-check passed', _status?['cross_check_passed'] as bool? ?? false),
+    ];
+    final done = checks.where((c) => c.$2).length;
+    final checklist = WebSectionCard(
+      title: 'Day Checklist',
+      subtitle: '$done of ${checks.length} complete',
+      icon: Icons.checklist_rounded,
+      child: Column(children: [
+        ClipRRect(
+          borderRadius: BorderRadius.circular(4),
+          child: LinearProgressIndicator(
+            value: done / checks.length, minHeight: 6,
+            backgroundColor: WebColors.divider,
+            valueColor: AlwaysStoppedAnimation(
+                done == checks.length ? WebColors.success : WebColors.warning),
+          ),
+        ),
+        const SizedBox(height: 12),
+        for (final c in checks)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 6),
+            child: Row(children: [
+              Icon(c.$2 ? Icons.check_circle_rounded
+                  : Icons.radio_button_unchecked,
+                  size: 20,
+                  color: c.$2 ? WebColors.success : WebColors.warning),
+              const SizedBox(width: 10),
+              Expanded(child: Text(c.$1, style: TextStyle(fontSize: 13.5,
+                  fontWeight: c.$2 ? FontWeight.w500 : FontWeight.w700,
+                  color: c.$2 ? WebColors.text1 : WebColors.warning))),
+            ]),
+          ),
+      ]),
+    );
+
+    // ── Shifts table ────────────────────────────────────────────────────
+    final shiftsCard = WebListCard(children: [
+      WebCardHeader(
+        title: "Today's Shifts by Agent",
+        subtitle: '${_shifts.length} shift${_shifts.length == 1 ? '' : 's'}',
+        icon: Icons.delivery_dining,
+      ),
+      WebDataTable<Map<String, dynamic>>(
+        columns: const [
+          WebColumn('Agent', flex: 3),
+          WebColumn('Vehicle', width: 130),
+          WebColumn('Start', width: 95),
+          WebColumn('End', width: 95),
+          WebColumn('Orders', width: 85, align: TextAlign.right),
+          WebColumn('Birds', width: 85, align: TextAlign.right),
+          WebColumn('Cash', width: 120, align: TextAlign.right),
+          WebColumn('Expenses', width: 110, align: TextAlign.right),
+          WebColumn('Net to Hand', width: 130, align: TextAlign.right),
+          WebColumn('Status', width: 180),
+          WebColumn('Action', width: 110, align: TextAlign.center),
+        ],
+        rows: _shifts,
+        paginate: true,
+        dense: true,
+        emptyText: 'No shifts started today.',
+        cellBuilder: (shift, col) {
+          final agent = shift['delivery_agents'] as Map<String, dynamic>?;
+          final status = shift['status'] as String? ?? 'open';
+          final isOpen = status == 'open';
+          final cash = (shift['total_cash_collected'] as num?)?.toDouble() ?? 0;
+          final exp = (shift['total_expenses'] as num?)?.toDouble() ?? 0;
+          switch (col) {
+            case 0:
+              final name = agent?['name'] as String? ?? '—';
+              return Text(name, maxLines: 1, overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600, color: WebColors.text1));
+            case 1:
+              return Text(agent?['vehicle_no'] as String? ?? '—',
+                  style: const TextStyle(fontSize: 13, color: WebColors.text2));
+            case 2:
+              final s = DateTime.tryParse(shift['shift_start_at'] as String? ?? '');
+              return Text(s != null ? DateFormat('h:mm a').format(s) : '—',
+                  style: const TextStyle(fontSize: 13, color: WebColors.text2));
+            case 3:
+              final e = shift['shift_end_at'] != null
+                  ? DateTime.tryParse(shift['shift_end_at'] as String) : null;
+              return Text(e != null ? DateFormat('h:mm a').format(e) : 'Running',
+                  style: TextStyle(fontSize: 13,
+                      color: e != null ? WebColors.text2 : WebColors.warning));
+            case 4:
+              return Text('${shift['total_orders'] ?? 0}',
+                  style: const TextStyle(fontSize: 13.5, color: WebColors.text2));
+            case 5:
+              final b = (shift['total_birds_delivered'] as num?)?.toInt() ?? 0;
+              return Text(b > 0 ? '$b' : '—',
+                  style: const TextStyle(fontSize: 13.5, color: WebColors.text2));
+            case 6:
+              return Text(Fmt.amount(cash), style: const TextStyle(
+                  fontSize: 13.5, fontWeight: FontWeight.w700,
+                  color: WebColors.success));
+            case 7:
+              return Text(Fmt.amount(exp), style: TextStyle(fontSize: 13.5,
+                  color: exp > 0 ? WebColors.error : WebColors.text3));
+            case 8:
+              return Text(Fmt.amount((cash - exp).clamp(0.0, double.infinity)),
+                  style: const TextStyle(fontSize: 13.5,
+                      fontWeight: FontWeight.w800, color: WebColors.navy));
+            case 9:
+              final appr = shift['shift_approval_status'] as String? ?? 'pending';
+              return Row(mainAxisSize: MainAxisSize.min, children: [
+                WebLabel(isOpen ? 'Open' : 'Closed ✓',
+                    color: isOpen ? WebColors.warning : WebColors.success,
+                    dot: true),
+                if (!isOpen) ...[
+                  const SizedBox(width: 6),
+                  Text(appr == 'approved' ? '· Approved ✓'
+                      : '· Pending',
+                      style: TextStyle(fontSize: 11.5,
+                          fontWeight: FontWeight.w600,
+                          color: appr == 'approved'
+                              ? WebColors.success : WebColors.warning)),
+                ],
+              ]);
+            default:
+              return isOpen && !isClosed
+                  ? WebButton(label: 'Close', icon: Icons.lock_outline,
+                      color: WebColors.warning,
+                      onPressed: () => _closeShift(shift))
+                  : const Text('—', style: WebText.caption);
+          }
+        },
+      ),
+      const SizedBox(height: WebSpace.md),
+    ]);
+
+    // ── Actions ─────────────────────────────────────────────────────────
+    final Widget actions;
+    if (isClosed) {
+      actions = Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: WebColors.successBg,
+          borderRadius: BorderRadius.circular(WebRadius.card),
+          border: Border.all(color: WebColors.success.withValues(alpha: 0.3)),
+        ),
+        child: const Row(children: [
+          Icon(Icons.lock, color: WebColors.success, size: 22),
+          SizedBox(width: 10),
+          Expanded(child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('Day is locked ✓', style: TextStyle(fontSize: 14,
+                fontWeight: FontWeight.w700, color: WebColors.success)),
+            Text('No new records can be created for this day.',
+                style: TextStyle(fontSize: 12.5, color: WebColors.success)),
+          ])),
+        ]),
+      );
+    } else {
+      actions = WebCard(
+        padding: const EdgeInsets.all(20),
+        child: Row(children: [
+          Expanded(child: openShifts == 0
+              ? const Text('All shifts are closed. Run the cross-check, then '
+                  'close and lock the day.', style: WebText.bodySub)
+              : Row(children: [
+                  const Icon(Icons.warning_amber_rounded,
+                      color: WebColors.warning, size: 22),
+                  const SizedBox(width: 10),
+                  Expanded(child: Text(
+                      '$openShifts shift(s) still open. Close all shifts '
+                      'above before closing the day.',
+                      style: const TextStyle(fontSize: 13.5,
+                          color: WebColors.warning))),
+                ])),
+          const SizedBox(width: 16),
+          if (openShifts == 0) ...[
+            WebButton(
+              label: 'Run Cross-Check',
+              icon: Icons.fact_check_outlined,
+              outlined: true,
+              onPressed: _submitting ? null : _runCheck,
+            ),
+            const SizedBox(width: 10),
+            WebButton(
+              label: 'Close & Lock Day',
+              icon: Icons.lock_outline,
+              color: WebColors.error,
+              onPressed: _submitting ? null : _closeDay,
+            ),
+          ] else
+            WebButton(
+              label: 'Force Close Day',
+              icon: Icons.lock_outline,
+              outlined: true,
+              color: WebColors.error,
+              onPressed: _submitting ? null : _closeDay,
+            ),
+        ]),
+      );
+    }
+
+    return WebPage(header: header, children: [
+      if (_status != null)
+        WebKpiRow(children: [hero, checklist])
+      else
+        hero,
+      const SizedBox(height: WebSpace.lg),
+      shiftsCard,
+      const SizedBox(height: WebSpace.lg),
+      actions,
+    ]);
+  }
+
+  Widget _heroStat(String label, String value) => Expanded(child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start, children: [
+    Text(value, style: const TextStyle(fontSize: 18,
+        fontWeight: FontWeight.w800, color: Colors.white)),
+    const SizedBox(height: 2),
+    Text(label, style: const TextStyle(fontSize: 12, color: Colors.white70)),
+  ]));
+
   Widget _check(String label, bool ok) => Padding(
     padding: const EdgeInsets.symmetric(vertical: 5),
     child: Row(children: [
@@ -430,7 +746,7 @@ class _S extends ConsumerState<DayClosureScreen> {
   @override
   Widget build(BuildContext context) => ResponsiveLayout(
     mobile:  (_) => _buildScaffold(context),
-    desktop: (_) => _buildScaffold(context),
+    desktop: (_) => _buildWeb(),
   );
 
 }

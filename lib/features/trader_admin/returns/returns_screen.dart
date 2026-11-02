@@ -6,6 +6,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/providers/session_provider.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../shared/layouts/responsive_layout.dart';
+import '../../../shared/widgets/web/web.dart';
 import 'return_create_screen.dart';
 
 class ReturnsScreen extends ConsumerStatefulWidget {
@@ -75,7 +77,7 @@ class _S extends ConsumerState<ReturnsScreen> {
         birds += (s['quantity_birds'] as num?)?.toInt() ?? 0;
         kg += (s['quantity_kg'] as num?)?.toDouble() ?? 0;
       }
-      if (mounted)
+      if (mounted) {
         setState(() {
           _returns = List<Map<String, dynamic>>.from(r);
           _applySearch(_searchCtrl.text);
@@ -83,6 +85,7 @@ class _S extends ConsumerState<ReturnsScreen> {
           _totalReturnedKg = kg;
           _loading = false;
         });
+      }
     } catch (e) {
       if (mounted) setState(() => _loading = false);
       showError(context, e.toString());
@@ -95,8 +98,221 @@ class _S extends ConsumerState<ReturnsScreen> {
     if (result == true) _load();
   }
 
+  // ═══════════════════════════════════════════════════════════════════════
+  // WEB (desktop) — header, KPI row, status tabs, returns table.
+  // ═══════════════════════════════════════════════════════════════════════
+  static const _webStatuses = ['all', 'pending', 'processed'];
+  bool _dense = true;
+  int _page = 0;
+  int _rowsPerPage = 25;
+
+  Map<String, dynamic>? _creditNoteOf(Map<String, dynamic> r) {
+    final raw = r['credit_notes'];
+    if (raw is List && raw.isNotEmpty) {
+      return Map<String, dynamic>.from(raw.first as Map);
+    }
+    return raw is Map ? Map<String, dynamic>.from(raw) : null;
+  }
+
+  Widget _buildWeb() {
+    final rows = _filtered;
+    final lastPage = rows.isEmpty ? 0 : (rows.length - 1) ~/ _rowsPerPage;
+    final page = _page.clamp(0, lastPage);
+    final pageRows =
+        rows.skip(page * _rowsPerPage).take(_rowsPerPage).toList();
+    final pending = _returns.where((r) => r['status'] == 'pending').length;
+    final credited = _returns.where((r) => r['stock_credited'] == true).length;
+
+    return WebPage(
+      header: PageBreadcrumbsHeader(
+        title: 'Returns',
+        subtitle: 'Customer and agent returns, stock credit and credit notes',
+        crumbs: const [Crumb('Dashboard', R.dashboard), Crumb('Returns')],
+        action: Row(mainAxisSize: MainAxisSize.min, children: [
+          WebIconButton(icon: Icons.refresh_rounded, tooltip: 'Refresh',
+              onTap: _load),
+          const SizedBox(width: 8),
+          WebButton(
+            label: 'Process Return',
+            icon: Icons.assignment_return_outlined,
+            onPressed: _openCreateReturn,
+          ),
+        ]),
+      ),
+      children: [
+        WebKpiRow(children: [
+          WebKpiCard(label: 'Total Returned to Stock',
+              value: '$_totalReturnedBirds birds',
+              sub: '${_totalReturnedKg.toStringAsFixed(1)} kg · available for redelivery',
+              icon: Icons.assignment_return_outlined, color: WebColors.navy),
+          WebKpiCard(label: 'Returns Shown', value: '${_returns.length}',
+              icon: Icons.list_alt_rounded, color: WebColors.info),
+          WebKpiCard(label: 'Pending', value: '$pending',
+              icon: Icons.hourglass_empty_rounded, color: WebColors.warning),
+          WebKpiCard(label: 'Stock Updated', value: '$credited',
+              icon: Icons.check_circle_outline, color: WebColors.success),
+        ]),
+        const SizedBox(height: WebSpace.lg),
+        WebListCard(children: [
+          WebListTabs(
+            tabs: const [
+              WebTab('All'),
+              WebTab('Pending', color: WebColors.warning),
+              WebTab('Processed', color: WebColors.success),
+            ],
+            selected: _webStatuses.indexOf(_filter),
+            onChanged: (i) {
+              setState(() { _filter = _webStatuses[i]; _page = 0; });
+              _load();
+            },
+          ),
+          WebListToolbar(
+            search: WebSearchField(
+              controller: _searchCtrl,
+              hint: 'Search by shop or agent…',
+              debounce: const Duration(milliseconds: 250),
+              onChanged: (v) { _applySearch(v); setState(() => _page = 0); },
+            ),
+          ),
+          WebDataTable<Map<String, dynamic>>(
+            columns: const [
+              WebColumn('Date', width: 115, minWidth: 105),
+              WebColumn('Retailer', flex: 3, minWidth: 140),
+              WebColumn('Agent', flex: 2, minWidth: 110),
+              WebColumn('Product', flex: 2, minWidth: 110),
+              WebColumn('Type', width: 130, minWidth: 115),
+              WebColumn('Birds', width: 85, align: TextAlign.right, minWidth: 75),
+              WebColumn('Weight', width: 105, align: TextAlign.right, minWidth: 95),
+              WebColumn('Reason', flex: 2, minWidth: 120),
+              WebColumn('Status', width: 190, minWidth: 175),
+              WebColumn('Credit Note', width: 195, minWidth: 180),
+            ],
+            rows: pageRows,
+            dense: _dense,
+            loading: _loading,
+            emptyText: _returns.isEmpty ? 'No returns recorded' : 'No results match',
+            emptyAction: _returns.isEmpty
+                ? WebButton(label: 'Process Return',
+                    icon: Icons.assignment_return_outlined,
+                    onPressed: _openCreateReturn)
+                : null,
+            cellBuilder: (r, col) {
+              switch (col) {
+                case 0:
+                  final d = DateTime.tryParse(r['return_date'] as String? ?? '');
+                  return Text(d != null ? DateFormat('d MMM y').format(d) : '—',
+                      style: const TextStyle(fontSize: 13, color: WebColors.text2));
+                case 1:
+                  final name = (r['retailers'] as Map?)?['shop_name'] as String? ?? '—';
+                  return Text(name, maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 13.5,
+                          fontWeight: FontWeight.w600, color: WebColors.text1));
+                case 2:
+                  return Text((r['delivery_agents'] as Map?)?['name'] as String? ?? '—',
+                      maxLines: 1, overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 13, color: WebColors.text2));
+                case 3:
+                  return Text((r['master_products'] as Map?)?['name'] as String? ?? '—',
+                      maxLines: 1, overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 13,
+                          fontWeight: FontWeight.w600, color: WebColors.text1));
+                case 4:
+                  final typeRaw = r['return_type'] as String? ?? '';
+                  final typeLabel = switch (typeRaw) {
+                    'same_batch' => 'Same Batch',
+                    'old_stock'  => 'Old Stock',
+                    _            => typeRaw.isEmpty ? '—' : typeRaw.replaceAll('_', ' '),
+                  };
+                  return WebLabel(typeLabel, color: WebColors.info);
+                case 5:
+                  return Text('${r['bird_count'] ?? 0}',
+                      style: const TextStyle(fontSize: 13.5, color: WebColors.text2));
+                case 6:
+                  return Text('${(r['weight_kg'] as num?)?.toStringAsFixed(1) ?? 0} kg',
+                      style: const TextStyle(fontSize: 13.5, color: WebColors.text2));
+                case 7:
+                  return Text(r['reason'] as String? ?? '—', maxLines: 1,
+                      overflow: TextOverflow.ellipsis, style: WebText.caption);
+                case 8:
+                  final status = r['status'] as String? ?? 'pending';
+                  final ok = status == 'processed';
+                  return Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      WebLabel(
+                        status.isNotEmpty
+                            ? status[0].toUpperCase() + status.substring(1)
+                            : '—',
+                        color: ok ? WebColors.success : WebColors.warning,
+                        dot: true,
+                      ),
+                      if (r['stock_credited'] == true) ...[
+                        const SizedBox(width: 6),
+                        const Flexible(
+                          child: Text(
+                            '· Stock ✓',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: WebColors.success,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  );
+                default:
+                  final cn = _creditNoteOf(r);
+                  if (cn == null) return const Text('—', style: WebText.caption);
+                  return MouseRegion(
+                    cursor: SystemMouseCursors.click,
+                    child: GestureDetector(
+                      onTap: () => context.push(
+                          R.creditNoteDetailPath(cn['id'] as String)),
+                      child: Text.rich(
+                        TextSpan(
+                          text: cn['credit_number'] as String? ?? 'Credit Note',
+                          style: const TextStyle(fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                              color: WebColors.navy,
+                              decoration: TextDecoration.underline),
+                          children: [
+                            TextSpan(
+                              text: ' · ${Fmt.amount((cn['total_amount'] as num?)?.toDouble() ?? 0)}',
+                              style: const TextStyle(fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: WebColors.success,
+                                  decoration: TextDecoration.none),
+                            ),
+                          ],
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  );
+              }
+            },
+          ),
+          WebTablePagination(
+            page: page,
+            rowsPerPage: _rowsPerPage,
+            total: rows.length,
+            onPage: (p) => setState(() => _page = p),
+            onRowsPerPage: (n) => setState(() { _rowsPerPage = n; _page = 0; }),
+            dense: _dense,
+            onDense: (v) => setState(() => _dense = v),
+          ),
+        ]),
+      ],
+    );
+  }
+
   @override
-  Widget build(BuildContext context) => Scaffold(
+  Widget build(BuildContext context) => context.isDesktop ? _buildWeb() : Scaffold(
     backgroundColor: kBgPage,
     appBar: AppBar(
         backgroundColor: kSurface,

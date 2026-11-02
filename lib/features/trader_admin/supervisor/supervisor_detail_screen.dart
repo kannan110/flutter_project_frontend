@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/providers/session_provider.dart';
 import '../../../core/theme/app_theme.dart';
 import 'assign_retailer_sheet.dart';
+import 'package:rooster_trader/shared/widgets/web/app_scaffold.dart';
 
 /// Profile + Assigned Retailers + one ledger_entries fetch (recorded_by
 /// = this supervisor's user_id), grouped three ways client-side:
@@ -88,7 +89,7 @@ class _S extends ConsumerState<SupervisorDetailScreen> with SingleTickerProvider
     final tid = ref.read(appUserProvider).valueOrNull?.traderId ?? '';
     final total = _payments.fold<double>(0, (s, p) => s + ((p['amount'] as num?)?.toDouble() ?? 0));
 
-    return Scaffold(
+    return AppScaffold(
       backgroundColor: kBgPage,
       appBar: AppBar(
         title: Text(_supervisor?['name'] as String? ?? 'Supervisor'),
