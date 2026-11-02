@@ -7,7 +7,7 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import '../../../../core/theme/app_theme.dart' show Fmt;
 import 'customer_ledger_row_builder.dart';
-import 'report_dataset.dart' show ReportPrintStyle;
+import 'report_dataset.dart' show ReportPrintStyle, reportSerialNumbers;
 import 'report_pdf_generator.dart' show ReportPdfGenerator;
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -71,33 +71,39 @@ extension PrintSheetSizeX on PrintSheetSize {
   double get cellPaddingV        => isHalf ? 2.2 : 5;
   double get dividerThickness    => isHalf ? 0.9 : 1.2;
 
-  // Same 9 columns on both sizes — nothing is removed or reordered, so
+  // Same 12 columns on both sizes — nothing is removed or reordered, so
   // multi-product grouping and totals render identically either way.
   // Half Sheet uses tighter text-driven widths (narrow Product column, wide
   // Ref No / amount columns) so Ref No and the rupee amounts fit on ONE line
   // — Half Sheet rows are fixed-height single-line rows.
   Map<int, pw.TableColumnWidth> get columnWidths => isHalf
       ? const {
-    0: pw.FlexColumnWidth(3.3),   // Date
-    1: pw.FlexColumnWidth(7.6),   // Ref No
-    2: pw.FlexColumnWidth(3.7),   // Type
-    3: pw.FlexColumnWidth(13.6),  // Product / Description
-    4: pw.FlexColumnWidth(4.4),   // Kg
-    5: pw.FlexColumnWidth(2.2),   // Rate
-    6: pw.FlexColumnWidth(7.2),   // Sale
-    7: pw.FlexColumnWidth(6.6),   // Payment
-    8: pw.FlexColumnWidth(7.6),   // Balance
+    0: pw.FlexColumnWidth(2.0),   // S.No
+    1: pw.FlexColumnWidth(3.3),   // Date
+    2: pw.FlexColumnWidth(6.4),   // Doc.No
+    3: pw.FlexColumnWidth(4.2),   // Man.Doc.No
+    4: pw.FlexColumnWidth(6.4),   // Ref No
+    5: pw.FlexColumnWidth(3.2),   // Type
+    6: pw.FlexColumnWidth(9.8),   // Product / Description
+    7: pw.FlexColumnWidth(3.8),   // Kg
+    8: pw.FlexColumnWidth(2.2),   // Rate
+    9: pw.FlexColumnWidth(6.2),   // Sale
+    10: pw.FlexColumnWidth(5.8),  // Payment
+    11: pw.FlexColumnWidth(6.6),  // Balance
   }
       : const {
-    0: pw.FlexColumnWidth(0.9),  // Date
-    1: pw.FlexColumnWidth(1.0),  // Ref No
-    2: pw.FlexColumnWidth(0.8),  // Type
-    3: pw.FlexColumnWidth(2.8),  // Product / Description
-    4: pw.FlexColumnWidth(0.7),  // Kg
-    5: pw.FlexColumnWidth(0.7),  // Rate
-    6: pw.FlexColumnWidth(1.0),  // Sale
-    7: pw.FlexColumnWidth(1.0),  // Payment
-    8: pw.FlexColumnWidth(1.1),  // Balance
+    0: pw.FlexColumnWidth(0.6),   // S.No
+    1: pw.FlexColumnWidth(0.9),   // Date
+    2: pw.FlexColumnWidth(1.5),   // Doc.No
+    3: pw.FlexColumnWidth(1.1),   // Man.Doc.No
+    4: pw.FlexColumnWidth(1.4),   // Ref No
+    5: pw.FlexColumnWidth(0.8),   // Type
+    6: pw.FlexColumnWidth(2.0),   // Product / Description
+    7: pw.FlexColumnWidth(0.8),   // Kg
+    8: pw.FlexColumnWidth(0.7),   // Rate
+    9: pw.FlexColumnWidth(1.1),   // Sale
+    10: pw.FlexColumnWidth(1.1),  // Payment
+    11: pw.FlexColumnWidth(1.2),  // Balance
   };
 }
 
@@ -504,6 +510,14 @@ class CustomerLedgerPrintBuilder {
     final header = (data['header'] as Map?)?.cast<String, dynamic>() ?? {};
     final opening = (data['opening_balance'] as num?)?.toDouble() ?? 0;
     final t = CustomerLedgerTableData.from(data);
+    // S.No is numbered here, before Half Sheet chunks the rows, so the count
+    // carries on from one half to the next.
+    final serials = reportSerialNumbers(t.rows, skipBlankFirstCell: true);
+    final tableHeaders = ['S.No', ...t.headers];
+    final tableRows = [
+      for (var i = 0; i < t.rows.length; i++) [serials[i], ...t.rows[i]],
+    ];
+    final tableTotals = ['', ...t.totals];
 
     final customerName = header['retailer_name'] as String? ?? 'Customer';
     final openingLabel = Fmt.amount(opening);
@@ -549,9 +563,9 @@ class CustomerLedgerPrintBuilder {
     if (size.isHalf) {
       _addHalfSheetPages(
         doc,
-        headers: t.headers,
-        rows: t.rows,
-        totals: t.totals,
+        headers: tableHeaders,
+        rows: tableRows,
+        totals: tableTotals,
         size: size,
         bw: bw,
         header: () => _halfHeader(
@@ -590,7 +604,7 @@ class CustomerLedgerPrintBuilder {
       build: (_) => [
         billTo(),
         pw.SizedBox(height: 8),
-        _printTable(t.headers, t.rows, t.totals, size, bw: bw),
+        _printTable(tableHeaders, tableRows, tableTotals, size, bw: bw),
       ],
     ));
   }
@@ -640,7 +654,7 @@ class CustomerLedgerPrintBuilder {
 
       if (isLast && tableRows.isNotEmpty) {
         final lastRow = tableRows.last;
-        final label = lastRow.length > 3 ? lastRow[3].toLowerCase() : '';
+        final label = lastRow.length > 6 ? lastRow[6].toLowerCase() : '';
         if (label.contains('closing balance')) {
           closingRow = lastRow;
           tableRows = tableRows.sublist(0, tableRows.length - 1);
@@ -870,18 +884,18 @@ class CustomerLedgerPrintBuilder {
   static List<String> _halfCleanRow(List<String> r) {
     final out = List<String>.from(r);
 
-    if (out.length > 3) {
-      out[3] = out[3]
+    if (out.length > 6) {
+      out[6] = out[6]
           .replaceAll(RegExp(r'remarks\s*:?\s*', caseSensitive: false), '')
           .replaceAll(RegExp(r'\s*[·•\-]\s*$'), '') // no dangling separator if remarks was empty
           .trim();
     }
 
-    if (out.length > 4) {
-      final raw = out[4].trim();
+    if (out.length > 7) {
+      final raw = out[7].trim();
       final v = double.tryParse(raw.replaceAll(',', ''));
       if (raw.isNotEmpty && v != null) {
-        out[4] = raw.contains(',')
+        out[7] = raw.contains(',')
             ? NumberFormat('#,##0.00').format(v)
             : v.toStringAsFixed(2);
       }
@@ -945,6 +959,9 @@ class CustomerLedgerPrintBuilder {
       pw.Alignment.centerLeft,
       pw.Alignment.centerLeft,
       pw.Alignment.centerLeft,
+      pw.Alignment.centerLeft,
+      pw.Alignment.centerLeft,
+      pw.Alignment.centerLeft,
       pw.Alignment.centerRight,
       pw.Alignment.centerRight,
       pw.Alignment.centerRight,
@@ -992,8 +1009,8 @@ class CustomerLedgerPrintBuilder {
           ],
         );
 
-    String product(List<String> r) => r.length > 3 ? r[3].trim().toLowerCase() : '';
-    String type(List<String> r) => r.length > 2 ? r[2].trim().toLowerCase() : '';
+    String product(List<String> r) => r.length > 6 ? r[6].trim().toLowerCase() : '';
+    String type(List<String> r) => r.length > 5 ? r[5].trim().toLowerCase() : '';
     bool isOpening(List<String> r) => product(r) == 'opening balance';
     bool isSummary(List<String> r) =>
         type(r) == 'summary' || product(r).startsWith('period summary');
@@ -1003,7 +1020,7 @@ class CustomerLedgerPrintBuilder {
       final r = _halfCleanRow(raw);
       // Summary & Closing rows: label stays bold, all numbers big + bold
       if (isSummary(r) || isClosing(r)) {
-        return row(r, (c) => c >= 4 ? bigStyle : boldStyle);
+        return row(r, (c) => c >= 7 ? bigStyle : boldStyle);
       }
       // Opening row: balance value big + bold
       if (isOpening(r)) {
@@ -1223,11 +1240,14 @@ class CustomerLedgerPrintBuilder {
         1: pw.Alignment.centerLeft,
         2: pw.Alignment.centerLeft,
         3: pw.Alignment.centerLeft,
-        4: pw.Alignment.centerRight,
-        5: pw.Alignment.centerRight,
-        6: pw.Alignment.centerRight,
+        4: pw.Alignment.centerLeft,
+        5: pw.Alignment.centerLeft,
+        6: pw.Alignment.centerLeft,
         7: pw.Alignment.centerRight,
         8: pw.Alignment.centerRight,
+        9: pw.Alignment.centerRight,
+        10: pw.Alignment.centerRight,
+        11: pw.Alignment.centerRight,
       },
       columnWidths: size.columnWidths,
     );

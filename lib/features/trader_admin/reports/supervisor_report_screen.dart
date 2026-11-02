@@ -94,6 +94,14 @@ class _S extends ConsumerState<SupervisorReportScreen> {
   // so they can never disagree on formatting or column order. ────────────
   List<String> get _headers => const ['Date', 'Time', 'Retailer', 'Amount', 'Mode', 'Remarks'];
 
+  // _tableRows with S.No first, for the on-screen table and CSV. The PDF uses
+  // _tableRows directly, since the shared PDF table adds S.No itself.
+  List<List<String>> get _serialRows {
+    final rows = _tableRows;
+    final serials = reportSerialNumbers(rows);
+    return [for (var i = 0; i < rows.length; i++) [serials[i], ...rows[i]]];
+  }
+
   List<List<String>> get _tableRows => _rows.map((r) {
     final date = DateTime.parse(r['entry_date'] as String);
     final createdAt = r['created_at'] != null ? DateTime.tryParse(r['created_at'] as String) : null;
@@ -146,8 +154,8 @@ class _S extends ConsumerState<SupervisorReportScreen> {
     if (mounted) setState(() => _busy = true);
     try {
       final buf = StringBuffer();
-      buf.writeln(_headers.map(_csvEscape).join(','));
-      for (final row in _tableRows) {
+      buf.writeln(['S.No', ..._headers].map(_csvEscape).join(','));
+      for (final row in _serialRows) {
         buf.writeln(row.map(_csvEscape).join(','));
       }
       final bytes = Uint8List.fromList(utf8.encode(buf.toString()));
@@ -276,8 +284,8 @@ class _S extends ConsumerState<SupervisorReportScreen> {
                   scrollDirection: Axis.horizontal,
                   child: DataTable(
                     headingRowColor: WidgetStateProperty.all(kBgPage),
-                    columns: _headers.map((h) => DataColumn(label: Text(h, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12)))).toList(),
-                    rows: _tableRows.map((r) => DataRow(cells: r.map((v) => DataCell(Text(v, style: const TextStyle(fontSize: 12)))).toList())).toList(),
+                    columns: ['S.No', ..._headers].map((h) => DataColumn(label: Text(h, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12)))).toList(),
+                    rows: _serialRows.map((r) => DataRow(cells: r.map((v) => DataCell(Text(v, style: const TextStyle(fontSize: 12)))).toList())).toList(),
                   ),
                 ),
             ]),

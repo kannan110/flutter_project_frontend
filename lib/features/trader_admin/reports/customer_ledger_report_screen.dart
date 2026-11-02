@@ -525,8 +525,8 @@ class _LedgerTable extends StatelessWidget {
   final double opening;
   final double closing;
 
-  static const _colWidths = <double>[64, 70, 60, 160, 60, 60, 95, 95, 105];
-  static const _headers = ['Date', 'Ref No', 'Type', 'Product / Description', 'Kg', 'Rate', 'Sale', 'Payment', 'Balance'];
+  static const _colWidths = <double>[64, 130, 90, 70, 60, 160, 60, 60, 95, 95, 105];
+  static const _headers = ['Date', 'Doc.No', 'Man.Doc.No', 'Ref No', 'Type', 'Product / Description', 'Kg', 'Rate', 'Sale', 'Payment', 'Balance'];
 
   TextStyle get _headStyle => const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: kTextMain);
   TextStyle get _cellStyle => const TextStyle(fontSize: 13, color: kTextMain);
@@ -541,7 +541,7 @@ class _LedgerTable extends StatelessWidget {
   Widget _cell(int i, Widget child) => Container(
     width: _colWidths[i],
     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
-    alignment: i >= 4 ? Alignment.centerRight : Alignment.centerLeft,
+    alignment: i >= 6 ? Alignment.centerRight : Alignment.centerLeft,
     child: child,
   );
 
@@ -568,6 +568,8 @@ class _LedgerTable extends StatelessWidget {
         for (final r in rows)
           _plainLine(
             date: r.date == null ? '' : _fmtDate(r.date),
+            docNo: r.docNo ?? '',
+            manualDocNo: r.manualDocNo ?? '',
             ref: r.refNo ?? '',
             type: r.type ?? '',
             desc: r.description,
@@ -584,6 +586,8 @@ class _LedgerTable extends StatelessWidget {
 
   Widget _plainLine({
     required String date,
+    String docNo = '',
+    String manualDocNo = '',
     required String ref,
     required String type,
     required String desc,
@@ -605,14 +609,16 @@ class _LedgerTable extends StatelessWidget {
       ),
       child: Row(children: [
         _cell(0, Text(date, style: _cellSubStyle)),
-        _cell(1, Text(ref, style: _cellSubStyle)),
-        _cell(2, Text(type, style: _cellSubStyle)),
-        _cell(3, Text(desc, style: style, overflow: TextOverflow.ellipsis, maxLines: 1)),
-        _cell(4, Text(kg == null ? '' : kg.toStringAsFixed(2), style: _cellStyle)),
-        _cell(5, Text(rate == null ? '' : rate.toStringAsFixed(0), style: _cellStyle)),
-        _cell(6, Text(sale == null ? '' : Fmt.plainAmount(sale), style: _cellStyle)),
-        _cell(7, Text(payment == null ? '' : Fmt.plainAmount(payment), style: _cellStyle)),
-        _cell(8, Text(Fmt.plainAmount(balance), style: style)),
+        _cell(1, Text(docNo, style: _cellSubStyle)),
+        _cell(2, Text(manualDocNo, style: _cellSubStyle)),
+        _cell(3, Text(ref, style: _cellSubStyle)),
+        _cell(4, Text(type, style: _cellSubStyle)),
+        _cell(5, Text(desc, style: style, overflow: TextOverflow.ellipsis, maxLines: 1)),
+        _cell(6, Text(kg == null ? '' : kg.toStringAsFixed(2), style: _cellStyle)),
+        _cell(7, Text(rate == null ? '' : rate.toStringAsFixed(0), style: _cellStyle)),
+        _cell(8, Text(sale == null ? '' : Fmt.plainAmount(sale), style: _cellStyle)),
+        _cell(9, Text(payment == null ? '' : Fmt.plainAmount(payment), style: _cellStyle)),
+        _cell(10, Text(Fmt.plainAmount(balance), style: style)),
       ]),
     );
   }

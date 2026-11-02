@@ -514,7 +514,8 @@ class _S extends ConsumerState<ApprovalsScreen> {
         padding:          const EdgeInsets.fromLTRB(16, 16, 16, kBottomNavClearance),
         itemCount:        _filtered.length,
         separatorBuilder: (_, __) => const SizedBox(height: 10),
-        itemBuilder:      (_, i)  => _ApprovalCard(item: _filtered[i]),
+        itemBuilder:      (_, i)  => SerialNumbered(
+            serial: i + 1, child: _ApprovalCard(item: _filtered[i])),
       ),
     );
   }

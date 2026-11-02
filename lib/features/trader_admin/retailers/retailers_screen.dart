@@ -306,7 +306,8 @@ class _S extends ConsumerState<RetailersScreen> {
         padding: const EdgeInsets.fromLTRB(16, 4, 16, 100),
         itemCount: _filtered.length,
         separatorBuilder: (_, __) => const SizedBox(height: 8),
-        itemBuilder: (_, i) => _RetailerCard(retailer: _filtered[i]),
+        itemBuilder: (_, i) => SerialNumbered(
+            serial: i + 1, child: _RetailerCard(retailer: _filtered[i])),
       ),
     );
   }

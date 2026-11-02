@@ -387,11 +387,13 @@ class ReportCardList extends StatelessWidget {
     final heroCol = dataSet.highlightColumns.isNotEmpty
         ? dataSet.highlightColumns.first
         : (dataSet.headers.length > 1 ? 1 : null);
+    final serials = dataSet.serialNumbers;
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 14),
       child: Column(children: [
-        ...dataSet.rows.map((row) {
+        ...dataSet.rows.asMap().entries.map((entry) {
+          final row = entry.value;
           final title = row.isNotEmpty ? row.first : '';
           final dateMatch = _dateLikeRe.firstMatch(title);
 
@@ -408,6 +410,9 @@ class ReportCardList extends StatelessWidget {
 
           // Every remaining column -- nothing curated out, nothing hidden.
           final gridItems = <MapEntry<String, String>>[];
+          if (serials[entry.key].isNotEmpty) {
+            gridItems.add(MapEntry('S.No', serials[entry.key]));
+          }
           for (var i = 1; i < row.length; i++) {
             if (i == heroCol) continue;
             if (row[i].isEmpty) continue;
@@ -604,6 +609,7 @@ class _ReportTableState extends State<ReportTable> {
   130; // Revenue/Collected/Pending-style columns
   static const double _charWidth = 7.4;
   static const double _cellPadding = 14;
+  static const double _serialColWidth = 64;
 
   @override
   void dispose() {
@@ -656,7 +662,7 @@ class _ReportTableState extends State<ReportTable> {
         final isDesktop = constraints.maxWidth >= _desktopBreakpoint;
         final minColWidth = isMobile ? _minColWidthMobile : _minColWidthTablet;
         final widths = _colWidths(ds, minColWidth);
-        final naturalWidth = _tableWidthOf(widths);
+        final naturalWidth = _tableWidthOf(widths) + _serialColWidth;
 
         // Desktop fill mode only when the content genuinely fits -- never
         // force-fit a wide table into a narrow desktop window.
@@ -683,6 +689,7 @@ class _ReportTableState extends State<ReportTable> {
 
   Widget _buildGrid(ReportDataSet ds, List<double> widths,
       {required bool useFlex, required double totalWidth}) {
+    final serials = ds.serialNumbers;
     return Column(children: [
       // -- Sticky header --
       Container(
@@ -693,6 +700,7 @@ class _ReportTableState extends State<ReportTable> {
           borderRadius: BorderRadius.vertical(top: Radius.circular(6)),
         ),
         child: Row(children: [
+          _wrapCell(-1, _serialColWidth, useFlex, _serialHeaderCell()),
           for (var c = 0; c < ds.headers.length; c++)
             _wrapCell(c, widths[c], useFlex, _headerCellContent(c, ds)),
         ]),
@@ -705,7 +713,7 @@ class _ReportTableState extends State<ReportTable> {
           physics: const ClampingScrollPhysics(),
           itemCount: ds.rows.length,
           itemBuilder: (ctx, i) =>
-              _dataRow(ds.rows[i], i, widths, ds, useFlex, totalWidth),
+              _dataRow(ds.rows[i], i, serials[i], widths, ds, useFlex, totalWidth),
         ),
       ),
       // -- Sticky totals footer --
@@ -723,6 +731,33 @@ class _ReportTableState extends State<ReportTable> {
     }
     return SizedBox(width: width, child: content);
   }
+
+  // S.No isn't one of ds.headers, so it's never sortable and no column index
+  // (highlight, warn, sort) shifts because of it.
+  Widget _serialHeaderCell() => Container(
+    height: widget.headerHeight,
+    padding: const EdgeInsets.symmetric(horizontal: _cellPadding),
+    decoration: const BoxDecoration(
+        border: Border(right: BorderSide(color: Color(0x22FFFFFF), width: 1))),
+    alignment: Alignment.centerLeft,
+    child: const Text('S.No',
+        maxLines: 1,
+        overflow: TextOverflow.clip,
+        style: TextStyle(
+            fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFFB4C6F4))),
+  );
+
+  Widget _serialDataCell(String value) => Container(
+    alignment: Alignment.centerLeft,
+    padding: const EdgeInsets.symmetric(horizontal: _cellPadding),
+    decoration: const BoxDecoration(
+        border: Border(right: BorderSide(color: kBorderLight, width: 0.5))),
+    child: Text(value,
+        maxLines: 1,
+        overflow: TextOverflow.clip,
+        style: const TextStyle(
+            fontSize: 13, fontWeight: FontWeight.w500, color: kTextSub)),
+  );
 
   Widget _headerCellContent(int c, ReportDataSet ds) {
     final isSorted = widget.sortColumn == c;
@@ -781,7 +816,7 @@ class _ReportTableState extends State<ReportTable> {
     );
   }
 
-  Widget _dataRow(List<String> row, int index, List<double> widths,
+  Widget _dataRow(List<String> row, int index, String serial, List<double> widths,
       ReportDataSet ds, bool useFlex, double totalWidth) {
     final isHovered = _hoveredRow == index;
     return MouseRegion(
@@ -794,6 +829,7 @@ class _ReportTableState extends State<ReportTable> {
             ? const Color(0xFF1565C0).withValues(alpha: 0.06)
             : (index.isOdd ? kBgGrey.withValues(alpha: 0.4) : Colors.white),
         child: Row(children: [
+          _wrapCell(-1, _serialColWidth, useFlex, _serialDataCell(serial)),
           for (var c = 0; c < row.length; c++)
             _wrapCell(c, widths[c], useFlex,
                 _dataCellContent(row[c], c, ds, isLast: c == row.length - 1)),
@@ -838,6 +874,7 @@ class _ReportTableState extends State<ReportTable> {
         border: Border(top: BorderSide(color: kNavy, width: 1.5)),
       ),
       child: Row(children: [
+        _wrapCell(-1, _serialColWidth, useFlex, _serialDataCell('')),
         for (var c = 0; c < totals.length; c++)
           _wrapCell(
               c,

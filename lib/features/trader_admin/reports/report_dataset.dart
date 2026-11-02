@@ -57,6 +57,26 @@ class ReportSummaryItem {
   const ReportSummaryItem(this.label, this.value);
 }
 
+/// S.No for each row, in display order, as strings. Opening Balance / Period
+/// Summary / Closing Balance rows stay blank and aren't counted. With
+/// [skipBlankFirstCell], so do rows with an empty first cell (the 2nd+
+/// product lines of one Customer Ledger sale share its number).
+List<String> reportSerialNumbers(List<List<String>> rows, {bool skipBlankFirstCell = false}) {
+  var n = 0;
+  return [
+    for (final row in rows)
+      () {
+        final joined = row.join(' ').toLowerCase();
+        final isBalanceRow = joined.contains('opening balance') ||
+            joined.contains('period summary') ||
+            joined.contains('closing balance');
+        final isContinuation =
+            skipBlankFirstCell && (row.isEmpty || row.first.trim().isEmpty);
+        return (isBalanceRow || isContinuation) ? '' : '${++n}';
+      }(),
+  ];
+}
+
 class ReportDataSet {
   /// Report title, e.g. "Daily Summary", "Agent Performance".
   final String title;
@@ -159,6 +179,11 @@ class ReportDataSet {
   int get columnCount => headers.length;
   int get rowCount => rows.length;
   bool get isEmpty => rows.isEmpty;
+
+  /// S.No for each row — added at render time by Card View, Table View and
+  /// the PDF, so [headers], [rows] and every column index stay unchanged.
+  List<String> get serialNumbers => reportSerialNumbers(rows,
+      skipBlankFirstCell: customerLedgerData != null);
 
   /// Returns a copy with only the given fields overridden — used to apply
   /// the Print Style choice right before PDF generation without having to

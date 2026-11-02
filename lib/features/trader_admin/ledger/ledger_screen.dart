@@ -298,10 +298,13 @@ class _S extends ConsumerState<LedgerScreen> {
         padding:          const EdgeInsets.fromLTRB(16, 8, 16, kBottomNavClearance),
         itemCount:        rows.length,
         separatorBuilder: (_, __) => const SizedBox(height: 8),
-        itemBuilder:      (_, i)  => _LedgerCard(
-          item:       rows[i],
-          riskColor:  _riskColor(rows[i]['risk_status'] as String?),
-          riskLabel:  _riskLabel(rows[i]['risk_status'] as String?),
+        itemBuilder:      (_, i)  => SerialNumbered(
+          serial: i + 1,
+          child: _LedgerCard(
+            item:       rows[i],
+            riskColor:  _riskColor(rows[i]['risk_status'] as String?),
+            riskLabel:  _riskLabel(rows[i]['risk_status'] as String?),
+          ),
         ),
       ),
     );

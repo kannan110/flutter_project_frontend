@@ -294,7 +294,8 @@ class _S extends ConsumerState<InvoicesScreen> {
           padding:          const EdgeInsets.fromLTRB(14, 14, 14, kBottomNavClearance),
           itemCount:        _filtered.length,
           separatorBuilder: (_, __) => const SizedBox(height: 8),
-          itemBuilder:      (_, i)  => _InvoiceCard(invoice: _filtered[i]),
+          itemBuilder:      (_, i)  => SerialNumbered(
+              serial: i + 1, child: _InvoiceCard(invoice: _filtered[i])),
         ));
   }
 }

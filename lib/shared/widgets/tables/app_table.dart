@@ -20,6 +20,36 @@ class AppTableColumn<T> {
   final String?                 sortKey;
 }
 
+// ── SerialNumbered ─────────────────────────────────────────────────────────
+// Mobile list row: the S.No in a narrow gutter to the left of its card.
+class SerialNumbered extends StatelessWidget {
+  const SerialNumbered({super.key, required this.serial, required this.child});
+
+  final int    serial;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => Row(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      SizedBox(
+        width: 26,
+        child: Padding(
+          padding: const EdgeInsets.only(top: 14, right: 4),
+          child: FittedBox(
+            fit:       BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text('$serial',
+                style: const TextStyle(
+                    fontSize: 12, fontWeight: FontWeight.w700, color: kTextHint)),
+          ),
+        ),
+      ),
+      Expanded(child: child),
+    ],
+  );
+}
+
 // ── AppTable ───────────────────────────────────────────────────────────────
 class AppTable<T> extends StatelessWidget {
   const AppTable({
@@ -117,6 +147,8 @@ class _DesktopTable<T> extends StatelessWidget {
   final void Function(String)?  onSort;
   final BoxDecoration Function(T)? rowDecoration;
 
+  static const double _serialWidth = 56;
+
   @override
   Widget build(BuildContext context) {
     return Column(children: [
@@ -132,7 +164,21 @@ class _DesktopTable<T> extends StatelessWidget {
         ),
         padding: padding,
         child: Row(
-          children: columns.map((col) => _headerCell(col)).toList(),
+          children: [
+            const SizedBox(
+              width: _serialWidth,
+              child: Text(
+                'S.NO',
+                style: TextStyle(
+                  fontSize:      11,
+                  fontWeight:    FontWeight.w800,
+                  color:         kGoldLight,
+                  letterSpacing: 0.8,
+                ),
+              ),
+            ),
+            ...columns.map((col) => _headerCell(col)),
+          ],
         ),
       ),
 
@@ -153,6 +199,7 @@ class _DesktopTable<T> extends StatelessWidget {
               }
               return _TableRow<T>(
                 item:       rows[i],
+                serial:     i + 1,
                 columns:    columns,
                 height:     rowHeight,
                 padding:    padding,
@@ -217,6 +264,7 @@ class _DesktopTable<T> extends StatelessWidget {
 class _TableRow<T> extends StatefulWidget {
   const _TableRow({
     required this.item,
+    required this.serial,
     required this.columns,
     required this.height,
     required this.padding,
@@ -226,6 +274,7 @@ class _TableRow<T> extends StatefulWidget {
   });
 
   final T                       item;
+  final int                     serial;
   final List<AppTableColumn<T>> columns;
   final double                  height;
   final EdgeInsets              padding;
@@ -265,19 +314,26 @@ class _TableRowState<T> extends State<_TableRow<T>> {
           padding:    widget.padding,
           decoration: widget.decoration ?? defaultDeco,
           child: Row(
-            children: widget.columns.map((col) {
-              final cell = col.cellBuilder(widget.item);
-              if (col.width != null) {
-                return SizedBox(
-                  width: col.width,
+            children: [
+              SizedBox(
+                width: _DesktopTable._serialWidth,
+                child: Text('${widget.serial}',
+                    style: const TextStyle(fontSize: 13, color: kTextHint)),
+              ),
+              ...widget.columns.map((col) {
+                final cell = col.cellBuilder(widget.item);
+                if (col.width != null) {
+                  return SizedBox(
+                    width: col.width,
+                    child: Align(alignment: col.alignment, child: cell),
+                  );
+                }
+                return Expanded(
+                  flex:  col.flex,
                   child: Align(alignment: col.alignment, child: cell),
                 );
-              }
-              return Expanded(
-                flex:  col.flex,
-                child: Align(alignment: col.alignment, child: cell),
-              );
-            }).toList(),
+              }),
+            ],
           ),
         ),
       ),
@@ -310,7 +366,7 @@ class _MobileList<T> extends StatelessWidget {
       separatorBuilder: (_, __) => const SizedBox(height: 8),
       itemBuilder: (_, i) {
         if (footerWidget != null && i == rows.length) return footerWidget!;
-        return cardBuilder(rows[i]);
+        return SerialNumbered(serial: i + 1, child: cardBuilder(rows[i]));
       },
     );
   }

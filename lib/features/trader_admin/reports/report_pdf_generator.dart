@@ -336,6 +336,7 @@ class ReportPdfGenerator {
               bold: dataSet.highlightColumns,
               columnFlex: dataSet.columnFlex,
               style: dataSet.printStyle,
+              skipBlankFirstCellSerial: dataSet.customerLedgerData != null,
             ),
                       if (sheet != null) _sheetTotals(sheet, bw: bw),
         ]));
@@ -593,7 +594,8 @@ class ReportPdfGenerator {
       headers: t.headers,
       rows: t.rows,
       totals: t.totals,
-      highlightColumns: const [8],
+      highlightColumns: const [CustomerLedgerTableData.balanceColumn],
+      columnFlex: CustomerLedgerTableData.pdfColumnFlex,
       fromDate: fromDate,
       toDate: toDate,
       customerIdentity: CustomerReportIdentity(
@@ -785,8 +787,35 @@ class ReportPdfGenerator {
       child: pw.Text(t, style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold,
           color: _subText)));
 
-  // Data table
+  // Data table. Adds the S.No column here, so every report's PDF gets it and
+  // no caller's column indexes change.
   static pw.Widget _table({
+    required List<String> headers,
+    required List<List<String>> rows,
+    List<String>? totals,
+    List<int> bold = const [],
+    List<double>? columnFlex,
+    ReportPrintStyle style = ReportPrintStyle.color,
+    bool skipBlankFirstCellSerial = false,
+  }) {
+    final serials = reportSerialNumbers(rows, skipBlankFirstCell: skipBlankFirstCellSerial);
+    return _tableWithSerial(
+      headers: ['S.No', ...headers],
+      rows: [
+        for (var i = 0; i < rows.length; i++) [serials[i], ...rows[i]],
+      ],
+      totals: totals == null ? null : ['', ...totals],
+      bold: [for (final c in bold) c + 1],
+      columnFlex: columnFlex,
+      style: style,
+    );
+  }
+
+  static const double _serialColWidth = 32;
+
+  // [headers]/[rows]/[totals]/[bold] already include S.No at column 0;
+  // [columnFlex] doesn't (it stays one weight per original header).
+  static pw.Widget _tableWithSerial({
     required List<String> headers,
     required List<List<String>> rows,
     List<String>? totals,
@@ -803,16 +832,16 @@ class ReportPdfGenerator {
   }) {
     final bw = style == ReportPrintStyle.blackAndWhite;
 
-    final colWidths = <int, pw.TableColumnWidth>{};
-    for (var i = 0; i < headers.length; i++) {
-      colWidths[i] = (columnFlex != null && i < columnFlex.length)
-          ? pw.FlexColumnWidth(columnFlex[i])
+    final colWidths = <int, pw.TableColumnWidth>{0: const pw.FixedColumnWidth(_serialColWidth)};
+    for (var i = 1; i < headers.length; i++) {
+      colWidths[i] = (columnFlex != null && i - 1 < columnFlex.length)
+          ? pw.FlexColumnWidth(columnFlex[i - 1])
           : const pw.FlexColumnWidth();
     }
     // ★ Many-column tables (Inventory Ledger, Daily Closing) need a
     // smaller font to fit readable words per cell even in landscape —
     // reports with a normal column count (<=8) are completely unaffected.
-    final isWide = headers.length > 8;
+    final isWide = headers.length - 1 > 8; // S.No doesn't count
     final headFs = isWide ? 7.0 : 8.0;
     final bodyFs = isWide ? 7.5 : 9.0;
     final cellPad = isWide ? 4.0 : 6.0;

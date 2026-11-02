@@ -1446,7 +1446,7 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
           t.headers,
           t.rows,
           tots: t.totals,
-          hi: const [8],
+          hi: const [CustomerLedgerTableData.balanceColumn],
           customerIdentity: CustomerReportIdentity(
             customerName: header['retailer_name'] as String? ?? 'Customer',
             area: header['retailer_area'] as String?,

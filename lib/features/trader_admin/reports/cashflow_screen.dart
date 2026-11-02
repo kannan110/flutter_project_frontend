@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/providers/session_provider.dart';
 import '../../../core/theme/app_theme.dart';
+import 'report_dataset.dart' show reportSerialNumbers;
 import 'report_pdf_generator.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -329,7 +330,9 @@ class _CashFlowScreenState extends ConsumerState<CashFlowScreen> {
       child:
       Text(t, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: kNavy, letterSpacing: 0.6)));
 
-  Widget _tbl(List<String> heads, List<List<String>> rows, {List<int> hi = const []}) => Container(
+  Widget _tbl(List<String> heads, List<List<String>> rows, {List<int> hi = const []}) {
+    final serials = reportSerialNumbers(rows);
+    return Container(
       margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
       decoration: BoxDecoration(
           color: kSurface,
@@ -344,29 +347,37 @@ class _CashFlowScreenState extends ConsumerState<CashFlowScreen> {
               dataRowMinHeight: 38,
               dataRowMaxHeight: 44,
               headingRowColor: WidgetStateProperty.all(kNavy),
-              columns: heads
-                  .asMap()
-                  .entries
-                  .map((e) => DataColumn(
-                  label: Text(e.value,
-                      style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w800,
-                          color: hi.contains(e.key) ? kGoldLight : const Color(0xFFB4C6F4)))))
-                  .toList(),
+              columns: [
+                const DataColumn(
+                    label: Text('S.No',
+                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Color(0xFFB4C6F4)))),
+                ...heads
+                    .asMap()
+                    .entries
+                    .map((e) => DataColumn(
+                    label: Text(e.value,
+                        style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                            color: hi.contains(e.key) ? kGoldLight : const Color(0xFFB4C6F4))))),
+              ],
               rows: rows
                   .asMap()
                   .entries
                   .map((re) => DataRow(
                   color: WidgetStateProperty.resolveWith((s) => re.key.isOdd ? Colors.grey.shade50 : Colors.white),
-                  cells: re.value
-                      .asMap()
-                      .entries
-                      .map((ce) => DataCell(Text(ce.value,
-                      style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: hi.contains(ce.key) ? FontWeight.w800 : FontWeight.w500,
-                          color: hi.contains(ce.key) ? kNavy : kTextMain))))
-                      .toList()))
+                  cells: [
+                    DataCell(Text(serials[re.key],
+                        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: kTextSub))),
+                    ...re.value
+                        .asMap()
+                        .entries
+                        .map((ce) => DataCell(Text(ce.value,
+                        style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: hi.contains(ce.key) ? FontWeight.w800 : FontWeight.w500,
+                            color: hi.contains(ce.key) ? kNavy : kTextMain)))),
+                  ]))
                   .toList())));
+  }
 }

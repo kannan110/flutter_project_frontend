@@ -24,6 +24,8 @@ import '../../../../core/theme/app_theme.dart';
 class LedgerPrintRow {
   const LedgerPrintRow({
     this.date,
+    this.docNo,
+    this.manualDocNo,
     this.refNo,
     this.type,
     required this.description,
@@ -37,6 +39,12 @@ class LedgerPrintRow {
   /// Null on continuation lines (2nd+ product of the same invoice) — the
   /// caller must not repeat Date/Ref No/Type in that case.
   final String? date;
+
+  /// The sale's Quick Entry numbers (orders.doc_no / manual_doc_no). Only
+  /// set on Sale lines — blank for orders that have none.
+  final String? docNo;
+  final String? manualDocNo;
+
   final String? refNo;
   final String? type;
 
@@ -98,6 +106,8 @@ class CustomerLedgerRowBuilder {
       final refNumber = r['ref_number'] as String?;
       final entryDateStr = r['entry_date'] as String?;
       final description = (r['description'] as String? ?? '').trim();
+      final docNo = r['doc_no'] as String?;
+      final manualDocNo = r['manual_doc_no'] as String?;
       // ★ Order Remarks — appended to the first (or only) printed line for
       // this raw row, so it shows once per order/invoice, not repeated on
       // every product line of a multi-product invoice.
@@ -124,6 +134,8 @@ class CustomerLedgerRowBuilder {
           final hasWeight = weightKg != null && weightKg > 0;
           out.add(LedgerPrintRow(
             date: i == 0 ? entryDateStr : null,
+            docNo: i == 0 ? docNo : null,
+            manualDocNo: i == 0 ? manualDocNo : null,
             refNo: i == 0 ? refNumber : null,
             type: i == 0 ? typeLabel(sourceType) : null,
             description: i == 0 ? withRemarks((line['product_name'] as String?) ?? '—') : (line['product_name'] as String?) ?? '—',
@@ -144,6 +156,8 @@ class CustomerLedgerRowBuilder {
         final weightKg = _numOrNull(r['weight_kg']);
         out.add(LedgerPrintRow(
           date: entryDateStr,
+          docNo: docNo,
+          manualDocNo: manualDocNo,
           refNo: refNumber,
           type: typeLabel(sourceType),
           description: withRemarks(description.isEmpty ? 'Sale' : description),
@@ -230,7 +244,15 @@ class CustomerLedgerTableData {
   final List<String> totals;
 
   static const List<String> _headers = [
-    'Date', 'Ref No', 'Type', 'Product / Description', 'Kg', 'Rate', 'Sale', 'Payment', 'Balance'
+    'Date', 'Doc.No', 'Man.Doc.No', 'Ref No', 'Type', 'Product / Description', 'Kg', 'Rate', 'Sale', 'Payment', 'Balance'
+  ];
+
+  static const int balanceColumn = 10;
+
+  /// PDF width weights, one per header, so 11 columns fit on portrait A4
+  /// with Description still the widest.
+  static const List<double> pdfColumnFlex = [
+    0.9, 1.5, 1.1, 1.4, 0.8, 2.0, 0.8, 0.7, 1.1, 1.1, 1.2
   ];
 
   static String _fmtDate(String? iso) {
@@ -260,10 +282,12 @@ class CustomerLedgerTableData {
     final totalPayment = (summary['total_collections'] as num?)?.toDouble() ?? 0;
 
     final rows = <List<String>>[
-      ['', 'OPEN', 'Opening', 'Opening Balance', '', '', '', '', Fmt.amount(opening)],
+      ['', '', '', 'OPEN', 'Opening', 'Opening Balance', '', '', '', '', Fmt.amount(opening)],
       for (final r in printRows)
         [
           r.date == null ? '' : _fmtDate(r.date),
+          r.docNo ?? '',
+          r.manualDocNo ?? '',
           r.refNo ?? '',
           r.type ?? '',
           r.description,
@@ -278,14 +302,14 @@ class CustomerLedgerTableData {
       // Customer Ledger ever rendered), so it's folded into the
       // Description cell alongside the "Period Summary" label instead.
       [
-        '', '', 'Summary',
+        '', '', '', '', 'Summary',
         'Period Summary  ·  Total Birds: $totalBirds',
         _fmtNum(totalKg), '',
         Fmt.amount(totalSales), Fmt.amount(totalPayment), '',
       ],
     ];
 
-    final totals = ['', '', '', 'Closing Balance', '', '', '', '', Fmt.amount(closing)];
+    final totals = ['', '', '', '', '', 'Closing Balance', '', '', '', '', Fmt.amount(closing)];
 
     return CustomerLedgerTableData(headers: _headers, rows: rows, totals: totals);
   }
