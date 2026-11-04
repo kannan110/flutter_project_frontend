@@ -172,7 +172,9 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
     // Retailer Purchase sales-sheet: DC-loaded kg (Purchased KGS) for the current
   // dates + agent, from the shrinkage report. null = not available.
   double? _rpPurchasedKg;
-
+  // Collection report: payment mode(s) per party for the selected dates,
+  // keyed by retailer id AND shop name. Frontend-only lookup.
+  Map<String, String> _collModes = const {};
   static const _kLedgerMovementTypes = [
     'returned_in','shift_close_return','transferred_out','theft',
     'mortality_house','weight_loss','physical_count_increase',
@@ -328,7 +330,10 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
       final res = await _c.rpc(rpcName, params: p)
           .timeout(const Duration(seconds: 20));
       final purchased = _sel.key == 'retailer_purchase' ? await _fetchPurchasedKg(tid) : null;
-      if (mounted) setState(() { _data = res as Map<String,dynamic>?; _rpPurchasedKg = purchased; });
+      final collModes = _sel.key == 'collection'
+          ? await _fetchCollectionModes(tid, res as Map<String, dynamic>?)
+          : const <String, String>{};
+      if (mounted) setState(() { _data = res as Map<String,dynamic>?; _rpPurchasedKg = purchased; _collModes = collModes; });
     } catch (e) {
       if (mounted) setState(() => _error = e.toString().replaceAll('Exception:','').trim());
     } finally {
@@ -1239,15 +1244,145 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
   // ═══════════════════════════════════════════════════════════════════════════
   // 9. COLLECTION
   // ═══════════════════════════════════════════════════════════════════════════
+  // Widget _rCollection() {
+  //   final s = _s(); final ret = _rows('retailers'); final day = _rows('daily');
+  //   final bil=_d(s,'total_billed'); final col=_d(s,'total_collected'); final pen=_d(s,'total_pending');
+  //   return _scroll([
+  //     _kpiGrid([
+  //       _kpi('Billed',      Fmt.amount(bil),                                   Colors.blue,   Icons.receipt_outlined),
+  //       _kpi('Collected',   Fmt.amount(col),                                   Colors.green,  Icons.check_circle_outline),
+  //       _kpi('Pending',     Fmt.amount(pen),                                   Colors.orange, Icons.pending_outlined),
+  //       _kpi('Outstanding', Fmt.amount(_d(s,'total_outstanding')),             Colors.red,    Icons.warning_amber_outlined),
+  //     ]),
+  //     Container(margin: const EdgeInsets.fromLTRB(12,0,12,8),
+  //         padding: const EdgeInsets.all(14),
+  //         decoration: BoxDecoration(color: kSurface, borderRadius: BorderRadius.circular(kRadiusCard), border: Border.all(color: kBorderLight), boxShadow: kCardShadow),
+  //         child: Row(children: [
+  //           _st('Cash', Fmt.amount(_d(s,'cash'))), _st('UPI', Fmt.amount(_d(s,'upi'))),
+  //           _st('Bank', Fmt.amount(_d(s,'bank'))), _st('Credit', Fmt.amount(_d(s,'credit'))),
+  //         ])),
+  //     if (ret.isNotEmpty) ...[
+  //       _sec('BY RETAILER'),
+  //       _tbl(['Shop','Orders','Billed','Collected','Outstanding'],
+  //           ret.map((r)=>[_sh(_str(r,'shop_name'),14),'${_i(r,"orders")}',
+  //             Fmt.amount(_d(r,'billed')),Fmt.amount(_d(r,'collected')),Fmt.amount(_d(r,'outstanding'))]).toList(),
+  //           hi:[4]),
+  //     ],
+  //     _sec('DAILY COLLECTION'),
+  //     _tbl(['Date','Billed','Collected','Pending'],
+  //         day.map((d)=>[_fd(d['dt']),Fmt.amount(_d(d,'billed')),Fmt.amount(_d(d,'collected')),Fmt.amount(_d(d,'pending'))]).toList(),
+  //         tots:['TOTAL',Fmt.amount(bil),Fmt.amount(col),Fmt.amount(pen)], hi:[1,2,3]),
+  //   ]);
+  // }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+  // 9. COLLECTION
+  // Only parties with a cash-collection entry in the selected dates.
+  // Old Balance = balance before this collection = Current Balance + Collected.
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /// Payment mode per party, read from the Customer Ledger itself.
+  /// For every party that has a collection in the selected dates, fetch
+  /// get_retailer_statement (same RPC Customer Ledger uses) for the SAME
+  /// dates and pick up "Payment via Cash / Bank / UPI" from the ledger's
+  /// Product / Description column. Keyed by retailer id AND shop name.
+    /// Payment mode per party, read from the Customer Ledger itself
+  /// (get_retailer_statement for the SAME dates). Keyed by retailer id AND shop name.
+  Future<Map<String, String>> _fetchCollectionModes(String tid, Map<String, dynamic>? report) async {
+    final parties = List<Map<String, dynamic>>.from(report?['retailers'] as List? ?? [])
+        .where((r) => _d(r, 'collected') > 0)
+        .toList();
+    if (parties.isEmpty) return const {};
+
+    // _retailers may not have loaded yet on first open — fetch it here if so.
+    var lookup = _retailers;
+    if (lookup.isEmpty) {
+      try {
+        final rt = await _c.from('retailers').select('id,shop_name').eq('trader_id', tid).limit(5000);
+        lookup = List<Map<String, dynamic>>.from(rt as List? ?? []);
+      } catch (_) {}
+    }
+    final idByShop = <String, String>{
+      for (final r in lookup)
+        (r['shop_name'] as String? ?? '').trim().toLowerCase(): r['id'] as String,
+    };
+
+    final fmt = DateFormat('yyyy-MM-dd');
+    final out = <String, String>{};
+
+    Future<void> one(Map<String, dynamic> p) async {
+      final shop = (p['shop_name'] as String? ?? '');
+      final id = (p['retailer_id'] ?? p['id'])?.toString() ?? idByShop[shop.trim().toLowerCase()];
+      if (id == null) return;
+      try {
+        final res = await _c.rpc('get_retailer_statement', params: {
+          'p_retailer_id': id,
+          'p_from_date':   fmt.format(_from),
+          'p_to_date':     fmt.format(_to),
+        }).timeout(const Duration(seconds: 20));
+        final data = (res as Map?)?.cast<String, dynamic>();
+        if (data == null) return;
+        final modes = _paymentModesFromLedger(data);
+        if (modes.isEmpty) return;
+        final label = modes.join(' / ');
+        out[id] = label;
+        if (shop.isNotEmpty) { out[shop] = label; out[shop.trim()] = label; }
+      } catch (_) {
+        // this party just shows without the (mode) bracket
+      }
+    }
+
+    for (var i = 0; i < parties.length; i += 8) {
+      await Future.wait(parties.skip(i).take(8).map(one));
+    }
+    return out;
+  }
+
+  /// Finds "Payment via Cash / Bank / UPI" anywhere in the ledger:
+  ///  1) raw statement rows — any *mode*/*method* field on a payment (credit)
+  ///     row, plus any text field containing "via <mode>"
+  ///  2) every cell of the built Customer Ledger table (Product / Description)
+   /// Reads the payment mode from the SAME rows the Customer Ledger screen
+  /// shows (CustomerLedgerRowBuilder.build → LedgerPrintRow). For every
+  /// payment row (paymentAmt > 0) the "Product / Description" text, e.g.
+  /// "Payment via Cash", gives the mode.
+  Set<String> _paymentModesFromLedger(Map<String, dynamic> data) {
+    final modes = <String>{};
+    final viaRe = RegExp(r'\bvia\s*[:\-]?\s*([A-Za-z]+)', caseSensitive: false);
+    final kwRe  = RegExp(r'\b(cash|upi|gpay|phonepe|paytm|bank|neft|rtgs|imps|cheque)\b',
+        caseSensitive: false);
+
+    void add(String? raw) {
+      final l = ReportPdfGenerator.paymentModeLabel(raw);
+      if (l != null) modes.add(l);
+    }
+
+    for (final r in CustomerLedgerRowBuilder.build(data)) {
+      final isPayment = (r.paymentAmt ?? 0) > 0 ||
+          (r.type ?? '').toLowerCase().contains('pay');
+      if (!isPayment) continue;
+
+      final text = '${r.description} ${r.type ?? ''}';
+      final via = viaRe.allMatches(text).toList();
+      if (via.isNotEmpty) {
+        for (final m in via) { add(m.group(1)); }
+      } else {
+        for (final m in kwRe.allMatches(text)) { add(m.group(1)); }
+      }
+    }
+    return modes;
+  }
+
   Widget _rCollection() {
-    final s = _s(); final ret = _rows('retailers'); final day = _rows('daily');
+    final s = _s(); final day = _rows('daily');
     final bil=_d(s,'total_billed'); final col=_d(s,'total_collected'); final pen=_d(s,'total_pending');
-    return _scroll([
+    final t = ReportPdfGenerator.collectionPartyTable(_rows('retailers'), _collModes);
+
+    final cardView = _scroll([
       _kpiGrid([
-        _kpi('Billed',      Fmt.amount(bil),                                   Colors.blue,   Icons.receipt_outlined),
-        _kpi('Collected',   Fmt.amount(col),                                   Colors.green,  Icons.check_circle_outline),
-        _kpi('Pending',     Fmt.amount(pen),                                   Colors.orange, Icons.pending_outlined),
-        _kpi('Outstanding', Fmt.amount(_d(s,'total_outstanding')),             Colors.red,    Icons.warning_amber_outlined),
+        _kpi('Old Balance',     Fmt.amount(t.oldTotal),       Colors.blueGrey, Icons.history_outlined),
+        _kpi('Collected',       Fmt.amount(t.collectedTotal), Colors.green,    Icons.check_circle_outline),
+        _kpi('Current Balance', Fmt.amount(t.balanceTotal),   Colors.red,      Icons.account_balance_wallet_outlined),
       ]),
       Container(margin: const EdgeInsets.fromLTRB(12,0,12,8),
           padding: const EdgeInsets.all(14),
@@ -1256,19 +1391,99 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
             _st('Cash', Fmt.amount(_d(s,'cash'))), _st('UPI', Fmt.amount(_d(s,'upi'))),
             _st('Bank', Fmt.amount(_d(s,'bank'))), _st('Credit', Fmt.amount(_d(s,'credit'))),
           ])),
-      if (ret.isNotEmpty) ...[
-        _sec('BY RETAILER'),
-        _tbl(['Shop','Orders','Billed','Collected','Outstanding'],
-            ret.map((r)=>[_sh(_str(r,'shop_name'),14),'${_i(r,"orders")}',
-              Fmt.amount(_d(r,'billed')),Fmt.amount(_d(r,'collected')),Fmt.amount(_d(r,'outstanding'))]).toList(),
-            hi:[4]),
+      _sec('COLLECTION BY PARTY'),
+      if (t.rows.isEmpty)
+        const Padding(padding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            child: Text('No cash collection entries for the selected dates.',
+                style: TextStyle(color: kTextHint, fontSize: 13)))
+      else ...[
+        ...t.rows.map((r) => _collCard(r)),
+        _collCard(t.totals, total: true),
       ],
       _sec('DAILY COLLECTION'),
       _tbl(['Date','Billed','Collected','Pending'],
           day.map((d)=>[_fd(d['dt']),Fmt.amount(_d(d,'billed')),Fmt.amount(_d(d,'collected')),Fmt.amount(_d(d,'pending'))]).toList(),
           tots:['TOTAL',Fmt.amount(bil),Fmt.amount(col),Fmt.amount(pen)], hi:[1,2,3]),
     ]);
+
+    // Table view + the Card/Table bar's PDF / Print / Share use this.
+    final ds = ReportDataSet(title: _sel.label, headers: t.headers, rows: t.rows,
+        totals: t.totals, fromDate: _from, toDate: _to, highlightColumns: const [2]);
+    return _bespokeReport(cardView, ds);
   }
+
+  /// One party card: Shop name, then Old Balance | Collected (mode) | Current Balance.
+  /// [r] = [shop, old, collected (mode), current] — same row the PDF prints.
+  Widget _collCard(List<String> r, {bool total = false}) {
+    Widget cell(String label, String value, Color c) {
+      final i = value.indexOf(' (');
+      final amount = i < 0 ? value : value.substring(0, i);
+      final mode = i < 0 ? null : value.substring(i + 1); // "(Cash)"
+      return Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(label, style: const TextStyle(fontSize: 11, color: kTextSub)),
+        const SizedBox(height: 2),
+        FittedBox(fit: BoxFit.scaleDown, alignment: Alignment.centerLeft,
+            child: Text(amount, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: c))),
+        if (mode != null)
+          Text(mode, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: kTextSub)),
+      ]));
+    }
+    return Container(
+      margin: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: total ? kNavy.withValues(alpha: 0.05) : kSurface,
+        borderRadius: BorderRadius.circular(kRadiusCard),
+        border: Border.all(color: kBorderLight),
+        boxShadow: total ? null : kCardShadow,
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(r[0], style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: kNavy)),
+        const SizedBox(height: 10),
+        Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          cell('Old Balance',     r[1], kTextSub),
+          cell('Collected',       r[2], Colors.green.shade700),
+          cell('Current Balance', r[3], Colors.red.shade700),
+        ]),
+      ]),
+    );
+  }
+
+    /// Collection report: type-to-search Retailer filter.
+  /// Tap → search sheet; ✕ clears back to All Retailers.
+  Widget _collectionRetailerField() {
+    final name = _retailerId == null
+        ? null
+        : _retailers.firstWhere((r) => r['id'] == _retailerId, orElse: () => const {})['shop_name'] as String?;
+    return InkWell(
+      onTap: () async {
+        final picked = await showModalBottomSheet<String>(
+          context: context, isScrollControlled: true, useRootNavigator: true,
+          shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+          builder: (_) => _RetailerSearchSheet(retailers: _retailers, selectedId: _retailerId),
+        );
+        if (picked == null || !mounted) return;
+        setState(() => _retailerId = picked);
+        _load();
+      },
+      child: InputDecorator(
+        decoration: InputDecoration(
+          labelText: 'Retailer', isDense: true,
+          floatingLabelBehavior: FloatingLabelBehavior.always,
+          contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          suffixIcon: _retailerId == null
+              ? const Icon(Icons.search, size: 18)
+              : IconButton(
+                  icon: const Icon(Icons.close, size: 18),
+                  tooltip: 'All Retailers',
+                  onPressed: () { setState(() => _retailerId = null); _load(); },
+                ),
+        ),
+        child: Text(name ?? 'All Retailers', overflow: TextOverflow.ellipsis),
+      ),
+    );
+  }
+
   // ═══ RETAILER PURCHASE: sales-sheet pieces (agent, bold date, totals) ═══
   String get _selectedAgentName {
     if (_agentId == null) return 'All Agents';
@@ -1681,6 +1896,17 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
         );
         return;
       }
+            if (_sel.key == 'collection') {
+        await ReportPdfGenerator.generateAndShow(
+          context:     context,
+          reportData:  {..._data!, 'coll_modes': _collModes},
+          reportLabel: _sel.label,
+          companyName: company,
+          fromDate:    _from,
+          toDate:      _to,
+        );
+        return;
+      }
             if (_sel.key == 'retailer_purchase') {
         await ReportPdfGenerator.generateAndShow(
           context:     context,
@@ -1817,9 +2043,11 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
                 ),
               ),
             if (_agents.isNotEmpty && _retailers.isNotEmpty) const SizedBox(width: 10),
-            if (_retailers.isNotEmpty)
+                        if (_retailers.isNotEmpty)
               Expanded(
-                child: DropdownButtonFormField<String>(
+                child: _sel.key == 'collection'
+                    ? _collectionRetailerField()
+                    : DropdownButtonFormField<String>(
                   initialValue: _retailerId,
                   isDense: true,
                   decoration: const InputDecoration(

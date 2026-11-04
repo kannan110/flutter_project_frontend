@@ -243,6 +243,50 @@ class ReportPdfGenerator {
       ]),
     );
   }
+    // ─── COLLECTION REPORT — party rows (shared by screen + PDF) ─────────────
+  // Only parties with a collection in the selected dates.
+  // Old Balance = Current Balance + Collected (the balance before this collection).
+  static String? paymentModeLabel(dynamic raw) {
+    final v = raw?.toString().trim().toLowerCase() ?? '';
+    if (v.isEmpty) return null;
+    if (v == 'upi' || v.contains('gpay') || v.contains('phonepe')) return 'UPI';
+    if (v.contains('bank') || v == 'neft' || v == 'rtgs' || v == 'imps') return 'Bank';
+    if (v == 'cash') return 'Cash';
+    if (v.contains('cheque') || v.contains('check')) return 'Cheque';
+    return '${v[0].toUpperCase()}${v.substring(1)}';
+  }
+
+  static ({
+    List<String> headers, List<List<String>> rows, List<String> totals,
+    double oldTotal, double collectedTotal, double balanceTotal,
+  }) collectionPartyTable(List<Map<String, dynamic>> retailers, Map<String, String> modes) {
+    final rows = <List<String>>[];
+    double o = 0, c = 0, b = 0;
+    for (final r in retailers) {
+      final col = _d(r, 'collected');
+      if (col <= 0) continue; // no collection entry in this range → hide
+      final bal = _d(r, 'outstanding');
+      final old = bal + col;
+      String mode = '';
+      for (final k in [r['retailer_id'], r['id'], r['shop_name']]) {
+        final m = modes[k?.toString()];
+        if (m != null) { mode = m; break; }
+      }
+      rows.add([
+        _str(r, 'shop_name'),
+        '₹${_fmtAmt(old)}',
+        '₹${_fmtAmt(col)}${mode.isEmpty ? '' : ' ($mode)'}',
+        '₹${_fmtAmt(bal)}',
+      ]);
+      o += old; c += col; b += bal;
+    }
+    return (
+      headers: const ['Shop', 'Old Balance', 'Collected', 'Current Balance'],
+      rows: rows,
+      totals: ['TOTAL', '₹${_fmtAmt(o)}', '₹${_fmtAmt(c)}', '₹${_fmtAmt(b)}'],
+      oldTotal: o, collectedTotal: c, balanceTotal: b,
+    );
+  }
   // ─── Generic entry: build a PDF from a ReportDataSet ─────────────────────
   // This is the NEW canonical path — every report Card View, Table View,
   // and PDF now come from the exact same ReportDataSet, so they can never
@@ -1331,10 +1375,55 @@ class ReportPdfGenerator {
   // ══════════════════════════════════════════════════════════════════════════
   // 9. COLLECTION
   // ══════════════════════════════════════════════════════════════════════════
+  // static void _collectionPdf(pw.Document doc, Map s, Map data,
+  //     String label, String company, DateTime from, DateTime to) {
+  //   final retailers = _rowList(data['retailers']);
+  //   final daily     = _rowList(data['daily']);
+  //   doc.addPage(pw.MultiPage(
+  //       pageFormat: PdfPageFormat.a4,
+  //       margin: const pw.EdgeInsets.all(28),
+  //       header: (_) => _header(company, label, from, to),
+  //       footer: (_) => _footer(),
+  //       build: (_) => [
+  //         _kpiRow([
+  //           _KpiCell('Billed',      _amt(s,'total_billed'),      _blue),
+  //           _KpiCell('Collected',   _amt(s,'total_collected'),   _green),
+  //           _KpiCell('Pending',     _amt(s,'total_pending'),     _orange),
+  //           _KpiCell('Outstanding', _amt(s,'total_outstanding'), _red),
+  //         ]),
+  //         pw.SizedBox(height: 6),
+  //         _kpiRow([
+  //           _KpiCell('Cash',   _amt(s,'cash'),   _green),
+  //           _KpiCell('UPI',    _amt(s,'upi'),    _blue),
+  //           _KpiCell('Bank',   _amt(s,'bank'),   _blue),
+  //           _KpiCell('Credit', _amt(s,'credit'), _orange),
+  //         ]),
+  //         if (retailers.isNotEmpty) ...[
+  //           _secTitle('COLLECTION BY RETAILER'),
+  //           _table(
+  //               headers: ['Shop','Phone','Orders','Billed','Collected','Outstanding'],
+  //               rows: retailers.map((r)=>[
+  //                 _sh(_str(r,'shop_name'),18),_str(r,'phone'),'${_i(r,"orders")}',
+  //                 _amt(r,'billed'),_amt(r,'collected'),_amt(r,'outstanding')]).toList(),
+  //               bold: [5]),
+  //         ],
+  //         _secTitle('DAILY COLLECTION'),
+  //         _table(
+  //             headers: ['Date','Billed','Collected','Pending'],
+  //             rows: daily.map((d)=>[_fd(d['dt']),_amt(d,'billed'),_amt(d,'collected'),_amt(d,'pending')]).toList(),
+  //             totals: ['TOTAL', _amt(s,'total_billed'), _amt(s,'total_collected'), _amt(s,'total_pending')],
+  //             bold: [1,2,3]),
+  //       ]));
+  // }
+  // ══════════════════════════════════════════════════════════════════════════
+  // 9. COLLECTION
+  // ══════════════════════════════════════════════════════════════════════════
   static void _collectionPdf(pw.Document doc, Map s, Map data,
       String label, String company, DateTime from, DateTime to) {
-    final retailers = _rowList(data['retailers']);
-    final daily     = _rowList(data['daily']);
+    final modes = ((data['coll_modes'] as Map?) ?? const {})
+        .map((k, v) => MapEntry(k.toString(), v.toString()));
+    final t     = collectionPartyTable(_rowList(data['retailers']), modes);
+    final daily = _rowList(data['daily']);
     doc.addPage(pw.MultiPage(
         pageFormat: PdfPageFormat.a4,
         margin: const pw.EdgeInsets.all(28),
@@ -1342,10 +1431,9 @@ class ReportPdfGenerator {
         footer: (_) => _footer(),
         build: (_) => [
           _kpiRow([
-            _KpiCell('Billed',      _amt(s,'total_billed'),      _blue),
-            _KpiCell('Collected',   _amt(s,'total_collected'),   _green),
-            _KpiCell('Pending',     _amt(s,'total_pending'),     _orange),
-            _KpiCell('Outstanding', _amt(s,'total_outstanding'), _red),
+            _KpiCell('Old Balance',     '₹${_fmtAmt(t.oldTotal)}',       _subText),
+            _KpiCell('Collected',       '₹${_fmtAmt(t.collectedTotal)}', _green),
+            _KpiCell('Current Balance', '₹${_fmtAmt(t.balanceTotal)}',   _red),
           ]),
           pw.SizedBox(height: 6),
           _kpiRow([
@@ -1354,15 +1442,12 @@ class ReportPdfGenerator {
             _KpiCell('Bank',   _amt(s,'bank'),   _blue),
             _KpiCell('Credit', _amt(s,'credit'), _orange),
           ]),
-          if (retailers.isNotEmpty) ...[
-            _secTitle('COLLECTION BY RETAILER'),
-            _table(
-                headers: ['Shop','Phone','Orders','Billed','Collected','Outstanding'],
-                rows: retailers.map((r)=>[
-                  _sh(_str(r,'shop_name'),18),_str(r,'phone'),'${_i(r,"orders")}',
-                  _amt(r,'billed'),_amt(r,'collected'),_amt(r,'outstanding')]).toList(),
-                bold: [5]),
-          ],
+          _secTitle('COLLECTION BY PARTY'),
+          if (t.rows.isEmpty)
+            pw.Text('No cash collection entries for the selected dates.',
+                style: const pw.TextStyle(fontSize: 9, color: _subText))
+          else
+            _table(headers: t.headers, rows: t.rows, totals: t.totals, bold: const [2, 3]),
           _secTitle('DAILY COLLECTION'),
           _table(
               headers: ['Date','Billed','Collected','Pending'],
@@ -1371,7 +1456,7 @@ class ReportPdfGenerator {
               bold: [1,2,3]),
         ]));
   }
-
+  
   // ══════════════════════════════════════════════════════════════════════════
   // 10. RETAILER PURCHASE
   // ══════════════════════════════════════════════════════════════════════════
