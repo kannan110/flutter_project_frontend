@@ -359,32 +359,32 @@ final appRouterProvider = Provider<GoRouter>((ref) => GoRouter(
     return null;
   },
   routes: [
-    GoRoute(path: R.splash, builder: (_, __) => const SplashScreen()),
-    GoRoute(path: R.login, builder: (_, __) => const LoginScreen()),
-    GoRoute(path: R.agentLink, builder: (_, __) => const AgentLinkScreen()),
-    GoRoute(path: R.supervisorLink, builder: (_, __) => const SupervisorLinkScreen()),
-    GoRoute(path: R.supervisorDisabled, builder: (_, __) => const SupervisorDisabledScreen()),
+    GoRoute(path: R.splash, builder: (_, _) => const SplashScreen()),
+    GoRoute(path: R.login, builder: (_, _) => const LoginScreen()),
+    GoRoute(path: R.agentLink, builder: (_, _) => const AgentLinkScreen()),
+    GoRoute(path: R.supervisorLink, builder: (_, _) => const SupervisorLinkScreen()),
+    GoRoute(path: R.supervisorDisabled, builder: (_, _) => const SupervisorDisabledScreen()),
     GoRoute(
         path: R.retailerLink,
-        builder: (_, __) => const RetailerLinkScreen()),
+        builder: (_, _) => const RetailerLinkScreen()),
     GoRoute(
-        path: R.retailerHome, builder: (_, __) => const RetailerScreen()),
+        path: R.retailerHome, builder: (_, _) => const RetailerScreen()),
     GoRoute(
-        path: R.traderSetup, builder: (_, __) => const TraderSetupScreen()),
+        path: R.traderSetup, builder: (_, _) => const TraderSetupScreen()),
     GoRoute(
         path: R.pendingApproval,
-        builder: (_, __) => const PendingApprovalScreen()),
+        builder: (_, _) => const PendingApprovalScreen()),
     GoRoute(
         path: R.superAdmin,
-        builder: (_, __) => const SuperDashboardScreen()),
+        builder: (_, _) => const SuperDashboardScreen()),
     GoRoute(
         path: R.saDashboard,
-        builder: (_, __) => const SuperDashboardScreen()),
+        builder: (_, _) => const SuperDashboardScreen()),
     GoRoute(
-        path: R.saTraders, builder: (_, __) => const TradersListSaScreen()),
+        path: R.saTraders, builder: (_, _) => const TradersListSaScreen()),
     GoRoute(
-        path: R.saProducts, builder: (_, __) => const ProductsSaScreen()),
-    GoRoute(path: R.saPlans, builder: (_, __) => const PlansSaScreen()),
+        path: R.saProducts, builder: (_, _) => const ProductsSaScreen()),
+    GoRoute(path: R.saPlans, builder: (_, _) => const PlansSaScreen()),
     GoRoute(
         path: '/sa/traders/:id',
         builder: (_, s) =>
@@ -392,45 +392,45 @@ final appRouterProvider = Provider<GoRouter>((ref) => GoRouter(
 
     // ── Trader Admin Shell ──────────────────────────────────────
     ShellRoute(
-      builder: (_, __, child) => TraderShell(child: child),
+      builder: (_, _, child) => TraderShell(child: child),
       routes: [
         GoRoute(
-            path: R.dashboard, builder: (_, __) => const DashboardScreen()),
-        GoRoute(path: R.orders, builder: (_, __) => const OrdersScreen()),
-        GoRoute(path: R.inHouseSale, builder: (_, __) => const InHouseSaleScreen()),
+            path: R.dashboard, builder: (_, _) => const DashboardScreen()),
+        GoRoute(path: R.orders, builder: (_, _) => const OrdersScreen()),
+        GoRoute(path: R.inHouseSale, builder: (_, _) => const InHouseSaleScreen()),
         GoRoute(
             path: R.orderCreate,
-            builder: (_, __) => const CreateOrderScreen()),
+            builder: (_, _) => const CreateOrderScreen()),
         GoRoute(
             path: R.orderDetail,
             builder: (_, s) =>
                 OrderDetailScreen(id: s.pathParameters['id']!)),
         GoRoute(
-            path: R.dispatch, builder: (_, __) => const DispatchScreen()),
+            path: R.dispatch, builder: (_, _) => const DispatchScreen()),
         GoRoute(
             path: R.areaManagement,
-            builder: (_, __) => const AreaManagementScreen()),
+            builder: (_, _) => const AreaManagementScreen()),
         GoRoute(
             path: R.bulkAreaAssign,
-            builder: (_, __) => const BulkAreaAssignmentScreen()),
+            builder: (_, _) => const BulkAreaAssignmentScreen()),
         GoRoute(
             path: R.batchDetail,
             builder: (_, s) =>
                 BatchDetailScreen(id: s.pathParameters['id']!)),
         GoRoute(
             path: R.pendingOps,
-            builder: (_, __) => const PendingOperationsScreen()), // Phase 4
+            builder: (_, _) => const PendingOperationsScreen()), // Phase 4
         GoRoute(
             path: R.dispatchHistory,
-            builder: (_, __) => const DispatchHistoryScreen()),
+            builder: (_, _) => const DispatchHistoryScreen()),
         GoRoute(
-            path: R.approvals, builder: (_, __) => const ApprovalsScreen()),
+            path: R.approvals, builder: (_, _) => const ApprovalsScreen()),
         GoRoute(
             path: R.approvalDetail,
             builder: (_, s) =>
                 ApprovalDetailScreen(id: s.pathParameters['id']!)),
         GoRoute(
-            path: R.invoices, builder: (_, __) => const InvoicesScreen()),
+            path: R.invoices, builder: (_, _) => const InvoicesScreen()),
         GoRoute(
             path: R.invoiceDetail,
             builder: (_, s) =>
@@ -443,7 +443,7 @@ final appRouterProvider = Provider<GoRouter>((ref) => GoRouter(
             path: R.creditNoteDetail,
             builder: (_, s) =>
                 CreditNoteDetailScreen(id: s.pathParameters['id']!)),
-        GoRoute(path: R.ledger, builder: (_, __) => const LedgerScreen()),
+        GoRoute(path: R.ledger, builder: (_, _) => const LedgerScreen()),
         GoRoute(
             path: R.retailerLedger,
             builder: (_, s) =>
@@ -453,18 +453,18 @@ final appRouterProvider = Provider<GoRouter>((ref) => GoRouter(
             builder: (_, s) =>
                 RetailerStatementScreen(retailerId: s.pathParameters['rid']!)),
         GoRoute(
-            path: R.retailers, builder: (_, __) => const RetailersScreen()),
+            path: R.retailers, builder: (_, _) => const RetailersScreen()),
         GoRoute(
             path: R.retailerCreate,
-            builder: (_, __) => const CreateRetailerScreen()),
+            builder: (_, _) => const CreateRetailerScreen()),
         GoRoute(
             path: R.retailerDetail,
             builder: (_, s) =>
                 RetailerDetailScreen(id: s.pathParameters['id']!)),
-        GoRoute(path: R.agents, builder: (_, __) => const AgentsScreen()),
+        GoRoute(path: R.agents, builder: (_, _) => const AgentsScreen()),
         GoRoute(
             path: R.agentCreate,
-            builder: (_, __) => const CreateAgentScreen()),
+            builder: (_, _) => const CreateAgentScreen()),
         GoRoute(
             path: R.agentDetail,
             builder: (_, s) =>
@@ -540,8 +540,8 @@ final appRouterProvider = Provider<GoRouter>((ref) => GoRouter(
                 shiftId:   shiftId,
               );
             }),
-        GoRoute(path: R.rates, builder: (_, __) => const RatesScreen()),
-        GoRoute(path: R.shifts, builder: (_, __) => const ShiftsScreen()),
+        GoRoute(path: R.rates, builder: (_, _) => const RatesScreen()),
+        GoRoute(path: R.shifts, builder: (_, _) => const ShiftsScreen()),
         GoRoute(
             path: R.shiftDetail,
             builder: (_, s) =>
@@ -550,93 +550,93 @@ final appRouterProvider = Provider<GoRouter>((ref) => GoRouter(
             path: R.shiftVerification,
             builder: (_, s) =>
                 ShiftVerificationScreen(shiftId: s.pathParameters['id']!)),
-        GoRoute(path: R.crates, builder: (_, __) => const CratesScreen()),
+        GoRoute(path: R.crates, builder: (_, _) => const CratesScreen()),
         GoRoute(
-            path: R.analytics, builder: (_, __) => const AnalyticsScreen()),
+            path: R.analytics, builder: (_, _) => const AnalyticsScreen()),
         GoRoute(
             path: R.userMgmt,
-            builder: (_, __) => const UserManagementScreen()),
+            builder: (_, _) => const UserManagementScreen()),
         GoRoute(
             path: R.createSupervisor,
-            builder: (_, __) => const CreateSupervisorScreen()),
+            builder: (_, _) => const CreateSupervisorScreen()),
         GoRoute(
             path: R.supervisorList,
-            builder: (_, __) => const SupervisorListScreen()),
+            builder: (_, _) => const SupervisorListScreen()),
         GoRoute(
             path: R.supervisorDetail,
             builder: (_, s) => SupervisorDetailScreen(supervisorId: s.pathParameters['id']!)),
         GoRoute(
             path: R.supervisorReport,
-            builder: (_, __) => const SupervisorReportScreen()),
+            builder: (_, _) => const SupervisorReportScreen()),
         GoRoute(
             path: R.traderProfile,
-            builder: (_, __) => const TraderProfileScreen()),
+            builder: (_, _) => const TraderProfileScreen()),
         GoRoute(
-            path: R.settings, builder: (_, __) => const SettingsScreen()),
-        GoRoute(path: R.returns, builder: (_, __) => const ReturnsScreen()),
-        GoRoute(path: R.stock, builder: (_, __) => const StockScreen()),
-        GoRoute(path: R.stockAdjustment, builder: (_, __) => const StockAdjustmentScreen()),
-        GoRoute(path: R.inventoryDashboard, builder: (_, __) => const InventoryDashboardScreen()),
+            path: R.settings, builder: (_, _) => const SettingsScreen()),
+        GoRoute(path: R.returns, builder: (_, _) => const ReturnsScreen()),
+        GoRoute(path: R.stock, builder: (_, _) => const StockScreen()),
+        GoRoute(path: R.stockAdjustment, builder: (_, _) => const StockAdjustmentScreen()),
+        GoRoute(path: R.inventoryDashboard, builder: (_, _) => const InventoryDashboardScreen()),
         GoRoute(
             path: R.pricing,
-            builder: (_, __) => const PricingRulesScreen()),
+            builder: (_, _) => const PricingRulesScreen()),
         GoRoute(
             path: R.pricingHub,
-            builder: (_, __) => const PricingHubScreen()),
+            builder: (_, _) => const PricingHubScreen()),
         GoRoute(
             path: R.zoneRateHistory,
-            builder: (_, __) => const ZoneRateHistoryScreen()),
+            builder: (_, _) => const ZoneRateHistoryScreen()),
         GoRoute(
             path: R.cashRecon,
-            builder: (_, __) => const CashReconciliationScreen()),
+            builder: (_, _) => const CashReconciliationScreen()),
         GoRoute(
             path: R.dayClosure,
-            builder: (_, __) => const DayClosureScreen()),
+            builder: (_, _) => const DayClosureScreen()),
         GoRoute(
             path: R.pnlStatement,
-            builder: (_, __) => const PnLScreen()),
+            builder: (_, _) => const PnLScreen()),
         GoRoute(
             path: R.cashFlowStatement,
-            builder: (_, __) => const CashFlowScreen()),
+            builder: (_, _) => const CashFlowScreen()),
         GoRoute(
             path: R.supplierStatement,
             builder: (_, s) =>
                 SupplierStatementScreen(farmId: s.pathParameters['fid']!)),
-        GoRoute(path: R.alerts, builder: (_, __) => const AlertsScreen()),
+        GoRoute(path: R.alerts, builder: (_, _) => const AlertsScreen()),
         GoRoute(
             path: R.dailyReport,
-            builder: (_, __) => const DailyReportScreen()),
+            builder: (_, _) => const DailyReportScreen()),
         GoRoute(
             path: R.reportsHub,
-            builder: (_, __) => const ReportsHubScreen()),
+            builder: (_, _) => const ReportsHubScreen()),
         GoRoute(
             path: R.reportsHome,
-            builder: (_, __) => const ReportsHomeScreen()),
+            builder: (_, _) => const ReportsHomeScreen()),
         GoRoute(
             path: R.dailyStock,
-            builder: (_, __) => const DailyStockScreen()),
+            builder: (_, _) => const DailyStockScreen()),
         GoRoute(
-            path: R.purchase, builder: (_, __) => const PurchaseScreen()),
+            path: R.purchase, builder: (_, _) => const PurchaseScreen()),
         GoRoute(
             path: R.expenseRules,
-            builder: (_, __) => const ExpenseRulesScreen()),
+            builder: (_, _) => const ExpenseRulesScreen()),
         GoRoute(
             path: R.stockDetail,
-            builder: (_, __) => const StockDetailScreen()),
+            builder: (_, _) => const StockDetailScreen()),
       ],
     ),
 
     // ── Delivery Agent Shell ────────────────────────────────────
     ShellRoute(
-      builder: (_, __, child) => AgentShell(child: child),
+      builder: (_, _, child) => AgentShell(child: child),
       routes: [
         GoRoute(
-            path: R.agentHome, builder: (_, __) => const AgentHomeScreen()),
+            path: R.agentHome, builder: (_, _) => const AgentHomeScreen()),
         GoRoute(
-            path: R.shiftOpen, builder: (_, __) => const ShiftOpenScreen()),
+            path: R.shiftOpen, builder: (_, _) => const ShiftOpenScreen()),
         GoRoute(
             path: R.shiftClose,
-            builder: (_, __) => const ShiftCloseScreen()),
+            builder: (_, _) => const ShiftCloseScreen()),
         GoRoute(
             path: R.batchPickup,
             builder: (_, s) =>
@@ -651,26 +651,26 @@ final appRouterProvider = Provider<GoRouter>((ref) => GoRouter(
                 BirdTransferScreen(batchId: s.pathParameters['id']!)),
         GoRoute(
             path: R.transferHistory,
-            builder: (_, __) => const TransferHistoryScreen()),
+            builder: (_, _) => const TransferHistoryScreen()),
         GoRoute(
             path: R.agentDeliveries,
-            builder: (_, __) => const AgentDeliveriesScreen()),
+            builder: (_, _) => const AgentDeliveriesScreen()),
         GoRoute(
             path: R.deliveryDone,
             builder: (_, s) => DeliveryCompleteScreen(
                 deliveryId: s.pathParameters['id']!)),
         GoRoute(
             path: R.agentExpenses,
-            builder: (_, __) => const ExpensesScreen()),
+            builder: (_, _) => const ExpensesScreen()),
         GoRoute(
             path: R.instantOrder,
-            builder: (_, __) => const InstantOrderScreen()),
+            builder: (_, _) => const InstantOrderScreen()),
         GoRoute(
             path: R.pendingOrder,
-            builder: (_, __) => const PendingOrderScreen()),
+            builder: (_, _) => const PendingOrderScreen()),
         GoRoute(
             path: R.agentMyOrders,
-            builder: (_, __) => const AgentMyOrdersScreen()),
+            builder: (_, _) => const AgentMyOrdersScreen()),
         GoRoute(
             path: R.deliveryHistory,
             builder: (_, s) =>
@@ -680,27 +680,27 @@ final appRouterProvider = Provider<GoRouter>((ref) => GoRouter(
 
     // ── Supervisor / Collection Agent Shell (Plug & Play) ───────────
     ShellRoute(
-      builder: (_, __, child) => SupervisorShell(child: child),
+      builder: (_, _, child) => SupervisorShell(child: child),
       routes: [
         GoRoute(
             path: R.supervisorHome,
-            builder: (_, __) => const SupervisorDashboardScreen()),
+            builder: (_, _) => const SupervisorDashboardScreen()),
         GoRoute(
             path: R.supervisorRetailers,
-            builder: (_, __) => const SupervisorRetailersScreen()),
+            builder: (_, _) => const SupervisorRetailersScreen()),
         GoRoute(
             path: R.supervisorLedger,
             builder: (_, s) => SupervisorCustomerLedgerScreen(
                 retailerId: s.pathParameters['rid']!)),
         GoRoute(
             path: R.supervisorPaymentHistory,
-            builder: (_, __) => const SupervisorPaymentHistoryScreen()),
+            builder: (_, _) => const SupervisorPaymentHistoryScreen()),
         GoRoute(
             path: R.supervisorCollectionSummary,
-            builder: (_, __) => const SupervisorCollectionSummaryScreen()),
+            builder: (_, _) => const SupervisorCollectionSummaryScreen()),
         GoRoute(
             path: R.supervisorProfile,
-            builder: (_, __) => const SupervisorProfileScreen()),
+            builder: (_, _) => const SupervisorProfileScreen()),
       ],
     ),
   ],
@@ -717,6 +717,6 @@ final appRouterProvider = Provider<GoRouter>((ref) => GoRouter(
 
 class _Refresh extends ChangeNotifier {
   _Refresh(Ref ref) {
-    ref.listen(appUserProvider, (_, __) => notifyListeners());
+    ref.listen(appUserProvider, (_, _) => notifyListeners());
   }
 }

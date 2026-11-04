@@ -8,6 +8,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../shared/layouts/responsive_layout.dart';
+import 'package:rooster_trader/shared/widgets/web/app_scaffold.dart';
 
 // ══════════════════════════════════════════════════════════════════════════
 // CREDIT NOTE DETAIL SCREEN
@@ -155,9 +156,9 @@ class _S extends State<CreditNoteDetailScreen> {
   );
 
   Widget _scaffold() {
-    if (_loading) return const Scaffold(body: LoadingList());
+    if (_loading) return const AppScaffold(body: LoadingList());
     if (_cn == null) {
-      return Scaffold(
+      return AppScaffold(
           appBar: AppBar(),
           body: const Center(child: Text('Credit note not found')));
     }
@@ -171,7 +172,7 @@ class _S extends State<CreditNoteDetailScreen> {
     final rate = (cn['rate_per_kg'] as num?)?.toDouble() ?? 0;
     final total = (cn['total_amount'] as num?)?.toDouble() ?? 0;
 
-    return Scaffold(
+    return AppScaffold(
       backgroundColor: kBgPage,
       appBar: AppBar(
         backgroundColor: kSurface,

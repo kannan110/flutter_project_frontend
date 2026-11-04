@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/providers/session_provider.dart';
 import '../../../core/theme/app_theme.dart';
+import 'package:rooster_trader/shared/widgets/web/app_scaffold.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // DAILY STOCK SCREEN
@@ -200,7 +201,7 @@ class _DailyStockScreenState extends ConsumerState<DailyStockScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return AppScaffold(
       backgroundColor: kBgPage,
       appBar: AppBar(
         backgroundColor: kNavy,

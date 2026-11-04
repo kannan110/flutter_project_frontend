@@ -5,6 +5,7 @@ import 'package:rooster_trader/features/trader_admin/agents/hub/entry_mode_selec
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../../core/providers/session_provider.dart';
 import '../../../../../core/theme/app_theme.dart';
+import 'package:rooster_trader/shared/widgets/web/app_scaffold.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TRADER REASSIGN SCREEN
@@ -209,7 +210,7 @@ class _TraderReassignScreenState
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return AppScaffold(
       backgroundColor: kBgPage,
       appBar: AppBar(
         backgroundColor: kNavy,

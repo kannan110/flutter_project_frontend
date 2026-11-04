@@ -7,6 +7,7 @@ import '../../../core/providers/session_provider.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../shared/layouts/responsive_layout.dart';
+import 'package:rooster_trader/shared/widgets/web/app_scaffold.dart';
 
 class ApprovalDetailScreen extends ConsumerStatefulWidget {
   const ApprovalDetailScreen({super.key, required this.id});
@@ -410,7 +411,7 @@ class _S extends ConsumerState<ApprovalDetailScreen> {
         'p_approval_notes':
         _notesCtrl.text.trim().isEmpty ? null : _notesCtrl.text.trim(),
         'p_invoice_date': _invoiceDate.toIso8601String().split('T')[0],
-        if (itemRates != null) 'p_item_rates': itemRates,
+        'p_item_rates': ?itemRates,
       });
       if (mounted) {
         showSuccess(context, 'Approved! Bill created ✓');
@@ -500,10 +501,10 @@ class _S extends ConsumerState<ApprovalDetailScreen> {
   @override
   Widget build(BuildContext context) {
     if (_loading) {
-      return const Scaffold(backgroundColor: kBgPage, body: LoadingList());
+      return const AppScaffold(backgroundColor: kBgPage, body: LoadingList());
     }
     if (_delivery == null) {
-      return Scaffold(
+      return AppScaffold(
           backgroundColor: kBgPage,
           appBar: AppBar(backgroundColor: kSurface),
           body: const Center(child: Text('Not found')));
@@ -516,7 +517,7 @@ class _S extends ConsumerState<ApprovalDetailScreen> {
     // (defense in depth), but a trader should never get as far as entering
     // rates for something that can't actually be approved.
     if (_delivery!['is_undone'] == true) {
-      return Scaffold(
+      return AppScaffold(
         backgroundColor: kBgPage,
         appBar: AppBar(
           backgroundColor: kSurface,
@@ -974,7 +975,7 @@ class _S extends ConsumerState<ApprovalDetailScreen> {
     ];
 
     if (!isDesktop) {
-      return Scaffold(
+      return AppScaffold(
         backgroundColor: kBgPage,
         appBar: appBar,
         body: ListView(
@@ -991,7 +992,7 @@ class _S extends ConsumerState<ApprovalDetailScreen> {
     final leftSections = allSections.sublist(0, splitIdx);
     final rightSections = allSections.sublist(splitIdx);
 
-    return Scaffold(
+    return AppScaffold(
       backgroundColor: kBgPage,
       appBar: appBar,
       body: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -1667,7 +1668,7 @@ class _S extends ConsumerState<ApprovalDetailScreen> {
                                     : null,
                                 color: c,
                                 strokeWidth: 2))),
-                    errorBuilder: (_, __, ___) => Container(
+                    errorBuilder: (_, _, _) => Container(
                         height: 120,
                         color: c.withValues(alpha: 0.05),
                         child: Column(
@@ -1702,7 +1703,7 @@ class _S extends ConsumerState<ApprovalDetailScreen> {
                               : const Center(
                               child: CircularProgressIndicator(
                                   color: Colors.white)),
-                          errorBuilder: (_, __, ___) => const Center(
+                          errorBuilder: (_, _, _) => const Center(
                               child: Icon(Icons.broken_image,
                                   color: Colors.white, size: 64))))),
               Positioned(

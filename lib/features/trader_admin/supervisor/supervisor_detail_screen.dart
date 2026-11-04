@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/providers/session_provider.dart';
 import '../../../core/theme/app_theme.dart';
 import 'assign_retailer_sheet.dart';
+import 'package:rooster_trader/shared/widgets/web/app_scaffold.dart';
 
 /// Profile + Assigned Retailers + one ledger_entries fetch (recorded_by
 /// = this supervisor's user_id), grouped three ways client-side:
@@ -90,7 +91,7 @@ class _S extends ConsumerState<SupervisorDetailScreen> with SingleTickerProvider
     final tid = ref.read(appUserProvider).valueOrNull?.traderId ?? '';
     final total = _payments.fold<double>(0, (s, p) => s + ((p['amount'] as num?)?.toDouble() ?? 0));
 
-    return Scaffold(
+    return AppScaffold(
       backgroundColor: kBgPage,
       appBar: AppBar(
         title: Text(_supervisor?['name'] as String? ?? 'Supervisor'),
@@ -182,7 +183,7 @@ class _S extends ConsumerState<SupervisorDetailScreen> with SingleTickerProvider
       ? const Center(child: Text('No payments recorded yet.', style: TextStyle(color: kTextHint)))
       : RefreshIndicator(onRefresh: _load, child: ListView.separated(
       padding: const EdgeInsets.all(16), itemCount: _payments.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 8),
+      separatorBuilder: (_, _) => const SizedBox(height: 8),
       itemBuilder: (_, i) {
         final p = _payments[i];
         final shop = (p['retailers'] as Map?)?['shop_name'] as String? ?? 'Customer';
@@ -207,7 +208,7 @@ class _S extends ConsumerState<SupervisorDetailScreen> with SingleTickerProvider
         ? const Center(child: Text('No data.', style: TextStyle(color: kTextHint)))
         : ListView.separated(
         padding: const EdgeInsets.all(16), itemCount: entries.length,
-        separatorBuilder: (_, __) => const SizedBox(height: 8),
+        separatorBuilder: (_, _) => const SizedBox(height: 8),
         itemBuilder: (_, i) {
           final e = entries[i];
           return Container(
@@ -228,7 +229,7 @@ class _S extends ConsumerState<SupervisorDetailScreen> with SingleTickerProvider
         ? const Center(child: Text('No data.', style: TextStyle(color: kTextHint)))
         : ListView.separated(
         padding: const EdgeInsets.all(16), itemCount: entries.length,
-        separatorBuilder: (_, __) => const SizedBox(height: 8),
+        separatorBuilder: (_, _) => const SizedBox(height: 8),
         itemBuilder: (_, i) {
           final e = entries[i];
           return Container(

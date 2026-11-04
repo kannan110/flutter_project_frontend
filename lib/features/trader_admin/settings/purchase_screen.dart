@@ -772,7 +772,7 @@ class _S extends ConsumerState<PurchaseScreen>
                   : ListView.separated(
                   padding: const EdgeInsets.all(12),
                   itemCount: _purchases.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 6),
+                  separatorBuilder: (_, _) => const SizedBox(height: 6),
                   itemBuilder: (_, i) => _purchaseCard(_purchases[i])))),
     ]);
   }
@@ -1137,7 +1137,7 @@ class _S extends ConsumerState<PurchaseScreen>
     return ListView.separated(
         padding: const EdgeInsets.all(12),
         itemCount: _farms.length,
-        separatorBuilder: (_, __) => const SizedBox(height: 6),
+        separatorBuilder: (_, _) => const SizedBox(height: 6),
         itemBuilder: (_, i) {
           final f = _farms[i];
           final st = f['_stats'] as Map<String, dynamic>? ?? {};
@@ -1441,7 +1441,7 @@ class _S extends ConsumerState<PurchaseScreen>
         child: ListView.separated(
             padding: const EdgeInsets.all(12),
             itemCount: _costing.length,
-            separatorBuilder: (_, __) => const SizedBox(height: 6),
+            separatorBuilder: (_, _) => const SizedBox(height: 6),
             itemBuilder: (_, i) {
               final c = _costing[i];
               // FIX: use _pe (pre-fetched per batch) not purchase_entries join array
@@ -1668,7 +1668,7 @@ class _S extends ConsumerState<PurchaseScreen>
               : ListView.separated(
               padding: const EdgeInsets.all(12),
               itemCount: entries.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 4),
+              separatorBuilder: (_, _) => const SizedBox(height: 4),
               itemBuilder: (_, i) {
                 final e = entries[i];
                 final total =

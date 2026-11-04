@@ -4,6 +4,9 @@ import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/providers/session_provider.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/router/app_router.dart';
+import '../../../shared/layouts/responsive_layout.dart';
+import '../../../shared/widgets/web/web.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ZONE RATE HISTORY
@@ -135,8 +138,198 @@ class _S extends ConsumerState<ZoneRateHistoryScreen> {
           _fromDate != null ||
           _toDate != null;
 
+  // ═══════════════════════════════════════════════════════════════════════
+  // WEB (desktop) — filter card + history table. Read-only, same RPC.
+  // ═══════════════════════════════════════════════════════════════════════
+  bool _dense = true;
+
+  Widget _buildWeb() {
+    final visibleRows = _searchQ.isEmpty ? _rows : _rows.where((r) {
+      final zone = r['zone_name'] as String? ?? '';
+      final product = r['product_name'] as String? ?? '';
+      return zone.toLowerCase().contains(_searchQ) ||
+          product.toLowerCase().contains(_searchQ);
+    }).toList();
+    final current = _rows.where((r) =>
+        r['is_active'] == true && r['is_latest'] == true).length;
+
+    final filters = WebCard(
+      padding: const EdgeInsets.all(20),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Wrap(spacing: 12, runSpacing: 12,
+            crossAxisAlignment: WrapCrossAlignment.center, children: [
+          WebSearchField(
+            controller: _searchCtrl,
+            hint: 'Search by zone or product…',
+            width: 280,
+            debounce: const Duration(milliseconds: 150),
+            onChanged: (q) {
+              if (mounted) setState(() => _searchQ = q.toLowerCase());
+            },
+          ),
+          SizedBox(width: 200, child: _dropdown(
+              label: 'Zone',
+              value: _zoneId,
+              items: _zones.map((z) => DropdownMenuItem(
+                  value: z['id'] as String,
+                  child: Text(z['zone_name'] as String? ?? '—',
+                      overflow: TextOverflow.ellipsis))).toList(),
+              onChanged: (v) { setState(() => _zoneId = v); _load(); })),
+          SizedBox(width: 200, child: _dropdown(
+              label: 'Product',
+              value: _productId,
+              items: _products.map((p) => DropdownMenuItem(
+                  value: p['id'] as String,
+                  child: Text(p['name'] as String? ?? '—',
+                      overflow: TextOverflow.ellipsis))).toList(),
+              onChanged: (v) { setState(() => _productId = v); _load(); })),
+          SizedBox(width: 170, child: _dateField(label: 'From Date',
+              value: _fromDate, onTap: () => _pickDate(isFrom: true))),
+          SizedBox(width: 170, child: _dateField(label: 'To Date',
+              value: _toDate, onTap: () => _pickDate(isFrom: false))),
+        ]),
+        const SizedBox(height: 14),
+        Row(children: [
+          WebSegmented<String>(
+            options: const ['Today', 'Yesterday', 'Last 7 Days',
+              'Last 30 Days', 'This Month'],
+            selected: _activeQuickFilter,
+            label: (s) => s,
+            onChanged: _applyQuickFilter,
+          ),
+          const Spacer(),
+          if (_isFiltered)
+            WebButton(label: 'Clear filters', icon: Icons.close_rounded,
+                outlined: true, color: WebColors.error,
+                onPressed: _clearAllFilters),
+        ]),
+      ]),
+    );
+
+    return WebPage(
+      header: PageBreadcrumbsHeader(
+        title: 'Zone Rate History',
+        subtitle: _isFiltered
+            ? 'Full history for the selected filters'
+            : 'Latest rate per zone and product',
+        crumbs: const [Crumb('Dashboard', R.dashboard), Crumb('Rate History')],
+        action: WebIconButton(icon: Icons.refresh_rounded,
+            tooltip: 'Refresh', onTap: _load),
+      ),
+      children: [
+        filters,
+        const SizedBox(height: WebSpace.lg),
+        WebListCard(children: [
+          WebCardHeader(
+            title: 'Rate History',
+            subtitle: '${visibleRows.length} entr${visibleRows.length == 1 ? 'y' : 'ies'}'
+                ' · $current current',
+            icon: Icons.history_rounded,
+            action: Row(mainAxisSize: MainAxisSize.min, children: [
+              const Text('Dense', style: WebText.bodySub),
+              Switch(value: _dense, activeTrackColor: WebColors.navy,
+                  onChanged: (v) => setState(() => _dense = v)),
+            ]),
+          ),
+          if (_error != null)
+            Padding(
+              padding: const EdgeInsets.all(WebSpace.xl),
+              child: Column(children: [
+                Text(_error!, style: WebText.bodySub),
+                const SizedBox(height: 12),
+                WebButton(label: 'Retry', outlined: true, onPressed: _load),
+              ]),
+            )
+          else
+            WebDataTable<Map<String, dynamic>>(
+              columns: const [
+                WebColumn('Product', flex: 2),
+                WebColumn('Zone', width: 130),
+                WebColumn('Effective', width: 130),
+                WebColumn('Previous', width: 110, align: TextAlign.right),
+                WebColumn('Rate', width: 110, align: TextAlign.right),
+                WebColumn('Change', width: 110, align: TextAlign.center),
+                WebColumn('Updated By', flex: 2),
+                WebColumn('Updated At', width: 140),
+                WebColumn('Status', width: 120, align: TextAlign.center),
+              ],
+              rows: visibleRows,
+              paginate: true,
+              dense: _dense,
+              loading: _loading,
+              emptyText: _isFiltered
+                  ? 'No rate history for this filter yet.'
+                  : 'No zone rates set yet — set a rate from the Pricing Hub.',
+              cellBuilder: (row, col) {
+                final rate = (row['rate_per_kg'] as num?)?.toDouble() ?? 0;
+                final prev = (row['prev_rate_per_kg'] as num?)?.toDouble();
+                final diff = (row['difference'] as num?)?.toDouble() ?? 0;
+                final isActive = row['is_active'] == true;
+                final isLatest = isActive && row['is_latest'] == true;
+                switch (col) {
+                  case 0:
+                    return Text(row['product_name'] as String? ?? '—',
+                        maxLines: 1, overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600, color: WebColors.text1));
+                  case 1:
+                    final code = row['zone_code'] as String?;
+                    return Text('${row['zone_name'] ?? '—'}${code != null ? " ($code)" : ""}',
+                        maxLines: 1, overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontSize: 13, color: WebColors.text2));
+                  case 2:
+                    final d = row['effective_date'] as String?;
+                    return Text(d != null
+                        ? DateFormat('d MMM yyyy').format(DateTime.parse(d))
+                        : '—', style: const TextStyle(fontSize: 13,
+                        color: WebColors.text2));
+                  case 3:
+                    return Text(prev != null ? '${Fmt.amount(prev)}/kg' : '—',
+                        style: const TextStyle(fontSize: 13,
+                            color: WebColors.text3,
+                            decoration: TextDecoration.lineThrough));
+                  case 4:
+                    return Text('${Fmt.amount(rate)}/kg', style: const TextStyle(
+                        fontSize: 14, fontWeight: FontWeight.w800,
+                        color: WebColors.navy));
+                  case 5:
+                    if (prev == null || diff == 0) {
+                      return const Text('—', style: WebText.caption);
+                    }
+                    return WebLabel(
+                        diff > 0 ? '+${Fmt.amount(diff)}'
+                            : '-${Fmt.amount(diff.abs())}',
+                        color: diff > 0 ? WebColors.success : WebColors.error,
+                        icon: diff > 0 ? Icons.arrow_upward_rounded
+                            : Icons.arrow_downward_rounded);
+                  case 6:
+                    return Text(row['updated_by_email'] as String? ?? '—',
+                        maxLines: 1, overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontSize: 13, color: WebColors.text2));
+                  case 7:
+                    final at = row['updated_at'] as String?;
+                    return Text(at != null
+                        ? DateFormat('d MMM, h:mm a').format(DateTime.parse(at).toLocal())
+                        : '—', style: const TextStyle(fontSize: 12.5, color: WebColors.text3));
+                  default:
+                    return isLatest
+                        ? const WebLabel('Current', color: WebColors.gold,
+                            dot: true)
+                        : isActive
+                            ? const WebLabel('Active', color: WebColors.success)
+                            : const WebLabel('Superseded',
+                                color: WebColors.text3);
+                }
+              },
+            ),
+          const SizedBox(height: WebSpace.md),
+        ]),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    if (context.isDesktop) return _buildWeb();
     return Scaffold(
       backgroundColor: kBgPage,
       appBar: AppBar(
@@ -434,7 +627,7 @@ class _S extends ConsumerState<ZoneRateHistoryScreen> {
       child: ListView.separated(
         padding: const EdgeInsets.fromLTRB(14, 12, 14, kBottomNavClearance),
         itemCount: visibleRows.length,
-        separatorBuilder: (_, __) => const SizedBox(height: 8),
+        separatorBuilder: (_, _) => const SizedBox(height: 8),
         itemBuilder: (_, i) => _historyCard(visibleRows[i]),
       ),
     );
@@ -563,8 +756,8 @@ class _S extends ConsumerState<ZoneRateHistoryScreen> {
                 Expanded(
                   child: Text(
                       [
-                        if (updatedByEmail != null) updatedByEmail,
-                        if (updatedAtLabel != null) updatedAtLabel,
+                        ?updatedByEmail,
+                        ?updatedAtLabel,
                       ].join(' · '),
                       style: const TextStyle(fontSize: 11, color: kTextHint),
                       maxLines: 1,

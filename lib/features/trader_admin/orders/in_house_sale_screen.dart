@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/providers/session_provider.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../shared/widgets/common/horizontalscroll_wheel.dart';
+import '../../../core/router/app_router.dart';
+import '../../../shared/layouts/responsive_layout.dart';
+import '../../../shared/widgets/web/web.dart';
 
 // ══════════════════════════════════════════════════════════════════════════
 // STOCK POINT SALE (In-House) — UI redesign only, no backend changes.
@@ -316,6 +320,7 @@ class _S extends ConsumerState<InHouseSaleScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (context.isDesktop) return _buildWeb();
     return Scaffold(
       backgroundColor: kBgPage,
       appBar: AppBar(
@@ -344,6 +349,85 @@ class _S extends ConsumerState<InHouseSaleScreen> {
       ),
       // ── Sticky footer: always visible, no scrolling needed ──────────────
       bottomNavigationBar: _loading ? null : _stickyFooter(),
+    );
+  }
+
+  // ── Web layout: sale form cards (left) + payment & total (right) ────────
+  Widget _buildWeb() {
+    Widget card(String title, IconData icon, Widget child) => Container(
+          margin: const EdgeInsets.only(bottom: WebSpace.lg),
+          decoration: WebDecor.card(),
+          clipBehavior: Clip.antiAlias,
+          child: Column(crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+            WebCardHeader(title: title, icon: icon),
+            const Divider(height: 1, color: WebColors.border),
+            Padding(padding: const EdgeInsets.all(20), child: child),
+          ]),
+        );
+
+    return ColoredBox(
+      color: WebColors.pageBg,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          PageBreadcrumbsHeader(
+            action: WebIconButton(icon: Icons.arrow_back_rounded, tooltip: 'Back',
+                  onTap: () => context.canPop()
+                      ? context.pop() : context.go(R.orders)),
+            title: 'Stock Point Sale',
+            subtitle: 'In-house sale — creates the invoice directly',
+            crumbs: const [
+              Crumb('Dashboard', R.dashboard),
+              Crumb('Orders', R.orders),
+              Crumb('Stock Point Sale'),
+            ],
+            padding: const EdgeInsets.only(bottom: WebSpace.lg),
+          ),
+          Expanded(child: _loading
+              ? const Center(child: CircularProgressIndicator(
+                  strokeWidth: 2.5, color: WebColors.navy))
+              : Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Expanded(child: ListView(
+              padding: const EdgeInsets.only(bottom: 32),
+              children: [
+                card('Customer', Icons.person_outline_rounded,
+                    _customerSection()),
+                card('Products', Icons.egg_alt_outlined,
+                    Column(crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                      _productSection(),
+                      const SizedBox(height: 8),
+                      ..._lines.asMap().entries.map((e) => e.key == _activeIdx
+                          ? _activeProductCard(e.key)
+                          : _collapsedProductRow(e.key)),
+                    ])),
+              ],
+            )),
+            const SizedBox(width: WebSpace.lg),
+            SizedBox(
+              width: 380,
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.only(bottom: 32),
+                child: Container(
+                  decoration: WebDecor.card(),
+                  clipBehavior: Clip.antiAlias,
+                  child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                    const WebCardHeader(title: 'Payment & Total',
+                        icon: Icons.payments_outlined),
+                    const Divider(height: 1, color: WebColors.border),
+                    Padding(padding: const EdgeInsets.all(20),
+                        child: _paymentRow()),
+                    _stickyFooter(),
+                  ]),
+                ),
+              ),
+            ),
+          ])),
+        ]),
+      ),
     );
   }
 

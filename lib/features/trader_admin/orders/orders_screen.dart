@@ -11,6 +11,7 @@ import '../../../shared/widgets/common/async_state_view.dart';
 import '../../../shared/widgets/common/status_chip.dart';
 import '../../../shared/widgets/filters/filter_bar.dart';
 import '../../../shared/widgets/tables/app_table.dart';
+import '../../../shared/widgets/web/web.dart';
 
 class OrdersScreen extends ConsumerStatefulWidget {
   const OrdersScreen({super.key});
@@ -28,6 +29,14 @@ class _S extends ConsumerState<OrdersScreen> {
   bool _loading = true;
   String? _error;
   String _filter = 'all';
+
+  // Web table state
+  Map<String, int> _counts = {};
+  String _sortKey = 'date';
+  bool _sortAsc = false;
+  bool _dense = true;
+  int _page = 0;
+  int _rowsPerPage = 25;
 
   static const _statuses = [
     'all',
@@ -93,10 +102,23 @@ class _S extends ConsumerState<OrdersScreen> {
           .eq('trader_id', tid);
       if (_filter != 'all') q = q.eq('status', _filter);
       final data = await q.order('created_at', ascending: false).limit(300);
+      // Tab counts (web) — status column only, read-only
+      final counts = <String, int>{};
+      try {
+        final st = await _c.from('orders').select('status')
+            .eq('trader_id', tid).limit(10000);
+        for (final r in st) {
+          final s = r['status'] as String? ?? '';
+          counts[s] = (counts[s] ?? 0) + 1;
+          counts['all'] = (counts['all'] ?? 0) + 1;
+        }
+      } catch (_) {}
       if (!mounted) return;
       setState(() {
         _orders = List<Map<String, dynamic>>.from(data);
         _filtered = List.from(_orders);
+        _counts = counts;
+        _page = 0;
         _loading = false;
       });
       _applySearch(_searchCtrl.text);
@@ -115,6 +137,7 @@ class _S extends ConsumerState<OrdersScreen> {
   @override
   Widget build(BuildContext context) {
     final isDesktop = context.isDesktop;
+    if (isDesktop) return _buildWebPage();
 
     return ListScreenScaffold(
       // AppBar only shown on mobile/tablet — desktop topbar handles title
@@ -194,141 +217,215 @@ class _S extends ConsumerState<OrdersScreen> {
         onRetry: _load,
         child: ResponsiveLayout(
           mobile: (_) => _buildMobileList(),
-          desktop: (_) => _buildDesktopTable(),
         ),
       ),
     );
   }
 
-  // ── Desktop table ─────────────────────────────────────────────────────────
+  // ── Web page (desktop) ────────────────────────────────────────────────────
 
-  Widget _buildDesktopTable() {
-    return AppTable<Map<String, dynamic>>(
-      columns: [
-        AppTableColumn(
-          label: 'Date',
-          width: 100,
-          cellBuilder: (o) {
-            final date = DateTime.tryParse(o['created_at'] as String? ?? '');
-            return Text(
-              date != null ? DateFormat('d MMM y').format(date) : '—',
-              style: const TextStyle(fontSize: 13, color: kTextSub),
-            );
-          },
-        ),
-        AppTableColumn(
-          label: 'Retailer',
-          flex: 3,
-          cellBuilder: (o) {
-            final r   = o['retailers'] as Map<String, dynamic>?;
-            final lbl = _OrderCard._productLabel(o);
-            final c   = _OrderCard._productColor(lbl);
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  r?['shop_name'] as String? ?? '—',
-                  style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: kTextMain),
-                  overflow: TextOverflow.ellipsis,
-                ),
-                if (lbl.isNotEmpty)
-                  Container(
-                    margin: const EdgeInsets.only(top: 2),
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 6, vertical: 1),
-                    decoration: BoxDecoration(
-                        color: c.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(4),
-                        border: Border.all(
-                            color: c.withValues(alpha: 0.3))),
-                    child: Text(lbl,
-                        style: TextStyle(
-                            fontSize: 9,
-                            fontWeight: FontWeight.w700,
-                            color: c)),
-                  ),
+  static const _webColumns = [
+    WebColumn('Date & Time', width: 165, sortKey: 'date'),
+    WebColumn('Retailer', flex: 3, sortKey: 'retailer'),
+    WebColumn('Product', width: 120, sortKey: 'product'),
+    WebColumn('Birds', width: 90, sortKey: 'birds', align: TextAlign.right),
+    WebColumn('Weight', width: 110, sortKey: 'weight', align: TextAlign.right),
+    WebColumn('Amount', width: 130, sortKey: 'amount', align: TextAlign.right),
+    WebColumn('Status', width: 150, align: TextAlign.center),
+    WebColumn('Action', width: 80, align: TextAlign.center),
+  ];
+
+  Comparable<Object> _sortValue(Map<String, dynamic> o) {
+    switch (_sortKey) {
+      case 'retailer':
+        return ((o['retailers'] as Map?)?['shop_name'] as String? ?? '')
+            .toLowerCase();
+      case 'product':
+        return _OrderCard._productLabel(o).toLowerCase();
+      case 'birds':
+        return (o['estimated_birds'] as num?) ?? 0;
+      case 'weight':
+        return (o['total_quantity'] as num?) ?? 0;
+      case 'amount':
+        return (o['total_amount'] as num?) ?? 0;
+      case 'date':
+      default:
+        return o['created_at'] as String? ?? '';
+    }
+  }
+
+  void _sort(String key) => setState(() {
+    if (_sortKey == key) {
+      _sortAsc = !_sortAsc;
+    } else {
+      _sortKey = key;
+      _sortAsc = true;
+    }
+    _page = 0;
+  });
+
+  Widget _webCell(Map<String, dynamic> o, int col) {
+    switch (col) {
+      case 0:
+        final date = DateTime.tryParse(o['created_at'] as String? ?? '');
+        return Text(
+          date != null ? DateFormat('d MMM y, h:mm a').format(date.toLocal()) : '—',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(fontSize: 13, color: WebColors.text2),
+        );
+      case 1:
+        final r   = o['retailers'] as Map<String, dynamic>?;
+        final name = r?['shop_name'] as String? ?? '—';
+        return Text(name, maxLines: 1, overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 13.5,
+                fontWeight: FontWeight.w600, color: WebColors.text1));
+      case 2:
+        final lbl = _OrderCard._productLabel(o);
+        return lbl.isEmpty
+            ? const Text('—', style: WebText.caption)
+            : WebLabel(lbl, color: _OrderCard._productColor(lbl));
+      case 3:
+        final birds = (o['estimated_birds'] as num?)?.toInt() ?? 0;
+        return Text(birds > 0 ? '$birds' : '—',
+            style: const TextStyle(fontSize: 13.5, color: WebColors.text2));
+      case 4:
+        final kg = (o['total_quantity'] as num?)?.toDouble() ?? 0;
+        return Text(kg > 0 ? Fmt.kg(kg) : '—',
+            style: const TextStyle(fontSize: 13.5, color: WebColors.text2));
+      case 5:
+        final amt = (o['total_amount'] as num?)?.toDouble() ?? 0;
+        return Text(amt > 0 ? Fmt.amount(amt) : '—',
+            style: const TextStyle(fontSize: 13.5,
+                fontWeight: FontWeight.w700, color: WebColors.text1));
+      case 6:
+        final s = o['status'] as String? ?? 'pending';
+        return WebLabel(_capitalize(s), color: SC.order(s));
+      default:
+        return WebIconButton(
+          icon: Icons.visibility_outlined,
+          tooltip: 'View order',
+          size: 32,
+          outlined: false,
+          onTap: () => context.push(R.orderDetailPath(o['id'])),
+        );
+    }
+  }
+
+  Widget _buildWebPage() {
+    final rows = [..._filtered]..sort((a, b) {
+      final c = Comparable.compare(_sortValue(a), _sortValue(b));
+      return _sortAsc ? c : -c;
+    });
+    final lastPage = rows.isEmpty ? 0 : (rows.length - 1) ~/ _rowsPerPage;
+    final page = _page.clamp(0, lastPage);
+    final pageRows =
+        rows.skip(page * _rowsPerPage).take(_rowsPerPage).toList();
+
+    return ColoredBox(
+      color: WebColors.pageBg,
+      child: SingleChildScrollView(
+        padding: WebSpace.page,
+        child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            PageBreadcrumbsHeader(
+              title: 'Orders',
+              subtitle: 'Track and manage every customer order',
+              crumbs: const [
+                Crumb('Dashboard', R.dashboard),
+                Crumb('Orders'),
               ],
-            );
-          },
-        ),
-        AppTableColumn(
-          label: 'Birds',
-          width: 80,
-          alignment: Alignment.centerRight,
-          cellBuilder: (o) {
-            final birds = (o['estimated_birds'] as num?)?.toInt() ?? 0;
-            return Text(
-              birds > 0 ? '$birds' : '—',
-              style: const TextStyle(fontSize: 13, color: kTextSub),
-            );
-          },
-        ),
-        AppTableColumn(
-          label: 'Weight',
-          width: 90,
-          alignment: Alignment.centerRight,
-          cellBuilder: (o) {
-            final kg = (o['total_quantity'] as num?)?.toDouble() ?? 0;
-            return Text(
-              kg > 0 ? Fmt.kg(kg) : '—',
-              style: const TextStyle(fontSize: 13, color: kTextSub),
-            );
-          },
-        ),
-        AppTableColumn(
-          label: 'Amount',
-          width: 110,
-          alignment: Alignment.centerRight,
-          cellBuilder: (o) {
-            final amt = (o['total_amount'] as num?)?.toDouble() ?? 0;
-            return Text(
-              amt > 0 ? Fmt.amount(amt) : '—',
-              style: const TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w700,
-                color: kTextMain,
+              action: Row(mainAxisSize: MainAxisSize.min, children: [
+                WebIconButton(
+                    icon: Icons.refresh_rounded,
+                    tooltip: 'Refresh',
+                    onTap: _load),
+                const SizedBox(width: 8),
+                WebButton(
+                  label: 'In-House Sale',
+                  icon: Icons.storefront_outlined,
+                  outlined: true,
+                  onPressed: () => context.push(R.inHouseSale),
+                ),
+                const SizedBox(width: 8),
+                WebButton(
+                  label: 'New Order',
+                  icon: Icons.add_rounded,
+                  onPressed: () => context.push(R.orderCreate),
+                ),
+              ]),
+            ),
+            WebListCard(children: [
+              WebListTabs(
+                tabs: [
+                  for (final s in _statuses)
+                    WebTab(s == 'all' ? 'All' : _capitalize(s),
+                        count: _counts.isEmpty ? null : (_counts[s] ?? 0),
+                        color: s == 'all' ? null : SC.order(s)),
+                ],
+                selected: _statuses.indexOf(_filter),
+                onChanged: (i) {
+                  setState(() => _filter = _statuses[i]);
+                  _load();
+                },
               ),
-            );
-          },
-        ),
-        AppTableColumn(
-          label: 'Status',
-          width: 130,
-          alignment: Alignment.center,
-          cellBuilder: (o) =>
-              StatusChip.order(o['status'] as String? ?? 'pending'),
-        ),
-        AppTableColumn(
-          label: '',
-          width: 40,
-          alignment: Alignment.center,
-          cellBuilder: (_) =>
-          const Icon(Icons.chevron_right, size: 16, color: kTextHint),
-        ),
-      ],
-      rows: _filtered,
-      onRowTap: (o) => context.push(R.orderDetailPath(o['id'])),
-      desktopPadding: const EdgeInsets.symmetric(horizontal: 16),
-      emptyWidget: AsyncStateView(
-        loading: false,
-        empty: true,
-        emptyIcon: Icons.shopping_bag_outlined,
-        emptyMessage: _orders.isEmpty ? 'No orders yet' : 'No orders match',
-        onAction: _orders.isEmpty ? () => context.push(R.orderCreate) : null,
-        actionLabel: 'New Order',
-        child: const SizedBox.shrink(),
-      ),
-      footerWidget: Padding(
-        padding: const EdgeInsets.only(bottom: 8),
-        child: Text(
-          '${_filtered.length} of ${_orders.length} orders',
-          style: const TextStyle(fontSize: 12, color: kTextHint),
-          textAlign: TextAlign.center,
-        ),
+              WebListToolbar(
+                search: WebSearchField(
+                  controller: _searchCtrl,
+                  hint: 'Search by shop name or order ID…',
+                  debounce: const Duration(milliseconds: 250),
+                  onChanged: (v) {
+                    _applySearch(v);
+                    setState(() => _page = 0);
+                  },
+                ),
+                trailing: [
+                  Text('${_filtered.length} of ${_orders.length} orders',
+                      style: WebText.caption),
+                ],
+              ),
+              if (_error != null)
+                Padding(
+                  padding: const EdgeInsets.all(WebSpace.xl),
+                  child: AsyncStateView(
+                    loading: false,
+                    error: _error,
+                    onRetry: _load,
+                    child: const SizedBox.shrink(),
+                  ),
+                )
+              else
+                WebDataTable<Map<String, dynamic>>(
+                  columns: _webColumns,
+                  rows: pageRows,
+                  cellBuilder: _webCell,
+                  onRowTap: (o) => context.push(R.orderDetailPath(o['id'])),
+                  sortKey: _sortKey,
+                  sortAscending: _sortAsc,
+                  onSort: _sort,
+                  dense: _dense,
+                  loading: _loading,
+                  emptyText:
+                      _orders.isEmpty ? 'No orders yet' : 'No orders match',
+                  emptyAction: _orders.isEmpty
+                      ? WebButton(
+                          label: 'New Order',
+                          icon: Icons.add_rounded,
+                          onPressed: () => context.push(R.orderCreate))
+                      : null,
+                ),
+              WebTablePagination(
+                page: page,
+                rowsPerPage: _rowsPerPage,
+                total: rows.length,
+                onPage: (p) => setState(() => _page = p),
+                onRowsPerPage: (n) =>
+                    setState(() { _rowsPerPage = n; _page = 0; }),
+                dense: _dense,
+                onDense: (v) => setState(() => _dense = v),
+              ),
+            ]),
+          ]),
       ),
     );
   }
@@ -341,7 +438,7 @@ class _S extends ConsumerState<OrdersScreen> {
       child: ListView.separated(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
         itemCount: _filtered.length,
-        separatorBuilder: (_, __) => const SizedBox(height: 8),
+        separatorBuilder: (_, _) => const SizedBox(height: 8),
         itemBuilder: (_, i) => SerialNumbered(
             serial: i + 1, child: _OrderCard(order: _filtered[i])),
       ),

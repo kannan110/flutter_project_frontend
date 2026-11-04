@@ -7,6 +7,8 @@ import '../../../../core/providers/session_provider.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../shared/widgets/filters/filter_bar.dart';
 import 'customer_ledger_row_builder.dart';
+import 'package:rooster_trader/shared/widgets/web/app_scaffold.dart';
+import 'package:rooster_trader/shared/widgets/tables/scrollable_table_wrapper.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // CUSTOMER LEDGER REPORT  (Reports → Ledger → Customer Ledger)  — Phase 1
@@ -270,7 +272,7 @@ class _S extends ConsumerState<CustomerLedgerReportScreen> {
   // ═══════════════════════════════════════════════════════════════════════
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return AppScaffold(
       backgroundColor: kBgPage,
       appBar: AppBar(
         backgroundColor: kSurface,
@@ -465,8 +467,8 @@ class _S extends ConsumerState<CustomerLedgerReportScreen> {
         const SizedBox(height: 16),
 
         // ── Ledger grid ────────────────────────────────────────────────
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
+        ScrollableTableWrapper(
+          maxHeight: 520,
           child: _LedgerTable(rows: rows, opening: _opening, closing: _closing),
         ),
         const SizedBox(height: 20),
@@ -683,7 +685,7 @@ class _PickerSheetState extends State<_PickerSheet> {
                 : ListView.separated(
               controller: scrollCtrl,
               itemCount: filtered.length,
-              separatorBuilder: (_, __) => const Divider(height: 1),
+              separatorBuilder: (_, _) => const Divider(height: 1),
               itemBuilder: (_, i) {
                 final item = filtered[i];
                 final sub = widget.subtitleOf?.call(item);

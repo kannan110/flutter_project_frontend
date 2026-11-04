@@ -35,7 +35,7 @@ class SectionDivider extends StatelessWidget {
               ),
             ),
           ),
-          if (trailing != null) trailing!,
+          ?trailing,
         ]),
       ),
     ],
@@ -81,7 +81,7 @@ class SectionCard extends StatelessWidget {
                         fontSize: 16, fontWeight: FontWeight.w700,
                         color: kTextMain)),
               ),
-              if (trailing != null) trailing!,
+              ?trailing,
             ]),
           ),
         Padding(

@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/providers/session_provider.dart';
 import '../../../core/theme/app_theme.dart';
+import 'package:rooster_trader/shared/widgets/web/app_scaffold.dart';
 
 class RatesScreen extends ConsumerStatefulWidget {
   const RatesScreen({super.key});
@@ -149,7 +150,7 @@ class _S extends ConsumerState<RatesScreen> {
                   controller: ctrl,
                   padding: const EdgeInsets.all(20),
                   itemCount: hist.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 2),
+                  separatorBuilder: (_, _) => const SizedBox(height: 2),
                   itemBuilder: (_, i) {
                     final h = hist[i];
                     final d = DateTime.tryParse(h['effective_date'] as String? ?? '');
@@ -197,7 +198,7 @@ class _S extends ConsumerState<RatesScreen> {
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
+  Widget build(BuildContext context) => AppScaffold(
     backgroundColor: kBgPage,
     appBar: AppBar(
         backgroundColor: kSurface,
@@ -209,7 +210,7 @@ class _S extends ConsumerState<RatesScreen> {
         : ListView.separated(
         padding: const EdgeInsets.fromLTRB(16, 16, 16, kBottomNavClearance),
         itemCount: _products.length,
-        separatorBuilder: (_, __) => const SizedBox(height: 10),
+        separatorBuilder: (_, _) => const SizedBox(height: 10),
         itemBuilder: (_, i) {
           final p    = _products[i];
           final pid  = p['id'] as String;

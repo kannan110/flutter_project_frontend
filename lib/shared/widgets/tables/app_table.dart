@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:rooster_trader/core/theme/app_theme.dart';
 import 'package:rooster_trader/shared/layouts/responsive_layout.dart';
+export 'scrollable_table_wrapper.dart';
 
 // ── AppTableColumn ─────────────────────────────────────────────────────────
 class AppTableColumn<T> {
@@ -118,7 +119,7 @@ class AppTable<T> extends StatelessWidget {
 }
 
 // ── Desktop table ──────────────────────────────────────────────────────────
-class _DesktopTable<T> extends StatelessWidget {
+class _DesktopTable<T> extends StatefulWidget {
   const _DesktopTable({
     required this.columns,
     required this.rows,
@@ -150,72 +151,121 @@ class _DesktopTable<T> extends StatelessWidget {
   static const double _serialWidth = 56;
 
   @override
+  State<_DesktopTable<T>> createState() => _DesktopTableState<T>();
+}
+
+class _DesktopTableState<T> extends State<_DesktopTable<T>> {
+  final ScrollController _hScroll = ScrollController();
+  final ScrollController _vScroll = ScrollController();
+
+  @override
+  void dispose() {
+    _hScroll.dispose();
+    _vScroll.dispose();
+    super.dispose();
+  }
+
+  double _minTableWidth() {
+    double total = _DesktopTable._serialWidth;
+    for (final col in widget.columns) {
+      total += col.width ?? (col.flex * 120.0);
+    }
+    return total;
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return Column(children: [
-      // ── Navy header ──────────────────────────────────────────────────────
-      Container(
-        height:  headerHeight,
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            colors: [kNavy, kNavyMid],
-            begin:  Alignment.centerLeft,
-            end:    Alignment.centerRight,
+    final minW = _minTableWidth();
+
+    return LayoutBuilder(builder: (context, constraints) {
+      final tableWidth = constraints.maxWidth > minW ? constraints.maxWidth : minW;
+
+      final content = SizedBox(
+        width: tableWidth,
+        child: Column(children: [
+          // ── Navy header ──────────────────────────────────────────────────────
+          Container(
+            height:  widget.headerHeight,
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                colors: [kNavy, kNavyMid],
+                begin:  Alignment.centerLeft,
+                end:    Alignment.centerRight,
+              ),
+            ),
+            padding: widget.padding,
+            child: Row(
+              children: [
+                const SizedBox(
+                  width: _DesktopTable._serialWidth,
+                  child: Text(
+                    'S.NO',
+                    style: TextStyle(
+                      fontSize:      11,
+                      fontWeight:    FontWeight.w800,
+                      color:         kSidebarText,
+                      letterSpacing: 0.8,
+                    ),
+                  ),
+                ),
+                ...widget.columns.map((col) => _headerCell(col)),
+              ],
+            ),
           ),
-        ),
-        padding: padding,
-        child: Row(
-          children: [
-            const SizedBox(
-              width: _serialWidth,
-              child: Text(
-                'S.NO',
-                style: TextStyle(
-                  fontSize:      11,
-                  fontWeight:    FontWeight.w800,
-                  color:         kGoldLight,
-                  letterSpacing: 0.8,
+
+          // ── Rows ─────────────────────────────────────────────────────────────
+          if (widget.rows.isEmpty && widget.emptyWidget != null)
+            Expanded(child: widget.emptyWidget!)
+          else
+            Expanded(
+              child: Scrollbar(
+                controller: _vScroll,
+                thumbVisibility: true,
+                notificationPredicate: (notif) => notif.metrics.axis == Axis.vertical,
+                child: ListView.builder(
+                  controller: _vScroll,
+                  padding:     EdgeInsets.zero,
+                  itemCount:   widget.rows.length + (widget.footerWidget != null ? 1 : 0),
+                  itemBuilder: (_, i) {
+                    if (widget.footerWidget != null && i == widget.rows.length) {
+                      return Padding(
+                        padding: const EdgeInsets.all(16),
+                        child:   widget.footerWidget,
+                      );
+                    }
+                    return _TableRow<T>(
+                      item:       widget.rows[i],
+                      serial:     i + 1,
+                      columns:    widget.columns,
+                      height:     widget.rowHeight,
+                      padding:    widget.padding,
+                      onTap:      widget.onRowTap != null ? () => widget.onRowTap!(widget.rows[i]) : null,
+                      isEven:     i.isEven,
+                      decoration: widget.rowDecoration?.call(widget.rows[i]),
+                    );
+                  },
                 ),
               ),
             ),
-            ...columns.map((col) => _headerCell(col)),
-          ],
-        ),
-      ),
+        ]),
+      );
 
-      // ── Rows ─────────────────────────────────────────────────────────────
-      if (rows.isEmpty && emptyWidget != null)
-        Expanded(child: emptyWidget!)
-      else
-        Expanded(
-          child: ListView.builder(
-            padding:     EdgeInsets.zero,
-            itemCount:   rows.length + (footerWidget != null ? 1 : 0),
-            itemBuilder: (_, i) {
-              if (footerWidget != null && i == rows.length) {
-                return Padding(
-                  padding: const EdgeInsets.all(16),
-                  child:   footerWidget,
-                );
-              }
-              return _TableRow<T>(
-                item:       rows[i],
-                serial:     i + 1,
-                columns:    columns,
-                height:     rowHeight,
-                padding:    padding,
-                onTap:      onRowTap != null ? () => onRowTap!(rows[i]) : null,
-                isEven:     i.isEven,
-                decoration: rowDecoration?.call(rows[i]),
-              );
-            },
-          ),
+      return Scrollbar(
+        controller: _hScroll,
+        thumbVisibility: true,
+        notificationPredicate: (notif) => notif.metrics.axis == Axis.horizontal,
+        child: SingleChildScrollView(
+          controller: _hScroll,
+          scrollDirection: Axis.horizontal,
+          child: content,
         ),
-    ]);
+      );
+    });
   }
 
   Widget _headerCell(AppTableColumn<T> col) {
-    final canSort  = col.sortKey != null && onSort != null;
-    final isActive = sortColumn == col.sortKey;
+    final canSort  = col.sortKey != null && widget.onSort != null;
+    final isActive = widget.sortColumn == col.sortKey;
 
     Widget label = Text(
       col.label.toUpperCase(),
@@ -229,14 +279,14 @@ class _DesktopTable<T> extends StatelessWidget {
 
     if (canSort) {
       label = InkWell(
-        onTap:        () => onSort!(col.sortKey!),
+        onTap:        () => widget.onSort!(col.sortKey!),
         borderRadius: BorderRadius.circular(2),
         child: Row(mainAxisSize: MainAxisSize.min, children: [
           label,
           const SizedBox(width: 4),
           Icon(
             isActive
-                ? (sortAscending
+                ? (widget.sortAscending
                 ? Icons.arrow_upward_rounded
                 : Icons.arrow_downward_rounded)
                 : Icons.unfold_more_rounded,
@@ -363,7 +413,7 @@ class _MobileList<T> extends StatelessWidget {
     return ListView.separated(
       padding:          padding,
       itemCount:        rows.length + (footerWidget != null ? 1 : 0),
-      separatorBuilder: (_, __) => const SizedBox(height: 8),
+      separatorBuilder: (_, _) => const SizedBox(height: 8),
       itemBuilder: (_, i) {
         if (footerWidget != null && i == rows.length) return footerWidget!;
         return SerialNumbered(serial: i + 1, child: cardBuilder(rows[i]));
@@ -427,7 +477,7 @@ class ListToolbar extends StatelessWidget {
                   color: kTextHint, size: 18),
               suffixIcon: AnimatedBuilder(
                 animation: searchController,
-                builder: (_, __) => searchController.text.isNotEmpty
+                builder: (_, _) => searchController.text.isNotEmpty
                     ? IconButton(
                   icon: const Icon(Icons.close_rounded,
                       size: 16, color: kTextHint),
@@ -449,7 +499,7 @@ class ListToolbar extends StatelessWidget {
         )),
 
         // Secondary actions
-        if (secondaryActions != null) ...secondaryActions!,
+        ...?secondaryActions,
 
         // Primary action — navy button, always visible on desktop
         if (onPrimary != null && primaryLabel != null) ...[
@@ -525,7 +575,7 @@ class ListScreenScaffold extends StatelessWidget {
                     padding: const EdgeInsets.fromLTRB(24, 0, 24, 12),
                     child:   summaryStrip,
                   ),
-                if (filterBar != null) filterBar!,
+                ?filterBar,
               ]),
             ),
             // Content — cream bg
@@ -553,7 +603,7 @@ class ListScreenScaffold extends StatelessWidget {
                 padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
                 child:   summaryStrip,
               ),
-            if (filterBar != null) filterBar!,
+            ?filterBar,
           ]),
         ),
         Expanded(child: content),

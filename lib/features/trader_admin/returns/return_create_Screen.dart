@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/providers/session_provider.dart';
 import '../../../core/theme/app_theme.dart' hide AppSearchBar;
 import '../../../shared/widgets/filters/search_bar.dart';
+import 'package:rooster_trader/shared/widgets/web/app_scaffold.dart';
 
 // ══════════════════════════════════════════════════════════════════════════
 // RETURN CREATE SCREEN — real trader workflow:
@@ -330,7 +331,7 @@ class _S extends ConsumerState<ReturnCreateScreen> {
   static const _stepTitles = ['Select Customer', 'Recent Deliveries', 'Products', 'Return Details'];
 
   @override
-  Widget build(BuildContext context) => Scaffold(
+  Widget build(BuildContext context) => AppScaffold(
     backgroundColor: kBgPage,
     appBar: AppBar(
       backgroundColor: kSurface,
@@ -372,7 +373,7 @@ class _S extends ConsumerState<ReturnCreateScreen> {
           : ListView.separated(
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
         itemCount: _filteredRetailers.length,
-        separatorBuilder: (_, __) => const SizedBox(height: 8),
+        separatorBuilder: (_, _) => const SizedBox(height: 8),
         itemBuilder: (_, i) {
           final r = _filteredRetailers[i];
           return _card(
@@ -427,7 +428,7 @@ class _S extends ConsumerState<ReturnCreateScreen> {
           : ListView.separated(
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
         itemCount: _deliveries.length + (_hasMoreDeliveries ? 1 : 0),
-        separatorBuilder: (_, __) => const SizedBox(height: 8),
+        separatorBuilder: (_, _) => const SizedBox(height: 8),
         itemBuilder: (_, i) {
           if (i == _deliveries.length) {
             return Padding(
@@ -487,7 +488,7 @@ class _S extends ConsumerState<ReturnCreateScreen> {
           : ListView.separated(
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
         itemCount: _productLines.length,
-        separatorBuilder: (_, __) => const SizedBox(height: 10),
+        separatorBuilder: (_, _) => const SizedBox(height: 10),
         itemBuilder: (_, i) => _productCard(i),
       ),
     ),

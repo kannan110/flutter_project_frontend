@@ -146,7 +146,7 @@ class _S extends ConsumerState<AgentDeliveriesScreen> {
                 child: ListView.separated(
                   padding: const EdgeInsets.fromLTRB(16, 16, 16, kBottomNavClearance),
                   itemCount: _filtered.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 10),
+                  separatorBuilder: (_, _) => const SizedBox(height: 10),
                   itemBuilder: (_, i) => _deliveryCard(_filtered[i]),
                 ))),
       ]),

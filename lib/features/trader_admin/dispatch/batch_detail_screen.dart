@@ -8,6 +8,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/providers/session_provider.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_theme.dart';
+import 'package:rooster_trader/shared/widgets/web/app_scaffold.dart';
 
 class BatchDetailScreen extends ConsumerStatefulWidget {
   const BatchDetailScreen({super.key, required this.id});
@@ -1200,10 +1201,10 @@ class _S extends ConsumerState<BatchDetailScreen> {
   @override
   Widget build(BuildContext context) {
     if (_loading) {
-      return const Scaffold(backgroundColor: kBgPage, body: LoadingList());
+      return const AppScaffold(backgroundColor: kBgPage, body: LoadingList());
     }
     if (_batch == null) {
-      return Scaffold(backgroundColor: kBgPage,
+      return AppScaffold(backgroundColor: kBgPage,
         appBar: AppBar(backgroundColor: kSurface),
         body: const Center(child: Text('Not found')));
     }
@@ -1223,7 +1224,7 @@ class _S extends ConsumerState<BatchDetailScreen> {
         0.0, (s, c) => s + ((c['dc_adjusted_weight'] as num?)?.toDouble() ??
         (c['net_weight'] as num?)?.toDouble() ?? 0));
 
-    return Scaffold(
+    return AppScaffold(
       backgroundColor: kBgPage,
       appBar: AppBar(
         backgroundColor: kSurface,
@@ -1733,7 +1734,7 @@ class _DcCardState extends State<_DcCard> {
                                   child: const Center(
                                       child: CircularProgressIndicator(
                                           strokeWidth: 2))),
-                              errorBuilder: (_, __, ___) =>
+                              errorBuilder: (_, _, _) =>
                                   Container(
                                       height: 80, color: Colors.grey.shade100,
                                       child: const Center(

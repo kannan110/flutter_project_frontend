@@ -7,6 +7,7 @@ import '../../../core/providers/session_provider.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../shared/layouts/responsive_layout.dart';
+import 'package:rooster_trader/shared/widgets/web/app_scaffold.dart';
 
 // ══════════════════════════════════════════════════════════════════════════
 // INVOICE CORRECTION SCREEN
@@ -319,9 +320,9 @@ class _S extends ConsumerState<InvoiceCorrectionScreen> {
   );
 
   Widget _scaffold() {
-    if (_loading) return const Scaffold(body: LoadingList());
+    if (_loading) return const AppScaffold(body: LoadingList());
     if (_err != null && _original == null) {
-      return Scaffold(
+      return AppScaffold(
         appBar: AppBar(title: const Text('Correct Invoice')),
         body: Center(
           child: Padding(
@@ -338,7 +339,7 @@ class _S extends ConsumerState<InvoiceCorrectionScreen> {
 
     final canSubmit = _hasChanges && !_submitting;
 
-    return Scaffold(
+    return AppScaffold(
       backgroundColor: kBgPage,
       appBar: AppBar(
         backgroundColor: kSurface,

@@ -7,6 +7,7 @@ import 'package:share_plus/share_plus.dart';
 import '../../../core/providers/session_provider.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../shared/widgets/web/web.dart';
 import '../../../shared/layouts/responsive_layout.dart';
 
 // =============================================================================
@@ -48,6 +49,10 @@ class _S extends ConsumerState<PurchaseScreen>
   String? _filterStatus;
   String? _filterPayStatus;
   String? _farmFilter; // ledger tab farm filter
+  String _searchQuery = '';
+  String _webSortKey = 'date';
+  bool _webSortAsc = false;
+  int _historySubTab = 0;
 
   static const _tabs = [
     'Overview',
@@ -64,9 +69,27 @@ class _S extends ConsumerState<PurchaseScreen>
     super.initState();
     _tab = TabController(length: _tabs.length, vsync: this);
     _tab.addListener(() {
+      if (mounted) setState(() {});
       if (!_tab.indexIsChanging) _load();
     });
     _load();
+  }
+
+  Future<T?> _showSheet<T>({
+    required WidgetBuilder builder,
+    double maxWidth = WebSize.dialogMd,
+  }) {
+    return showModalBottomSheet<T>(
+      context: context,
+      useRootNavigator: true,
+      isScrollControlled: true,
+      backgroundColor: WebColors.surface,
+      constraints: BoxConstraints(maxWidth: maxWidth),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(WebRadius.card)),
+      ),
+      builder: builder,
+    );
   }
 
   @override
@@ -81,7 +104,11 @@ class _S extends ConsumerState<PurchaseScreen>
 
   Future<void> _load() async {
     final tid = ref.read(appUserProvider).valueOrNull?.traderId;
-    if (tid == null || !mounted) return;
+    if (!mounted) return;
+    if (tid == null) {
+      setState(() => _loading = false);
+      return;
+    }
     if (mounted) setState(() => _loading = true);
     try {
       switch (_tab.index) {
@@ -289,7 +316,9 @@ class _S extends ConsumerState<PurchaseScreen>
             }
           }
       }
-    } catch (_) {}
+    } catch (_) {
+      
+    }
     if (mounted) setState(() => _loading = false);
   }
 
@@ -315,6 +344,1471 @@ class _S extends ConsumerState<PurchaseScreen>
   // ==========================================================================
   // BUILD
   // ==========================================================================
+
+  // ── Web (desktop): page header with actions, card with tab strip;
+  // ERP-grade responsive tables and KPIs adhering strictly to the Rooster Design System.
+  Widget _buildWeb(BuildContext context) => ColoredBox(
+      color: WebColors.pageBg,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+            PageBreadcrumbsHeader(
+              title: 'Purchase Management',
+              subtitle: 'Procurement • Supplier Accounting • Profitability',
+              crumbs: const [Crumb('Dashboard', R.dashboard),
+                Crumb('Purchase')],
+              padding: const EdgeInsets.only(bottom: WebSpace.lg),
+              action: Wrap(spacing: 8, runSpacing: 8,
+                  crossAxisAlignment: WrapCrossAlignment.center, children: [
+                WebButton(
+                  label: '${DateFormat('d MMM').format(_from)} – '
+                      '${DateFormat('d MMM y').format(_to)}',
+                  icon: Icons.calendar_today_outlined,
+                  outlined: true,
+                  onPressed: _pickRange,
+                ),
+                if (_tab.index == 5)
+                  WebButton(label: 'Export Report',
+                      icon: Icons.share_outlined, outlined: true,
+                      onPressed: _exportReport),
+                WebButton(label: 'Add Supplier', icon: Icons.agriculture_outlined,
+                    outlined: true, onPressed: _showAddFarm),
+                WebButton(label: 'Add Company', icon: Icons.business_outlined,
+                    outlined: true, onPressed: _showAddCompany),
+                WebIconButton(icon: Icons.refresh_rounded, tooltip: 'Refresh',
+                    onTap: _load),
+              ]),
+            ),
+            Expanded(child: Container(
+              decoration: WebDecor.card(),
+              clipBehavior: Clip.antiAlias,
+              child: Column(children: [
+                WebListTabs(
+                  tabs: [for (final t in _tabs) WebTab(t)],
+                  selected: _tab.index,
+                  onChanged: (i) => setState(() => _tab.animateTo(i)),
+                ),
+                Expanded(child: ColoredBox(
+                  color: WebColors.pageBg,
+                  child: _loading
+                      ? const WebTableState.loading()
+                      : TabBarView(
+                          controller: _tab,
+                          physics: const NeverScrollableScrollPhysics(),
+                          children: [
+                            _tabOverviewWeb(),
+                            _tabPurchasesWeb(),
+                            _tabSuppliersWeb(),
+                            _tabLedgerWeb(),
+                            _tabCostingWeb(),
+                            _tabReportsWeb(),
+                            _tabHistoryWeb(),
+                          ],
+                        ),
+                )),
+              ]),
+            )),
+          ]),
+      ));
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // WEB TAB IMPLEMENTATIONS (Desktop / Tablet)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  Widget _tabOverviewWeb() {
+    final s = _summary;
+    final o = _overview;
+    if (s == null && o == null) {
+      return const WebTableState.empty(text: 'No overview data for selected date range');
+    }
+    final total = (s?['total_purchase_amt'] as num?)?.toDouble() ?? 0;
+    final paid = (s?['total_paid'] as num?)?.toDouble() ?? 0;
+    final claim = (s?['total_claim'] as num?)?.toDouble() ?? 0;
+    final due = (s?['total_outstanding'] as num?)?.toDouble() ?? 0;
+    final avgCost = (s?['avg_cost_per_kg'] as num?)?.toDouble();
+    final pending = (s?['pending_rate'] as num?)?.toInt() ?? 0;
+    final overdue = (s?['overdue_count'] as num?)?.toInt() ?? 0;
+    final prof = o?['profitability'] as Map<String, dynamic>?;
+    final netProfit = (prof?['net_profit'] as num?)?.toDouble() ?? 0;
+    final farms = (o?['farms'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+    final trend = (o?['monthly_trend'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+
+    final kpi1 = WebKpiCard(
+      label: 'Total Purchases',
+      value: Fmt.amount(total),
+      icon: Icons.shopping_cart_outlined,
+      color: WebColors.navy,
+    );
+    final kpi2 = WebKpiCard(
+      label: 'Total Paid',
+      value: Fmt.amount(paid),
+      icon: Icons.payments_outlined,
+      color: WebColors.success,
+    );
+    final kpi3 = WebKpiCard(
+      label: 'Outstanding Due',
+      value: Fmt.amount(due),
+      icon: Icons.account_balance_outlined,
+      color: due > 0 ? WebColors.warning : WebColors.success,
+    );
+    final kpi4 = WebKpiCard(
+      label: 'Avg Cost / kg',
+      value: avgCost != null ? 'Rs.${avgCost.toStringAsFixed(2)}' : '--',
+      icon: Icons.scale_outlined,
+      color: WebColors.gold,
+    );
+    final kpi5 = WebKpiCard(
+      label: 'Total Claims',
+      value: Fmt.amount(claim),
+      icon: Icons.report_problem_outlined,
+      color: WebColors.error,
+    );
+    final kpi6 = WebKpiCard(
+      label: 'Net Profit',
+      value: Fmt.amount(netProfit),
+      icon: Icons.trending_up_rounded,
+      color: netProfit >= 0 ? WebColors.success : WebColors.error,
+    );
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(WebSpace.xl),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        if (pending > 0 || overdue > 0) ...[
+          Row(children: [
+            if (pending > 0)
+              Expanded(
+                child: MouseRegion(
+                  cursor: SystemMouseCursors.click,
+                  child: GestureDetector(
+                    onTap: () {
+                      _tab.animateTo(1);
+                      setState(() => _filterStatus = 'draft');
+                      _load();
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      decoration: BoxDecoration(
+                        color: WebColors.warningBg,
+                        borderRadius: BorderRadius.circular(WebRadius.sm),
+                        border: Border.all(color: WebColors.warning.withValues(alpha: 0.3)),
+                      ),
+                      child: Row(children: [
+                        const Icon(Icons.pending_actions_outlined, color: WebColors.warning, size: 20),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            '$pending DC(s) pending rate entry — click to enter rates',
+                            style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                              color: WebColors.warning,
+                            ),
+                          ),
+                        ),
+                        const Icon(Icons.chevron_right_rounded, color: WebColors.warning, size: 20),
+                      ]),
+                    ),
+                  ),
+                ),
+              ),
+            if (pending > 0 && overdue > 0) const SizedBox(width: WebSpace.md),
+            if (overdue > 0)
+              Expanded(
+                child: MouseRegion(
+                  cursor: SystemMouseCursors.click,
+                  child: GestureDetector(
+                    onTap: () {
+                      _tab.animateTo(1);
+                      setState(() => _filterPayStatus = 'overdue');
+                      _load();
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      decoration: BoxDecoration(
+                        color: WebColors.errorBg,
+                        borderRadius: BorderRadius.circular(WebRadius.sm),
+                        border: Border.all(color: WebColors.error.withValues(alpha: 0.3)),
+                      ),
+                      child: Row(children: [
+                        const Icon(Icons.warning_amber_rounded, color: WebColors.error, size: 20),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            '$overdue payment(s) overdue — click to view',
+                            style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                              color: WebColors.error,
+                            ),
+                          ),
+                        ),
+                        const Icon(Icons.chevron_right_rounded, color: WebColors.error, size: 20),
+                      ]),
+                    ),
+                  ),
+                ),
+              ),
+          ]),
+          const SizedBox(height: WebSpace.lg),
+        ],
+
+        LayoutBuilder(builder: (context, constraints) {
+          final isNarrow = constraints.maxWidth < 1100;
+          return Column(children: [
+            if (isNarrow) ...[
+              WebKpiRow(children: [kpi1, kpi2, kpi3]),
+              const SizedBox(height: WebSpace.md),
+              WebKpiRow(children: [kpi4, kpi5, kpi6]),
+            ] else ...[
+              WebKpiRow(children: [kpi1, kpi2, kpi3, kpi4, kpi5, kpi6]),
+            ],
+          ]);
+        }),
+        const SizedBox(height: WebSpace.xl),
+
+        Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Expanded(
+            flex: 3,
+            child: WebSectionCard(
+              title: 'Supplier Outstanding',
+              subtitle: 'Top suppliers with pending balances',
+              icon: Icons.agriculture_outlined,
+              action: WebButton(
+                label: 'View All Suppliers',
+                icon: Icons.arrow_forward_rounded,
+                outlined: true,
+                onPressed: () => _tab.animateTo(2),
+              ),
+              child: farms.isEmpty
+                  ? const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 24),
+                      child: Center(
+                        child: Text('No suppliers with balances', style: TextStyle(color: WebColors.text3)),
+                      ),
+                    )
+                  : Column(children: [
+                      for (final f in farms.take(6)) ...[
+                        Builder(builder: (_) {
+                          final outstanding = (f['outstanding'] as num?)?.toDouble() ?? 0;
+                          final total2 = (f['total_amount'] as num?)?.toDouble() ?? 0;
+                          final name = f['farmer_name'] as String? ?? '--';
+                          return InkWell(
+                            onTap: () => _tab.animateTo(2),
+                            borderRadius: BorderRadius.circular(WebRadius.sm),
+                            child: Container(
+                              margin: const EdgeInsets.only(bottom: 8),
+                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                              decoration: BoxDecoration(
+                                color: WebColors.surfaceAlt,
+                                borderRadius: BorderRadius.circular(WebRadius.sm),
+                                border: Border.all(color: WebColors.border),
+                              ),
+                              child: Row(children: [
+                                CircleAvatar(
+                                  radius: 16,
+                                  backgroundColor: WebColors.navySoft,
+                                  child: Text(
+                                    name.isNotEmpty ? name[0].toUpperCase() : '?',
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w800,
+                                      color: WebColors.navy,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                                    Text(name, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: WebColors.text1)),
+                                    Text(
+                                      '${(f['dc_count'] as num?)?.toInt() ?? 0} DCs  •  ${Fmt.amount(total2)} total',
+                                      style: const TextStyle(fontSize: 11, color: WebColors.text3),
+                                    ),
+                                  ]),
+                                ),
+                                Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                                  Text(
+                                    Fmt.amount(outstanding),
+                                    style: TextStyle(
+                                      fontSize: 13.5,
+                                      fontWeight: FontWeight.w800,
+                                      color: outstanding > 0 ? WebColors.warning : WebColors.success,
+                                    ),
+                                  ),
+                                  Text(
+                                    outstanding > 0 ? 'outstanding' : 'settled',
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w600,
+                                      color: outstanding > 0 ? WebColors.warning : WebColors.success,
+                                    ),
+                                  ),
+                                ]),
+                              ]),
+                            ),
+                          );
+                        }),
+                      ],
+                    ]),
+            ),
+          ),
+          const SizedBox(width: WebSpace.xl),
+          Expanded(
+            flex: 2,
+            child: WebSectionCard(
+              title: 'Monthly Purchase Trend',
+              subtitle: 'Procurement volume by month',
+              icon: Icons.bar_chart_rounded,
+              child: trend.isEmpty
+                  ? const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 24),
+                      child: Center(
+                        child: Text('No trend data available', style: TextStyle(color: WebColors.text3)),
+                      ),
+                    )
+                  : Container(
+                      height: 240,
+                      padding: const EdgeInsets.only(top: 16),
+                      child: Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                        for (final t in trend) ...[
+                          Builder(builder: (_) {
+                            final amt = (t['total_amount'] as num?)?.toDouble() ?? 0;
+                            final maxAmt = trend
+                                .map((x) => (x['total_amount'] as num?)?.toDouble() ?? 0)
+                                .reduce((a, b) => a > b ? a : b)
+                                .clamp(1.0, double.infinity);
+                            final frac = (amt / maxAmt).clamp(0.05, 1.0);
+                            final dt = DateTime.tryParse((t['month'] as String?) ?? '');
+                            return Expanded(
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 4),
+                                child: Column(mainAxisAlignment: MainAxisAlignment.end, children: [
+                                  if (amt > 0)
+                                    Text(
+                                      Fmt.amount(amt),
+                                      style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w600, color: WebColors.text2),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  const SizedBox(height: 4),
+                                  AnimatedContainer(
+                                    duration: const Duration(milliseconds: 300),
+                                    height: 160 * frac,
+                                    decoration: const BoxDecoration(
+                                      gradient: LinearGradient(
+                                        begin: Alignment.bottomCenter,
+                                        end: Alignment.topCenter,
+                                        colors: [WebColors.navy, WebColors.navyMid],
+                                      ),
+                                      borderRadius: BorderRadius.vertical(top: Radius.circular(WebRadius.sm)),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    dt != null ? DateFormat('MMM').format(dt) : (t['month'] ?? ''),
+                                    style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: WebColors.text3),
+                                  ),
+                                ]),
+                              ),
+                            );
+                          }),
+                        ],
+                      ]),
+                    ),
+            ),
+          ),
+        ]),
+      ]),
+    );
+  }
+
+  Widget _tabPurchasesWeb() {
+    final s = _summary;
+    final total = (s?['total_purchase_amt'] as num?)?.toDouble() ?? 0;
+    final paid = (s?['total_paid'] as num?)?.toDouble() ?? 0;
+    final due = (s?['total_outstanding'] as num?)?.toDouble() ?? 0;
+    final avgCost = (s?['avg_cost_per_kg'] as num?)?.toDouble();
+    final dcs = (s?['total_dcs'] as num?)?.toInt() ?? 0;
+    final kg = (s?['total_weight_kg'] as num?)?.toDouble() ?? 0;
+    final pendRate = (s?['pending_rate'] as num?)?.toInt() ?? 0;
+
+    final query = _searchQuery.trim().toLowerCase();
+    final filtered = _purchases.where((p) {
+      if (query.isNotEmpty) {
+        final dc = (p['dc_number'] as String? ?? '').toLowerCase();
+        final farmer = (p['farms'] as Map?)?['farmer_name'] as String? ?? p['farmer_name'] as String? ?? '';
+        if (!dc.contains(query) && !farmer.toLowerCase().contains(query)) {
+          return false;
+        }
+      }
+      return true;
+    }).toList();
+
+    filtered.sort((a, b) {
+      Comparable<Object> val(Map<String, dynamic> row) {
+        switch (_webSortKey) {
+          case 'dc':
+            return row['dc_number'] as String? ?? '';
+          case 'farmer':
+            return ((row['farms'] as Map?)?['farmer_name'] as String? ?? row['farmer_name'] as String? ?? '').toLowerCase();
+          case 'rate':
+            return (row['purchase_rate_per_kg'] as num?)?.toDouble() ?? -1;
+          case 'total':
+            return (row['total_landed_cost'] as num?)?.toDouble() ?? 0;
+          case 'date':
+          default:
+            return row['dc_date'] as String? ?? '';
+        }
+      }
+      final c = Comparable.compare(val(a), val(b));
+      return _webSortAsc ? c : -c;
+    });
+
+    final pending = _purchases.where((p) => p['status'] == 'draft').length;
+
+    final k1 = WebKpiCard(
+      label: 'Total Purchases',
+      value: Fmt.amount(total),
+      icon: Icons.shopping_cart_outlined,
+      color: WebColors.navy,
+    );
+    final k2 = WebKpiCard(
+      label: 'Total Paid',
+      value: Fmt.amount(paid),
+      icon: Icons.payments_outlined,
+      color: WebColors.success,
+    );
+    final k3 = WebKpiCard(
+      label: 'Outstanding Due',
+      value: Fmt.amount(due),
+      icon: Icons.account_balance_outlined,
+      color: due > 0 ? WebColors.warning : WebColors.success,
+    );
+    final k4 = WebKpiCard(
+      label: 'Avg Cost / kg',
+      value: avgCost != null ? 'Rs.${avgCost.toStringAsFixed(2)}' : '--',
+      icon: Icons.scale_outlined,
+      color: WebColors.gold,
+    );
+    final k5 = WebKpiCard(
+      label: 'Total DCs',
+      value: '$dcs',
+      icon: Icons.receipt_long_outlined,
+      color: WebColors.navyMid,
+    );
+    final k6 = WebKpiCard(
+      label: 'Total Weight',
+      value: '${kg.toStringAsFixed(0)} kg',
+      icon: Icons.scale_rounded,
+      color: WebColors.info,
+    );
+    final k7 = WebKpiCard(
+      label: 'Rate Pending',
+      value: '$pendRate',
+      icon: Icons.pending_actions_outlined,
+      color: pendRate > 0 ? WebColors.warning : WebColors.success,
+    );
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(WebSpace.xl),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        if (s != null) ...[
+          LayoutBuilder(builder: (context, constraints) {
+            final isNarrow = constraints.maxWidth < 1200;
+            return Column(children: [
+              if (isNarrow) ...[
+                WebKpiRow(children: [k1, k2, k3, k4]),
+                const SizedBox(height: WebSpace.md),
+                WebKpiRow(children: [k5, k6, k7]),
+              ] else ...[
+                WebKpiRow(children: [k1, k2, k3, k4, k5, k6, k7]),
+              ],
+            ]);
+          }),
+          const SizedBox(height: WebSpace.lg),
+        ],
+
+        if (pending > 0) ...[
+          Container(
+            margin: const EdgeInsets.only(bottom: WebSpace.lg),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            decoration: BoxDecoration(
+              color: WebColors.warningBg,
+              borderRadius: BorderRadius.circular(WebRadius.sm),
+              border: Border.all(color: WebColors.warning.withValues(alpha: 0.3)),
+            ),
+            child: Row(children: [
+              const Icon(Icons.pending_actions_outlined, color: WebColors.warning, size: 20),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  '$pending DC(s) pending rate entry — click "Enter Rate" or tap the row to confirm',
+                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: WebColors.warning),
+                ),
+              ),
+              if (_filterStatus != 'draft')
+                WebButton(
+                  label: 'Filter Pending',
+                  color: WebColors.warning,
+                  onPressed: () {
+                    setState(() => _filterStatus = 'draft');
+                    _load();
+                  },
+                ),
+            ]),
+          ),
+        ],
+
+        WebListCard(children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(WebSpace.xl, WebSpace.lg, WebSpace.xl, WebSpace.md),
+            child: Row(children: [
+              WebSearchField(
+                hint: 'Search DC # or supplier…',
+                width: 260,
+                onChanged: (v) => setState(() => _searchQuery = v),
+              ),
+              const SizedBox(width: WebSpace.md),
+              Wrap(spacing: 8, children: [
+                _webFilterChip('All Status', _filterStatus == null, () {
+                  setState(() => _filterStatus = null);
+                  _load();
+                }),
+                _webFilterChip('Draft', _filterStatus == 'draft', () {
+                  setState(() => _filterStatus = 'draft');
+                  _load();
+                }),
+                _webFilterChip('Confirmed', _filterStatus == 'confirmed', () {
+                  setState(() => _filterStatus = 'confirmed');
+                  _load();
+                }),
+                _webFilterChip('Locked', _filterStatus == 'locked', () {
+                  setState(() => _filterStatus = 'locked');
+                  _load();
+                }),
+                const SizedBox(width: 4),
+                _webFilterChip('All Pay', _filterPayStatus == null, () {
+                  setState(() => _filterPayStatus = null);
+                  _load();
+                }),
+                _webFilterChip('Overdue', _filterPayStatus == 'overdue', () {
+                  setState(() => _filterPayStatus = 'overdue');
+                  _load();
+                }),
+                _webFilterChip('Paid', _filterPayStatus == 'paid', () {
+                  setState(() => _filterPayStatus = 'paid');
+                  _load();
+                }),
+                _webFilterChip('Partial', _filterPayStatus == 'partial', () {
+                  setState(() => _filterPayStatus = 'partial');
+                  _load();
+                }),
+                if (_filterStatus != null || _filterPayStatus != null || _searchQuery.isNotEmpty)
+                  GestureDetector(
+                    onTap: () {
+                      setState(() {
+                        _filterStatus = null;
+                        _filterPayStatus = null;
+                        _searchQuery = '';
+                      });
+                      _load();
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                      decoration: BoxDecoration(
+                        color: WebColors.errorBg,
+                        borderRadius: BorderRadius.circular(WebRadius.button),
+                        border: Border.all(color: WebColors.error.withValues(alpha: 0.3)),
+                      ),
+                      child: const Text('Clear', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: WebColors.error)),
+                    ),
+                  ),
+              ]),
+              const Spacer(),
+              Text('${filtered.length} entries', style: WebText.caption),
+            ]),
+          ),
+          const Divider(height: 1, color: WebColors.border),
+
+          WebDataTable<Map<String, dynamic>>(
+            columns: const [
+              WebColumn('DC Number', width: 140, sortKey: 'dc'),
+              WebColumn('Date', width: 110, sortKey: 'date'),
+              WebColumn('Supplier', flex: 2, sortKey: 'farmer'),
+              WebColumn('Birds / Wt', width: 130, align: TextAlign.right),
+              WebColumn('Arrival', width: 120, align: TextAlign.right),
+              WebColumn('Rate / kg', width: 110, align: TextAlign.right, sortKey: 'rate'),
+              WebColumn('Total Cost', width: 130, align: TextAlign.right, sortKey: 'total'),
+              WebColumn('Paid / Due', width: 140, align: TextAlign.right),
+              WebColumn('Status', width: 130, align: TextAlign.center),
+              WebColumn('Actions', width: 170, align: TextAlign.center),
+            ],
+            rows: filtered,
+            sortKey: _webSortKey,
+            sortAscending: _webSortAsc,
+            onSort: (k) => setState(() {
+              if (_webSortKey == k) {
+                _webSortAsc = !_webSortAsc;
+              } else {
+                _webSortKey = k;
+                _webSortAsc = true;
+              }
+            }),
+            paginate: true,
+            rowsPerPage: 25,
+            emptyText: 'No purchases found matching filters',
+            onRowTap: (p) {
+              if (p['status'] == 'draft') {
+                _showRateEntry(p);
+              } else {
+                _showPurchaseDetail(p);
+              }
+            },
+            cellBuilder: (p, col) {
+              final status = p['status'] as String? ?? 'draft';
+              final isDraft = status == 'draft';
+              final isLocked = status == 'locked';
+              final kg = (p['net_weight_kg'] as num?)?.toDouble() ?? 0;
+              final arrWt = (p['arrival_weight_kg'] as num?)?.toDouble() ?? 0;
+              final shortage = (p['shortage_kg'] as num?)?.toDouble() ?? 0;
+              final rate = (p['purchase_rate_per_kg'] as num?)?.toDouble();
+              final total = (p['total_landed_cost'] as num?)?.toDouble() ?? 0;
+              final paid = (p['total_paid'] as num?)?.toDouble() ?? 0;
+              final claim = (p['claim_amount'] as num?)?.toDouble() ?? 0;
+              final pStatus = p['payment_status'] as String? ?? 'pending';
+              final due = (total - paid - claim).clamp(0.0, double.infinity);
+              final dcDate = DateTime.tryParse(p['dc_date'] as String? ?? '');
+              final farmMap = p['farms'] as Map<String, dynamic>?;
+              final farmName = farmMap?['farmer_name'] as String? ?? p['farmer_name'] as String? ?? '--';
+              final isOverdue = pStatus == 'overdue';
+
+              switch (col) {
+                case 0:
+                  return Text(
+                    p['dc_number'] as String? ?? '--',
+                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: WebColors.navy),
+                  );
+                case 1:
+                  return Text(
+                    dcDate != null ? DateFormat('d MMM y').format(dcDate) : '--',
+                    style: const TextStyle(fontSize: 12.5, color: WebColors.text2),
+                  );
+                case 2:
+                  final subFarm = farmMap?['farm_name'] as String?;
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(farmName, maxLines: 1, overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: WebColors.text1)),
+                      if (subFarm != null && subFarm.isNotEmpty)
+                        Text(subFarm, maxLines: 1, overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontSize: 11, color: WebColors.text3)),
+                    ],
+                  );
+                case 3:
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text('${p['bird_count'] ?? 0} birds', style: const TextStyle(fontSize: 12.5, color: WebColors.text2)),
+                      Text('${kg.toStringAsFixed(1)} kg', style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: WebColors.text1)),
+                    ],
+                  );
+                case 4:
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(arrWt > 0 ? '${arrWt.toStringAsFixed(1)} kg' : '—', style: const TextStyle(fontSize: 12.5, color: WebColors.text2)),
+                      if (shortage > 0)
+                        Text('Short: ${shortage.toStringAsFixed(1)} kg',
+                            style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: WebColors.error)),
+                    ],
+                  );
+                case 5:
+                  return rate != null
+                      ? Text('Rs.${rate.toStringAsFixed(2)}',
+                          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: WebColors.text1))
+                      : const WebLabel('PENDING', color: WebColors.warning);
+                case 6:
+                  return Text(
+                    total > 0 ? Fmt.amount(total) : '—',
+                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: WebColors.text1),
+                  );
+                case 7:
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(paid > 0 ? Fmt.amount(paid) : 'Rs.0',
+                          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: WebColors.success)),
+                      Text(
+                        due > 0 ? '${Fmt.amount(due)} due' : 'Settled',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: due > 0 ? (isOverdue ? WebColors.error : WebColors.warning) : WebColors.success,
+                        ),
+                      ),
+                    ],
+                  );
+                case 8:
+                  return Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      WebLabel(
+                        isDraft ? 'DRAFT' : status.toUpperCase(),
+                        color: isDraft
+                            ? WebColors.warning
+                            : (isLocked ? WebColors.text3 : WebColors.navy),
+                      ),
+                      if (isOverdue) ...[
+                        const SizedBox(width: 4),
+                        const WebLabel('OVERDUE', color: WebColors.error),
+                      ],
+                    ],
+                  );
+                default:
+                  return Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (isDraft)
+                        WebButton(
+                          label: 'Rate',
+                          icon: Icons.edit_outlined,
+                          color: WebColors.warning,
+                          onPressed: () => _showRateEntry(p),
+                        )
+                      else ...[
+                        if (due > 0 && !isLocked)
+                          WebIconButton(
+                            icon: Icons.payments_outlined,
+                            tooltip: 'Pay',
+                            size: 28,
+                            onTap: () => _showPayment(p),
+                          ),
+                        if (!isLocked) ...[
+                          WebIconButton(
+                            icon: Icons.report_problem_outlined,
+                            tooltip: 'Claim',
+                            size: 28,
+                            onTap: () => _showClaim(p),
+                          ),
+                          WebIconButton(
+                            icon: Icons.lock_outline,
+                            tooltip: 'Lock',
+                            size: 28,
+                            onTap: () => _lockEntry(p),
+                          ),
+                        ],
+                        if (isLocked)
+                          WebIconButton(
+                            icon: Icons.lock_open_outlined,
+                            tooltip: 'Reopen',
+                            size: 28,
+                            onTap: () => _unlockEntry(p),
+                          ),
+                        WebIconButton(
+                          icon: Icons.visibility_outlined,
+                          tooltip: 'View Detail',
+                          size: 28,
+                          onTap: () => _showPurchaseDetail(p),
+                        ),
+                      ],
+                    ],
+                  );
+              }
+            },
+          ),
+        ]),
+      ]),
+    );
+  }
+
+  Widget _tabSuppliersWeb() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(WebSpace.xl),
+      child: WebListCard(children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(WebSpace.xl, WebSpace.lg, WebSpace.xl, WebSpace.md),
+          child: Row(children: [
+            Text('${_farms.length} Suppliers', style: WebText.cardTitle),
+            const Spacer(),
+            WebButton(
+              label: 'Add Supplier',
+              icon: Icons.add,
+              color: WebColors.navy,
+              onPressed: _showAddFarm,
+            ),
+            const SizedBox(width: WebSpace.md),
+            WebButton(
+              label: 'Add Company',
+              icon: Icons.business_outlined,
+              outlined: true,
+              onPressed: _showAddCompany,
+            ),
+          ]),
+        ),
+        const Divider(height: 1, color: WebColors.border),
+        WebDataTable<Map<String, dynamic>>(
+          columns: const [
+            WebColumn('Farmer Name', flex: 2, sortKey: 'name'),
+            WebColumn('Farm Name', flex: 2),
+            WebColumn('Company', width: 160),
+            WebColumn('Credit Days', width: 110, align: TextAlign.right),
+            WebColumn('Default Rate', width: 120, align: TextAlign.right),
+            WebColumn('Total Purchases', width: 140, align: TextAlign.right, sortKey: 'total'),
+            WebColumn('Paid', width: 130, align: TextAlign.right),
+            WebColumn('Outstanding', width: 140, align: TextAlign.right, sortKey: 'outstanding'),
+            WebColumn('Status', width: 110, align: TextAlign.center),
+            WebColumn('Actions', width: 140, align: TextAlign.center),
+          ],
+          rows: _farms,
+          paginate: true,
+          rowsPerPage: 25,
+          emptyText: 'No suppliers registered',
+          onRowTap: (f) => _showSupplierDashboard(f),
+          cellBuilder: (f, col) {
+            final st = f['_stats'] as Map<String, dynamic>? ?? {};
+            final total = (st['total'] as double?) ?? 0;
+            final pd = (st['paid'] as double?) ?? 0;
+            final cl = (st['claim'] as double?) ?? 0;
+            final outstanding = (total - pd - cl).clamp(0.0, double.infinity);
+            final overdueCnt = (st['overdue'] as int?) ?? 0;
+            final co = (f['poultry_companies'] as Map?)?['company_name'] as String?;
+            final defRate = (f['default_rate_per_kg'] as num?)?.toDouble();
+
+            switch (col) {
+              case 0:
+                final name = f['farmer_name'] as String? ?? '--';
+                return Row(children: [
+                  CircleAvatar(
+                    radius: 14,
+                    backgroundColor: WebColors.navySoft,
+                    child: Text(
+                      name.isNotEmpty ? name[0].toUpperCase() : '?',
+                      style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: WebColors.navy),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: WebColors.text1),
+                    ),
+                  ),
+                ]);
+              case 1:
+                return Text(
+                  f['farm_name'] as String? ?? '--',
+                  style: const TextStyle(fontSize: 12.5, color: WebColors.text2),
+                );
+              case 2:
+                return co != null
+                    ? WebLabel(co, color: WebColors.navy)
+                    : const Text('—', style: TextStyle(color: WebColors.text3));
+              case 3:
+                return Text('${f['credit_days'] ?? 0} days', style: const TextStyle(fontSize: 12.5, color: WebColors.text2));
+              case 4:
+                return Text(
+                  defRate != null ? 'Rs.${defRate.toStringAsFixed(2)}' : '—',
+                  style: const TextStyle(fontSize: 12.5, color: WebColors.text2),
+                );
+              case 5:
+                return Text(
+                  Fmt.amount(total),
+                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: WebColors.text1),
+                );
+              case 6:
+                return Text(
+                  Fmt.amount(pd),
+                  style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: WebColors.success),
+                );
+              case 7:
+                return Text(
+                  Fmt.amount(outstanding),
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                    color: outstanding > 0 ? (overdueCnt > 0 ? WebColors.error : WebColors.warning) : WebColors.success,
+                  ),
+                );
+              case 8:
+                return overdueCnt > 0
+                    ? const WebLabel('OVERDUE', color: WebColors.error)
+                    : (outstanding > 0 ? const WebLabel('ACTIVE', color: WebColors.warning) : const WebLabel('CLEAR', color: WebColors.success));
+              default:
+                return Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    WebIconButton(
+                      icon: Icons.dashboard_outlined,
+                      tooltip: 'View Statement / Dashboard',
+                      size: 28,
+                      onTap: () => _showSupplierDashboard(f),
+                    ),
+                    if (outstanding > 0)
+                      WebIconButton(
+                        icon: Icons.payments_outlined,
+                        tooltip: 'Pay Supplier',
+                        size: 28,
+                        onTap: () => _showPaymentForFarm(f),
+                      ),
+                    WebIconButton(
+                      icon: Icons.edit_outlined,
+                      tooltip: 'Edit Supplier',
+                      size: 28,
+                      onTap: () => _showEditFarm(f),
+                    ),
+                  ],
+                );
+            }
+          },
+        ),
+      ]),
+    );
+  }
+
+  Widget _tabLedgerWeb() {
+    final allFarms = <String, String>{};
+    for (final e in _ledger) {
+      final fid = e['farm_id'] as String?;
+      final fn = (e['farms'] as Map?)?['farmer_name'] as String?;
+      if (fid != null && fn != null) allFarms[fid] = fn;
+    }
+
+    double balance = 0;
+    final rows = _ledger.reversed.map((e) {
+      final amt = (e['amount'] as num?)?.toDouble() ?? 0;
+      if (e['entry_type'] == 'debit') {
+        balance += amt;
+      } else {
+        balance -= amt;
+      }
+      return {...e, '_balance': balance};
+    }).toList().reversed.toList();
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(WebSpace.xl),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Row(children: [
+          Expanded(
+            child: WebKpiCard(
+              label: 'Outstanding Ledger Balance',
+              value: Fmt.amount(balance),
+              icon: Icons.account_balance_wallet_outlined,
+              color: balance > 0 ? WebColors.warning : WebColors.success,
+            ),
+          ),
+          const SizedBox(width: WebSpace.xl),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            decoration: BoxDecoration(
+              color: WebColors.surface,
+              borderRadius: BorderRadius.circular(WebRadius.button),
+              border: Border.all(color: WebColors.border),
+            ),
+            child: DropdownButtonHideUnderline(
+              child: DropdownButton<String?>(
+                value: _farmFilter,
+                hint: const Text('All Suppliers', style: TextStyle(fontSize: 13, color: WebColors.text2)),
+                items: [
+                  const DropdownMenuItem<String?>(
+                    value: null,
+                    child: Text('All Suppliers', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                  ),
+                  ...allFarms.entries.map((e) => DropdownMenuItem<String?>(
+                    value: e.key,
+                    child: Text(e.value, style: const TextStyle(fontSize: 13)),
+                  )),
+                ],
+                onChanged: (v) {
+                  setState(() => _farmFilter = v);
+                  _load();
+                },
+              ),
+            ),
+          ),
+        ]),
+        const SizedBox(height: WebSpace.lg),
+
+        WebListCard(children: [
+          WebDataTable<Map<String, dynamic>>(
+            columns: const [
+              WebColumn('Date', width: 120),
+              WebColumn('Supplier', flex: 2),
+              WebColumn('DC Number', width: 130),
+              WebColumn('Type', width: 130, align: TextAlign.center),
+              WebColumn('Amount', width: 140, align: TextAlign.right),
+              WebColumn('Balance', width: 150, align: TextAlign.right),
+              WebColumn('Notes', flex: 2),
+            ],
+            rows: rows,
+            paginate: true,
+            rowsPerPage: 25,
+            emptyText: 'No ledger entries for this period',
+            cellBuilder: (e, col) {
+              final isD = e['entry_type'] == 'debit';
+              final amt = (e['amount'] as num?)?.toDouble() ?? 0;
+              final bal = (e['_balance'] as double?) ?? 0;
+              final dt = DateTime.tryParse(e['entry_date'] as String? ?? '');
+              final farm = (e['farms'] as Map?)?['farmer_name'] as String? ?? '--';
+              final dc = (e['purchase_entries'] as Map?)?['dc_number'] as String?;
+              final notes = e['notes'] as String? ?? '—';
+
+              switch (col) {
+                case 0:
+                  return Text(
+                    dt != null ? DateFormat('d MMM y').format(dt) : '--',
+                    style: const TextStyle(fontSize: 12.5, color: WebColors.text2),
+                  );
+                case 1:
+                  return Text(farm, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: WebColors.text1));
+                case 2:
+                  return Text(dc ?? '—', style: const TextStyle(fontSize: 12.5, color: WebColors.navy, fontWeight: FontWeight.w600));
+                case 3:
+                  return isD
+                      ? const WebLabel('DEBIT (PURCHASE)', color: WebColors.error)
+                      : const WebLabel('CREDIT (PAYMENT)', color: WebColors.success);
+                case 4:
+                  return Text(
+                    '${isD ? '+' : '-'}${Fmt.amount(amt)}',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w800,
+                      color: isD ? WebColors.error : WebColors.success,
+                    ),
+                  );
+                case 5:
+                  return Text(
+                    Fmt.amount(bal),
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: bal > 0 ? WebColors.warning : WebColors.success,
+                    ),
+                  );
+                default:
+                  return Text(notes, maxLines: 1, overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 12, color: WebColors.text3));
+              }
+            },
+          ),
+        ]),
+      ]),
+    );
+  }
+
+  Widget _tabCostingWeb() {
+    if (_costing.isEmpty) {
+      return const WebTableState.empty(
+        text: 'No costing data. Confirm purchase rates to see profitability.',
+      );
+    }
+    final totalRevenue = _costing.fold<double>(0, (s, c) => s + ((c['revenue'] as num?)?.toDouble() ?? 0));
+    final totalCost = _costing.fold<double>(0, (s, c) => s + ((c['total_cost'] as num?)?.toDouble() ?? 0));
+    final totalProfit = _costing.fold<double>(0, (s, c) => s + ((c['net_profit'] as num?)?.toDouble() ?? 0));
+    final margin = totalRevenue > 0 ? (totalProfit / totalRevenue * 100) : 0.0;
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(WebSpace.xl),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        WebKpiRow(children: [
+          WebKpiCard(
+            label: 'Total Revenue',
+            value: Fmt.amount(totalRevenue),
+            icon: Icons.trending_up_rounded,
+            color: WebColors.navy,
+          ),
+          WebKpiCard(
+            label: 'Total Cost',
+            value: Fmt.amount(totalCost),
+            icon: Icons.account_balance_outlined,
+            color: WebColors.navyMid,
+          ),
+          WebKpiCard(
+            label: 'Net Profit',
+            value: Fmt.amount(totalProfit),
+            icon: Icons.savings_outlined,
+            color: totalProfit >= 0 ? WebColors.success : WebColors.error,
+          ),
+          WebKpiCard(
+            label: 'Profit Margin',
+            value: totalRevenue > 0 ? '${margin.toStringAsFixed(1)}%' : '--',
+            icon: Icons.percent_rounded,
+            color: WebColors.gold,
+          ),
+        ]),
+        const SizedBox(height: WebSpace.lg),
+
+        WebListCard(children: [
+          WebDataTable<Map<String, dynamic>>(
+            columns: const [
+              WebColumn('Batch / Farm', flex: 2),
+              WebColumn('DC Number', width: 130),
+              WebColumn('Delivered (kg)', width: 130, align: TextAlign.right),
+              WebColumn('Cost / kg', width: 110, align: TextAlign.right),
+              WebColumn('Revenue / kg', width: 120, align: TextAlign.right),
+              WebColumn('Total Cost', width: 130, align: TextAlign.right),
+              WebColumn('Revenue', width: 130, align: TextAlign.right),
+              WebColumn('Net Profit', width: 130, align: TextAlign.right),
+              WebColumn('Margin %', width: 110, align: TextAlign.right),
+              WebColumn('Status', width: 120, align: TextAlign.center),
+            ],
+            rows: _costing,
+            paginate: true,
+            rowsPerPage: 25,
+            cellBuilder: (c, col) {
+              final pe = c['_pe'] as Map<String, dynamic>?;
+              final peName = pe?['farmer_name'] as String?;
+              final dcNum = pe?['dc_number'] as String?;
+              final batch = peName ?? (c['delivery_batches'] as Map?)?['farm_name'] as String? ?? '--';
+              final costKg = (c['cost_per_kg'] as num?)?.toDouble();
+              final revKg = (c['revenue_per_kg'] as num?)?.toDouble();
+              final profit = (c['net_profit'] as num?)?.toDouble() ?? 0;
+              final revenue = (c['revenue'] as num?)?.toDouble() ?? 0;
+              final cost = (c['total_cost'] as num?)?.toDouble() ?? 0;
+              final m = (c['profit_margin_pct'] as num?)?.toDouble();
+              final isPend = c['status'] == 'pending';
+              final delKg = (c['delivered_kg'] as num?)?.toDouble() ?? 0;
+
+              switch (col) {
+                case 0:
+                  return Text(batch, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: WebColors.text1));
+                case 1:
+                  return Text(dcNum ?? '—', style: const TextStyle(fontSize: 12.5, color: WebColors.navy, fontWeight: FontWeight.w600));
+                case 2:
+                  return Text('${delKg.toStringAsFixed(1)} kg', style: const TextStyle(fontSize: 12.5, color: WebColors.text2));
+                case 3:
+                  return Text(costKg != null ? 'Rs.${costKg.toStringAsFixed(2)}' : '--', style: const TextStyle(fontSize: 12.5, color: WebColors.text2));
+                case 4:
+                  return Text(revKg != null ? 'Rs.${revKg.toStringAsFixed(2)}' : '--', style: const TextStyle(fontSize: 12.5, color: WebColors.text2));
+                case 5:
+                  return Text(Fmt.amount(cost), style: const TextStyle(fontSize: 13, color: WebColors.text2));
+                case 6:
+                  return Text(Fmt.amount(revenue), style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: WebColors.text1));
+                case 7:
+                  return Text(
+                    Fmt.amount(profit),
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: profit >= 0 ? WebColors.success : WebColors.error),
+                  );
+                case 8:
+                  return Text(
+                    m != null ? '${m.toStringAsFixed(1)}%' : '--',
+                    style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: (m ?? 0) >= 0 ? WebColors.success : WebColors.error),
+                  );
+                default:
+                  return WebLabel(isPend ? 'PENDING' : 'CONFIRMED', color: isPend ? WebColors.warning : WebColors.success);
+              }
+            },
+          ),
+        ]),
+      ]),
+    );
+  }
+
+  Widget _tabReportsWeb() {
+    final rd = _reportData;
+    final aggs = rd?['aggregates'] as Map<String, dynamic>?;
+    final entries = List<Map<String, dynamic>>.from(rd?['entries'] as List? ?? []);
+
+    final totalAmt = (aggs?['total_amount'] as num?)?.toDouble() ?? 0;
+    final totalPd = (aggs?['total_paid'] as num?)?.toDouble() ?? 0;
+    final totalDue = (aggs?['total_outstanding'] as num?)?.toDouble() ?? 0;
+    final totalCl = (aggs?['total_claims'] as num?)?.toDouble() ?? 0;
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(WebSpace.xl),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        if (aggs != null) ...[
+          WebKpiRow(children: [
+            WebKpiCard(
+              label: 'Total Purchases',
+              value: Fmt.amount(totalAmt),
+              icon: Icons.shopping_cart_outlined,
+              color: WebColors.navy,
+            ),
+            WebKpiCard(
+              label: 'Total Paid',
+              value: Fmt.amount(totalPd),
+              icon: Icons.payments_outlined,
+              color: WebColors.success,
+            ),
+            WebKpiCard(
+              label: 'Outstanding Due',
+              value: Fmt.amount(totalDue),
+              icon: Icons.account_balance_outlined,
+              color: totalDue > 0 ? WebColors.warning : WebColors.success,
+            ),
+            WebKpiCard(
+              label: 'Total Claims',
+              value: Fmt.amount(totalCl),
+              icon: Icons.report_problem_outlined,
+              color: WebColors.error,
+            ),
+          ]),
+          const SizedBox(height: WebSpace.lg),
+        ],
+
+        WebListCard(children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(WebSpace.xl, WebSpace.lg, WebSpace.xl, WebSpace.md),
+            child: Row(children: [
+              Text('${entries.length} Report Entries', style: WebText.cardTitle),
+              const Spacer(),
+              WebButton(
+                label: 'Export Report',
+                icon: Icons.share_outlined,
+                color: WebColors.navy,
+                onPressed: _exportReport,
+              ),
+            ]),
+          ),
+          const Divider(height: 1, color: WebColors.border),
+          WebDataTable<Map<String, dynamic>>(
+            columns: const [
+              WebColumn('DC Number', width: 130),
+              WebColumn('Date', width: 110),
+              WebColumn('Supplier', flex: 2),
+              WebColumn('Weight (kg)', width: 120, align: TextAlign.right),
+              WebColumn('Rate / kg', width: 110, align: TextAlign.right),
+              WebColumn('Total Cost', width: 130, align: TextAlign.right),
+              WebColumn('Paid', width: 120, align: TextAlign.right),
+              WebColumn('Outstanding', width: 130, align: TextAlign.right),
+              WebColumn('Claims', width: 110, align: TextAlign.right),
+              WebColumn('Net Profit', width: 130, align: TextAlign.right),
+            ],
+            rows: entries,
+            paginate: true,
+            rowsPerPage: 25,
+            emptyText: 'No report records found for selected date range',
+            cellBuilder: (e, col) {
+              final total = (e['total_landed_cost'] as num?)?.toDouble() ?? 0;
+              final paid = (e['total_paid'] as num?)?.toDouble() ?? 0;
+              final due = (e['outstanding'] as num?)?.toDouble() ?? 0;
+              final claims = (e['claim_amount'] as num?)?.toDouble() ?? 0;
+              final profit = (e['net_profit'] as num?)?.toDouble();
+              final dt = DateTime.tryParse(e['dc_date'] as String? ?? '');
+              final wt = (e['net_weight_kg'] as num?)?.toDouble() ?? 0;
+              final rate = (e['purchase_rate_per_kg'] as num?)?.toDouble();
+
+              switch (col) {
+                case 0:
+                  return Text(e['dc_number'] as String? ?? '--', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: WebColors.navy));
+                case 1:
+                  return Text(dt != null ? DateFormat('d MMM y').format(dt) : '--', style: const TextStyle(fontSize: 12.5, color: WebColors.text2));
+                case 2:
+                  return Text(e['farmer_name'] as String? ?? '--', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: WebColors.text1));
+                case 3:
+                  return Text('${wt.toStringAsFixed(1)} kg', style: const TextStyle(fontSize: 12.5, color: WebColors.text2));
+                case 4:
+                  return Text(rate != null ? 'Rs.${rate.toStringAsFixed(2)}' : '--', style: const TextStyle(fontSize: 12.5, color: WebColors.text2));
+                case 5:
+                  return Text(Fmt.amount(total), style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: WebColors.text1));
+                case 6:
+                  return Text(Fmt.amount(paid), style: const TextStyle(fontSize: 12.5, color: WebColors.success, fontWeight: FontWeight.w600));
+                case 7:
+                  return Text(
+                    Fmt.amount(due),
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: due > 0 ? WebColors.warning : WebColors.success),
+                  );
+                case 8:
+                  return Text(claims > 0 ? Fmt.amount(claims) : '—', style: TextStyle(fontSize: 12.5, color: claims > 0 ? WebColors.error : WebColors.text3));
+                default:
+                  return profit != null
+                      ? Text(Fmt.amount(profit), style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: profit >= 0 ? WebColors.success : WebColors.error))
+                      : const Text('—', style: TextStyle(color: WebColors.text3));
+              }
+            },
+          ),
+        ]),
+      ]),
+    );
+  }
+
+  Widget _tabHistoryWeb() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(WebSpace.xl),
+      child: WebListCard(children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(WebSpace.xl, WebSpace.lg, WebSpace.xl, WebSpace.md),
+          child: Row(children: [
+            WebSegmented<int>(
+              options: const [0, 1, 2],
+              selected: _historySubTab,
+              label: (i) => switch (i) {
+                0 => 'Audit Log (${_auditLog.length})',
+                1 => 'Payments (${_payHistory.length})',
+                _ => 'Rate Changes (${_rateHistory.length})',
+              },
+              onChanged: (i) => setState(() => _historySubTab = i),
+            ),
+          ]),
+        ),
+        const Divider(height: 1, color: WebColors.border),
+        if (_historySubTab == 0)
+          WebDataTable<Map<String, dynamic>>(
+            columns: const [
+              WebColumn('Time', width: 160),
+              WebColumn('Action', width: 160),
+              WebColumn('DC Number', width: 130),
+              WebColumn('Supplier', flex: 2),
+              WebColumn('Change Detail', flex: 2),
+            ],
+            rows: _auditLog,
+            paginate: true,
+            rowsPerPage: 25,
+            emptyText: 'No audit log entries recorded',
+            cellBuilder: (a, col) {
+              final dt = DateTime.tryParse(a['changed_at'] as String? ?? '');
+              final action = a['action'] as String? ?? '--';
+              final color = _auditColor(action);
+              switch (col) {
+                case 0:
+                  return Text(
+                    dt != null ? DateFormat('d MMM y, h:mm a').format(dt.toLocal()) : '--',
+                    style: const TextStyle(fontSize: 12.5, color: WebColors.text2),
+                  );
+                case 1:
+                  return WebLabel(action.replaceAll('_', ' ').toUpperCase(), color: color);
+                case 2:
+                  return Text(a['dc_number'] as String? ?? '—', style: const TextStyle(fontSize: 12.5, color: WebColors.navy, fontWeight: FontWeight.w600));
+                case 3:
+                  return Text(a['farmer_name'] as String? ?? '—', style: const TextStyle(fontSize: 13, color: WebColors.text1));
+                default:
+                  return Text(
+                    a['new_value'] != null ? '${a['new_value']}' : (a['old_value'] != null ? '${a['old_value']}' : '—'),
+                    style: const TextStyle(fontSize: 12.5, color: WebColors.text2),
+                  );
+              }
+            },
+          )
+        else if (_historySubTab == 1)
+          WebDataTable<Map<String, dynamic>>(
+            columns: const [
+              WebColumn('Payment Date', width: 130),
+              WebColumn('Supplier', flex: 2),
+              WebColumn('DC Number', width: 130),
+              WebColumn('Amount', width: 140, align: TextAlign.right),
+              WebColumn('Payment Mode', width: 130, align: TextAlign.center),
+              WebColumn('Reference #', width: 150),
+              WebColumn('Status', width: 120, align: TextAlign.center),
+            ],
+            rows: _payHistory,
+            paginate: true,
+            rowsPerPage: 25,
+            emptyText: 'No payment records found',
+            cellBuilder: (p, col) {
+              final dt = DateTime.tryParse(p['payment_date'] as String? ?? '');
+              final amt = (p['amount'] as num?)?.toDouble() ?? 0;
+              final isRev = p['is_reversed'] == true;
+              switch (col) {
+                case 0:
+                  return Text(
+                    dt != null ? DateFormat('d MMM y').format(dt) : '--',
+                    style: const TextStyle(fontSize: 12.5, color: WebColors.text2),
+                  );
+                case 1:
+                  return Text(
+                    p['farmer_name'] as String? ?? p['farm_name'] as String? ?? '--',
+                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: WebColors.text1),
+                  );
+                case 2:
+                  return Text(p['dc_number'] as String? ?? '—', style: const TextStyle(fontSize: 12.5, color: WebColors.navy, fontWeight: FontWeight.w600));
+                case 3:
+                  return Text(
+                    Fmt.amount(amt),
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w800,
+                      color: isRev ? WebColors.error : WebColors.success,
+                      decoration: isRev ? TextDecoration.lineThrough : null,
+                    ),
+                  );
+                case 4:
+                  return WebLabel((p['payment_mode'] as String? ?? 'CASH').toUpperCase(), color: WebColors.navy);
+                case 5:
+                  return Text(p['reference_number'] as String? ?? '—', style: const TextStyle(fontSize: 12, color: WebColors.text3));
+                default:
+                  return isRev
+                      ? const WebLabel('REVERSED', color: WebColors.error)
+                      : const WebLabel('PAID', color: WebColors.success);
+              }
+            },
+          )
+        else
+          WebDataTable<Map<String, dynamic>>(
+            columns: const [
+              WebColumn('Date & Time', width: 160),
+              WebColumn('DC Number', width: 130),
+              WebColumn('Supplier', flex: 2),
+              WebColumn('Old Rate', width: 120, align: TextAlign.right),
+              WebColumn('New Rate', width: 120, align: TextAlign.right),
+              WebColumn('Difference', width: 120, align: TextAlign.right),
+              WebColumn('Reason', flex: 2),
+            ],
+            rows: _rateHistory,
+            paginate: true,
+            rowsPerPage: 25,
+            emptyText: 'No rate changes recorded',
+            cellBuilder: (r, col) {
+              final dt = DateTime.tryParse(r['changed_at'] as String? ?? '');
+              final oldR = (r['old_rate'] as num?)?.toDouble() ?? 0;
+              final newR = (r['new_rate'] as num?)?.toDouble() ?? 0;
+              final diff = newR - oldR;
+              switch (col) {
+                case 0:
+                  return Text(
+                    dt != null ? DateFormat('d MMM y, h:mm a').format(dt.toLocal()) : '--',
+                    style: const TextStyle(fontSize: 12.5, color: WebColors.text2),
+                  );
+                case 1:
+                  return Text(r['dc_number'] as String? ?? '—', style: const TextStyle(fontSize: 12.5, color: WebColors.navy, fontWeight: FontWeight.w600));
+                case 2:
+                  return Text(r['farmer_name'] as String? ?? '—', style: const TextStyle(fontSize: 13, color: WebColors.text1));
+                case 3:
+                  return Text('Rs.${oldR.toStringAsFixed(2)}', style: const TextStyle(fontSize: 12.5, color: WebColors.text2));
+                case 4:
+                  return Text('Rs.${newR.toStringAsFixed(2)}', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: WebColors.text1));
+                case 5:
+                  return Text(
+                    '${diff >= 0 ? '+' : ''}Rs.${diff.toStringAsFixed(2)}',
+                    style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: diff >= 0 ? WebColors.error : WebColors.success),
+                  );
+                default:
+                  return Text(r['change_reason'] as String? ?? '—', style: const TextStyle(fontSize: 12.5, color: WebColors.text2));
+              }
+            },
+          ),
+      ]),
+    );
+  }
+
+  Widget _webFilterChip(String label, bool active, VoidCallback onTap) => GestureDetector(
+    onTap: onTap,
+    child: Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      decoration: BoxDecoration(
+        color: active ? WebColors.navySoft : WebColors.surface,
+        borderRadius: BorderRadius.circular(WebRadius.button),
+        border: Border.all(color: active ? WebColors.navy : WebColors.border),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 12,
+          fontWeight: active ? FontWeight.w700 : FontWeight.w600,
+          color: active ? WebColors.navy : WebColors.text2,
+        ),
+      ),
+    ),
+  );
 
   Widget _buildScaffold(BuildContext context) => Scaffold(
       backgroundColor: kBgPage,
@@ -776,7 +2270,7 @@ class _S extends ConsumerState<PurchaseScreen>
                   : ListView.separated(
                   padding: const EdgeInsets.fromLTRB(12, 12, 12, kBottomNavClearance),
                   itemCount: _purchases.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 6),
+                  separatorBuilder: (_, _) => const SizedBox(height: 6),
                   itemBuilder: (_, i) => _purchaseCard(_purchases[i])))),
     ]);
   }
@@ -855,9 +2349,8 @@ class _S extends ConsumerState<PurchaseScreen>
 
   void _showFilterPicker(String title, List<String> options, String? current,
       Function(String) onSelect) {
-    showModalBottomSheet(
-        context: context,
-        useRootNavigator: true,
+    _showSheet(
+        maxWidth: WebSize.dialogSm,
         builder: (ctx) => ListView(
             shrinkWrap: true,
             padding: const EdgeInsets.all(16),
@@ -1141,7 +2634,7 @@ class _S extends ConsumerState<PurchaseScreen>
     return ListView.separated(
         padding: const EdgeInsets.fromLTRB(12, 12, 12, kBottomNavClearance),
         itemCount: _farms.length,
-        separatorBuilder: (_, __) => const SizedBox(height: 6),
+        separatorBuilder: (_, _) => const SizedBox(height: 6),
         itemBuilder: (_, i) {
           final f = _farms[i];
           final st = f['_stats'] as Map<String, dynamic>? ?? {};
@@ -1449,7 +2942,7 @@ class _S extends ConsumerState<PurchaseScreen>
         child: ListView.separated(
             padding: const EdgeInsets.fromLTRB(12, 12, 12, kBottomNavClearance),
             itemCount: _costing.length,
-            separatorBuilder: (_, __) => const SizedBox(height: 6),
+            separatorBuilder: (_, _) => const SizedBox(height: 6),
             itemBuilder: (_, i) {
               final c = _costing[i];
               // FIX: use _pe (pre-fetched per batch) not purchase_entries join array
@@ -1676,7 +3169,7 @@ class _S extends ConsumerState<PurchaseScreen>
               : ListView.separated(
               padding: const EdgeInsets.all(12),
               itemCount: entries.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 4),
+              separatorBuilder: (_, _) => const SizedBox(height: 4),
               itemBuilder: (_, i) {
                 final e = entries[i];
                 final total =
@@ -2009,12 +3502,8 @@ class _S extends ConsumerState<PurchaseScreen>
       rateCtrl.text = defaultRate.toStringAsFixed(2);
     }
 
-    showModalBottomSheet(
-        context: context,
-        useRootNavigator: true,
-        isScrollControlled: true,
-        shape: const RoundedRectangleBorder(
-            borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+    _showSheet(
+        maxWidth: WebSize.dialogLg,
         builder: (ctx) => StatefulBuilder(builder: (ctx, ss) {
           String rateMode = 'kg';
           double rate = double.tryParse(rateCtrl.text) ?? 0;
@@ -2289,12 +3778,8 @@ class _S extends ConsumerState<PurchaseScreen>
   }
 
   void _showPurchaseDetail(Map<String, dynamic> p) {
-    showModalBottomSheet(
-        context: context,
-        useRootNavigator: true,
-        isScrollControlled: true,
-        shape: const RoundedRectangleBorder(
-            borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+    _showSheet(
+        maxWidth: WebSize.dialogLg,
         builder: (ctx) => DraggableScrollableSheet(
             expand: false,
             initialChildSize: 0.7,
@@ -2460,12 +3945,8 @@ class _S extends ConsumerState<PurchaseScreen>
     final noteCtrl = TextEditingController();
     String mode = 'cash';
 
-    showModalBottomSheet(
-        context: context,
-        useRootNavigator: true,
-        isScrollControlled: true,
-        shape: const RoundedRectangleBorder(
-            borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+    _showSheet(
+        maxWidth: WebSize.dialogMd,
         builder: (ctx) => StatefulBuilder(
             builder: (ctx, ss) => Padding(
                 padding: EdgeInsets.only(
@@ -2623,12 +4104,8 @@ class _S extends ConsumerState<PurchaseScreen>
     final noteCtrl =
     TextEditingController(text: p['claim_notes'] as String? ?? '');
 
-    showModalBottomSheet(
-        context: context,
-        useRootNavigator: true,
-        isScrollControlled: true,
-        shape: const RoundedRectangleBorder(
-            borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+    _showSheet(
+        maxWidth: WebSize.dialogMd,
         builder: (ctx) => Padding(
             padding:
             EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
@@ -2785,9 +4262,8 @@ class _S extends ConsumerState<PurchaseScreen>
     } catch (_) {}
 
     if (!mounted) return;
-    showModalBottomSheet(
-        context: context,
-        useRootNavigator: true,
+    _showSheet(
+        maxWidth: WebSize.dialogMd,
         builder: (ctx) => ListView(
             shrinkWrap: true,
             padding: const EdgeInsets.all(16),
@@ -2821,12 +4297,8 @@ class _S extends ConsumerState<PurchaseScreen>
   }
 
   void _showSupplierDashboard(Map<String, dynamic> farm) {
-    showModalBottomSheet(
-        context: context,
-        useRootNavigator: true,
-        isScrollControlled: true,
-        shape: const RoundedRectangleBorder(
-            borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+    _showSheet(
+        maxWidth: WebSize.dialogLg,
         builder: (ctx) {
           final st = farm['_stats'] as Map<String, dynamic>? ?? {};
           final total = (st['total'] as double?) ?? 0;
@@ -2985,12 +4457,8 @@ class _S extends ConsumerState<PurchaseScreen>
     final rateCtrl = TextEditingController();
     String? selectedCompanyId;
 
-    showModalBottomSheet(
-        context: context,
-        useRootNavigator: true,
-        isScrollControlled: true,
-        shape: const RoundedRectangleBorder(
-            borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+    _showSheet(
+        maxWidth: WebSize.dialogMd,
         builder: (ctx) => StatefulBuilder(
             builder: (ctx, ss) => Padding(
                 padding: EdgeInsets.only(
@@ -3141,12 +4609,8 @@ class _S extends ConsumerState<PurchaseScreen>
     TextEditingController(text: farm['bank_ifsc'] as String? ?? '');
     String? selectedCompanyId = farm['company_id'] as String?;
 
-    showModalBottomSheet(
-        context: context,
-        useRootNavigator: true,
-        isScrollControlled: true,
-        shape: const RoundedRectangleBorder(
-            borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+    _showSheet(
+        maxWidth: WebSize.dialogMd,
         builder: (ctx) => StatefulBuilder(
             builder: (ctx, ss) => Padding(
                 padding: EdgeInsets.only(
@@ -3374,12 +4838,8 @@ class _S extends ConsumerState<PurchaseScreen>
     final phoneCtrl = TextEditingController();
     final gstCtrl = TextEditingController();
 
-    showModalBottomSheet(
-        context: context,
-        useRootNavigator: true,
-        isScrollControlled: true,
-        shape: const RoundedRectangleBorder(
-            borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+    _showSheet(
+        maxWidth: WebSize.dialogMd,
         builder: (ctx) => Padding(
             padding:
             EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
@@ -3581,7 +5041,7 @@ class _S extends ConsumerState<PurchaseScreen>
   @override
   Widget build(BuildContext context) => ResponsiveLayout(
     mobile:  (_) => _buildScaffold(context),
-    desktop: (_) => _buildScaffold(context),
+    desktop: (_) => _buildWeb(context),
   );
 }
 

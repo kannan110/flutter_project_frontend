@@ -134,7 +134,7 @@ class _AssignRetailersSheetState extends State<_AssignRetailersSheet> {
                   : ListView.separated(
                 controller: scrollCtrl,
                 itemCount: filtered.length,
-                separatorBuilder: (_, __) => const Divider(height: 1),
+                separatorBuilder: (_, _) => const Divider(height: 1),
                 itemBuilder: (_, i) {
                   final r = filtered[i];
                   final id = r['id'] as String;

@@ -5,9 +5,11 @@ import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/models/dashboard_models.dart';
 import '../../../core/providers/session_provider.dart';
+import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../shared/layouts/responsive_layout.dart';
 import '../../../shared/widgets/cards/metric_card.dart';
+import '../../../shared/widgets/web/web.dart';
 
 class AnalyticsScreen extends ConsumerStatefulWidget {
   const AnalyticsScreen({super.key});
@@ -607,6 +609,478 @@ class _S extends ConsumerState<AnalyticsScreen>
     ]);
   }
 
+  // ═══════════════════════════════════════════════════════════════════════
+  // WEB (desktop) — same four tabs and data; charts reused, laid out in
+  // cards and tables instead of a single phone column.
+  // ═══════════════════════════════════════════════════════════════════════
+  Widget _buildWeb() {
+    final d = _analytics ?? {};
+    Widget body;
+    if (_loading) {
+      body = const WebTableState.loading();
+    } else if (_error != null) {
+      body = Padding(
+        padding: const EdgeInsets.all(WebSpace.xl),
+        child: Column(children: [
+          const Icon(Icons.cloud_off_outlined, size: 44, color: WebColors.text3),
+          const SizedBox(height: 12),
+          Text(_error!, textAlign: TextAlign.center, style: WebText.bodySub),
+          const SizedBox(height: 16),
+          WebButton(label: 'Retry', icon: Icons.refresh_rounded, onPressed: _load),
+        ]),
+      );
+    } else {
+      body = Padding(
+        padding: const EdgeInsets.all(20),
+        child: switch (_tab.index) {
+          1 => _webStock(),
+          2 => _webCollections(),
+          3 => _webAgents(),
+          _ => _webRevenue(d),
+        },
+      );
+    }
+
+    return WebPage(
+      header: PageBreadcrumbsHeader(
+        title: 'Analytics',
+        subtitle: 'Revenue, stock, collections and agent performance',
+        crumbs: const [Crumb('Dashboard', R.dashboard), Crumb('Analytics')],
+        action: WebIconButton(icon: Icons.refresh_rounded, tooltip: 'Refresh',
+            onTap: _load),
+      ),
+      children: [
+        WebListCard(children: [
+          WebListTabs(
+            tabs: [for (final t in _tabs) WebTab(t)],
+            selected: _tab.index,
+            // Setting the index fires the existing listener, which reloads
+            // the data for that tab exactly as on mobile.
+            onChanged: (i) => setState(() => _tab.index = i),
+          ),
+          body,
+        ]),
+      ],
+    );
+  }
+
+  Widget _webTitle(String t) => Padding(
+        padding: const EdgeInsets.only(bottom: 12),
+        child: Text(t, style: WebText.cardTitle),
+      );
+
+  // ── Revenue ───────────────────────────────────────────────────────────────
+  Widget _webRevenue(Map<String, dynamic> d) {
+    final month = d['this_month'] as Map<String, dynamic>? ?? {};
+    final top = (d['top_retailers'] as List? ?? []).cast<Map<String, dynamic>>();
+    final trend = (d['revenue_trend'] as List? ?? []).cast<Map<String, dynamic>>();
+    final rev = (month['revenue'] as num?)?.toDouble() ?? 0;
+    final orders = (month['orders'] as num?)?.toInt() ?? 0;
+    final delivered = (month['delivered'] as num?)?.toInt() ?? 0;
+    final outstanding = (month['outstanding'] as num?)?.toDouble() ?? 0;
+
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      WebKpiRow(children: [
+        WebKpiCard(label: 'Month Revenue', value: Fmt.amount(rev),
+            icon: Icons.currency_rupee_outlined, color: WebColors.navy),
+        WebKpiCard(label: 'Month Orders', value: '$orders',
+            icon: Icons.shopping_bag_outlined, color: WebColors.info),
+        WebKpiCard(label: 'Delivered', value: '$delivered',
+            icon: Icons.check_circle_outline, color: WebColors.success),
+        WebKpiCard(label: 'Outstanding', value: Fmt.amount(outstanding),
+            icon: Icons.account_balance_wallet_outlined,
+            color: outstanding > 0 ? WebColors.warning : WebColors.success),
+      ]),
+      const SizedBox(height: WebSpace.lg),
+      if (trend.isEmpty && top.isEmpty)
+        const WebTableState.empty(text: 'No revenue data yet')
+      else
+        Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          if (trend.isNotEmpty)
+            Expanded(flex: 7, child: WebSectionCard(
+              title: '30-Day Revenue Trend',
+              icon: Icons.bar_chart_rounded,
+              child: _RevenueBarChart(data: trend),
+            )),
+          if (trend.isNotEmpty && top.isNotEmpty)
+            const SizedBox(width: WebSpace.lg),
+          if (top.isNotEmpty)
+            Expanded(flex: 5, child: WebSectionCard(
+              title: 'Top Retailers',
+              subtitle: 'Last 30 days',
+              icon: Icons.emoji_events_outlined,
+              child: Column(children: top.asMap().entries.map((e) {
+                final r = e.value;
+                final rv = (r['revenue'] as num?)?.toDouble() ?? 0;
+                final maxRev = (top.first['revenue'] as num?)?.toDouble() ?? 1;
+                return _RankRow(
+                  rank: e.key + 1,
+                  label: r['shop_name'] as String? ?? '—',
+                  value: Fmt.amount(rv),
+                  sub: '${(r['orders'] as num?)?.toInt() ?? 0} orders',
+                  barPct: maxRev > 0 ? rv / maxRev : 0,
+                  color: WebColors.navy,
+                );
+              }).toList()),
+            )),
+        ]),
+    ]);
+  }
+
+  // ── Stock ─────────────────────────────────────────────────────────────────
+  Widget _webStock() {
+    if (_stockSurvival.isEmpty && _stock.isEmpty) {
+      return const WebTableState.empty(text: 'No stock data');
+    }
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      if (_stockSurvival.isNotEmpty) ...[
+        _webTitle('Stock Survival Forecast'),
+        WebMasonry(columns: 2, children: [
+          for (final s in _stockSurvival) _webSurvivalCard(s),
+        ]),
+        const SizedBox(height: WebSpace.xl),
+      ],
+      if (_stock.isNotEmpty) ...[
+        _webTitle('Cumulative Stock Positions'),
+        Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: WebColors.border),
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: WebDataTable<StockPosition>(
+            columns: const [
+              WebColumn('Product', flex: 3),
+              WebColumn('Total In', width: 140, align: TextAlign.right),
+              WebColumn('Delivered', width: 140, align: TextAlign.right),
+              WebColumn('Returns', width: 140, align: TextAlign.right),
+              WebColumn('Remaining', width: 160, align: TextAlign.right),
+            ],
+            rows: _stock,
+            paginate: true,
+            rowsPerPage: 10,
+            rowsPerPageOptions: const [10, 25, 50],
+            dense: true,
+            minWidth: 700,
+            cellBuilder: (s, col) {
+              const plain = TextStyle(fontSize: 13.5, color: WebColors.text2);
+              return switch (col) {
+                0 => Text(s.productName, style: const TextStyle(fontSize: 13.5,
+                    fontWeight: FontWeight.w700, color: WebColors.text1)),
+                1 => Text('${s.totalInBirds}', style: plain),
+                2 => Text('${s.totalOutBirds}', style: plain),
+                3 => Text('${s.returnedBirds}', style: plain),
+                _ => Text('${s.availableBirds}', style: TextStyle(
+                    fontSize: 14, fontWeight: FontWeight.w800,
+                    color: s.isNegative ? WebColors.error
+                        : s.hasLowStock ? WebColors.warning
+                        : WebColors.success)),
+              };
+            },
+          ),
+        ),
+      ],
+    ]);
+  }
+
+  Widget _webSurvivalCard(Map<String, dynamic> s) {
+    final birds = (s['available_birds'] as num?)?.toInt() ?? 0;
+    final kg = (s['available_kg'] as num?)?.toDouble() ?? 0;
+    final avg = (s['avg_daily_birds'] as num?)?.toDouble() ?? 0;
+    final days = (s['survival_days'] as num?)?.toDouble();
+    final lastDc = s['last_dc_date'] as String?;
+    final urgency = days == null ? WebColors.success
+        : days <= 1 ? WebColors.error
+        : days <= 3 ? WebColors.warning
+        : WebColors.success;
+
+    Widget stat(String l, String v, String sub) => Expanded(child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Text(v, style: const TextStyle(fontSize: 14,
+          fontWeight: FontWeight.w800, color: WebColors.text1)),
+      if (sub.isNotEmpty) Text(sub, style: WebText.caption),
+      Text(l, style: WebText.caption),
+    ]));
+
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: WebColors.surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: urgency.withValues(alpha: 0.35)),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          SizedBox(width: 52, height: 52, child: CustomPaint(
+            painter: _RingPainter(
+              value: days == null ? 1.0 : (days / 7.0).clamp(0.0, 1.0),
+              color: urgency,
+              trackColor: urgency.withValues(alpha: 0.12),
+            ),
+            child: Center(child: Icon(Icons.inventory_2_outlined,
+                size: 18, color: urgency)),
+          )),
+          const SizedBox(width: 14),
+          Expanded(child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(s['product_name'] as String? ?? '—',
+                style: WebText.cardTitle),
+            const SizedBox(height: 4),
+            WebLabel(days == null ? 'No consumption data'
+                : days < 1 ? '< 1 day left'
+                : '${days.toStringAsFixed(1)} days left',
+                color: urgency, dot: true),
+          ])),
+        ]),
+        const SizedBox(height: 14),
+        Row(children: [
+          stat('Available', '$birds birds', '${kg.toStringAsFixed(1)} kg'),
+          stat('Daily avg', '${avg.toStringAsFixed(0)} birds/day',
+              avg > 0 ? '7-day avg' : 'No sales'),
+          stat('Last DC', lastDc != null
+              ? DateFormat('d MMM').format(DateTime.parse(lastDc)) : '—', ''),
+        ]),
+        if (days != null && days <= 3) ...[
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+                color: urgency.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(WebRadius.sm)),
+            child: Row(children: [
+              Icon(Icons.warning_amber_rounded, color: urgency, size: 16),
+              const SizedBox(width: 8),
+              Expanded(child: Text(days <= 1
+                  ? 'Urgent: Stock running out today! Place DC immediately.'
+                  : 'Low stock warning: Consider ordering soon.',
+                  style: TextStyle(fontSize: 12.5, color: urgency,
+                      fontWeight: FontWeight.w600))),
+            ]),
+          ),
+        ],
+      ]),
+    );
+  }
+
+  // ── Collections ───────────────────────────────────────────────────────────
+  Widget _webCollections() {
+    final byBucket = <String, double>{
+      'current': 0, 'due_soon': 0, 'overdue': 0, 'critical': 0
+    };
+    for (final r in _aging) {
+      final b = r['aging_bucket'] as String? ?? 'current';
+      byBucket[b] = (byBucket[b] ?? 0) + ((r['outstanding'] as num?)?.toDouble() ?? 0);
+    }
+    final total = byBucket.values.fold(0.0, (a, b) => a + b);
+    if (_aging.isEmpty && _profitability.isEmpty) {
+      return const WebTableState.empty(text: 'No collection data');
+    }
+    const bucketMeta = {
+      'critical': (WebColors.error, 'Critical (>30d)'),
+      'overdue':  (Color(0xFFEA580C), 'Overdue (16–30d)'),
+      'due_soon': (WebColors.warning, 'Due Soon (8–15d)'),
+      'current':  (WebColors.success, 'Current (≤7d)'),
+    };
+    final rows = [..._aging]..sort((a, b) {
+      const order = ['critical', 'overdue', 'due_soon', 'current'];
+      return order.indexOf(a['aging_bucket'] as String? ?? 'current')
+          .compareTo(order.indexOf(b['aging_bucket'] as String? ?? 'current'));
+    });
+
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      WebKpiRow(children: [
+        WebKpiCard(label: 'Total Outstanding', value: Fmt.amount(total),
+            icon: Icons.account_balance_wallet_outlined,
+            color: total > 0 ? WebColors.warning : WebColors.success),
+        WebKpiCard(label: 'Critical (>30d)', value: Fmt.amount(byBucket['critical']!),
+            icon: Icons.warning_rounded, color: WebColors.error),
+        WebKpiCard(label: 'Overdue (16–30d)', value: Fmt.amount(byBucket['overdue']!),
+            icon: Icons.schedule_outlined, color: const Color(0xFFEA580C)),
+        WebKpiCard(label: 'Due Soon (8–15d)', value: Fmt.amount(byBucket['due_soon']!),
+            icon: Icons.access_time_outlined, color: WebColors.gold),
+      ]),
+      const SizedBox(height: WebSpace.lg),
+      if (_aging.isNotEmpty)
+        Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          if (total > 0) ...[
+            SizedBox(width: 380, child: WebSectionCard(
+              title: 'Collection Aging',
+              icon: Icons.donut_large_rounded,
+              child: _AgingDonutChart(buckets: byBucket, total: total),
+            )),
+            const SizedBox(width: WebSpace.lg),
+          ],
+          Expanded(child: WebListCard(children: [
+            WebCardHeader(title: 'Outstanding by Retailer',
+                subtitle: '${rows.length} retailers',
+                icon: Icons.list_alt_rounded),
+            WebDataTable<Map<String, dynamic>>(
+              columns: const [
+                WebColumn('Retailer', flex: 3),
+                WebColumn('Bucket', width: 160),
+                WebColumn('Since Payment', width: 140, align: TextAlign.right),
+                WebColumn('Limit Used', width: 150, align: TextAlign.right),
+                WebColumn('Outstanding', width: 150, align: TextAlign.right),
+              ],
+              rows: rows,
+              paginate: true,
+              dense: true,
+              minWidth: 720,
+              cellBuilder: (r, col) {
+                final b = r['aging_bucket'] as String? ?? 'current';
+                final (bc, bl) = bucketMeta[b] ?? (WebColors.text3, b);
+                final util = (r['utilisation_pct'] as num?)?.toDouble() ?? 0;
+                final lim = (r['credit_limit'] as num?)?.toDouble() ?? 0;
+                switch (col) {
+                  case 0:
+                    final name = r['shop_name'] as String? ?? '—';
+                    return Text(name, maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontSize: 13.5,
+                            fontWeight: FontWeight.w600,
+                            color: WebColors.text1));
+                  case 1:
+                    return WebLabel(bl, color: bc, dot: true);
+                  case 2:
+                    return Text('${(r['days_overdue'] as num?)?.toInt() ?? 0} days',
+                        style: TextStyle(fontSize: 13, color: bc,
+                            fontWeight: FontWeight.w600));
+                  case 3:
+                    if (lim <= 0) return const Text('—', style: WebText.caption);
+                    return util >= 90
+                        ? WebLabel('${util.toStringAsFixed(0)}% · Over',
+                            color: WebColors.error)
+                        : Text('${util.toStringAsFixed(0)}%',
+                            style: const TextStyle(fontSize: 13,
+                                color: WebColors.text2));
+                  default:
+                    return Text(Fmt.amount(
+                        (r['outstanding'] as num?)?.toDouble() ?? 0),
+                        style: TextStyle(fontSize: 14,
+                            fontWeight: FontWeight.w800, color: bc));
+                }
+              },
+            ),
+            const SizedBox(height: WebSpace.md),
+          ])),
+        ]),
+      if (_profitability.isNotEmpty) ...[
+        const SizedBox(height: WebSpace.lg),
+        WebSectionCard(
+          title: 'Retailer Profitability',
+          subtitle: 'Last 30 days · bar colour shows collection rate',
+          icon: Icons.trending_up_rounded,
+          child: Column(children: _profitability.asMap().entries.map((e) {
+            final r = e.value;
+            final rv = (r['revenue_30d'] as num?)?.toDouble() ?? 0;
+            final kg = (r['kg_30d'] as num?)?.toDouble() ?? 0;
+            final col = (r['collection_rate'] as num?)?.toDouble() ?? 0;
+            final avg = (r['avg_rate_30d'] as num?)?.toDouble() ?? 0;
+            final maxRev = (_profitability.first['revenue_30d'] as num?)?.toDouble() ?? 1;
+            return _RankRow(
+              rank: e.key + 1,
+              label: r['shop_name'] as String? ?? '—',
+              value: Fmt.amount(rv),
+              sub: '${kg.toStringAsFixed(0)} kg · ₹${avg.toStringAsFixed(0)}/kg · ${col.toStringAsFixed(0)}% collected',
+              barPct: maxRev > 0 ? rv / maxRev : 0,
+              color: col >= 80 ? WebColors.success
+                  : col >= 50 ? WebColors.warning : WebColors.error,
+            );
+          }).toList()),
+        ),
+      ],
+    ]);
+  }
+
+  // ── Agents ────────────────────────────────────────────────────────────────
+  Widget _webAgents() {
+    if (_agentPerf.isEmpty) {
+      return const WebTableState.empty(
+          text: 'No agent activity in last 30 days');
+    }
+    final totalKg = _agentPerf.fold(0.0,
+        (s, a) => s + ((a['kg_delivered_30d'] as num?)?.toDouble() ?? 0));
+    final totalCash = _agentPerf.fold(0.0,
+        (s, a) => s + ((a['cash_collected_30d'] as num?)?.toDouble() ?? 0));
+    final totalDel = _agentPerf.fold(0,
+        (s, a) => s + ((a['deliveries_30d'] as num?)?.toInt() ?? 0));
+
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      WebKpiRow(children: [
+        WebKpiCard(label: 'Total Deliveries', value: '$totalDel',
+            icon: Icons.local_shipping_outlined, color: WebColors.navy),
+        WebKpiCard(label: 'Total KG', value: '${totalKg.toStringAsFixed(0)} kg',
+            icon: Icons.scale_outlined, color: WebColors.info),
+        WebKpiCard(label: 'Cash Collected', value: Fmt.amount(totalCash),
+            icon: Icons.payments_outlined, color: WebColors.success),
+        WebKpiCard(label: 'Agents', value: '${_agentPerf.length}',
+            icon: Icons.people_outlined, color: WebColors.gold),
+      ]),
+      const SizedBox(height: WebSpace.lg),
+      if (_agentPerf.length > 1) ...[
+        WebSectionCard(
+          title: 'KG Delivered Comparison',
+          icon: Icons.bar_chart_rounded,
+          child: _AgentBarChart(agents: _agentPerf),
+        ),
+        const SizedBox(height: WebSpace.lg),
+      ],
+      Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: WebColors.border),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: WebDataTable<Map<String, dynamic>>(
+          columns: const [
+            WebColumn('Agent', flex: 3),
+            WebColumn('Deliveries', width: 120, align: TextAlign.right),
+            WebColumn('KG', width: 120, align: TextAlign.right),
+            WebColumn('Cash', width: 140, align: TextAlign.right),
+            WebColumn('Loss %', width: 110, align: TextAlign.center),
+            WebColumn('Shifts', width: 100, align: TextAlign.right),
+            WebColumn('Last Shift', width: 130),
+          ],
+          rows: _agentPerf,
+          paginate: true,
+          dense: true,
+          cellBuilder: (a, col) {
+            const plain = TextStyle(fontSize: 13.5, color: WebColors.text2);
+            final loss = (a['avg_loss_pct'] as num?)?.toDouble() ?? 0;
+            switch (col) {
+              case 0:
+                final name = a['agent_name'] as String? ?? '—';
+                return WebTwoLineCell(name, a['vehicle_no'] as String?);
+              case 1:
+                return Text('${(a['deliveries_30d'] as num?)?.toInt() ?? 0}',
+                    style: plain);
+              case 2:
+                return Text('${((a['kg_delivered_30d'] as num?)?.toDouble() ?? 0).toStringAsFixed(0)} kg',
+                    style: plain);
+              case 3:
+                return Text(Fmt.amount(
+                    (a['cash_collected_30d'] as num?)?.toDouble() ?? 0),
+                    style: const TextStyle(fontSize: 13.5,
+                        fontWeight: FontWeight.w700, color: WebColors.success));
+              case 4:
+                return WebLabel('${loss.toStringAsFixed(1)}%',
+                    color: loss >= 3 ? WebColors.error
+                        : loss >= 1.5 ? WebColors.warning : WebColors.success);
+              case 5:
+                return Text('${(a['shifts_30d'] as num?)?.toInt() ?? 0}',
+                    style: plain);
+              default:
+                final ld = a['last_shift_date'] as String?;
+                return Text(ld != null
+                    ? DateFormat('d MMM').format(DateTime.parse(ld)) : '—',
+                    style: WebText.caption);
+            }
+          },
+        ),
+      ),
+    ]);
+  }
+
   // ── Helpers ───────────────────────────────────────────────────────────────
   Widget _stat(String l, String v, Color c) => Expanded(child: Column(children: [
     Text(v, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: c)),
@@ -631,7 +1105,7 @@ class _S extends ConsumerState<AnalyticsScreen>
   @override
   Widget build(BuildContext context) => ResponsiveLayout(
     mobile:  (_) => _buildScaffold(context),
-    desktop: (_) => _buildScaffold(context),
+    desktop: (_) => _buildWeb(),
   );
 }
 

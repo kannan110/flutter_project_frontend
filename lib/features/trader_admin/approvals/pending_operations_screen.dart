@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/providers/session_provider.dart';
 import '../../../core/theme/app_theme.dart';
+import 'package:rooster_trader/shared/widgets/web/app_scaffold.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // PENDING OPERATIONS SCREEN
@@ -73,7 +74,7 @@ class _S extends ConsumerState<PendingOperationsScreen> {
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
+  Widget build(BuildContext context) => AppScaffold(
     backgroundColor: kBgPage,
     appBar: AppBar(
       backgroundColor: kSurface,
@@ -106,7 +107,7 @@ class _S extends ConsumerState<PendingOperationsScreen> {
         padding:
         const EdgeInsets.fromLTRB(16, 16, 16, 100),
         itemCount: _stuck.length,
-        separatorBuilder: (_, __) =>
+        separatorBuilder: (_, _) =>
         const SizedBox(height: 10),
         itemBuilder: (_, i) => _StuckDeliveryCard(
           delivery: _stuck[i],

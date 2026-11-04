@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/router/app_router.dart';
 import '../../../../core/theme/app_theme.dart';
+import 'package:rooster_trader/shared/widgets/web/app_scaffold.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TRADER DELIVERY PICKER
@@ -32,7 +33,7 @@ class TraderDeliveryPickerScreen extends StatelessWidget {
         .contains(d['status'] as String?))
         .toList();
 
-    return Scaffold(
+    return AppScaffold(
       backgroundColor: kBgPage,
       appBar: AppBar(
         backgroundColor: kNavy,

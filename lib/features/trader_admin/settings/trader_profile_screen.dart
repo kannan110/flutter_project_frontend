@@ -5,6 +5,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/providers/session_provider.dart';
 import '../../../core/theme/app_theme.dart';
+import 'package:rooster_trader/shared/widgets/web/app_scaffold.dart';
 
 // ─────────────────────────────────────────────────────────────────────────
 // Trader Profile — More → Settings → Profile.
@@ -276,10 +277,10 @@ class _S extends ConsumerState<TraderProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
-    if (_loading) return const Scaffold(body: LoadingList());
+    if (_loading) return const AppScaffold(body: LoadingList());
     final logoUrl = _trader?['logo_url'] as String?;
 
-    return Scaffold(
+    return AppScaffold(
       backgroundColor: kBgPage,
       appBar: AppBar(
         backgroundColor: kSurface,
@@ -321,7 +322,7 @@ class _S extends ConsumerState<TraderProfileScreen> {
                     ? const Center(child: CircularProgressIndicator(strokeWidth: 2))
                     : (logoUrl != null && logoUrl.isNotEmpty)
                     ? Image.network(logoUrl, fit: BoxFit.contain,
-                    errorBuilder: (_, __, ___) =>
+                    errorBuilder: (_, _, _) =>
                     const Icon(Icons.storefront_outlined, size: 30, color: kTextHint))
                     : const Icon(Icons.storefront_outlined, size: 30, color: kTextHint),
               ),

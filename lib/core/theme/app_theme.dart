@@ -8,8 +8,9 @@ import 'package:flutter/services.dart';
 // ═══════════════════════════════════════════════════════════════════════════
 
 // ── Core palette ───────────────────────────────────────────────────────────
-const kNavy         = Color(0xFF00081E);
-const kNavyMid      = Color(0xFF0A1F44);
+const kNavy         = Color(0xFF1E3A8A); // Rich royal navy (was #00081E near-black)
+const kNavyMid      = Color(0xFF0F2756); // Deep rich navy (was #0A1F44)
+const kNavyDark     = Color(0xFF00081E); // Ultra-dark near-black navy
 const kNavyLight    = Color(0xFF34466D);
 const kGold         = Color(0xFFC5A059);
 const kGoldLight    = Color(0xFFE9C176);
@@ -572,7 +573,7 @@ class AppSearchBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) => AnimatedBuilder(
     animation: controller,
-    builder: (_, __) => Container(
+    builder: (_, _) => Container(
       height: 48,
       decoration: BoxDecoration(
         color:        kSurface,
@@ -993,7 +994,7 @@ class _PickerSheetState extends State<_PickerSheet> {
               : ListView.separated(
             padding: const EdgeInsets.symmetric(vertical: 4),
             itemCount: _filtered.length,
-            separatorBuilder: (_, __) =>
+            separatorBuilder: (_, _) =>
             const Divider(height: 1, indent: 54),
             itemBuilder: (_, i) {
               final item = _filtered[i];

@@ -4,6 +4,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/providers/session_provider.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../shared/layouts/responsive_layout.dart';
+import '../../../core/router/app_router.dart';
+import '../../../shared/widgets/web/web.dart';
 
 class CratesScreen extends ConsumerStatefulWidget {
   const CratesScreen({super.key});
@@ -69,6 +71,104 @@ class _S extends ConsumerState<CratesScreen> {
     } catch (e) { if (mounted) showError(context, e.toString()); }
   }
 
+  // ═══════════════════════════════════════════════════════════════════════
+  // WEB (desktop) — KPIs, agent and retailer balances side by side.
+  // ═══════════════════════════════════════════════════════════════════════
+  Widget _buildWeb() {
+    final header = PageBreadcrumbsHeader(
+      title: 'Crate Management',
+      subtitle: 'Where every crate is — in stock, with agents, with retailers',
+      crumbs: const [Crumb('Dashboard', R.dashboard), Crumb('Crates')],
+      action: Row(mainAxisSize: MainAxisSize.min, children: [
+        WebIconButton(icon: Icons.refresh_rounded, tooltip: 'Refresh',
+            onTap: _load),
+        const SizedBox(width: 8),
+        WebButton(label: 'Set Inventory', icon: Icons.settings_outlined,
+            outlined: true, onPressed: _setInventory),
+      ]),
+    );
+    if (_loading) {
+      return WebPage(header: header, children: const [
+        WebCard(child: WebTableState.loading()),
+      ]);
+    }
+    if (_summary == null) {
+      return WebPage(header: header, children: const [
+        WebCard(child: WebTableState.empty(text: 'No crate data')),
+      ]);
+    }
+
+    final agents = List<Map<String, dynamic>>.from(
+        ((_summary!['agent_balances'] as List?) ?? [])
+            .map((e) => Map<String, dynamic>.from(e as Map)));
+    final retailers = List<Map<String, dynamic>>.from(
+        ((_summary!['retailer_balances'] as List?) ?? [])
+            .map((e) => Map<String, dynamic>.from(e as Map)));
+    final total = (_summary!['total_crates'] as num?)?.toInt() ?? 0;
+    final withAgents = (_summary!['with_agents'] as num?)?.toInt() ?? 0;
+    final withRetailers = (_summary!['with_retailers'] as num?)?.toInt() ?? 0;
+
+    Widget balanceCard(String title, IconData icon, Color c,
+        List<Map<String, dynamic>> rows, String nameKey, String idKey,
+        String entity) => WebListCard(children: [
+      WebCardHeader(title: title, icon: icon,
+          subtitle: '${rows.length} holding crates'),
+      WebDataTable<Map<String, dynamic>>(
+        columns: const [
+          WebColumn('Name', flex: 3),
+          WebColumn('Crates', width: 130, align: TextAlign.right),
+          WebColumn('Adjust', width: 90, align: TextAlign.center),
+        ],
+        rows: rows,
+        paginate: true,
+        rowsPerPage: 10,
+        rowsPerPageOptions: const [10, 25, 50],
+        dense: true,
+        minWidth: 400,
+        emptyText: 'None',
+        cellBuilder: (r, col) {
+          final name = r[nameKey] as String? ?? '—';
+          return switch (col) {
+            0 => Text(name, maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 13.5,
+                    fontWeight: FontWeight.w600, color: WebColors.text1)),
+            1 => Text('${r['balance'] ?? 0} crates', style: TextStyle(
+                fontSize: 13.5, fontWeight: FontWeight.w700, color: c)),
+            _ => WebIconButton(
+                icon: Icons.tune_outlined, tooltip: 'Adjust',
+                size: 32, outlined: false,
+                onTap: () => _adjust(entity, r[idKey] as String, name)),
+          };
+        },
+      ),
+    ]);
+
+    return WebPage(header: header, children: [
+      WebKpiRow(children: [
+        WebKpiCard(label: 'Total Crates', value: '$total',
+            icon: Icons.inventory_2_outlined, color: WebColors.navy),
+        WebKpiCard(label: 'In Stock',
+            value: '${total - withAgents - withRetailers}',
+            sub: 'not with agents or retailers',
+            icon: Icons.warehouse_outlined, color: WebColors.success),
+        WebKpiCard(label: 'With Agents', value: '$withAgents',
+            icon: Icons.delivery_dining, color: WebColors.warning),
+        WebKpiCard(label: 'With Retailers', value: '$withRetailers',
+            icon: Icons.store_outlined, color: const Color(0xFF7C3AED)),
+      ]),
+      const SizedBox(height: WebSpace.lg),
+      Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Expanded(child: balanceCard('With Agents', Icons.delivery_dining,
+            WebColors.warning, agents, 'agent_name', 'agent_id', 'agent')),
+        const SizedBox(width: WebSpace.lg),
+        Expanded(child: balanceCard('With Retailers', Icons.store_outlined,
+            const Color(0xFF7C3AED), retailers, 'shop_name', 'retailer_id',
+            'retailer')),
+      ]),
+    ]);
+  }
+
   Widget _buildScaffold(BuildContext context) => Scaffold(
     backgroundColor: kBgPage,
     appBar: AppBar(backgroundColor: kSurface, title: const Text('Crate Management'), actions: [
@@ -117,7 +217,7 @@ class _S extends ConsumerState<CratesScreen> {
   @override
   Widget build(BuildContext context) => ResponsiveLayout(
     mobile:  (_) => _buildScaffold(context),
-    desktop: (_) => _buildScaffold(context),
+    desktop: (_) => _buildWeb(),
   );
 
 }

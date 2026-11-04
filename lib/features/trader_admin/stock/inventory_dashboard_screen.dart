@@ -31,6 +31,9 @@ import 'package:rooster_trader/features/trader_admin/stock/stockpoint_effective_
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/providers/session_provider.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/router/app_router.dart';
+import '../../../shared/layouts/responsive_layout.dart';
+import '../../../shared/widgets/web/web.dart';
 import '../reports/reports_hub_screen.dart';
 
 class InventoryDashboardScreen extends ConsumerStatefulWidget {
@@ -184,6 +187,7 @@ class _InventoryDashboardScreenState extends ConsumerState<InventoryDashboardScr
 
   @override
   Widget build(BuildContext context) {
+    if (context.isDesktop) return _buildWeb();
     return Scaffold(
       backgroundColor: kBgPage,
       appBar: AppBar(
@@ -225,6 +229,325 @@ class _InventoryDashboardScreenState extends ConsumerState<InventoryDashboardScr
   // PRODUCT SELECTION — one chip per active product, no "All Products".
   // Selecting a chip refreshes the entire dashboard for that product only.
   // ═══════════════════════════════════════════════════════════════════════
+  // ═══════════════════════════════════════════════════════════════════════
+  // WEB (desktop) — same sections in the same top-to-bottom order:
+  // flow → status + loss → alerts + quick actions.
+  // ═══════════════════════════════════════════════════════════════════════
+  Widget _buildWeb() {
+    final selectedName = _products.firstWhere(
+          (p) => p['id'] == _selectedProductId, orElse: () => const {},
+    )['name'] as String? ?? '';
+
+    final header = PageBreadcrumbsHeader(
+      title: 'Inventory Dashboard',
+      subtitle: selectedName.isEmpty
+          ? "Today's stock point condition"
+          : "Today's stock point condition · $selectedName",
+      crumbs: const [
+        Crumb('Dashboard', R.dashboard),
+        Crumb('Inventory Dashboard'),
+      ],
+      action: WebIconButton(
+          icon: Icons.refresh_rounded, tooltip: 'Refresh', onTap: _load),
+    );
+
+    final productTabs = _loadingProducts || _products.isEmpty
+        ? null
+        : WebListCard(children: [
+            WebListTabs(
+              tabs: [
+                for (final p in _products) WebTab(p['name'] as String? ?? '—'),
+              ],
+              selected: _products
+                  .indexWhere((p) => p['id'] == _selectedProductId)
+                  .clamp(0, _products.length - 1),
+              onChanged: (i) => _selectProduct(_products[i]['id'] as String),
+            ),
+          ]);
+
+    Widget body;
+    if (_loading || _loadingProducts) {
+      body = const WebCard(child: WebTableState.loading());
+    } else if (_error != null) {
+      body = WebCard(child: Column(children: [
+        const Icon(Icons.error_outline, size: 40, color: WebColors.error),
+        const SizedBox(height: 12),
+        Text(_error!, textAlign: TextAlign.center, style: WebText.bodySub),
+        const SizedBox(height: 16),
+        WebButton(label: 'Retry', onPressed: _load),
+      ]));
+    } else if (_data == null || _selectedProductId == null) {
+      body = const WebCard(
+          child: WebTableState.empty(text: 'No active products found'));
+    } else {
+      body = Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        WebSectionCard(
+          title: "Today's Stock Flow",
+          subtitle: 'Opening + Return − Loaded − Shrinkage − Mortality ± Manual = Current',
+          icon: Icons.swap_vert_rounded,
+          child: _webFlow(),
+        ),
+        const SizedBox(height: WebSpace.lg),
+        WebKpiRow(children: [
+          WebSectionCard(
+            title: 'Stock Point Status',
+            icon: Icons.inventory_2_outlined,
+            child: _webStatus(),
+          ),
+          WebSectionCard(
+            title: "Today's Loss",
+            icon: Icons.trending_down_rounded,
+            child: _webLoss(),
+          ),
+        ]),
+        const SizedBox(height: WebSpace.lg),
+        WebKpiRow(children: [
+          WebSectionCard(
+            title: 'Alerts',
+            icon: Icons.notifications_active_outlined,
+            child: _alertsCard(bare: true),
+          ),
+          WebSectionCard(
+            title: 'Quick Actions',
+            icon: Icons.bolt_rounded,
+            child: _webQuickActions(),
+          ),
+        ]),
+      ]);
+    }
+
+    return WebPage(header: header, children: [
+      if (productTabs != null) ...[
+        productTabs,
+        const SizedBox(height: WebSpace.lg),
+      ],
+      body,
+    ]);
+  }
+
+  Widget _webFlow() {
+    final opening = (_m('opening_stock')['kg'] as num?)?.toDouble() ?? 0;
+    final returnKg = (_m('return_stock')['kg'] as num?)?.toDouble() ?? 0;
+    final loadedKg = (_m('loaded')['kg'] as num?)?.toDouble() ?? 0;
+    final shrinkageKg = _d('shrinkage_kg');
+    final mortalityKg = (_m('mortality')['kg'] as num?)?.toDouble() ?? 0;
+    final manualKg = _d('manual_adjustment_kg');
+    final currentKg = _d('current_stock_kg');
+
+    final steps = <(String, String, Color, IconData)>[
+      ('Opening', '${opening.toStringAsFixed(0)} kg', WebColors.text2,
+          Icons.home_outlined),
+      ('Return', '+${returnKg.toStringAsFixed(0)} kg', WebColors.success,
+          Icons.assignment_return_outlined),
+      ('Loaded', '−${loadedKg.toStringAsFixed(0)} kg', WebColors.warning,
+          Icons.local_shipping_outlined),
+      ('Shrinkage', '−${shrinkageKg.toStringAsFixed(1)} kg', WebColors.info,
+          Icons.compress_rounded),
+      ('Mortality', '−${mortalityKg.toStringAsFixed(1)} kg', WebColors.error,
+          Icons.health_and_safety_outlined),
+      ('Manual', '${manualKg >= 0 ? '+' : ''}${manualKg.toStringAsFixed(1)} kg',
+          WebColors.gold, Icons.tune_rounded),
+    ];
+
+    return IntrinsicHeight(child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      for (var i = 0; i < steps.length; i++) ...[
+        Expanded(child: Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: WebColors.surface,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: WebColors.border),
+          ),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            WebIconTile(icon: steps[i].$4, color: steps[i].$3, size: 30),
+            const SizedBox(height: 10),
+            Text(steps[i].$2, style: TextStyle(fontSize: 16,
+                fontWeight: FontWeight.w800, color: steps[i].$3 == WebColors.text2
+                    ? WebColors.text1 : steps[i].$3)),
+            const SizedBox(height: 2),
+            Text(steps[i].$1, style: WebText.caption),
+          ]),
+        )),
+        const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 4),
+          child: Center(child: Icon(Icons.chevron_right_rounded,
+              size: 18, color: WebColors.text3)),
+        ),
+      ],
+      Expanded(flex: 1, child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+              colors: [WebColors.navy, WebColors.navyMid],
+              begin: Alignment.topLeft, end: Alignment.bottomRight),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          const WebIconTile(icon: Icons.inventory_2_rounded,
+              color: WebColors.goldLight, size: 30),
+          const SizedBox(height: 10),
+          Text('${currentKg.toStringAsFixed(1)} kg',
+              style: const TextStyle(fontSize: 16,
+                  fontWeight: FontWeight.w800, color: Colors.white)),
+          const SizedBox(height: 2),
+          const Text('Current', style: TextStyle(fontSize: 12,
+              color: WebColors.goldLight, fontWeight: FontWeight.w600)),
+        ]),
+      )),
+    ]));
+  }
+
+  Widget _webStatus() {
+    final avgCost = _dn('avg_cost_per_kg');
+    final marketRate = _dn('market_rate_per_kg');
+    final currentKg = _d('current_stock_kg');
+    final purchaseValue = avgCost == null ? null : currentKg * avgCost;
+    final basisLabel = switch (_data?['avg_cost_basis']) {
+      'traced_purchase_entry' => 'Traced Purchase Cost',
+      'effective_stock_point_cost' => 'Effective Stock Point Cost',
+      'existing_average_cost' || 'rollout_seed_average_cost' => 'Existing Average Cost',
+      'current_mwac' => 'MWAC',
+      _ => null,
+    };
+
+    Widget stat(String label, String value) => Expanded(child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Text(value, style: WebText.kpiValue),
+      const SizedBox(height: 2),
+      Text(label, style: WebText.bodySub),
+    ]));
+
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      Row(children: [
+        stat('Current Birds', '${_i("bird_count")}'),
+        stat('Current Weight', '${currentKg.toStringAsFixed(1)} kg'),
+      ]),
+      const SizedBox(height: WebSpace.lg),
+      Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+              colors: [WebColors.navy, WebColors.navyMid],
+              begin: Alignment.topLeft, end: Alignment.bottomRight),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Row(children: [
+          Expanded(child: _goldStat('Purchase Value',
+              purchaseValue == null ? 'Pending Cost' : Fmt.amount(purchaseValue))),
+          Container(width: 1, height: 36, color: Colors.white24),
+          const SizedBox(width: 16),
+          Expanded(child: _goldStat("Today's Market Value",
+              Fmt.amount(_d('market_value')))),
+        ]),
+      ),
+      const SizedBox(height: WebSpace.md),
+      MouseRegion(
+        cursor: SystemMouseCursors.click,
+        child: GestureDetector(
+          onTap: _openEffectiveCostScreen,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: WebDecor.inset(),
+            child: Row(children: [
+              const Icon(Icons.calculate_outlined, size: 16,
+                  color: WebColors.text3),
+              const SizedBox(width: 8),
+              Expanded(child: Text(
+                avgCost == null
+                    ? 'Average Cost: Pending'
+                    : 'Average Cost: ₹${avgCost.toStringAsFixed(2)}/kg',
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600,
+                    color: avgCost == null
+                        ? WebColors.warning : WebColors.text1),
+              )),
+              const Icon(Icons.chevron_right_rounded, size: 18,
+                  color: WebColors.text3),
+            ]),
+          ),
+        ),
+      ),
+      const SizedBox(height: 8),
+      Text(
+        marketRate == null
+            ? "Today's Market Rate: —"
+            : "Today's Market Rate: ₹${marketRate.toStringAsFixed(2)}/kg",
+        style: WebText.bodySub,
+      ),
+      if (basisLabel != null) ...[
+        const SizedBox(height: 4),
+        Text('Source: $basisLabel', style: WebText.caption),
+      ],
+    ]);
+  }
+
+  Widget _webLoss() {
+    final lossPct = _d('loss_percent');
+    Widget mini(String label, String value, IconData icon) => Expanded(
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: WebDecor.inset(),
+        child: Row(children: [
+          Icon(icon, size: 18, color: WebColors.text3),
+          const SizedBox(width: 8),
+          Expanded(child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(value, style: const TextStyle(fontSize: 15,
+                fontWeight: FontWeight.w800, color: WebColors.text1)),
+            Text(label, style: WebText.caption),
+          ])),
+        ]),
+      ),
+    );
+    Widget big(String label, String value, Color c) => Expanded(child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Text(value, style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800,
+          color: c, letterSpacing: -0.4)),
+      const SizedBox(height: 2),
+      Text(label, style: WebText.bodySub),
+    ]));
+
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      Row(children: [
+        mini('Shrinkage', '${_d("shrinkage_kg").toStringAsFixed(1)} kg',
+            Icons.compress_rounded),
+        const SizedBox(width: 10),
+        mini('Mortality',
+            '${(_m("mortality")["kg"] as num?)?.toStringAsFixed(1) ?? "0.0"} kg',
+            Icons.health_and_safety_outlined),
+        const SizedBox(width: 10),
+        mini('Theft', '${_d("theft_kg").toStringAsFixed(1)} kg',
+            Icons.report_gmailerrorred_outlined),
+      ]),
+      const SizedBox(height: WebSpace.xl),
+      Row(children: [
+        big('Inventory Loss', Fmt.amount(_d('inventory_loss')), WebColors.error),
+        big('Market Loss', Fmt.amount(_d('market_loss')), WebColors.warning),
+        big('Loss %', '${lossPct.toStringAsFixed(2)}%',
+            lossPct > 2 ? WebColors.error : WebColors.text1),
+      ]),
+    ]);
+  }
+
+  Widget _webQuickActions() {
+    final actions = [
+      (Icons.menu_book_outlined, 'Inventory Ledger', 'inventory_ledger'),
+      (Icons.today_outlined, 'Daily Closing', 'daily_closing_report'),
+      (Icons.assignment_return_outlined, 'Return Ledger', 'return_stock_ledger'),
+      (Icons.trending_down_outlined, 'Loss Analysis', 'loss_analysis'),
+      (Icons.print_outlined, 'Print', 'daily_closing_report'),
+    ];
+    return Wrap(spacing: 10, runSpacing: 10, children: [
+      for (final a in actions)
+        WebButton(
+          label: a.$2,
+          icon: a.$1,
+          outlined: true,
+          onPressed: () => _openReport(a.$3),
+        ),
+    ]);
+  }
+
   Widget _productChipSelector() {
     if (_loadingProducts) {
       return const SizedBox(height: 52, child: Center(child: SizedBox(
@@ -239,7 +562,7 @@ class _InventoryDashboardScreenState extends ConsumerState<InventoryDashboardScr
         child: ListView.separated(
           scrollDirection: Axis.horizontal,
           itemCount: _products.length,
-          separatorBuilder: (_, __) => const SizedBox(width: 8),
+          separatorBuilder: (_, _) => const SizedBox(width: 8),
           itemBuilder: (_, i) {
             final p = _products[i];
             final id = p['id'] as String;
@@ -502,7 +825,8 @@ class _InventoryDashboardScreenState extends ConsumerState<InventoryDashboardScr
   // physical_verification_required) simply won't fire, exactly matching
   // the backend's null-safe design.
   // ═══════════════════════════════════════════════════════════════════════
-  Widget _alertsCard() {
+  Widget _alertsCard({bool bare = false}) {
+    Widget wrap(Widget c) => bare ? c : _card(child: c);
     final alerts = <(IconData, Color, String)>[];
 
     final pendingCostCount = _i('pending_cost_product_count');
@@ -528,7 +852,7 @@ class _InventoryDashboardScreenState extends ConsumerState<InventoryDashboardScr
     }
 
     if (alerts.isEmpty) {
-      return _card(child: const Row(children: [
+      return wrap(Row(children: const [
         Icon(Icons.check_circle_outline, color: Colors.green, size: 20),
         SizedBox(width: 8),
         Text('All clear — nothing needs attention right now.',
@@ -536,7 +860,7 @@ class _InventoryDashboardScreenState extends ConsumerState<InventoryDashboardScr
       ]));
     }
 
-    return _card(child: Column(
+    return wrap(Column(
       children: alerts.map((a) => Padding(
         padding: const EdgeInsets.symmetric(vertical: 5),
         child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -574,7 +898,7 @@ class _InventoryDashboardScreenState extends ConsumerState<InventoryDashboardScr
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         itemCount: actions.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 8),
+        separatorBuilder: (_, _) => const SizedBox(width: 8),
         itemBuilder: (_, i) {
           final a = actions[i];
           return InkWell(

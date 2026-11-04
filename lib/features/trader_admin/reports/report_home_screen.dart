@@ -13,6 +13,9 @@
 
 import 'package:flutter/material.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/router/app_router.dart';
+import '../../../shared/layouts/responsive_layout.dart';
+import '../../../shared/widgets/web/web.dart';
 import 'supervisor_report_screen.dart';
 import 'report_inventory.dart';
 import 'reports_hub_screen.dart';
@@ -60,8 +63,80 @@ class _ReportsHomeScreenState extends State<ReportsHomeScreen> {
     ));
   }
 
+  // ═══════════════════════════════════════════════════════════════════════
+  // WEB (desktop) — search + one card per category (two columns).
+  // Same reports, same "click a report → it opens directly" behaviour.
+  // ═══════════════════════════════════════════════════════════════════════
+  Widget _buildWeb() {
+    final categories = ReportCategory.values
+        .where((c) => _filtered(c).isNotEmpty)
+        .toList();
+    final total = ReportCategory.values
+        .fold<int>(0, (s, c) => s + reportsInCategory(c).length);
+
+    return WebPage(
+      header: PageBreadcrumbsHeader(
+        title: 'Reports',
+        subtitle: '$total reports in ${ReportCategory.values.length} categories',
+        crumbs: const [Crumb('Dashboard', R.dashboard), Crumb('Reports')],
+        action: WebSearchField(
+          controller: _searchCtrl,
+          hint: 'Search reports...',
+          debounce: const Duration(milliseconds: 100),
+          onChanged: (v) => setState(() => _query = v),
+        ),
+      ),
+      children: [
+        if (categories.isEmpty)
+          WebCard(child: WebTableState.empty(
+              text: 'No reports match "$_query"'))
+        else
+          WebMasonry(columns: 2, children: [
+            for (final c in categories) _webCategoryCard(c),
+          ]),
+      ],
+    );
+  }
+
+  Widget _webCategoryCard(ReportCategory c) {
+    final reports = _filtered(c);
+    final isOpen = _isSearching || (_expanded[c] ?? true);
+    return WebListCard(children: [
+      MouseRegion(
+        cursor: _isSearching
+            ? SystemMouseCursors.basic : SystemMouseCursors.click,
+        child: GestureDetector(
+          onTap: _isSearching ? null : () =>
+              setState(() => _expanded[c] = !(_expanded[c] ?? true)),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 16, 16, 16),
+            child: Row(children: [
+              WebIconTile(icon: c.icon, color: c.color, size: 36),
+              const SizedBox(width: 12),
+              Expanded(child: Text(c.label, style: WebText.cardTitle)),
+              WebLabel('${reports.length}', color: c.color),
+              if (!_isSearching) ...[
+                const SizedBox(width: 8),
+                Icon(isOpen ? Icons.expand_less_rounded
+                    : Icons.expand_more_rounded,
+                    size: 22, color: WebColors.text3),
+              ],
+            ]),
+          ),
+        ),
+      ),
+      if (isOpen) ...[
+        const Divider(height: 1, color: WebColors.border),
+        for (final r in reports)
+          _WebReportRow(entry: r, onTap: () => _openReport(r.key)),
+        const SizedBox(height: 6),
+      ],
+    ]);
+  }
+
   @override
   Widget build(BuildContext context) {
+    if (context.isDesktop) return _buildWeb();
     // When searching, every matching report across every category is shown,
     // sections auto-expanded — a trader should not have to expand a section
     // by hand to see a search result inside it.
@@ -241,6 +316,46 @@ class _ReportRow extends StatelessWidget {
             ),
           const Icon(Icons.chevron_right, size: 18, color: kTextHint),
         ]),
+      ),
+    );
+  }
+}
+
+// ── Web report row (hover highlight) ────────────────────────────────────────
+class _WebReportRow extends StatefulWidget {
+  const _WebReportRow({required this.entry, required this.onTap});
+  final ReportInventoryEntry entry;
+  final VoidCallback onTap;
+  @override
+  State<_WebReportRow> createState() => _WebReportRowState();
+}
+
+class _WebReportRowState extends State<_WebReportRow> {
+  bool _hov = false;
+  @override
+  Widget build(BuildContext context) {
+    final color = widget.entry.category.color;
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hov = true),
+      onExit: (_) => setState(() => _hov = false),
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 100),
+          color: _hov ? WebColors.hover : Colors.transparent,
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+          child: Row(children: [
+            Container(width: 7, height: 7,
+                decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+            const SizedBox(width: 14),
+            Expanded(child: Text(widget.entry.label, style: TextStyle(
+                fontSize: 13.5, fontWeight: FontWeight.w600,
+                color: _hov ? WebColors.navy : WebColors.text1))),
+            Icon(Icons.chevron_right_rounded, size: 20,
+                color: _hov ? WebColors.navy : WebColors.text3),
+          ]),
+        ),
       ),
     );
   }

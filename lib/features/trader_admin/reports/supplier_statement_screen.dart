@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/providers/session_provider.dart';
 import '../reports/report_pdf_generator.dart';
+import 'package:rooster_trader/shared/widgets/web/app_scaffold.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // SUPPLIER ACCOUNT STATEMENT
@@ -202,7 +203,7 @@ class _SupplierStatementScreenState extends ConsumerState<SupplierStatementScree
   // BUILD
   // ═══════════════════════════════════════════════════════════════════════
   @override
-  Widget build(BuildContext context) => Scaffold(
+  Widget build(BuildContext context) => AppScaffold(
     backgroundColor: kBgPage,
     appBar: _appBar(),
     body: Column(children: [

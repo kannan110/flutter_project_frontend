@@ -114,7 +114,7 @@ class _S extends ConsumerState<ExpensesScreen> {
       const Divider(height: 1),
       Expanded(child: _expenses.isEmpty ? const EmptyState(icon: Icons.receipt_outlined, message: 'No expenses')
           : ListView.separated(padding: const EdgeInsets.fromLTRB(14, 14, 14, 100), itemCount: _expenses.length,
-          separatorBuilder: (_, __) => const SizedBox(height: 8),
+          separatorBuilder: (_, _) => const SizedBox(height: 8),
           itemBuilder: (_, i) {
             final e = _expenses[i];
             final type = e['expense_type'] as String? ?? 'other';

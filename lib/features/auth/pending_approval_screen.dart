@@ -37,12 +37,20 @@ class PendingApprovalScreen extends ConsumerWidget {
                 child: Row(mainAxisSize: MainAxisSize.min, children: [
                   Container(
                     width: 52, height: 52,
+                    padding: const EdgeInsets.all(6),
                     decoration: BoxDecoration(
-                      color:        Colors.white.withValues(alpha: 0.12),
+                      color:        Colors.white,
                       borderRadius: BorderRadius.circular(kRadiusChip),
                       border:       Border.all(color: kGoldLight.withValues(alpha: 0.4)),
+                      boxShadow: const [
+                        BoxShadow(
+                          color: Color(0x1A000000),
+                          blurRadius: 8,
+                          offset: Offset(0, 2),
+                        ),
+                      ],
                     ),
-                    child: const Center(child: Text('🐓', style: TextStyle(fontSize: 28))),
+                    child: Image.asset('assets/images/app_icon.png', fit: BoxFit.contain),
                   ),
                   const SizedBox(width: 14),
                   Column(crossAxisAlignment: CrossAxisAlignment.start, children: [

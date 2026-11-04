@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/providers/session_provider.dart';
 import '../../../core/theme/app_theme.dart';
+import 'package:rooster_trader/shared/widgets/web/app_scaffold.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // BULK AREA ASSIGNMENT
@@ -125,7 +126,7 @@ class _S extends ConsumerState<BulkAreaAssignmentScreen> {
   @override
   Widget build(BuildContext context) {
     final filtered = _filtered;
-    return Scaffold(
+    return AppScaffold(
       backgroundColor: kBgPage,
       appBar: AppBar(backgroundColor: kSurface, title: const Text('Bulk Area Assignment')),
       body: _loading
@@ -183,7 +184,7 @@ class _S extends ConsumerState<BulkAreaAssignmentScreen> {
                     : ListView.separated(
                         padding: const EdgeInsets.fromLTRB(16, 12, 16, 160),
                         itemCount: filtered.length,
-                        separatorBuilder: (_, __) => const SizedBox(height: 8),
+                        separatorBuilder: (_, _) => const SizedBox(height: 8),
                         itemBuilder: (_, i) {
                           final r = filtered[i];
                           final id = r['id'] as String;

@@ -12,6 +12,7 @@ import 'customer_ledger_row_builder.dart';
 import 'bulk_ledger_print_sheet.dart';
 import 'report_pdf_generator.dart';
 import '../../../shared/layouts/responsive_layout.dart';
+import 'package:rooster_trader/shared/widgets/web/app_scaffold.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // REPORTS HUB  — designed for 40+ age traders
@@ -339,7 +340,7 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
   // ─── BUILD ────────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
-    final scaffold = Scaffold(
+    final scaffold = AppScaffold(
         backgroundColor: kBgPage,
         appBar: AppBar(
             backgroundColor: kSurface, elevation: 0,
@@ -2838,7 +2839,7 @@ class _RetailerSearchSheetState extends State<_RetailerSearchSheet> {
                   : ListView.separated(
                 controller: scrollCtrl,
                 itemCount: filtered.length,
-                separatorBuilder: (_, __) => const Divider(height: 1),
+                separatorBuilder: (_, _) => const Divider(height: 1),
                 itemBuilder: (_, i) {
                   final r = filtered[i];
                   final selected = r['id'] == widget.selectedId;

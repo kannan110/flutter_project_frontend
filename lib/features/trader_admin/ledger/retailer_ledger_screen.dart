@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/providers/session_provider.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../shared/layouts/responsive_layout.dart';
+import 'package:rooster_trader/shared/widgets/web/app_scaffold.dart';
 
 class RetailerLedgerScreen extends ConsumerStatefulWidget {
   const RetailerLedgerScreen({super.key, required this.retailerId});
@@ -307,8 +308,8 @@ class _S extends ConsumerState<RetailerLedgerScreen> {
   }
 
   Widget _buildScaffold(BuildContext context) {
-    if (_loading) return const Scaffold(body: LoadingList());
-    return Scaffold(
+    if (_loading) return const AppScaffold(body: LoadingList());
+    return AppScaffold(
       backgroundColor: kBgPage,
       appBar: AppBar(
         backgroundColor: kSurface,
@@ -383,7 +384,7 @@ class _S extends ConsumerState<RetailerLedgerScreen> {
             ? const EmptyState(icon: Icons.receipt_long_outlined, message: 'No transactions', sub: 'Transactions appear here after orders and payments')
             : ListView.separated(
             padding: const EdgeInsets.all(16), itemCount: _entries.length,
-            separatorBuilder: (_, __) => const SizedBox(height: 6),
+            separatorBuilder: (_, _) => const SizedBox(height: 6),
             itemBuilder: (_, i) {
               final e = _entries[i];
               final isDebit = e['entry_type'] == 'debit';

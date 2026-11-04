@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/providers/session_provider.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_theme.dart';
+import 'package:rooster_trader/shared/widgets/web/app_scaffold.dart';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // CREATE RETAILER SCREEN
@@ -371,7 +372,7 @@ class _S extends ConsumerState<CreateRetailerScreen> {
   @override
   Widget build(BuildContext context) {
     final bottomInset = MediaQuery.viewInsetsOf(context).bottom;
-    return Scaffold(
+    return AppScaffold(
       backgroundColor: kBgPage,
       resizeToAvoidBottomInset: true,
       appBar: AppBar(
@@ -722,7 +723,7 @@ class _S extends ConsumerState<CreateRetailerScreen> {
                   padding: const EdgeInsets.symmetric(
                       horizontal: 16, vertical: 4),
                   itemCount: filtered.length,
-                  separatorBuilder: (_, __) =>
+                  separatorBuilder: (_, _) =>
                   const Divider(height: 1),
                   itemBuilder: (_, i) {
                     final z = filtered[i];
@@ -1092,7 +1093,7 @@ class _S extends ConsumerState<CreateRetailerScreen> {
                   padding: const EdgeInsets.symmetric(
                       horizontal: 16, vertical: 4),
                   itemCount: filtered.length,
-                  separatorBuilder: (_, __) =>
+                  separatorBuilder: (_, _) =>
                   const Divider(height: 1),
                   itemBuilder: (_, i) {
                     final a = filtered[i];

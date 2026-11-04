@@ -400,7 +400,7 @@ Future<void> _showProgressDialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kRadiusCard)),
       content: ValueListenableBuilder<_BulkProgress>(
         valueListenable: controller,
-        builder: (_, p, __) {
+        builder: (_, p, _) {
           final pct = p.total == 0 ? 0.0 : p.done / p.total;
           return Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(p.phase.isEmpty ? 'Preparing…' : p.phase,
@@ -478,7 +478,7 @@ Future<_FailureDecision?> showBatchFailureDialog(
             child: ListView.separated(
               shrinkWrap: true,
               itemCount: failures.length,
-              separatorBuilder: (_, __) => const Divider(height: 1),
+              separatorBuilder: (_, _) => const Divider(height: 1),
               itemBuilder: (_, i) {
                 final f = failures[i];
                 return ListTile(
@@ -700,7 +700,7 @@ class _RetailerMultiSelectSheetState extends State<_RetailerMultiSelectSheet> {
                   : ListView.separated(
                 controller: scrollCtrl,
                 itemCount: filtered.length,
-                separatorBuilder: (_, __) => const Divider(height: 1),
+                separatorBuilder: (_, _) => const Divider(height: 1),
                 itemBuilder: (_, i) {
                   final r = filtered[i];
                   final id = r['id'] as String;

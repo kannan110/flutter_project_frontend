@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_theme.dart';
+import 'package:rooster_trader/shared/widgets/web/app_scaffold.dart';
 
 class AgentDetailScreen extends ConsumerStatefulWidget {
   const AgentDetailScreen({super.key, required this.id});
@@ -181,9 +182,9 @@ class _S extends ConsumerState<AgentDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    if (_loading) return const Scaffold(body: LoadingList());
+    if (_loading) return const AppScaffold(body: LoadingList());
     if (_agent == null) {
-      return Scaffold(
+      return AppScaffold(
           appBar: AppBar(), body: const Center(child: Text('Not found')));
     }
     final a = _agent!;
@@ -192,7 +193,7 @@ class _S extends ConsumerState<AgentDetailScreen> {
     final online = a['is_online'] as bool? ?? false;
     final s = _summary;
 
-    return Scaffold(
+    return AppScaffold(
         backgroundColor: kBgPage,
         appBar: AppBar(
             backgroundColor: kSurface,

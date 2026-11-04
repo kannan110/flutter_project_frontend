@@ -117,7 +117,7 @@ class _S extends State<TradersListSaScreen> {
             child: ListView.separated(
               padding: const EdgeInsets.all(16),
               itemCount: _filtered.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 8),
+              separatorBuilder: (_, _) => const SizedBox(height: 8),
               itemBuilder: (_, i) {
                 final t = _filtered[i];
                 return _TraderCard(

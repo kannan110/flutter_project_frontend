@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/providers/session_provider.dart';
 import '../../../core/theme/app_theme.dart';
+import 'package:rooster_trader/shared/widgets/web/app_scaffold.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // SHIFT VERIFICATION SCREEN
@@ -425,7 +426,7 @@ class _ShiftVerificationScreenState
     final agentName = _shift['agent_name'] as String? ?? 'Agent';
     final approvalStatus = _shift['shift_approval_status'] as String? ?? 'pending';
 
-    return Scaffold(
+    return AppScaffold(
       backgroundColor: kBgPage,
       appBar: AppBar(
         backgroundColor: kNavy,

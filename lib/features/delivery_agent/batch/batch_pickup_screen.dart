@@ -624,7 +624,7 @@ class _S extends ConsumerState<BatchPickupScreen> {
                           controller: ctrl,
                           padding: const EdgeInsets.all(12),
                           itemCount: filtered.length,
-                          separatorBuilder: (_, __) =>
+                          separatorBuilder: (_, _) =>
                           const SizedBox(height: 4),
                           itemBuilder: (_, i) {
                             final f = filtered[i];

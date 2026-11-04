@@ -6,6 +6,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/providers/session_provider.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../shared/layouts/responsive_layout.dart';
+import '../../../shared/widgets/web/web.dart';
 
 class AgentsScreen extends ConsumerStatefulWidget {
   const AgentsScreen({super.key});
@@ -53,11 +55,8 @@ class _S extends ConsumerState<AgentsScreen> {
 
   void _showAgentInstructions(BuildContext ctx, String agentName) {
     final code = ref.read(appUserProvider).valueOrNull?.companyCode ?? '—';
-    showModalBottomSheet(
-        context: ctx, useRootNavigator: true, isScrollControlled: true,
-        backgroundColor: Colors.white,
-        shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-        builder: (c) => Padding(
+    // Same content: bottom sheet on mobile, centred dialog on web.
+    Widget sheet(BuildContext c) => Padding(
             padding: const EdgeInsets.all(24),
             child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
               const Text('Share these with the agent:', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
@@ -118,7 +117,25 @@ class _S extends ConsumerState<AgentsScreen> {
                   ])),
               const SizedBox(height: 16),
               ElevatedButton(onPressed: () => Navigator.of(c, rootNavigator: true).pop(), child: const Text('Close')),
-            ])));
+            ]));
+    if (ctx.isDesktop) {
+      showDialog(
+          context: ctx, useRootNavigator: true,
+          builder: (c) => Dialog(
+                backgroundColor: WebColors.surface,
+                surfaceTintColor: Colors.transparent,
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(WebRadius.dialog)),
+                child: SizedBox(width: WebSize.dialogMd,
+                    child: SingleChildScrollView(child: sheet(c))),
+              ));
+    } else {
+      showModalBottomSheet(
+          context: ctx, useRootNavigator: true, isScrollControlled: true,
+          backgroundColor: Colors.white,
+          shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+          builder: sheet);
+    }
   }
 
   Widget _istep(String n, String t) => Padding(
@@ -128,8 +145,202 @@ class _S extends ConsumerState<AgentsScreen> {
         Expanded(child: Text(t, style: const TextStyle(fontSize: 12, color: Colors.blue))),
       ]));
 
+  // ═══════════════════════════════════════════════════════════════════════
+  // WEB (desktop) — company code + KPIs, tabs, agents table.
+  // ═══════════════════════════════════════════════════════════════════════
+  static const _webTabs = ['all', 'linked', 'unlinked', 'inactive'];
+  String _webTab = 'all';
+  bool _dense = true;
+
+  bool _linked(Map<String, dynamic> a) => a['auth_user_id'] != null;
+  bool _activeA(Map<String, dynamic> a) => a['is_active'] as bool? ?? true;
+  bool _inTab(Map<String, dynamic> a, String t) => switch (t) {
+    'linked'   => _linked(a),
+    'unlinked' => !_linked(a),
+    'inactive' => !_activeA(a),
+    _          => true,
+  };
+
+  Widget _buildWeb() {
+    final companyCode =
+        ref.watch(appUserProvider).valueOrNull?.companyCode ?? '—';
+    final unlinked = _agents.where((a) => !_linked(a)).length;
+    int count(String t) => _filtered.where((a) => _inTab(a, t)).length;
+    final rows = _filtered.where((a) => _inTab(a, _webTab)).toList();
+
+    final codeCard = Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+            colors: [WebColors.navy, WebColors.navyMid],
+            begin: Alignment.topLeft, end: Alignment.bottomRight),
+        borderRadius: BorderRadius.circular(WebRadius.card),
+      ),
+      child: Row(children: [
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.center, children: [
+          const Text('Your Company Code — share with agents',
+              style: TextStyle(fontSize: 11, color: Colors.white70)),
+          const SizedBox(height: 2),
+          Text(companyCode, style: const TextStyle(fontSize: 20,
+              fontWeight: FontWeight.w900, color: WebColors.goldLight,
+              letterSpacing: 2)),
+        ])),
+        IconButton(
+          icon: const Icon(Icons.copy_rounded, color: Colors.white, size: 18),
+          tooltip: 'Copy',
+          padding: EdgeInsets.zero,
+          constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+          onPressed: () {
+            Clipboard.setData(ClipboardData(text: companyCode));
+            showSuccess(context, 'Copied!');
+          },
+        ),
+      ]),
+    );
+
+    return WebPage(
+      header: PageBreadcrumbsHeader(
+        title: 'Delivery Agents',
+        subtitle: 'Your delivery team, their vehicles and app access',
+        crumbs: const [Crumb('Dashboard', R.dashboard), Crumb('Agents')],
+        action: Row(mainAxisSize: MainAxisSize.min, children: [
+          WebIconButton(icon: Icons.refresh_rounded, tooltip: 'Refresh',
+              onTap: _load),
+          const SizedBox(width: 8),
+          WebButton(label: 'Add Agent', icon: Icons.person_add_outlined,
+              onPressed: () => context.push(R.agentCreate)),
+        ]),
+      ),
+      children: [
+        WebKpiRow(children: [
+          codeCard,
+          WebKpiCard(label: 'Total Agents', value: '${_agents.length}',
+              icon: Icons.delivery_dining, color: WebColors.navy),
+          WebKpiCard(label: 'Linked', value: '${_agents.length - unlinked}',
+              sub: 'can log in to the app',
+              icon: Icons.link_rounded, color: WebColors.success),
+          WebKpiCard(label: 'Not Linked', value: '$unlinked',
+              sub: 'cannot log in yet',
+              icon: Icons.link_off_rounded, color: WebColors.warning),
+        ]),
+        if (unlinked > 0) ...[
+          const SizedBox(height: WebSpace.md),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              color: WebColors.warningBg,
+              borderRadius: BorderRadius.circular(WebRadius.sm),
+            ),
+            child: Row(children: [
+              const Icon(Icons.link_off, color: WebColors.warning, size: 18),
+              const SizedBox(width: 8),
+              Expanded(child: Text(
+                  '$unlinked agent(s) not yet linked. Use "How to Link" on the '
+                  'agent row to share instructions.',
+                  style: const TextStyle(fontSize: 13,
+                      color: WebColors.warning, fontWeight: FontWeight.w600))),
+            ]),
+          ),
+        ],
+        const SizedBox(height: WebSpace.lg),
+        WebListCard(children: [
+          WebListTabs(
+            tabs: [
+              WebTab('All', count: count('all')),
+              WebTab('Linked', count: count('linked'), color: WebColors.success),
+              WebTab('Not Linked', count: count('unlinked'),
+                  color: WebColors.warning),
+              WebTab('Inactive', count: count('inactive'),
+                  color: WebColors.text3),
+            ],
+            selected: _webTabs.indexOf(_webTab),
+            onChanged: (i) => setState(() => _webTab = _webTabs[i]),
+          ),
+          WebListToolbar(
+            search: WebSearchField(
+              controller: _searchCtrl,
+              hint: 'Search by name, phone, vehicle…',
+              debounce: const Duration(milliseconds: 200),
+              onChanged: _applySearch,
+            ),
+            trailing: [
+              const Text('Dense', style: WebText.bodySub),
+              Switch(value: _dense, activeTrackColor: WebColors.navy,
+                  onChanged: (v) => setState(() => _dense = v)),
+            ],
+          ),
+          WebDataTable<Map<String, dynamic>>(
+            columns: const [
+              WebColumn('Agent', flex: 3),
+              WebColumn('Phone', width: 130),
+              WebColumn('Vehicle No', width: 130),
+              WebColumn('Vehicle Type', width: 120),
+              WebColumn('Status', width: 180),
+              WebColumn('Actions', width: 200, align: TextAlign.right),
+            ],
+            rows: rows,
+            paginate: true,
+            dense: _dense,
+            loading: _loading,
+            onRowTap: (a) => context.push(R.agentDetailPath(a['id'])),
+            emptyText: _agents.isEmpty ? 'No agents yet' : 'No agents match',
+            emptyAction: _agents.isEmpty
+                ? WebButton(label: 'Add Agent', icon: Icons.person_add_outlined,
+                    onPressed: () => context.push(R.agentCreate))
+                : null,
+            cellBuilder: (a, col) {
+              final name = a['name'] as String? ?? '—';
+              final linked = _linked(a);
+              switch (col) {
+                case 0:
+                  return Text(name, maxLines: 1, overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600, color: WebColors.text1));
+                case 1:
+                  return Text(a['phone'] as String? ?? '—',
+                      style: const TextStyle(fontSize: 13, color: WebColors.text2));
+                case 2:
+                  return Text(a['vehicle_no'] as String? ?? '—',
+                      style: const TextStyle(fontSize: 13, color: WebColors.text2));
+                case 3:
+                  return Text(a['vehicle_type'] as String? ?? '—',
+                      style: const TextStyle(fontSize: 13, color: WebColors.text3));
+                case 4:
+                  return Wrap(spacing: 6, runSpacing: 4, children: [
+                    WebLabel(linked ? 'Linked ✓' : 'Not linked',
+                        color: linked ? WebColors.success : WebColors.warning,
+                        dot: true),
+                    if (!_activeA(a))
+                      const WebLabel('Inactive', color: WebColors.text3),
+                  ]);
+                default:
+                  return Row(mainAxisSize: MainAxisSize.min, children: [
+                    if (!linked) ...[
+                      WebButton(label: 'How to Link',
+                          icon: Icons.link_outlined,
+                          color: WebColors.warning,
+                          onPressed: () => _showAgentInstructions(context, name)),
+                      const SizedBox(width: 6),
+                    ],
+                    WebIconButton(
+                      icon: Icons.visibility_outlined,
+                      tooltip: 'Details',
+                      size: 32,
+                      outlined: false,
+                      onTap: () => context.push(R.agentDetailPath(a['id'])),
+                    ),
+                  ]);
+              }
+            },
+          ),
+        ]),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    if (context.isDesktop) return _buildWeb();
     final companyCode = ref.watch(appUserProvider).valueOrNull?.companyCode ?? '—';
     final unlinked = _agents.where((a) => a['auth_user_id'] == null).length;
     final showList = _filtered;
@@ -190,7 +401,7 @@ class _S extends ConsumerState<AgentsScreen> {
             ? EmptyState(icon: Icons.delivery_dining_outlined, message: 'No agents yet', sub: 'Add your delivery agents and share the Company Code with them', onAction: () => context.push(R.agentCreate), actionLabel: 'Add Agent')
             : RefreshIndicator(onRefresh: _load, child: ListView.separated(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 100), itemCount: showList.length,
-            separatorBuilder: (_, __) => const SizedBox(height: 10),
+            separatorBuilder: (_, _) => const SizedBox(height: 10),
             itemBuilder: (_, i) {
               final a      = showList[i];
               final linked = a['auth_user_id'] != null;

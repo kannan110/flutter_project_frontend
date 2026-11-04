@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/providers/session_provider.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../shared/widgets/tables/scrollable_table_wrapper.dart';
 import 'retailer_invoice_detail_screen.dart';
 
 class RetailerScreen extends ConsumerStatefulWidget {
@@ -342,7 +343,7 @@ class _RS extends ConsumerState<RetailerScreen>
         : ListView.separated(
         padding: const EdgeInsets.all(12),
         itemCount: _orders.length,
-        separatorBuilder: (_, __) => const SizedBox(height: 6),
+        separatorBuilder: (_, _) => const SizedBox(height: 6),
         itemBuilder: (_, i) {
           final o = _orders[i];
           final status  = o['status'] as String? ?? 'pending';
@@ -480,7 +481,7 @@ if (_ledgerData?['opening_balance'] == null && rows.isNotEmpty) {
 
   Widget _ledgerList(List<Map<String,dynamic>> rows) => ListView.separated(
       padding: const EdgeInsets.all(12), itemCount: rows.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 4),
+      separatorBuilder: (_, _) => const SizedBox(height: 4),
       itemBuilder: (_, i) {
         final e   = rows[i];
         final isD = e['entry_type'] == 'debit';
@@ -542,9 +543,8 @@ if (_ledgerData?['opening_balance'] == null && rows.isNotEmpty) {
   // Ledger PDF already uses. Ref No is tappable (View Invoice) when the
   // row is an invoice entry.
   Widget _ledgerTable(List<Map<String,dynamic>> rows, double opening, double closing) {
-    return SingleChildScrollView(
+    return ScrollableTableWrapper(
         padding: const EdgeInsets.all(12),
-        scrollDirection: Axis.horizontal,
         child: DataTable(
             headingRowHeight: 36, dataRowMinHeight: 40, dataRowMaxHeight: 52,
             columnSpacing: 18,
@@ -623,7 +623,7 @@ if (_ledgerData?['opening_balance'] == null && rows.isNotEmpty) {
         ? const EmptyState(icon: Icons.thumb_up_outlined, message: 'No complaints')
         : ListView.separated(
         padding: const EdgeInsets.all(12), itemCount: _complaints.length,
-        separatorBuilder: (_, __) => const SizedBox(height: 6),
+        separatorBuilder: (_, _) => const SizedBox(height: 6),
         itemBuilder: (_, i) {
           final cp  = _complaints[i];
           final sts = cp['status'] as String? ?? 'open';
@@ -673,7 +673,7 @@ if (_ledgerData?['opening_balance'] == null && rows.isNotEmpty) {
         ? const EmptyState(icon: Icons.history_outlined, message: 'No history')
         : ListView.separated(
         padding: const EdgeInsets.all(12), itemCount: _history.length,
-        separatorBuilder: (_, __) => const SizedBox(height: 6),
+        separatorBuilder: (_, _) => const SizedBox(height: 6),
         itemBuilder: (_, i) {
           final o      = _history[i];
           final birds  = (o['estimated_birds'] as num?)?.toInt() ?? 0;
@@ -1526,7 +1526,7 @@ if (_ledgerData?['opening_balance'] == null && rows.isNotEmpty) {
                         : ListView.separated(controller: ctrl,
                         padding: const EdgeInsets.all(12),
                         itemCount: notifs.length,
-                        separatorBuilder: (_, __) => const Divider(height: 1),
+                        separatorBuilder: (_, _) => const Divider(height: 1),
                         itemBuilder: (_, i) {
                           final n      = notifs[i];
                           final unread = n['is_read'] == false;

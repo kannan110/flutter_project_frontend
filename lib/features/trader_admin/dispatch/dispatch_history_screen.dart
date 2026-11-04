@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/providers/session_provider.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_theme.dart';
+import 'package:rooster_trader/shared/widgets/web/app_scaffold.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // DISPATCH HISTORY — Completed / Cancelled batches.
@@ -72,7 +73,7 @@ class _S extends ConsumerState<DispatchHistoryScreen> with SingleTickerProviderS
   Widget build(BuildContext context) {
     final completed = _all.where((b) => b['status'] == 'completed').toList();
     final cancelled = _all.where((b) => b['status'] == 'cancelled').toList();
-    return Scaffold(
+    return AppScaffold(
       backgroundColor: kBgPage,
       appBar: AppBar(
         backgroundColor: kSurface,
@@ -102,7 +103,7 @@ class _S extends ConsumerState<DispatchHistoryScreen> with SingleTickerProviderS
       child: ListView.separated(
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
         itemCount: list.length + 1,
-        separatorBuilder: (_, __) => const SizedBox(height: 10),
+        separatorBuilder: (_, _) => const SizedBox(height: 10),
         itemBuilder: (_, i) {
           if (i == list.length) {
             return Padding(

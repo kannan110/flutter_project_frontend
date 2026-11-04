@@ -10,6 +10,7 @@ import '../../../../core/theme/app_theme.dart';
 import 'agent_quick_entry.dart';
 import 'current_batch_active_screen.dart';
 import 'entry_mode_selector.dart';
+import 'package:rooster_trader/shared/widgets/web/app_scaffold.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // AGENT ASSISTANCE HUB
@@ -416,7 +417,7 @@ class _AgentAssistanceHubScreenState
                 padding: const EdgeInsets.symmetric(
                     vertical: 8, horizontal: 4),
                 itemCount: _confirmedOrders.length,
-                separatorBuilder: (_, __) =>
+                separatorBuilder: (_, _) =>
                 const Divider(height: 1, indent: 56),
                 itemBuilder: (ctx, i) {
                   final o = _confirmedOrders[i];
@@ -727,7 +728,7 @@ class _AgentAssistanceHubScreenState
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return AppScaffold(
       backgroundColor: kBgPage,
       appBar: AppBar(
         backgroundColor: kNavy,

@@ -271,7 +271,7 @@ class _S extends ConsumerState<SuperAdminScreen> {
               child: ListView.separated(
                   padding: const EdgeInsets.all(16),
                   itemCount: display.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 10),
+                  separatorBuilder: (_, _) => const SizedBox(height: 10),
                   itemBuilder: (_, i) => _traderCard(display[i])))),
         ]));
   }
@@ -430,7 +430,7 @@ class _S extends ConsumerState<SuperAdminScreen> {
     return ListView.separated(
         padding: const EdgeInsets.all(16),
         itemCount: _plans.length,
-        separatorBuilder: (_, __) => const SizedBox(height: 10),
+        separatorBuilder: (_, _) => const SizedBox(height: 10),
         itemBuilder: (_, i) {
           final p     = _plans[i];
           final price = (p['base_price'] as num?) ?? 0;

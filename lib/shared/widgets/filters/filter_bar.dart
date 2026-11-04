@@ -32,7 +32,7 @@ class FilterBar<T> extends StatelessWidget {
       scrollDirection:  Axis.horizontal,
       padding: padding ?? const EdgeInsets.symmetric(horizontal: 20),
       itemCount:        options.length,
-      separatorBuilder: (_, __) => const SizedBox(width: 8),
+      separatorBuilder: (_, _) => const SizedBox(width: 8),
       itemBuilder: (_, i) {
         final opt      = options[i];
         final isActive = opt == selected;

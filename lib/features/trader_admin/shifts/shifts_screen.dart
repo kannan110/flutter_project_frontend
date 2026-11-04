@@ -7,6 +7,7 @@ import '../../../core/providers/session_provider.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../shared/layouts/responsive_layout.dart';
+import '../../../shared/widgets/web/web.dart';
 
 class ShiftsScreen extends ConsumerStatefulWidget {
   const ShiftsScreen({super.key});
@@ -52,6 +53,157 @@ class _S extends ConsumerState<ShiftsScreen> {
     } catch (_) { if (mounted) setState(() => _loading = false); }
   }
 
+  // ═══════════════════════════════════════════════════════════════════════
+  // WEB (desktop) — KPIs, status tabs, shifts table.
+  // ═══════════════════════════════════════════════════════════════════════
+  static const _webTabs = ['all', 'open', 'review', 'approved'];
+  String _webTab = 'all';
+  bool _dense = true;
+
+  bool _needsReview(Map<String, dynamic> s) =>
+      s['status'] == 'closed' && (s['shift_approval_status'] ?? 'pending') == 'pending';
+  bool _inTab(Map<String, dynamic> s, String t) => switch (t) {
+    'open'     => (s['status'] ?? 'open') == 'open',
+    'review'   => _needsReview(s),
+    'approved' => s['shift_approval_status'] == 'approved',
+    _          => true,
+  };
+
+  Widget _buildWeb(int pendingApprovals) {
+    int count(String t) => _filtered.where((s) => _inTab(s, t)).length;
+    final rows = _filtered.where((s) => _inTab(s, _webTab)).toList();
+    final open = _shifts.where((s) => (s['status'] ?? 'open') == 'open').length;
+    final cash = _shifts.fold<double>(0,
+        (a, s) => a + ((s['total_cash_collected'] as num?)?.toDouble() ?? 0));
+
+    return WebPage(
+      header: PageBreadcrumbsHeader(
+        title: 'Shifts',
+        titleTrailing: pendingApprovals > 0
+            ? WebLabel('$pendingApprovals to review',
+                color: WebColors.warning, dot: true)
+            : null,
+        subtitle: 'Agent shifts — timing, orders, cash and approval',
+        crumbs: const [Crumb('Dashboard', R.dashboard), Crumb('Shifts')],
+        action: WebIconButton(icon: Icons.refresh_rounded,
+            tooltip: 'Refresh', onTap: _load),
+      ),
+      children: [
+        WebKpiRow(children: [
+          WebKpiCard(label: 'Shifts Loaded', value: '${_shifts.length}',
+              sub: 'latest 60', icon: Icons.schedule_outlined,
+              color: WebColors.navy),
+          WebKpiCard(label: 'Open Now', value: '$open',
+              icon: Icons.play_circle_outline, color: WebColors.info),
+          WebKpiCard(label: 'To Review', value: '$pendingApprovals',
+              icon: Icons.rate_review_outlined, color: WebColors.warning),
+          WebKpiCard(label: 'Cash Collected', value: Fmt.amount(cash),
+              icon: Icons.payments_outlined, color: WebColors.success),
+        ]),
+        const SizedBox(height: WebSpace.lg),
+        WebListCard(children: [
+          WebListTabs(
+            tabs: [
+              WebTab('All', count: count('all')),
+              WebTab('Open', count: count('open'), color: WebColors.info),
+              WebTab('To Review', count: count('review'),
+                  color: WebColors.warning),
+              WebTab('Approved', count: count('approved'),
+                  color: WebColors.success),
+            ],
+            selected: _webTabs.indexOf(_webTab),
+            onChanged: (i) => setState(() => _webTab = _webTabs[i]),
+          ),
+          WebListToolbar(
+            search: WebSearchField(
+              controller: _searchCtrl,
+              hint: 'Search by agent or vehicle…',
+              debounce: const Duration(milliseconds: 200),
+              onChanged: _applySearch,
+            ),
+            trailing: [
+              const Text('Dense', style: WebText.bodySub),
+              Switch(value: _dense, activeTrackColor: WebColors.navy,
+                  onChanged: (v) => setState(() => _dense = v)),
+            ],
+          ),
+          WebDataTable<Map<String, dynamic>>(
+            columns: const [
+              WebColumn('Agent', flex: 3),
+              WebColumn('Vehicle', width: 130),
+              WebColumn('Date & Time', width: 165),
+              WebColumn('Orders', width: 85, align: TextAlign.right),
+              WebColumn('Birds', width: 85, align: TextAlign.right),
+              WebColumn('Cash', width: 120, align: TextAlign.right),
+              WebColumn('Expenses', width: 115, align: TextAlign.right),
+              WebColumn('Status', width: 180),
+              WebColumn('Action', width: 80, align: TextAlign.center),
+            ],
+            rows: rows,
+            paginate: true,
+            dense: _dense,
+            loading: _loading,
+            onRowTap: (s) => context.push(R.shiftDetailPath(s['id'])),
+            emptyText: _shifts.isEmpty ? 'No shifts yet' : 'No shifts match',
+            cellBuilder: (s, col) {
+              final a = s['delivery_agents'] as Map<String, dynamic>?;
+              final st = s['status'] as String? ?? 'open';
+              switch (col) {
+                case 0:
+                  final name = a?['name'] as String? ?? '—';
+                  return Text(name, maxLines: 1, overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600, color: WebColors.text1));
+                case 1:
+                  return Text(a?['vehicle_no'] as String? ?? '—',
+                      style: const TextStyle(fontSize: 13, color: WebColors.text2));
+                case 2:
+                  final d = DateTime.tryParse(s['shift_start_at'] as String? ?? '');
+                  return Text(
+                    d != null ? DateFormat('d MMM y, h:mm a').format(d.toLocal()) : '—',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 13, color: WebColors.text2),
+                  );
+                case 3:
+                  return Text('${s['total_orders'] ?? 0}', style: const TextStyle(
+                      fontSize: 13.5, color: WebColors.text2));
+                case 4:
+                  final b = (s['total_birds_delivered'] as num?)?.toInt() ?? 0;
+                  return Text(b > 0 ? '$b' : '—', style: const TextStyle(
+                       fontSize: 13.5, color: WebColors.text2));
+                case 5:
+                  return Text(Fmt.amount(
+                      (s['total_cash_collected'] as num?)?.toDouble() ?? 0),
+                      style: const TextStyle(fontSize: 13.5,
+                          fontWeight: FontWeight.w700, color: WebColors.success));
+                case 6:
+                  final e = (s['total_expenses'] as num?)?.toDouble() ?? 0;
+                  return Text(e > 0 ? Fmt.amount(e) : '—', style: TextStyle(
+                      fontSize: 13.5,
+                      color: e > 0 ? WebColors.error : WebColors.text3));
+                case 7:
+                  return Wrap(spacing: 6, runSpacing: 4, children: [
+                    WebLabel(st[0].toUpperCase() + st.substring(1),
+                        color: SC.shift(st), dot: true),
+                    if (_needsReview(s))
+                      const WebLabel('Review', color: WebColors.warning)
+                    else if (s['shift_approval_status'] == 'approved')
+                      const WebLabel('Approved', color: WebColors.success),
+                  ]);
+                default:
+                  return WebIconButton(
+                    icon: Icons.visibility_outlined, tooltip: 'Open shift',
+                    size: 32, outlined: false,
+                    onTap: () => context.push(R.shiftDetailPath(s['id'])),
+                  );
+              }
+            },
+          ),
+        ]),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final pendingApprovals = _shifts.where((s) => s['status'] == 'closed' && s['shift_approval_status'] == 'pending').length;
@@ -86,7 +238,7 @@ class _S extends ConsumerState<ShiftsScreen> {
           : RefreshIndicator(onRefresh: _load, child: ListView.separated(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, kBottomNavClearance),
             itemCount: _filtered.length,
-            separatorBuilder: (_, __) => const SizedBox(height: 8),
+            separatorBuilder: (_, _) => const SizedBox(height: 8),
             itemBuilder: (_, i) {
               final s = _filtered[i];
             final a = s['delivery_agents'] as Map<String,dynamic>?;
@@ -128,6 +280,7 @@ class _S extends ConsumerState<ShiftsScreen> {
           }))),
       ]),
     );
-    return ResponsiveLayout(mobile: (_) => scaffold, desktop: (_) => scaffold);
+    return ResponsiveLayout(mobile: (_) => scaffold,
+        desktop: (_) => _buildWeb(pendingApprovals));
   }
 }

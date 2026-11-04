@@ -107,7 +107,7 @@ class KpiRow extends StatelessWidget {
         scrollDirection:  Axis.horizontal,
         padding:          const EdgeInsets.symmetric(horizontal: 16),
         itemCount:        cards.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 10),
+        separatorBuilder: (_, _) => const SizedBox(width: 10),
         itemBuilder:      (_, i)  => SizedBox(width: 160, child: cards[i]),
       ),
     );

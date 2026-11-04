@@ -26,7 +26,7 @@ class AppSearchBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) => AnimatedBuilder(
     animation: controller,
-    builder: (_, __) => Container(
+    builder: (_, _) => Container(
       height: height,
       decoration: BoxDecoration(
         color:        kSurface,

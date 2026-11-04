@@ -9,6 +9,8 @@ import '../../../core/providers/session_provider.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../shared/widgets/common/horizontalscroll_wheel.dart';
+import '../../../shared/layouts/responsive_layout.dart';
+import '../../../shared/widgets/web/web.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Create Order — v2 (UX redesign only)
@@ -713,7 +715,8 @@ class _S extends ConsumerState<CreateOrderScreen> {
       child: Scaffold(
         backgroundColor: kBgPage,
         resizeToAvoidBottomInset: true,
-        appBar: AppBar(
+        // Desktop: the page header (breadcrumbs) replaces the app bar
+        appBar: context.isDesktop ? null : AppBar(
           backgroundColor: kSurface,
           title: const Text('New Order'),
         ),
@@ -744,6 +747,11 @@ class _S extends ConsumerState<CreateOrderScreen> {
 
   // ── Mobile / narrow layout ───────────────────────────────────────────────
   Widget _buildNarrowLayout(double bottomInset) => Column(children: [
+    if (context.isDesktop)
+      Padding(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+        child: _webHeader(),
+      ),
     Expanded(
         child: ListView(
             controller: _scrollCtrl,
@@ -752,27 +760,86 @@ class _S extends ConsumerState<CreateOrderScreen> {
     _bottomBar(bottomInset),
   ]);
 
-  // ── Desktop / wide layout — 70/30, not a stretched phone screen ─────────
-  Widget _buildWideLayout(double bottomInset) => Padding(
-      padding: const EdgeInsets.all(20),
-      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Expanded(
-            flex: 7,
-            child: ListView(
-                controller: _scrollCtrl,
-                padding: const EdgeInsets.only(right: 16),
-                children: _bodyChildren())),
-        Expanded(
-            flex: 3,
-            child: Container(
-                padding: const EdgeInsets.all(18),
-                decoration: BoxDecoration(
-                    color: kSurface,
-                    borderRadius: BorderRadius.circular(kRadiusCard),
-                    border: Border.all(color: kBorderLight),
-                    boxShadow: kCardShadow),
-                child: _summaryPanel())),
-      ]));
+  // ── Desktop / wide layout — form cards (left) + sticky summary (right) ──
+  Widget _buildWideLayout(double bottomInset) => ColoredBox(
+      color: WebColors.pageBg,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          if (context.isDesktop) _webHeader(),
+          Expanded(child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Expanded(
+                child: ListView(
+                    controller: _scrollCtrl,
+                    padding: const EdgeInsets.only(right: 4, bottom: 32),
+                    children: _wideBodyChildren())),
+            const SizedBox(width: WebSpace.lg),
+            SizedBox(
+                width: 360,
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.only(bottom: 32),
+                  child: Container(
+                    decoration: WebDecor.card(),
+                    clipBehavior: Clip.antiAlias,
+                    child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                      const WebCardHeader(
+                          title: 'Order Summary',
+                          icon: Icons.receipt_long_outlined),
+                      const Divider(height: 1, color: WebColors.border),
+                      Padding(
+                        padding: const EdgeInsets.all(WebSpace.xl),
+                        child: _summaryPanel(),
+                      ),
+                    ]),
+                  ),
+                )),
+          ])),
+        ]),
+      ));
+
+  Widget _webHeader() => PageBreadcrumbsHeader(
+        action: WebIconButton(icon: Icons.arrow_back_rounded, tooltip: 'Back',
+                  onTap: () => context.canPop()
+                      ? context.pop() : context.go(R.orders)),
+        title: 'New Order',
+        subtitle: 'Pick a customer, add products and create the order',
+        crumbs: const [
+          Crumb('Dashboard', R.dashboard),
+          Crumb('Orders', R.orders),
+          Crumb('New Order'),
+        ],
+        padding: const EdgeInsets.only(bottom: WebSpace.lg),
+      );
+
+  /// Same sections as [_bodyChildren], grouped into white cards for web.
+  List<Widget> _wideBodyChildren() {
+    Widget card(Widget child) => Container(
+          margin: const EdgeInsets.only(bottom: WebSpace.lg),
+          padding: const EdgeInsets.all(20),
+          decoration: WebDecor.card(),
+          child: child,
+        );
+    return [
+      card(Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        _customerSection(),
+        if (_selRetailer != null) ...[
+          const SizedBox(height: 12),
+          _customerContextCard(),
+        ],
+        if (_selRetailer != null && _lastOrder != null) _repeatOrderCard(),
+      ])),
+      card(_productSection()),
+      card(Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        _stepHeader(3, 'Order Items'),
+        _activeProductCard(_activeIdx),
+        _addedProductsList(),
+      ])),
+      card(_remarksField()),
+    ];
+  }
 
   List<Widget> _bodyChildren() {
     return [
@@ -829,7 +896,7 @@ class _S extends ConsumerState<CreateOrderScreen> {
         const SizedBox(width: 8),
         Expanded(
             child: Text(title, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700))),
-        if (trailing != null) trailing,
+        ?trailing,
       ]));
 
   Widget _customerSection() {
@@ -1538,8 +1605,6 @@ class _S extends ConsumerState<CreateOrderScreen> {
   // ── Desktop sticky summary panel ─────────────────────────────────────────
   Widget _summaryPanel() => SingleChildScrollView(
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        const Text('Summary', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800)),
-        const SizedBox(height: 14),
         _summaryRow('Birds', '$_totalBirds'),
         _summaryRow('Weight', '${_totalKg.toStringAsFixed(1)} kg'),
         if (_selRetailer != null)
@@ -1556,11 +1621,14 @@ class _S extends ConsumerState<CreateOrderScreen> {
   Widget _summaryRow(String label, String value, {bool warn = false, bool big = false}) => Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-        Text(label, style: TextStyle(fontSize: big ? 14 : 12, color: kTextSub)),
+        Text(label, style: TextStyle(fontSize: big ? 14 : 13,
+            color: WebColors.text2,
+            fontWeight: big ? FontWeight.w700 : FontWeight.w500)),
         Text(value,
             style: TextStyle(
-                fontSize: big ? 18 : 13,
+                fontSize: big ? 22 : 14,
                 fontWeight: FontWeight.w800,
-                color: warn ? Colors.red : Colors.black87)),
+                color: warn ? WebColors.error
+                    : big ? WebColors.navy : WebColors.text1)),
       ]));
 }

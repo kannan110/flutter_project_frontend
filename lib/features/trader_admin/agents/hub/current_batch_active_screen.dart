@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../core/providers/session_provider.dart';
 import '../../../../core/theme/app_theme.dart';
+import 'package:rooster_trader/shared/widgets/web/app_scaffold.dart';
 
 // ══════════════════════════════════════════════════════════════════════════
 // CURRENT BATCH ACTIVITIES — lets the trader undo a mistaken Quick Entry
@@ -218,7 +219,7 @@ class _S extends ConsumerState<CurrentBatchActivitiesScreen> {
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
+  Widget build(BuildContext context) => AppScaffold(
     backgroundColor: kBgPage,
     appBar: AppBar(
       backgroundColor: kSurface,
@@ -239,7 +240,7 @@ class _S extends ConsumerState<CurrentBatchActivitiesScreen> {
       child: ListView.separated(
         padding: const EdgeInsets.all(16),
         itemCount: _deliveries.length,
-        separatorBuilder: (_, __) => const SizedBox(height: 10),
+        separatorBuilder: (_, _) => const SizedBox(height: 10),
         itemBuilder: (_, i) => _deliveryCard(_deliveries[i]),
       ),
     ),

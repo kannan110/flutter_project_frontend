@@ -7,6 +7,7 @@ import '../../../core/providers/session_provider.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../shared/layouts/responsive_layout.dart';
 import 'shift_verification_screen.dart';
+import 'package:rooster_trader/shared/widgets/web/app_scaffold.dart';
 
 class ShiftDetailScreen extends ConsumerStatefulWidget {
   const ShiftDetailScreen({super.key, required this.id});
@@ -427,10 +428,10 @@ class _S extends ConsumerState<ShiftDetailScreen> {
 
   Widget _buildScaffold(BuildContext context) {
     if (_loading) {
-      return const Scaffold(backgroundColor: kBgPage, body: LoadingList());
+      return const AppScaffold(backgroundColor: kBgPage, body: LoadingList());
     }
     if (_summary == null) {
-      return Scaffold(
+      return AppScaffold(
           backgroundColor: kBgPage,
           appBar: AppBar(
               backgroundColor: kSurface, title: const Text('Shift Detail')),
@@ -447,7 +448,7 @@ class _S extends ConsumerState<ShiftDetailScreen> {
     final approvalStatus =
         shift?['shift_approval_status'] as String? ?? 'pending';
 
-    return Scaffold(
+    return AppScaffold(
       backgroundColor: kBgPage,
       appBar: AppBar(
           backgroundColor: kSurface,
@@ -536,7 +537,7 @@ class _S extends ConsumerState<ShiftDetailScreen> {
                                                   width: 14, height: 14,
                                                   child: CircularProgressIndicator(
                                                       strokeWidth: 2, color: kPrimary)))),
-                                      errorBuilder: (_, __, ___) => Container(
+                                      errorBuilder: (_, _, _) => Container(
                                           width: 36, height: 36,
                                           color: kPrimary.withValues(alpha: 0.08),
                                           child: const Icon(Icons.broken_image_outlined,
@@ -1060,10 +1061,10 @@ class _S extends ConsumerState<ShiftDetailScreen> {
 
   Widget _buildDesktopScaffold(BuildContext context) {
     if (_loading) {
-      return const Scaffold(backgroundColor: kBgPage, body: LoadingList());
+      return const AppScaffold(backgroundColor: kBgPage, body: LoadingList());
     }
     if (_summary == null) {
-      return Scaffold(
+      return AppScaffold(
           backgroundColor: kBgPage,
           appBar: AppBar(
               backgroundColor: kSurface, title: const Text('Shift Approval')),
@@ -1101,7 +1102,7 @@ class _S extends ConsumerState<ShiftDetailScreen> {
         (c['dc_photo_url'] as String).isEmpty)
         .length;
 
-    return Scaffold(
+    return AppScaffold(
       backgroundColor: kBgPage,
       appBar: AppBar(
         backgroundColor: kSurface,
@@ -1448,7 +1449,7 @@ class _S extends ConsumerState<ShiftDetailScreen> {
                     width: 44,
                     height: 44,
                     fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => Container(
+                    errorBuilder: (_, _, _) => Container(
                         width: 44,
                         height: 44,
                         color: c.withValues(alpha: 0.08),
@@ -1492,7 +1493,7 @@ class _S extends ConsumerState<ShiftDetailScreen> {
                         fontWeight: FontWeight.w800,
                         color: kTextMain,
                         letterSpacing: 0.3))),
-            if (trailing != null) trailing,
+            ?trailing,
           ]),
           const Divider(height: 20, thickness: 1),
           child,
@@ -1662,7 +1663,7 @@ class _S extends ConsumerState<ShiftDetailScreen> {
                                       height: 18,
                                       child: CircularProgressIndicator(
                                           strokeWidth: 2, color: kPrimary)))),
-                          errorBuilder: (_, __, ___) => Container(
+                          errorBuilder: (_, _, _) => Container(
                               width: 72,
                               height: 72,
                               color: kPrimary.withValues(alpha: 0.06),
@@ -2445,7 +2446,7 @@ class _S extends ConsumerState<ShiftDetailScreen> {
                       child: Center(
                           child: CircularProgressIndicator(
                               color: c, strokeWidth: 2))),
-                  errorBuilder: (_, __, ___) => Container(
+                  errorBuilder: (_, _, _) => Container(
                       height: 100,
                       color: c.withValues(alpha: 0.05),
                       child: Column(
@@ -2498,7 +2499,7 @@ class _S extends ConsumerState<ShiftDetailScreen> {
                               : const Center(
                               child: CircularProgressIndicator(
                                   color: Colors.white)),
-                          errorBuilder: (_, __, ___) => const Center(
+                          errorBuilder: (_, _, _) => const Center(
                               child: Icon(Icons.broken_image,
                                   color: Colors.white, size: 64))))),
               Positioned(
@@ -2576,7 +2577,7 @@ class _S extends ConsumerState<ShiftDetailScreen> {
                               child: Center(
                                   child: CircularProgressIndicator(
                                       color: c, strokeWidth: 2))),
-                          errorBuilder: (_, __, ___) => Container(
+                          errorBuilder: (_, _, _) => Container(
                               height: 70,
                               color: c.withValues(alpha: 0.05),
                               child: Column(
@@ -2981,7 +2982,7 @@ class _S extends ConsumerState<ShiftDetailScreen> {
   );
 
   // Product movement row: label | birds | kg — used in PRODUCT MOVEMENT section
-  static Widget _productMoveRow(
+  Widget _productMoveRow(
       String label, int birds, double kg, Color c,
       {String prefix = ''}) =>
       Padding(

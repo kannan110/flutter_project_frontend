@@ -10,6 +10,7 @@ import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../shared/layouts/responsive_layout.dart';
 import '../../../core/util/weight_calc.dart';
+import 'package:rooster_trader/shared/widgets/web/app_scaffold.dart';
 
 // ══════════════════════════════════════════════════════════════════════════════
 // INVOICE DETAIL SCREEN — Phase 4
@@ -522,9 +523,9 @@ class _S extends State<InvoiceDetailScreen> {
 
   // ── Build ─────────────────────────────────────────────────────────────────
   Widget _buildScaffold(BuildContext context) {
-    if (_loading) return const Scaffold(body: LoadingList());
+    if (_loading) return const AppScaffold(body: LoadingList());
     if (_inv == null) {
-      return Scaffold(
+      return AppScaffold(
         appBar: AppBar(), body: const Center(child: Text('Invoice not found')));
     }
 
@@ -552,7 +553,7 @@ class _S extends State<InvoiceDetailScreen> {
     final emptyWtInv = (inv['empty_weight_kg'] as num?)?.toDouble();
     final hasWeightBreakdown = boxCount != null || grossWtInv != null || emptyWtInv != null;
 
-    return Scaffold(
+    return AppScaffold(
       backgroundColor: kBgPage,
       appBar: AppBar(
         backgroundColor: kSurface,

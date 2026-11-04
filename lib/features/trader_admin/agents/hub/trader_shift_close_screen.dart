@@ -8,6 +8,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../core/providers/session_provider.dart';
 import '../../../../core/theme/app_theme.dart';
 import 'entry_mode_selector.dart';
+import 'package:rooster_trader/shared/widgets/web/app_scaffold.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TRADER SHIFT CLOSE SCREEN
@@ -550,7 +551,7 @@ class _TraderShiftCloseScreenState
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return AppScaffold(
       backgroundColor: kBgGrey,
       appBar: AppBar(
         backgroundColor: kNavy,

@@ -836,8 +836,8 @@ class _WS extends ConsumerState<WeighmentScreen> {
         'p_pk': latest.pk,
         'p_load_wt': newWt,
         'p_load_cages': newCages,
-        if (newEmptyWt != null) 'p_empty_wt': newEmptyWt,
-        if (newEmptyCages != null) 'p_empty_cages': newEmptyCages,
+        'p_empty_wt': ?newEmptyWt,
+        'p_empty_cages': ?newEmptyCages,
       });
       setState(() {
         latest.loadWt = newWt;

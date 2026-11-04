@@ -64,7 +64,7 @@ class BulkCustomerLedgerService {
             'p_retailer_id': id,
             'p_from_date': DateFormat('yyyy-MM-dd').format(fromDate),
             'p_to_date': DateFormat('yyyy-MM-dd').format(toDate),
-            if (agentId != null) 'p_agent_id': agentId,
+            'p_agent_id': ?agentId,
           }).timeout(_perCallTimeout);
           final data = (res as Map?)?.cast<String, dynamic>() ?? {};
           return _FetchOutcome.ok(RetailerLedgerJob(retailerId: id, retailerName: name, data: data));

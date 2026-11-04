@@ -596,6 +596,7 @@ class ReportTable extends StatefulWidget {
 
 class _ReportTableState extends State<ReportTable> {
   final _hCtrl = ScrollController();
+  final _vCtrl = ScrollController();
   int? _hoveredRow;
 
   static const double _mobileBreakpoint = 600;
@@ -614,6 +615,7 @@ class _ReportTableState extends State<ReportTable> {
   @override
   void dispose() {
     _hCtrl.dispose();
+    _vCtrl.dispose();
     super.dispose();
   }
 
@@ -667,20 +669,23 @@ class _ReportTableState extends State<ReportTable> {
         // Desktop fill mode only when the content genuinely fits -- never
         // force-fit a wide table into a narrow desktop window.
         final useFillMode = isDesktop && naturalWidth <= constraints.maxWidth;
+        final targetWidth = useFillMode ? constraints.maxWidth : naturalWidth;
+        final gridWidths = useFillMode ? List<double>.from(widths) : widths;
 
-        if (useFillMode) {
-          final flexWidths = List<double>.from(widths);
-          return _buildGrid(ds, flexWidths,
-              useFlex: true, totalWidth: constraints.maxWidth);
-        }
+        Widget content = SizedBox(
+          width: targetWidth,
+          child: _buildGrid(ds, gridWidths,
+              useFlex: useFillMode, totalWidth: targetWidth),
+        );
 
-        return SingleChildScrollView(
+        return Scrollbar(
           controller: _hCtrl,
-          scrollDirection: Axis.horizontal,
-          child: SizedBox(
-            width: naturalWidth,
-            child: _buildGrid(ds, widths,
-                useFlex: false, totalWidth: naturalWidth),
+          thumbVisibility: true,
+          notificationPredicate: (notif) => notif.metrics.axis == Axis.horizontal,
+          child: SingleChildScrollView(
+            controller: _hCtrl,
+            scrollDirection: Axis.horizontal,
+            child: content,
           ),
         );
       }),
@@ -708,12 +713,18 @@ class _ReportTableState extends State<ReportTable> {
       // -- Scrollable body --
       ConstrainedBox(
         constraints: BoxConstraints(maxHeight: widget.maxBodyHeight),
-        child: ListView.builder(
-          shrinkWrap: true,
-          physics: const ClampingScrollPhysics(),
-          itemCount: ds.rows.length,
-          itemBuilder: (ctx, i) =>
-              _dataRow(ds.rows[i], i, serials[i], widths, ds, useFlex, totalWidth),
+        child: Scrollbar(
+          controller: _vCtrl,
+          thumbVisibility: true,
+          notificationPredicate: (notif) => notif.metrics.axis == Axis.vertical,
+          child: ListView.builder(
+            controller: _vCtrl,
+            shrinkWrap: true,
+            physics: const ClampingScrollPhysics(),
+            itemCount: ds.rows.length,
+            itemBuilder: (ctx, i) =>
+                _dataRow(ds.rows[i], i, serials[i], widths, ds, useFlex, totalWidth),
+          ),
         ),
       ),
       // -- Sticky totals footer --

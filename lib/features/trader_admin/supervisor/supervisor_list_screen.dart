@@ -8,6 +8,7 @@ import '../../../core/providers/session_provider.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_theme.dart';
 import 'assign_retailer_sheet.dart';
+import 'package:rooster_trader/shared/widgets/web/app_scaffold.dart';
 
 /// Mirrors agents_screen.dart's structure closely. All the per-row
 /// numbers (assigned count, total outstanding, today's collection) come
@@ -158,7 +159,7 @@ class _S extends ConsumerState<SupervisorListScreen> {
     final companyCode = user?.companyCode ?? '—';
     final tid = user?.traderId ?? '';
 
-    return Scaffold(
+    return AppScaffold(
       backgroundColor: kBgPage,
       appBar: AppBar(title: const Text('Supervisors'), actions: [IconButton(icon: const Icon(Icons.refresh), onPressed: _load)]),
       floatingActionButton: FloatingActionButton.extended(
@@ -193,7 +194,7 @@ class _S extends ConsumerState<SupervisorListScreen> {
             onAction: () => context.push(R.createSupervisor), actionLabel: 'Add Supervisor')
             : RefreshIndicator(onRefresh: _load, child: ListView.separated(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 100), itemCount: _filtered.length,
-            separatorBuilder: (_, __) => const SizedBox(height: 10),
+            separatorBuilder: (_, _) => const SizedBox(height: 10),
             itemBuilder: (_, i) {
               final s = _filtered[i];
               final id = s['id'] as String;
