@@ -150,7 +150,13 @@ class TabletShell extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) => Scaffold(
     backgroundColor: WebColors.pageBg,
     body: Row(children: [
-      NavigationRail(
+      // NavigationRail needs a bounded height and can't scroll itself, so in
+      // windows too short for every destination the rail scrolls instead
+      // of overflowing.
+      LayoutBuilder(builder: (_, box) => SingleChildScrollView(
+          child: ConstrainedBox(
+              constraints: BoxConstraints(minHeight: box.maxHeight),
+              child: IntrinsicHeight(child: NavigationRail(
         backgroundColor:       WebColors.sideBg,
         selectedIndex:         selectedIndex,
         onDestinationSelected: onDestinationSelected,
@@ -186,7 +192,7 @@ class TabletShell extends ConsumerWidget {
             ),
           ),
         ),
-      ),
+      ))))),
       Container(width: 1, color: WebColors.sideBorder),
       Expanded(child: ClipRect(child: child)),
     ]),

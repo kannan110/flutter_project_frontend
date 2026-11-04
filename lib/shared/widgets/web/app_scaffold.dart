@@ -138,7 +138,11 @@ class _WebAppBarHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final loc = GoRouterState.of(context).matchedLocation;
+    // Read the location from the router, not GoRouterState: screens pushed
+    // with Navigator.push (e.g. each report opened from Reports) have no
+    // GoRouterState and GoRouterState.of throws there.
+    final loc =
+        GoRouter.maybeOf(context)?.routerDelegate.currentConfiguration.uri.path ?? '';
     final titleText = bar.title is Text ? (bar.title as Text).data : null;
     final current = titleText ?? topbarTitleForRoute(loc);
 
