@@ -1666,7 +1666,6 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
             customerName: header['retailer_name'] as String? ?? 'Customer',
             area: header['retailer_area'] as String?,
             periodLabel: '${DateFormat("d MMM yyyy").format(_from)} - ${DateFormat("d MMM yyyy").format(_to)}',
-            openingLabel: Fmt.amount(opening),
           ),
           customerLedgerData: _data),
     ]);
