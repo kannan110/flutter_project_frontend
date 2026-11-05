@@ -624,7 +624,14 @@ class _ReportTableState extends State<ReportTable> {
   double _widthFor(
       int col, List<String> headers, ReportDataSet ds, double minColWidth) {
     if (col == 0) return _firstColWidth;
-    final base = headers[col].length * _charWidth + (_cellPadding * 2) + 14;
+    // Widest of the header and the cells (first 200 rows), so amounts fit.
+    var chars = headers[col].length;
+    for (final r in ds.rows.take(200)) {
+      if (col < r.length && r[col].length > chars) chars = r[col].length;
+    }
+    final t = ds.totals;
+    if (t != null && col < t.length && t[col].length > chars) chars = t[col].length;
+    final base = chars * _charWidth + (_cellPadding * 2) + 14;
     final floor =
     ds.highlightColumns.contains(col) ? _highlightMinWidth : minColWidth;
     return base.clamp(floor, _maxColWidth);
@@ -843,14 +850,24 @@ class _ReportTableState extends State<ReportTable> {
           _wrapCell(-1, _serialColWidth, useFlex, _serialDataCell(serial)),
           for (var c = 0; c < row.length; c++)
             _wrapCell(c, widths[c], useFlex,
-                _dataCellContent(row[c], c, ds, isLast: c == row.length - 1)),
+                _dataCellContent(row[c], c, ds,
+                    isLast: c == row.length - 1, emphasize: _isBalanceRow(row))),
         ]),
       ),
     );
   }
 
+  // Opening Balance, Period Summary / TOTAL and Closing Balance rows.
+  static bool _isBalanceRow(List<String> row) {
+    final joined = row.join(' ').toLowerCase();
+    return joined.contains('opening balance') ||
+        joined.contains('period summary') ||
+        joined.contains('closing balance') ||
+        row.any((c) => c.trim().toLowerCase() == 'total');
+  }
+
   Widget _dataCellContent(String value, int c, ReportDataSet ds,
-      {required bool isLast}) {
+      {required bool isLast, bool emphasize = false}) {
     final isHi = ds.highlightColumns.contains(c);
     final isWarn = ds.warnColumn != null &&
         c == ds.warnColumn &&
@@ -869,7 +886,7 @@ class _ReportTableState extends State<ReportTable> {
           textAlign: rightAlign ? TextAlign.right : TextAlign.left,
           style: TextStyle(
               fontSize: 13,
-              fontWeight: isHi ? FontWeight.w700 : FontWeight.w500,
+              fontWeight: (isHi || emphasize) ? FontWeight.w700 : FontWeight.w500,
               color: isWarn ? Colors.red : (isHi ? kNavy : kTextMain))),
     );
   }

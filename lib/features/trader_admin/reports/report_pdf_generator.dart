@@ -125,7 +125,7 @@ class ReportPdfGenerator {
   }
 
   // ─── Customer Ledger's specific right-side block: title, customer,
-  // period, generated timestamp, opening balance — matches the reference
+  // period, generated timestamp — matches the reference
   // Tax-Invoice-style layout exactly (right-aligned, title in accent
   // color, everything else in plain dark text). Public + [scale] for the
   // same shared-with-Full/Half-Sheet reason as richCompanyHeader above.
@@ -133,7 +133,6 @@ class ReportPdfGenerator {
     required String customerName,
     required DateTime from,
     required DateTime to,
-    required String openingLabel,
     bool bw = false,
     double scale = 1.0,
   }) {
@@ -150,9 +149,6 @@ class ReportPdfGenerator {
           style: pw.TextStyle(fontSize: 8.5 * scale, color: bw ? PdfColors.black : _subText)),
       pw.Text('Generated: ${DateFormat("d MMM yyyy, HH:mm").format(DateTime.now())}',
           style: pw.TextStyle(fontSize: 7.5 * scale, color: bw ? PdfColors.black : _subText)),
-      pw.SizedBox(height: 2 * scale),
-      pw.Text('Opening Balance : $openingLabel',
-          style: pw.TextStyle(fontSize: 9 * scale, fontWeight: pw.FontWeight.bold, color: textColor)),
     ]);
   }
   // ─── RETAILER PURCHASE "SALES SHEET" (reference: Sales Document) ─────────
@@ -291,7 +287,6 @@ class ReportPdfGenerator {
           right: customerLedgerHeaderRight(
             customerName: dataSet.customerIdentity!.customerName,
             from: from, to: to,
-            openingLabel: dataSet.customerIdentity!.openingLabel ?? Fmt.amount(0),
             bw: bw,
           ),
         )
@@ -336,7 +331,9 @@ class ReportPdfGenerator {
               bold: dataSet.highlightColumns,
               columnFlex: dataSet.columnFlex,
               style: dataSet.printStyle,
-              skipBlankFirstCellSerial: dataSet.customerLedgerData != null,
+              serialContinuationColumn: dataSet.customerLedgerData != null
+                  ? CustomerLedgerTableData.dateColumn
+                  : null,
             ),
                       if (sheet != null) _sheetTotals(sheet, bw: bw),
         ]));
@@ -587,7 +584,6 @@ class ReportPdfGenerator {
         required DateTime toDate,
       }) {
     final header = (data['header'] as Map?)?.cast<String, dynamic>() ?? {};
-    final opening = (data['opening_balance'] as num?)?.toDouble() ?? 0;
     final t = CustomerLedgerTableData.from(data);
     return ReportDataSet(
       title: 'Customer Ledger Statement',
@@ -595,14 +591,13 @@ class ReportPdfGenerator {
       rows: t.rows,
       totals: t.totals,
       highlightColumns: const [CustomerLedgerTableData.balanceColumn],
-      columnFlex: CustomerLedgerTableData.pdfColumnFlex,
+      columnFlex: t.columnFlex,
       fromDate: fromDate,
       toDate: toDate,
       customerIdentity: CustomerReportIdentity(
         customerName: header['retailer_name'] as String? ?? 'Customer',
         area: header['retailer_area'] as String?,
         periodLabel: '${DateFormat("d MMM yyyy").format(fromDate)} - ${DateFormat("d MMM yyyy").format(toDate)}',
-        openingLabel: Fmt.amount(opening),
       ),
       useBrandedFooter: true,
       // ★ ROOT CAUSE FIX (PDF header not wired audit): this was missing
@@ -796,9 +791,9 @@ class ReportPdfGenerator {
     List<int> bold = const [],
     List<double>? columnFlex,
     ReportPrintStyle style = ReportPrintStyle.color,
-    bool skipBlankFirstCellSerial = false,
+    int? serialContinuationColumn,
   }) {
-    final serials = reportSerialNumbers(rows, skipBlankFirstCell: skipBlankFirstCellSerial);
+    final serials = reportSerialNumbers(rows, continuationColumn: serialContinuationColumn);
     return _tableWithSerial(
       headers: ['S.No', ...headers],
       rows: [
@@ -868,7 +863,8 @@ class ReportPdfGenerator {
       final joined = cells.join(' ').toLowerCase();
       return joined.contains('opening balance') ||
           joined.contains('period summary') ||
-          joined.contains('closing balance');
+          joined.contains('closing balance') ||
+          cells.any((c) => c.trim().toLowerCase() == 'total');
     }
 
     pw.TableRow buildRow(List<String> cells, {bool isHeader=false, bool isTotals=false}) {
@@ -951,7 +947,7 @@ class ReportPdfGenerator {
                               textAlign: bw && looksNumeric(cell) ? pw.TextAlign.right : null,
                               style: pw.TextStyle(
                                   fontSize: bodyFs,
-                                  fontWeight: (bold.contains(ci) || (bw && isEmphasisRow(row)))
+                                  fontWeight: (bold.contains(ci) || isEmphasisRow(row))
                                       ? pw.FontWeight.bold : pw.FontWeight.normal,
                                   color: bw ? PdfColors.black : _dark))))).values.toList()))).values,
           if (totals != null) buildRow(totals, isTotals: true),

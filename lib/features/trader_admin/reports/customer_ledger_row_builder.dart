@@ -237,28 +237,48 @@ class CustomerLedgerTableData {
     required this.headers,
     required this.rows,
     required this.totals,
+    required this.columnFlex,
   });
 
   final List<String> headers;
   final List<List<String>> rows;
   final List<String> totals;
 
+  /// PDF column weights, one per header, fitted to this ledger's text.
+  final List<double> columnFlex;
+
   static const List<String> _headers = [
-    'Date', 'Doc.No', 'Man.Doc.No', 'Ref No', 'Type', 'Product / Description', 'Kg', 'Rate', 'Sale', 'Payment', 'Balance'
+    'Doc.No', 'Man.Doc.No', 'Date', 'Details', 'Kgs', 'Rate', 'Inv Amt', 'Receipt', 'Balance'
   ];
 
-  static const int balanceColumn = 10;
+  // A sale's 2nd+ product lines leave Date blank; S.No skips those lines.
+  static const int dateColumn = 2;
 
-  /// PDF width weights, one per header, so 11 columns fit on portrait A4
-  /// with Description still the widest.
-  static const List<double> pdfColumnFlex = [
-    0.9, 1.5, 1.1, 1.4, 0.8, 2.0, 0.8, 0.7, 1.1, 1.1, 1.2
-  ];
+  static const int balanceColumn = 8;
+
+  static const int detailsColumn = 3;
+
+  /// Column weights from the widest text in each column, so amounts and
+  /// doc numbers fit on one line. [flexibleColumn] (Details) is capped so a
+  /// long remark can't squeeze the number columns.
+  static List<double> fitFlex(List<String> headers, List<List<String>> rows,
+      {int? flexibleColumn}) {
+    final widest = [for (final h in headers) h.length];
+    for (final r in rows) {
+      for (var c = 0; c < r.length && c < widest.length; c++) {
+        if (r[c].length > widest[c]) widest[c] = r[c].length;
+      }
+    }
+    return [
+      for (var c = 0; c < widest.length; c++)
+        (c == flexibleColumn ? widest[c].clamp(12, 28) : widest[c].clamp(3, 18)) + 1.0,
+    ];
+  }
 
   static String _fmtDate(String? iso) {
     if (iso == null || iso.isEmpty) return '';
     final d = DateTime.tryParse(iso);
-    return d == null ? '' : DateFormat('dd-MMM').format(d);
+    return d == null ? '' : DateFormat('dd/MM/yyyy').format(d);
   }
 
   static String _fmtNum(double? v) =>
@@ -276,20 +296,18 @@ class CustomerLedgerTableData {
     // logic here, so this can never drift from the authoritative ledger
     // math (running balance / opening / closing are untouched).
     final summary = (data['summary'] as Map?)?.cast<String, dynamic>() ?? {};
-    final totalBirds = (summary['total_birds'] as num?)?.toInt() ?? 0;
     final totalKg = (summary['total_weight_kg'] as num?)?.toDouble() ?? 0;
     final totalSales = (summary['total_invoiced'] as num?)?.toDouble() ?? 0;
     final totalPayment = (summary['total_collections'] as num?)?.toDouble() ?? 0;
 
     final rows = <List<String>>[
-      ['', '', '', 'OPEN', 'Opening', 'Opening Balance', '', '', '', '', Fmt.amount(opening)],
+      // Opening Balance amount sits under Inv Amt, as on the printed bill.
+      ['', '', '', 'Opening Balance', '', '', Fmt.amount(opening), '', ''],
       for (final r in printRows)
         [
-          r.date == null ? '' : _fmtDate(r.date),
           r.docNo ?? '',
           r.manualDocNo ?? '',
-          r.refNo ?? '',
-          r.type ?? '',
+          r.date == null ? '' : _fmtDate(r.date),
           r.description,
           _fmtNum(r.kg),
           _fmtNum(r.rate),
@@ -297,20 +315,22 @@ class CustomerLedgerTableData {
           r.paymentAmt == null ? '' : Fmt.amount(r.paymentAmt!),
           Fmt.amount(r.balance),
         ],
-      // Period Summary row — sits above Closing Balance. Birds has no
-      // dedicated column (adding one would reshape every row of every
-      // Customer Ledger ever rendered), so it's folded into the
-      // Description cell alongside the "Period Summary" label instead.
+      // TOTAL row for the period, just above Closing Balance (bill format).
       [
-        '', '', '', '', 'Summary',
-        'Period Summary  ·  Total Birds: $totalBirds',
+        '', '', '', 'TOTAL',
         _fmtNum(totalKg), '',
         Fmt.amount(totalSales), Fmt.amount(totalPayment), '',
       ],
     ];
 
-    final totals = ['', '', '', '', '', 'Closing Balance', '', '', '', '', Fmt.amount(closing)];
+    // Closing Balance amount sits under Inv Amt, as on the printed bill.
+    final totals = ['', '', '', 'Closing Balance', '', '', Fmt.amount(closing), '', ''];
 
-    return CustomerLedgerTableData(headers: _headers, rows: rows, totals: totals);
+    return CustomerLedgerTableData(
+      headers: _headers,
+      rows: rows,
+      totals: totals,
+      columnFlex: fitFlex(_headers, [...rows, totals], flexibleColumn: detailsColumn),
+    );
   }
 }
