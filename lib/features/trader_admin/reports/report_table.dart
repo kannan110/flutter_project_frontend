@@ -63,6 +63,8 @@ class _ReportTableBlockState extends State<ReportTableBlock> {
       customerIdentity: widget.dataSet.customerIdentity,
       useBrandedFooter: widget.dataSet.useBrandedFooter,
       customerLedgerData: widget.dataSet.customerLedgerData,
+      columnFlex: widget.dataSet.columnFlex,
+      printVersion: widget.dataSet.printVersion,
     );
     if (_sortCol == null) return base;
     return base.sortedBy(_sortCol!, _sortAsc);

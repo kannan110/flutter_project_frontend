@@ -175,6 +175,8 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
   // Collection report: payment mode(s) per party for the selected dates,
   // keyed by retailer id AND shop name. Frontend-only lookup.
   Map<String, String> _collModes = const {};
+  double? _rpLossPct;
+
   static const _kLedgerMovementTypes = [
     'returned_in','shift_close_return','transferred_out','theft',
     'mortality_house','weight_loss','physical_count_increase',
@@ -329,11 +331,20 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
       }
       final res = await _c.rpc(rpcName, params: p)
           .timeout(const Duration(seconds: 20));
-      final purchased = _sel.key == 'retailer_purchase' ? await _fetchPurchasedKg(tid) : null;
+      final isRp = _sel.key == 'retailer_purchase';
+      final purchased = isRp ? await _fetchPurchasedKg(tid) : null;
+      final lossPct = isRp ? await _fetchShrinkageLossPct(tid) : null;
       final collModes = _sel.key == 'collection'
           ? await _fetchCollectionModes(tid, res as Map<String, dynamic>?)
           : const <String, String>{};
-      if (mounted) setState(() { _data = res as Map<String,dynamic>?; _rpPurchasedKg = purchased; _collModes = collModes; });
+      if (mounted) {
+        setState(() {
+          _data = res as Map<String,dynamic>?;
+          _rpPurchasedKg = purchased;
+          _rpLossPct = lossPct;
+          _collModes = collModes;
+        });
+      }
     } catch (e) {
       if (mounted) setState(() => _error = e.toString().replaceAll('Exception:','').trim());
     } finally {
@@ -1491,8 +1502,32 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
     return (a['name'] as String?) ?? 'All Agents';
   }
 
-  /// Purchased KGS = DC loaded kg of closed shifts, same dates and same agent as the report.
+  /// Purchased KGS = DC net kg (adjusted when set), same dates and same agent as the report.
   Future<double?> _fetchPurchasedKg(String tid) async {
+    // Read straight from the DCs (by DC date), so open shifts count too. The
+    // agent comes from the DC's batch.
+    try {
+      final res = await _c
+          .rpc(
+            'get_report_data',
+            params: {
+              'p_trader_id': tid,
+              'p_from_date': DateFormat('yyyy-MM-dd').format(_from),
+              'p_to_date': DateFormat('yyyy-MM-dd').format(_to),
+              'p_report': 'shrinkage',
+              if (_agentId != null) 'p_agent_id': _agentId,
+            },
+          )
+          .timeout(const Duration(seconds: 20));
+      final s = ((res as Map?)?['summary'] as Map?) ?? const {};
+      return (s['total_dc_kg'] as num?)?.toDouble();
+    } catch (_) {
+      return null; // report still loads; the block shows "—"
+    }
+  }
+
+  /// Wt. Loss % = the Shrinkage report's average loss % (same dates and agent).
+  Future<double?> _fetchShrinkageLossPct(String tid) async {
     try {
       final res = await _c.rpc('get_report_data', params: {
         'p_trader_id': tid,
@@ -1502,9 +1537,11 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
         if (_agentId != null) 'p_agent_id': _agentId,
       }).timeout(const Duration(seconds: 20));
       final s = ((res as Map?)?['summary'] as Map?) ?? const {};
-      return (s['total_dc_kg'] as num?)?.toDouble();
+      // No closed shifts with a loss summary yet → show "—", not 0 %.
+      if (((s['shift_count'] as num?) ?? 0) == 0) return null;
+      return (s['avg_loss_pct'] as num?)?.toDouble();
     } catch (_) {
-      return null; // report still loads; the block shows "—"
+      return null;
     }
   }
 
@@ -1513,6 +1550,7 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
     agentName: _selectedAgentName,
     purchasedKg: _rpPurchasedKg,
     soldKg: _rows('retailers').fold<double>(0, (sum, r) => sum + _d(r, 'total_kg')),
+    lossPct: _rpLossPct,
   );
 
   // Top block: AGENT (left), DATE in bold (right).
@@ -1571,7 +1609,7 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
         line('BALANCE KGS', v('Balance KGS'), rule: true),
         line('WT LOSS IN %', v('Wt Loss in %'), strong: true),
         const SizedBox(height: 4),
-        const Text('Purchased KGS = DC loaded kg of closed shifts for the selected dates/agent. Sold KGS = total kg of the tables above.',
+        const Text('Purchased KGS = DC net kg for the selected dates/agent. Sold KGS = total kg of the tables above. Wt Loss % = Shrinkage report loss % (closed shifts).',
             style: kTypeCaption),
       ]),
     );
@@ -1592,30 +1630,38 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
       ]),
       if (ret.isNotEmpty) ...[
         _sec('BY RETAILER'),
-        _tbl(['Shop','Phone','Orders','Total kg','Billed','Collected','Outstanding'],
-            ret.map((r)=>[_str(r,'shop_name'),_str(r,'phone'),'${_i(r,"orders")}',
-              (_d(r,"total_kg").toStringAsFixed(0)),Fmt.amount(_d(r,'billed')),
+        _tbl(['Shop','Dc.No','Phone','Orders','Birds','Total kg','Avg Wt','Rate','Billed','Collected','Outstanding'],
+            ret.map((r)=>[_str(r,'shop_name'),(r['doc_nos'] as String?) ?? '',_str(r,'phone'),'${_i(r,"orders")}',
+              '${_i(r,"total_birds")}',(_d(r,"total_kg").toStringAsFixed(0)),
+              _i(r,'total_birds') > 0 ? (_d(r,'total_kg') / _i(r,'total_birds')).toStringAsFixed(3) : '',
+              ReportPdfGenerator.retailerPurchaseRate(r),
+              Fmt.amount(_d(r,'billed')),
               Fmt.amount(_d(r,'collected')),Fmt.amount(_d(r,'outstanding'))]).toList(),
             tots: [
               'TOTAL',
               '',
+              '',
               '${ret.fold<int>(0, (sum, r) => sum + _i(r, "orders"))}',
+              '${ret.fold<int>(0, (sum, r) => sum + _i(r, "total_birds"))}',
               (ret.fold<double>(0, (sum, r) => sum + _d(r, "total_kg")).toStringAsFixed(0)),
+              '',
+              '',
               Fmt.amount(ret.fold<double>(0, (sum, r) => sum + _d(r, 'billed'))),
               Fmt.amount(ret.fold<double>(0, (sum, r) => sum + _d(r, 'collected'))),
               Fmt.amount(ret.fold<double>(0, (sum, r) => sum + _d(r, 'outstanding'))),
             ],
-            hi:[6]),
+            hi:[10],
+            // Print/PDF: the sales sheet (agent, bold date, totals block) with
+            // its own columns: S.No, Dc.No, Shop, Birds, Kgs, Rate, Amount, Remarks.
+            summary: sheet,
+            printVersion: ReportPdfGenerator.retailerPurchasePrintTable(ret)),
       ],
       _sec('ORDER HISTORY'),
       _tbl(['Date','Shop','kg','Birds','Rate','Billed','Collected'],
           day.map((d)=>[_fd(d['order_date']),_sh(_str(d,'shop_name'),10),
             (_d(d,"kg").toStringAsFixed(0)),'${_i(d,"birds")}',
             (_d(d,"rate").toStringAsFixed(2)),Fmt.amount(_d(d,'billed')),Fmt.amount(_d(d,'collected'))]).toList(),
-          hi:[5],
-          // carries the sales-sheet figures so this table's PDF / Print / Share
-          // prints the reference layout (agent, bold date, totals block)
-          summary: sheet),
+          hi:[5]),
       _rpSheetTotals(sheet),
     ]);
   }
@@ -1839,6 +1885,7 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
     // default off, so every existing call site's PDF is unaffected.
     bool landscape = false,
     List<double>? columnFlex,
+    ReportDataSet? printVersion,
   }) {
     final user = ref.read(appUserProvider).valueOrNull;
     final company = user?.companyName ?? 'Rooster';
@@ -1858,6 +1905,7 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
       summary: summary,
       landscape: landscape,
       columnFlex: columnFlex,
+      printVersion: printVersion,
       // useBrandedFooter left at its default (false) — the Table/Toolbar
       // PDF always gets the plain footer; only the Header PDF (built
       // separately in report_pdf_generator.dart's _customerLedgerDataSet)
@@ -1909,7 +1957,7 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
             if (_sel.key == 'retailer_purchase') {
         await ReportPdfGenerator.generateAndShow(
           context:     context,
-          reportData:  {..._data!, 'sheet_agent': _selectedAgentName, 'sheet_purchased_kg': _rpPurchasedKg},
+          reportData:  {..._data!, 'sheet_agent': _selectedAgentName, 'sheet_purchased_kg': _rpPurchasedKg, 'sheet_loss_pct': _rpLossPct},
           reportLabel: _sel.label,
           companyName: company,
           fromDate:    _from,
