@@ -29,6 +29,11 @@ class LedgerPrintRow {
     this.refNo,
     this.type,
     required this.description,
+    this.product,
+    this.sourceDate,
+    this.sourceDocNo,
+    this.sourceManualDocNo,
+    this.birds,
     this.kg,
     this.rate,
     this.saleAmt,
@@ -49,6 +54,20 @@ class LedgerPrintRow {
   final String? type;
 
   final String description;
+
+  /// The item (product) on a sale/return line, e.g. "Broiler". Null for
+  /// payments and other lines. Used by the Item filter.
+  final String? product;
+
+  /// The entry's own date and doc numbers, set on EVERY line (including a
+  /// multi-product sale's 2nd+ lines, where [date]/[docNo] are blank), so a
+  /// line can still show them when the Item filter hides its first line.
+  final String? sourceDate;
+  final String? sourceDocNo;
+  final String? sourceManualDocNo;
+
+  /// Number of birds on this line (blank when none were recorded).
+  final int? birds;
   final double? kg;
   final double? rate;
 
@@ -82,6 +101,10 @@ class CustomerLedgerRowBuilder {
   };
 
   static double? _numOrNull(dynamic v) => (v as num?)?.toDouble();
+  static int? _birdsOrNull(dynamic v) {
+    final n = (v as num?)?.toInt();
+    return (n == null || n <= 0) ? null : n;
+  }
   static double _num(dynamic v) => (v as num?)?.toDouble() ?? 0;
 
   /// Builds the full print-line sequence for the given from/to range.
@@ -139,6 +162,11 @@ class CustomerLedgerRowBuilder {
             refNo: i == 0 ? refNumber : null,
             type: i == 0 ? typeLabel(sourceType) : null,
             description: i == 0 ? withRemarks((line['product_name'] as String?) ?? '—') : (line['product_name'] as String?) ?? '—',
+            product: line['product_name'] as String?,
+            sourceDate: entryDateStr,
+            sourceDocNo: docNo,
+            sourceManualDocNo: manualDocNo,
+            birds: _birdsOrNull(line['bird_count']),
             kg: hasWeight ? weightKg : null,
             rate: hasWeight ? _numOrNull(line['applied_rate']) : null,
             saleAmt: isDebit ? lineTotal : null,
@@ -161,6 +189,10 @@ class CustomerLedgerRowBuilder {
           refNo: refNumber,
           type: typeLabel(sourceType),
           description: withRemarks(description.isEmpty ? 'Sale' : description),
+          sourceDate: entryDateStr,
+          sourceDocNo: docNo,
+          sourceManualDocNo: manualDocNo,
+          birds: _birdsOrNull(r['birds']),
           kg: weightKg,
           rate: _numOrNull(r['rate_per_kg']),
           saleAmt: isDebit ? amount : null,
@@ -183,6 +215,9 @@ class CustomerLedgerRowBuilder {
           refNo: refNumber,
           type: typeLabel(sourceType),
           description: withRemarks(desc),
+          product: productName,
+          sourceDate: entryDateStr,
+          birds: _birdsOrNull(r['birds']),
           kg: hasWeight ? weightKg : null,
           rate: hasWeight ? _numOrNull(r['rate_per_kg']) : null,
           saleAmt: isDebit ? amount : null,
@@ -224,6 +259,17 @@ class CustomerLedgerRowBuilder {
 
     return out;
   }
+
+  /// The items (products) sold or returned in this ledger, A–Z, for the
+  /// Item filter. Read from the same rows the table shows.
+  static List<String> items(Map<String, dynamic> data) {
+    final set = <String>{};
+    for (final r in build(data)) {
+      final p = r.product?.trim();
+      if (p != null && p.isNotEmpty) set.add(p);
+    }
+    return set.toList()..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+  }
 }
 
 /// Ready-to-render string table for the shared ReportDataSet/_table()
@@ -248,13 +294,13 @@ class CustomerLedgerTableData {
   final List<double> columnFlex;
 
   static const List<String> _headers = [
-    'Doc.No', 'Man.Doc.No', 'Date', 'Details', 'Kgs', 'Rate', 'Inv Amt', 'Receipt', 'Balance'
+    'Doc.No', 'Man.Doc.No', 'Date', 'Details', 'Birds', 'Kgs', 'Rate', 'Inv Amt', 'Receipt', 'Balance'
   ];
 
   // A sale's 2nd+ product lines leave Date blank; S.No skips those lines.
   static const int dateColumn = 2;
 
-  static const int balanceColumn = 8;
+  static const int balanceColumn = 9;
 
   static const int detailsColumn = 3;
 
@@ -287,7 +333,37 @@ class CustomerLedgerTableData {
   factory CustomerLedgerTableData.from(Map<String, dynamic> data) {
     final opening = (data['opening_balance'] as num?)?.toDouble() ?? 0;
     final closing = (data['closing_balance'] as num?)?.toDouble() ?? 0;
-    final printRows = CustomerLedgerRowBuilder.build(data);
+    // Item filter (data['item_filter'], set by the Customer Ledger screen):
+    // keep only that item's sale/return lines. Payments and other items are
+    // hidden; Opening and Closing Balance stay as they are. A kept line that
+    // was a 2nd+ product of a sale gets its sale's date and bill numbers.
+    final item = (data['item_filter'] as String?)?.trim().toLowerCase();
+    final filtered = item != null && item.isNotEmpty;
+    final allRows = CustomerLedgerRowBuilder.build(data);
+    final printRows = !filtered
+        ? allRows
+        : [
+            for (final r in allRows)
+              if ((r.product ?? '').trim().toLowerCase() == item)
+                LedgerPrintRow(
+                  date: r.sourceDate,
+                  docNo: r.sourceDocNo,
+                  manualDocNo: r.sourceManualDocNo,
+                  refNo: r.refNo,
+                  type: r.type,
+                  description: r.description,
+                  product: r.product,
+                  sourceDate: r.sourceDate,
+                  sourceDocNo: r.sourceDocNo,
+                  sourceManualDocNo: r.sourceManualDocNo,
+                  birds: r.birds,
+                  kg: r.kg,
+                  rate: r.rate,
+                  saleAmt: r.saleAmt,
+                  paymentAmt: r.paymentAmt,
+                  balance: r.balance,
+                ),
+          ];
 
     // Period Summary — Total Birds / Kg / Sales / Payment Collected, for the
     // selected date range only (excludes Opening/Closing Balance, matching
@@ -296,19 +372,31 @@ class CustomerLedgerTableData {
     // logic here, so this can never drift from the authoritative ledger
     // math (running balance / opening / closing are untouched).
     final summary = (data['summary'] as Map?)?.cast<String, dynamic>() ?? {};
-    final totalKg = (summary['total_weight_kg'] as num?)?.toDouble() ?? 0;
-    final totalSales = (summary['total_invoiced'] as num?)?.toDouble() ?? 0;
-    final totalPayment = (summary['total_collections'] as num?)?.toDouble() ?? 0;
+    // With the Item filter on, TOTAL is that item's lines only.
+    final linesBirds = printRows.fold<int>(0, (sum, r) => sum + (r.birds ?? 0));
+    final totalKg = filtered
+        ? printRows.fold<double>(0, (sum, r) => sum + (r.kg ?? 0))
+        : (summary['total_weight_kg'] as num?)?.toDouble() ?? 0;
+    final totalBirds = filtered
+        ? linesBirds
+        : (summary['total_birds'] as num?)?.toInt() ?? linesBirds;
+    final totalSales = filtered
+        ? printRows.fold<double>(0, (sum, r) => sum + (r.saleAmt ?? 0))
+        : (summary['total_invoiced'] as num?)?.toDouble() ?? 0;
+    final totalPayment = filtered
+        ? printRows.fold<double>(0, (sum, r) => sum + (r.paymentAmt ?? 0))
+        : (summary['total_collections'] as num?)?.toDouble() ?? 0;
 
     final rows = <List<String>>[
       // Opening Balance amount sits under Inv Amt, as on the printed bill.
-      ['', '', '', 'Opening Balance', '', '', Fmt.amount(opening), '', ''],
+      ['', '', '', 'Opening Balance', '', '', '', Fmt.amount(opening), '', ''],
       for (final r in printRows)
         [
           r.docNo ?? '',
           r.manualDocNo ?? '',
           r.date == null ? '' : _fmtDate(r.date),
           r.description,
+          r.birds == null ? '' : '${r.birds}',
           _fmtNum(r.kg),
           _fmtNum(r.rate),
           r.saleAmt == null ? '' : Fmt.amount(r.saleAmt!),
@@ -318,13 +406,13 @@ class CustomerLedgerTableData {
       // TOTAL row for the period, just above Closing Balance (bill format).
       [
         '', '', '', 'TOTAL',
-        _fmtNum(totalKg), '',
+        totalBirds > 0 ? '$totalBirds' : '', _fmtNum(totalKg), '',
         Fmt.amount(totalSales), Fmt.amount(totalPayment), '',
       ],
     ];
 
     // Closing Balance amount sits under Inv Amt, as on the printed bill.
-    final totals = ['', '', '', 'Closing Balance', '', '', Fmt.amount(closing), '', ''];
+    final totals = ['', '', '', 'Closing Balance', '', '', '', Fmt.amount(closing), '', ''];
 
     return CustomerLedgerTableData(
       headers: _headers,

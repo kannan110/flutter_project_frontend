@@ -147,6 +147,23 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
   List<Map<String,dynamic>> _supervisors = [];
   // Expense Report — Expense Type filter (All/trip/trader/fixed).
   String?    _expenseType;
+  // Customer Ledger — Item filter (e.g. "Broiler"); null = all items.
+  // Client-side only: narrows the loaded ledger, no reload.
+  String?    _ledgerItem;
+
+  /// Items sold/returned in the loaded Customer Ledger.
+  List<String> get _ledgerItems => _sel.key == 'customer_ledger' && _data != null
+      ? CustomerLedgerRowBuilder.items(_data!)
+      : const [];
+
+  /// The loaded Customer Ledger with the Item filter applied — passed to the
+  /// screen table, PDF, Share and the Full/Half prints, so all of them match.
+  Map<String, dynamic>? get _ledgerData {
+    final d = _data;
+    final item = _ledgerItem;
+    if (d == null || item == null || !_ledgerItems.contains(item)) return d;
+    return {...d, 'item_filter': item};
+  }
   // Inline, expandable filters replace the old modal bottom sheet — per the
   // zero-learning-curve spec ("avoid unnecessary dialogs"). Collapsed by
   // default; expanding shows Agent/Retailer directly, applying on change.
@@ -1693,7 +1710,7 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
     // Same shared builder the PDF uses (CustomerLedgerTableData.from) — the
     // on-screen table and every exported PDF are guaranteed to show
     // identical headers/rows/totals text.
-    final t = CustomerLedgerTableData.from(_data!);
+    final t = CustomerLedgerTableData.from(_ledgerData!);
 
     return _scroll([
       _kpiGrid([
@@ -1713,7 +1730,7 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
             area: header['retailer_area'] as String?,
             periodLabel: '${DateFormat("d MMM yyyy").format(_from)} - ${DateFormat("d MMM yyyy").format(_to)}',
           ),
-          customerLedgerData: _data),
+          customerLedgerData: _ledgerData),
     ]);
   }
 
@@ -1935,7 +1952,7 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
         // calls it is affected.
         await ReportPdfGenerator.generateCustomerLedgerReportAndShow(
           context: context,
-          data: _data!,
+          data: _ledgerData!,
           companyName: company,
           fromDate: _from,
           toDate: _to,
@@ -2141,6 +2158,25 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
         // does not touch that flow at all. Now scoped to
         // _customerLedgerRetailers so Print All / Download All respect
         // the active Supervisor filter too.
+        // ── Customer Ledger — Item filter (bird-wise). Lists the items in
+        // the loaded ledger; picking one shows only that item's lines
+        // (Opening/Closing Balance stay). Client-side, applies instantly.
+        if (_sel.key == 'customer_ledger' && _ledgerItems.isNotEmpty) ...[
+          const SizedBox(height: 10),
+          DropdownButtonFormField<String>(
+            key: ValueKey('ledger-item-${_ledgerItems.join('|')}'),
+            initialValue: _ledgerItems.contains(_ledgerItem) ? _ledgerItem : null,
+            isDense: true,
+            decoration: const InputDecoration(
+                labelText: 'Item', isDense: true,
+                contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8)),
+            items: [
+              const DropdownMenuItem(value: null, child: Text('All Items')),
+              ..._ledgerItems.map((i) => DropdownMenuItem(value: i, child: Text(i))),
+            ],
+            onChanged: (v) => setState(() => _ledgerItem = v),
+          ),
+        ],
         if (_sel.key == 'customer_ledger' && _customerLedgerRetailers.isNotEmpty) ...[
           const SizedBox(height: 8),
           _buildBulkLedgerActions(),
@@ -2265,7 +2301,7 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
       final user = ref.read(appUserProvider).valueOrNull;
       try {
         await ReportPdfGenerator.shareCustomerLedgerReport(
-          data: _data!,
+          data: _ledgerData!,
           companyName: user?.companyName ?? 'DSR Chicken',
           fromDate: _from,
           toDate: _to,

@@ -837,11 +837,11 @@ class CustomerLedgerPrintBuilder {
           .trim();
     }
 
-    if (out.length > _detailsCol + 1) {
-      final raw = out[_detailsCol + 1].trim();
+    if (out.length > _kgsCol) {
+      final raw = out[_kgsCol].trim();
       final v = double.tryParse(raw.replaceAll(',', ''));
       if (raw.isNotEmpty && v != null) {
-        out[_detailsCol + 1] = raw.contains(',')
+        out[_kgsCol] = raw.contains(',')
             ? NumberFormat('#,##0.00').format(v)
             : v.toStringAsFixed(2);
       }
@@ -849,8 +849,9 @@ class CustomerLedgerPrintBuilder {
     return out;
   }
 
-  // Print columns: S.No, Bill No, Date, Details, Kgs, Rate, Inv Amt, Receipt, Balance.
+  // Print columns: S.No, Bill No, Date, Details, Birds, Kgs, Rate, Inv Amt, Receipt, Balance.
   static const int _detailsCol = 3;
+  static const int _kgsCol = 5;
 
   // Ledger table for BOTH Full and Half Sheet, so the two line up the same.
   // Built by hand (not TableHelper.fromTextArray) so every row is one fixed-
@@ -873,11 +874,12 @@ class CustomerLedgerPrintBuilder {
       pw.Alignment.centerLeft,
       pw.Alignment.centerLeft,
       pw.Alignment.centerLeft,
-      pw.Alignment.centerRight,
-      pw.Alignment.centerRight,
-      pw.Alignment.centerRight,
-      pw.Alignment.centerRight,
-      pw.Alignment.centerRight,
+      pw.Alignment.centerRight, // Birds
+      pw.Alignment.centerRight, // Kgs
+      pw.Alignment.centerRight, // Rate
+      pw.Alignment.centerRight, // Inv Amt
+      pw.Alignment.centerRight, // Receipt
+      pw.Alignment.centerRight, // Balance
     ];
     final ink = bw ? PdfColors.black : _dark;
 

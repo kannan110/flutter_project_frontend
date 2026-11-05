@@ -179,10 +179,8 @@ class ReportPdfGenerator {
     final birds = retailers.fold<int>(0, (sum, r) => sum + _i(r, 'total_birds'));
     final kg = retailers.fold<double>(0, (sum, r) => sum + _d(r, 'total_kg'));
     final billed = retailers.fold<double>(0, (sum, r) => sum + _d(r, 'billed'));
-    return ReportDataSet(
-      title: 'Retailer Purchase',
-      headers: const ['Dc.No', 'Shop', 'Birds', 'Kgs', 'Rate', 'Avg.Wt', 'Amount', 'Remarks'],
-      rows: [
+    const headers = ['Dc.No', 'Shop', 'Birds', 'Kgs', 'Rate', 'Avg.Wt', 'Amount', 'Remarks'];
+    final rows = [
         for (final r in retailers)
           [
             (r['doc_nos'] as String?) ?? '',
@@ -194,10 +192,19 @@ class ReportPdfGenerator {
             Fmt.amount(_d(r, 'billed')),
             '',
           ],
-      ],
-      totals: ['', 'TOTAL', '$birds', kg.toStringAsFixed(3), '', _avgWt(kg, birds), Fmt.amount(billed), ''],
+    ];
+    final totals = ['', 'TOTAL', '$birds', kg.toStringAsFixed(3), '', _avgWt(kg, birds), Fmt.amount(billed), ''];
+    // Widths from each column's widest text (Shop may grow the most), with
+    // room left in Remarks for writing by hand.
+    final flex = CustomerLedgerTableData.fitFlex(headers, [...rows, totals], flexibleColumn: 1);
+    flex[7] = 14; // Remarks
+    return ReportDataSet(
+      title: 'Retailer Purchase',
+      headers: headers,
+      rows: rows,
+      totals: totals,
       highlightColumns: const [6],
-      columnFlex: const [1.4, 3.0, 0.9, 1.2, 1.0, 1.1, 1.5, 2.8],
+      columnFlex: flex,
     );
   }
 
@@ -415,6 +422,9 @@ class ReportPdfGenerator {
               serialContinuationColumn: dataSet.customerLedgerData != null
                   ? CustomerLedgerTableData.dateColumn
                   : null,
+              // Print versions (e.g. the Retailer Purchase sales sheet) are
+              // one line per row: cells shrink to fit instead of wrapping.
+              singleLine: dataSet.printVersion != null,
             ),
                       if (sheet != null) _sheetTotals(sheet, bw: bw),
         ]));
@@ -873,6 +883,7 @@ class ReportPdfGenerator {
     List<double>? columnFlex,
     ReportPrintStyle style = ReportPrintStyle.color,
     int? serialContinuationColumn,
+    bool singleLine = false,
   }) {
     final serials = reportSerialNumbers(rows, continuationColumn: serialContinuationColumn);
     return _tableWithSerial(
@@ -884,6 +895,7 @@ class ReportPdfGenerator {
       bold: [for (final c in bold) c + 1],
       columnFlex: columnFlex,
       style: style,
+      singleLine: singleLine,
     );
   }
 
@@ -905,6 +917,9 @@ class ReportPdfGenerator {
     // of this function's 21 call sites is unaffected unless it explicitly
     // passes ReportPrintStyle.blackAndWhite.
     ReportPrintStyle style = ReportPrintStyle.color,
+    // Keep every cell on one line: text too wide for its column shrinks
+    // instead of wrapping. Off by default, so other reports are unchanged.
+    bool singleLine = false,
   }) {
     final bw = style == ReportPrintStyle.blackAndWhite;
 
@@ -921,6 +936,19 @@ class ReportPdfGenerator {
     final headFs = isWide ? 7.0 : 8.0;
     final bodyFs = isWide ? 7.5 : 9.0;
     final cellPad = isWide ? 4.0 : 6.0;
+
+    // singleLine: each cell is one fixed-height line, and FittedBox shrinks
+    // text that is too wide instead of wrapping it. Empty cells skip
+    // FittedBox (a zero-width child trips the pdf package's `width > 0`
+    // assertion).
+    pw.Widget fitCell(String cell, pw.Widget text) => !singleLine
+        ? text
+        : pw.SizedBox(
+            height: bodyFs * 1.4,
+            child: cell.trim().isEmpty
+                ? null
+                : pw.FittedBox(fit: pw.BoxFit.scaleDown, alignment: pw.Alignment.centerLeft, child: text),
+          );
 
     // B&W: a cell reads as "numeric" if, after stripping currency/percent/
     // unit noise (same stripping report_dataset.dart's own column-sort
@@ -982,7 +1010,7 @@ class ReportPdfGenerator {
                       ? const pw.BoxDecoration(
                       border: pw.Border(top: pw.BorderSide(color: _dark, width: 1.2)))
                       : null),
-                  child: pw.Text(cell,
+                  child: fitCell(cell, pw.Text(cell,
                       textAlign: bw && looksNumeric(cell) ? pw.TextAlign.right : null,
                       style: pw.TextStyle(
                           fontSize: isHeader ? headFs : bodyFs,
@@ -991,7 +1019,7 @@ class ReportPdfGenerator {
                           color: bw
                               ? PdfColors.black
                               : ((isHeader || isTotals) ? PdfColors.white
-                              : bold.contains(i) ? _dark : _dark)))))).values.toList());
+                              : bold.contains(i) ? _dark : _dark))))))).values.toList());
     }
 
     return pw.Table(
@@ -1024,13 +1052,13 @@ class ReportPdfGenerator {
                               border: pw.Border.symmetric(
                                   horizontal: pw.BorderSide(color: PdfColors.black, width: 1.2)))
                               : null,
-                          child: pw.Text(cell,
+                          child: fitCell(cell, pw.Text(cell,
                               textAlign: bw && looksNumeric(cell) ? pw.TextAlign.right : null,
                               style: pw.TextStyle(
                                   fontSize: bodyFs,
                                   fontWeight: (bold.contains(ci) || isEmphasisRow(row))
                                       ? pw.FontWeight.bold : pw.FontWeight.normal,
-                                  color: bw ? PdfColors.black : _dark))))).values.toList()))).values,
+                                  color: bw ? PdfColors.black : _dark)))))).values.toList()))).values,
           if (totals != null) buildRow(totals, isTotals: true),
         ]);
   }
@@ -1520,7 +1548,8 @@ class ReportPdfGenerator {
                 rows: t.rows,
                 totals: t.totals,
                 bold: t.highlightColumns,
-                columnFlex: t.columnFlex),
+                columnFlex: t.columnFlex,
+                singleLine: true),
             _sheetTotals(sheet),
           ];
         }));
