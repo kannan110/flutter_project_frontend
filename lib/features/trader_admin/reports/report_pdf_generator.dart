@@ -158,11 +158,10 @@ class ReportPdfGenerator {
     required String agentName,
     required double? purchasedKg,
     required double soldKg,
+    // Shrinkage report's loss % (unaccounted loss / DC kg of closed shifts).
+    required double? lossPct,
   }) {
     final balance = purchasedKg == null ? null : purchasedKg - soldKg;
-    final lossPct = (purchasedKg == null || purchasedKg <= 0)
-        ? null
-        : (balance! / purchasedKg * 100);
     return [
       ReportSummaryItem('Agent', agentName),
       ReportSummaryItem('Purchased KGS', purchasedKg == null ? '—' : purchasedKg.toStringAsFixed(3)),
@@ -171,6 +170,44 @@ class ReportPdfGenerator {
       ReportSummaryItem('Wt Loss in %', lossPct == null ? '—' : '${lossPct.toStringAsFixed(2)} %'),
     ];
   }
+
+  // Retailer Purchase print/PDF table, one line per shop (S.No is added by
+  // _table): Dc.No (the orders' manual bill numbers), Shop, Birds, Kgs, Rate,
+  // Amount and an empty Remarks column to fill in by hand. Phone, Orders,
+  // Collected and Outstanding stay on the screen only.
+  static ReportDataSet retailerPurchasePrintTable(List<Map> retailers) {
+    final birds = retailers.fold<int>(0, (sum, r) => sum + _i(r, 'total_birds'));
+    final kg = retailers.fold<double>(0, (sum, r) => sum + _d(r, 'total_kg'));
+    final billed = retailers.fold<double>(0, (sum, r) => sum + _d(r, 'billed'));
+    return ReportDataSet(
+      title: 'Retailer Purchase',
+      headers: const ['Dc.No', 'Shop', 'Birds', 'Kgs', 'Rate', 'Avg.Wt', 'Amount', 'Remarks'],
+      rows: [
+        for (final r in retailers)
+          [
+            (r['doc_nos'] as String?) ?? '',
+            _str(r, 'shop_name'),
+            '${_i(r, 'total_birds')}',
+            _d(r, 'total_kg').toStringAsFixed(3),
+            retailerPurchaseRate(r),
+            _avgWt(_d(r, 'total_kg'), _i(r, 'total_birds')),
+            Fmt.amount(_d(r, 'billed')),
+            '',
+          ],
+      ],
+      totals: ['', 'TOTAL', '$birds', kg.toStringAsFixed(3), '', _avgWt(kg, birds), Fmt.amount(billed), ''],
+      highlightColumns: const [6],
+      columnFlex: const [1.4, 3.0, 0.9, 1.2, 1.0, 1.1, 1.5, 2.8],
+    );
+  }
+
+  // Average bird weight in kg (blank when there are no birds).
+  static String _avgWt(double kg, int birds) =>
+      birds > 0 ? (kg / birds).toStringAsFixed(3) : '';
+
+  // Customer rate for a shop's line: the rate on its invoices (the customer
+  // price that was set), comma-separated when its orders used different rates.
+  static String retailerPurchaseRate(Map r) => (r['rates'] as String?) ?? '';
 
   // Non-null only when the Retailer Purchase screen attached its sheet
   // figures (see above). No other report supplies 'Purchased KGS'.
@@ -325,11 +362,11 @@ class ReportPdfGenerator {
                 style: const pw.TextStyle(fontSize: 9, color: _subText))
           else
             _table(
-              headers: dataSet.headers,
-              rows: dataSet.rows,
-              totals: dataSet.totals,
-              bold: dataSet.highlightColumns,
-              columnFlex: dataSet.columnFlex,
+              headers: (dataSet.printVersion ?? dataSet).headers,
+              rows: (dataSet.printVersion ?? dataSet).rows,
+              totals: (dataSet.printVersion ?? dataSet).totals,
+              bold: (dataSet.printVersion ?? dataSet).highlightColumns,
+              columnFlex: (dataSet.printVersion ?? dataSet).columnFlex,
               style: dataSet.printStyle,
               serialContinuationColumn: dataSet.customerLedgerData != null
                   ? CustomerLedgerTableData.dateColumn
@@ -1327,10 +1364,41 @@ class ReportPdfGenerator {
   // ══════════════════════════════════════════════════════════════════════════
   // 9. COLLECTION
   // ══════════════════════════════════════════════════════════════════════════
+  // ─── COLLECTION BY PARTY (shared by the screen and the PDF) ───────────────
+  // Parties that paid in the period. Current Balance = balance as of the To
+  // date; Old Balance = Current Balance + Collected (the balance before these
+  // collections). Sorted by Old Balance, biggest first.
+  static List<Map> collectionParties(List<Map> retailers) {
+    final list = retailers.where((r) => _d(r, 'collected') > 0).toList();
+    list.sort((a, b) => collectionOldBalance(b).compareTo(collectionOldBalance(a)));
+    return list;
+  }
+
+  static double collectionCurrentBalance(Map r) =>
+      r['closing_balance'] != null ? _d(r, 'closing_balance') : _d(r, 'outstanding');
+
+  static double collectionOldBalance(Map r) =>
+      collectionCurrentBalance(r) + _d(r, 'collected');
+
+  // "cash,upi" → "Cash / UPI"
+  static String collectionModes(Map r) {
+    const labels = {'cash': 'Cash', 'upi': 'UPI', 'bank': 'Bank', 'credit': 'Credit', 'adjustment': 'Adjustment'};
+    final raw = (r['modes'] as String?) ?? '';
+    return raw
+        .split(',')
+        .map((m) => m.trim())
+        .where((m) => m.isNotEmpty)
+        .map((m) => labels[m.toLowerCase()] ?? (m[0].toUpperCase() + m.substring(1)))
+        .join(' / ');
+  }
+
   static void _collectionPdf(pw.Document doc, Map s, Map data,
       String label, String company, DateTime from, DateTime to) {
-    final retailers = _rowList(data['retailers']);
+    final parties   = collectionParties(_rowList(data['retailers']));
     final daily     = _rowList(data['daily']);
+    final oldTotal  = parties.fold<double>(0, (sum, r) => sum + collectionOldBalance(r));
+    final colTotal  = parties.fold<double>(0, (sum, r) => sum + _d(r, 'collected'));
+    final curTotal  = parties.fold<double>(0, (sum, r) => sum + collectionCurrentBalance(r));
     doc.addPage(pw.MultiPage(
         pageFormat: PdfPageFormat.a4,
         margin: const pw.EdgeInsets.all(28),
@@ -1338,10 +1406,9 @@ class ReportPdfGenerator {
         footer: (_) => _footer(),
         build: (_) => [
           _kpiRow([
-            _KpiCell('Billed',      _amt(s,'total_billed'),      _blue),
-            _KpiCell('Collected',   _amt(s,'total_collected'),   _green),
-            _KpiCell('Pending',     _amt(s,'total_pending'),     _orange),
-            _KpiCell('Outstanding', _amt(s,'total_outstanding'), _red),
+            _KpiCell('Old Balance',     Fmt.amount(oldTotal), _blue),
+            _KpiCell('Collected',       Fmt.amount(colTotal), _green),
+            _KpiCell('Current Balance', Fmt.amount(curTotal), _red),
           ]),
           pw.SizedBox(height: 6),
           _kpiRow([
@@ -1350,14 +1417,19 @@ class ReportPdfGenerator {
             _KpiCell('Bank',   _amt(s,'bank'),   _blue),
             _KpiCell('Credit', _amt(s,'credit'), _orange),
           ]),
-          if (retailers.isNotEmpty) ...[
-            _secTitle('COLLECTION BY RETAILER'),
+          if (parties.isNotEmpty) ...[
+            _secTitle('COLLECTION BY PARTY'),
             _table(
-                headers: ['Shop','Phone','Orders','Billed','Collected','Outstanding'],
-                rows: retailers.map((r)=>[
-                  _sh(_str(r,'shop_name'),18),_str(r,'phone'),'${_i(r,"orders")}',
-                  _amt(r,'billed'),_amt(r,'collected'),_amt(r,'outstanding')]).toList(),
-                bold: [5]),
+                headers: ['Party','Old Balance','Collected','Mode','Current Balance'],
+                rows: parties.map((r)=>[
+                  _sh(_str(r,'shop_name'),22),
+                  Fmt.amount(collectionOldBalance(r)),
+                  Fmt.amount(_d(r,'collected')),
+                  collectionModes(r),
+                  Fmt.amount(collectionCurrentBalance(r))]).toList(),
+                totals: ['TOTAL', Fmt.amount(oldTotal), Fmt.amount(colTotal), '', Fmt.amount(curTotal)],
+                bold: [2,4],
+                columnFlex: const [3.0, 1.8, 1.6, 1.4, 1.8]),
           ],
           _secTitle('DAILY COLLECTION'),
           _table(
@@ -1374,13 +1446,13 @@ class ReportPdfGenerator {
     static void _retailerPurchasePdf(pw.Document doc, Map s, Map data,
       String label, String company, DateTime from, DateTime to) {
     final retailers = _rowList(data['retailers']);
-    final daily     = _rowList(data['daily']);
     // Sales-sheet figures. Agent name and purchased kg are attached by the screen.
     final sheet = {
       for (final i in retailerPurchaseSheetSummary(
         agentName: (data['sheet_agent'] as String?) ?? 'All Agents',
         purchasedKg: (data['sheet_purchased_kg'] as num?)?.toDouble(),
         soldKg: retailers.fold<double>(0, (sum, r) => sum + _d(r, 'total_kg')),
+        lossPct: (data['sheet_loss_pct'] as num?)?.toDouble(),
       ))
         i.label: i.value,
     };
@@ -1389,42 +1461,19 @@ class ReportPdfGenerator {
         margin: const pw.EdgeInsets.all(28),
         header: (_) => _sheetHeader(company, sheet['Agent'] ?? 'All Agents', from, to),
         footer: (_) => _footer(),
-        build: (_) => [
-          _kpiRow([
-            _KpiCell('Orders',     '${_i(s,"total_orders")}',           _blue),
-            _KpiCell('Total kg',   '${_f0(s,"total_kg")} kg',           _blue),
-            _KpiCell('Billed',     _amt(s,'total_billed'),              _primary),
-            _KpiCell('Pending',    _amt(s,'total_pending'),             _orange),
-          ]),
-          if (retailers.isNotEmpty) ...[
-            _secTitle('BY RETAILER'),
+        // Same sales-sheet table as the report's own Print/PDF button.
+        build: (_) {
+          final t = retailerPurchasePrintTable(retailers);
+          return [
             _table(
-                headers: ['Shop','Phone','Orders','Total kg','Billed','Collected','Outstanding'],
-                rows: retailers.map((r)=>[
-                  _str(r,'shop_name'),_str(r,'phone'),'${_i(r,"orders")}',
-                  _f0(r,'total_kg'),_amt(r,'billed'),_amt(r,'collected'),_amt(r,'outstanding')]).toList(),
-                totals: [
-                  'TOTAL',
-                  '',
-                  '${retailers.fold<int>(0, (sum, r) => sum + _i(r, "orders"))}',
-                  retailers.fold<double>(0, (sum, r) => sum + _d(r, 'total_kg')).toStringAsFixed(0),
-                  '₹${_fmtAmt(retailers.fold<double>(0, (sum, r) => sum + _d(r, 'billed')))}',
-                  '₹${_fmtAmt(retailers.fold<double>(0, (sum, r) => sum + _d(r, 'collected')))}',
-                  '₹${_fmtAmt(retailers.fold<double>(0, (sum, r) => sum + _d(r, 'outstanding')))}',
-                ],
-                bold: [6]),
-          ],
-          _secTitle('ORDER HISTORY'),
-          _table(
-              headers: ['Date','Shop','kg','Birds','Rate/kg','Billed','Collected'],
-              rows: daily.map((d)=>[
-                _fd(d['order_date']),_sh(_str(d,'shop_name'),14),
-                _f0(d,'kg'),'${_i(d,"birds")}',
-                '₹${_d(d,"rate").toStringAsFixed(2)}',
-                _amt(d,'billed'),_amt(d,'collected')]).toList(),
-              bold: [5]),
-          _sheetTotals(sheet),
-        ]));
+                headers: t.headers,
+                rows: t.rows,
+                totals: t.totals,
+                bold: t.highlightColumns,
+                columnFlex: t.columnFlex),
+            _sheetTotals(sheet),
+          ];
+        }));
   }
 
   // ══════════════════════════════════════════════════════════════════════════

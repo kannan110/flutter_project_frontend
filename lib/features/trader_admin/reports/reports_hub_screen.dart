@@ -173,6 +173,7 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
     // Retailer Purchase sales-sheet: DC-loaded kg (Purchased KGS) for the current
   // dates + agent, from the shrinkage report. null = not available.
   double? _rpPurchasedKg;
+  double? _rpLossPct;
 
   static const _kLedgerMovementTypes = [
     'returned_in','shift_close_return','transferred_out','theft',
@@ -328,8 +329,16 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
       }
       final res = await _c.rpc(rpcName, params: p)
           .timeout(const Duration(seconds: 20));
-      final purchased = _sel.key == 'retailer_purchase' ? await _fetchPurchasedKg(tid) : null;
-      if (mounted) setState(() { _data = res as Map<String,dynamic>?; _rpPurchasedKg = purchased; });
+      final isRp = _sel.key == 'retailer_purchase';
+      final purchased = isRp ? await _fetchPurchasedKg(tid) : null;
+      final lossPct = isRp ? await _fetchShrinkageLossPct(tid) : null;
+      if (mounted) {
+        setState(() {
+          _data = res as Map<String,dynamic>?;
+          _rpPurchasedKg = purchased;
+          _rpLossPct = lossPct;
+        });
+      }
     } catch (e) {
       if (mounted) setState(() => _error = e.toString().replaceAll('Exception:','').trim());
     } finally {
@@ -1241,14 +1250,17 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
   // 9. COLLECTION
   // ═══════════════════════════════════════════════════════════════════════════
   Widget _rCollection() {
-    final s = _s(); final ret = _rows('retailers'); final day = _rows('daily');
+    final s = _s(); final day = _rows('daily');
     final bil=_d(s,'total_billed'); final col=_d(s,'total_collected'); final pen=_d(s,'total_pending');
+    final parties = ReportPdfGenerator.collectionParties(_rows('retailers'));
+    final oldTotal = parties.fold<double>(0, (sum, r) => sum + ReportPdfGenerator.collectionOldBalance(r));
+    final colTotal = parties.fold<double>(0, (sum, r) => sum + _d(r, 'collected'));
+    final curTotal = parties.fold<double>(0, (sum, r) => sum + ReportPdfGenerator.collectionCurrentBalance(r));
     return _scroll([
       _kpiGrid([
-        _kpi('Billed',      Fmt.amount(bil),                                   Colors.blue,   Icons.receipt_outlined),
-        _kpi('Collected',   Fmt.amount(col),                                   Colors.green,  Icons.check_circle_outline),
-        _kpi('Pending',     Fmt.amount(pen),                                   Colors.orange, Icons.pending_outlined),
-        _kpi('Outstanding', Fmt.amount(_d(s,'total_outstanding')),             Colors.red,    Icons.warning_amber_outlined),
+        _kpi('Old Balance',     Fmt.amount(oldTotal), kTextSub,     Icons.history),
+        _kpi('Collected',       Fmt.amount(colTotal), Colors.green, Icons.check_circle_outline),
+        _kpi('Current Balance', Fmt.amount(curTotal), Colors.red,   Icons.account_balance_wallet_outlined),
       ]),
       Container(margin: const EdgeInsets.fromLTRB(12,0,12,8),
           padding: const EdgeInsets.all(14),
@@ -1257,12 +1269,17 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
             _st('Cash', Fmt.amount(_d(s,'cash'))), _st('UPI', Fmt.amount(_d(s,'upi'))),
             _st('Bank', Fmt.amount(_d(s,'bank'))), _st('Credit', Fmt.amount(_d(s,'credit'))),
           ])),
-      if (ret.isNotEmpty) ...[
-        _sec('BY RETAILER'),
-        _tbl(['Shop','Orders','Billed','Collected','Outstanding'],
-            ret.map((r)=>[_sh(_str(r,'shop_name'),14),'${_i(r,"orders")}',
-              Fmt.amount(_d(r,'billed')),Fmt.amount(_d(r,'collected')),Fmt.amount(_d(r,'outstanding'))]).toList(),
-            hi:[4]),
+      if (parties.isNotEmpty) ...[
+        _sec('COLLECTION BY PARTY'),
+        for (final r in parties)
+          _partyCard(
+            _str(r, 'shop_name'),
+            ReportPdfGenerator.collectionOldBalance(r),
+            _d(r, 'collected'),
+            ReportPdfGenerator.collectionCurrentBalance(r),
+            ReportPdfGenerator.collectionModes(r),
+          ),
+        _partyCard('TOTAL', oldTotal, colTotal, curTotal, '', total: true),
       ],
       _sec('DAILY COLLECTION'),
       _tbl(['Date','Billed','Collected','Pending'],
@@ -1270,6 +1287,50 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
           tots:['TOTAL',Fmt.amount(bil),Fmt.amount(col),Fmt.amount(pen)], hi:[1,2,3]),
     ]);
   }
+  // One party in Collection by Party: name, then Old Balance / Collected
+  // (with payment modes) / Current Balance. [total] gives the grey TOTAL card.
+  Widget _partyCard(String name, double oldBal, double collected, double current,
+      String modes, {bool total = false}) {
+    Widget cell(String label, double v, Color c, [String? note]) => Expanded(
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(label, style: const TextStyle(fontSize: 12, color: kTextSub), maxLines: 1),
+        const SizedBox(height: 4),
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.centerLeft,
+          child: Text(Fmt.amount(v),
+              style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: c), maxLines: 1),
+        ),
+        if (note != null && note.isNotEmpty) ...[
+          const SizedBox(height: 2),
+          Text('($note)', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
+        ],
+      ]),
+    );
+    return Container(
+      margin: const EdgeInsets.fromLTRB(kSpMd, 0, kSpMd, kSpSm),
+      padding: const EdgeInsets.all(kSpMd),
+      decoration: BoxDecoration(
+        color: total ? kBorderLight.withValues(alpha: 0.5) : kSurface,
+        borderRadius: BorderRadius.circular(kRadiusCard),
+        border: Border.all(color: kBorderLight),
+        boxShadow: total ? null : kCardShadow,
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(name, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800),
+            maxLines: 2, overflow: TextOverflow.ellipsis),
+        const SizedBox(height: kSpSm),
+        Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          cell('Old Balance', oldBal, kTextMain),
+          const SizedBox(width: kSpSm),
+          cell('Collected', collected, Colors.green.shade700, modes),
+          const SizedBox(width: kSpSm),
+          cell('Current Balance', current, Colors.red.shade700),
+        ]),
+      ]),
+    );
+  }
+
   // ═══ RETAILER PURCHASE: sales-sheet pieces (agent, bold date, totals) ═══
   String get _selectedAgentName {
     if (_agentId == null) return 'All Agents';
@@ -1277,8 +1338,32 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
     return (a['name'] as String?) ?? 'All Agents';
   }
 
-  /// Purchased KGS = DC loaded kg of closed shifts, same dates and same agent as the report.
+  /// Purchased KGS = DC net kg (adjusted when set), same dates and same agent as the report.
   Future<double?> _fetchPurchasedKg(String tid) async {
+    // Read straight from the DCs (by DC date), so open shifts count too. The
+    // agent comes from the DC's batch.
+    try {
+      final res = await _c
+          .rpc(
+            'get_report_data',
+            params: {
+              'p_trader_id': tid,
+              'p_from_date': DateFormat('yyyy-MM-dd').format(_from),
+              'p_to_date': DateFormat('yyyy-MM-dd').format(_to),
+              'p_report': 'shrinkage',
+              if (_agentId != null) 'p_agent_id': _agentId,
+            },
+          )
+          .timeout(const Duration(seconds: 20));
+      final s = ((res as Map?)?['summary'] as Map?) ?? const {};
+      return (s['total_dc_kg'] as num?)?.toDouble();
+    } catch (_) {
+      return null; // report still loads; the block shows "—"
+    }
+  }
+
+  /// Wt. Loss % = the Shrinkage report's average loss % (same dates and agent).
+  Future<double?> _fetchShrinkageLossPct(String tid) async {
     try {
       final res = await _c.rpc('get_report_data', params: {
         'p_trader_id': tid,
@@ -1288,9 +1373,11 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
         if (_agentId != null) 'p_agent_id': _agentId,
       }).timeout(const Duration(seconds: 20));
       final s = ((res as Map?)?['summary'] as Map?) ?? const {};
-      return (s['total_dc_kg'] as num?)?.toDouble();
+      // No closed shifts with a loss summary yet → show "—", not 0 %.
+      if (((s['shift_count'] as num?) ?? 0) == 0) return null;
+      return (s['avg_loss_pct'] as num?)?.toDouble();
     } catch (_) {
-      return null; // report still loads; the block shows "—"
+      return null;
     }
   }
 
@@ -1299,6 +1386,7 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
     agentName: _selectedAgentName,
     purchasedKg: _rpPurchasedKg,
     soldKg: _rows('retailers').fold<double>(0, (sum, r) => sum + _d(r, 'total_kg')),
+    lossPct: _rpLossPct,
   );
 
   // Top block: AGENT (left), DATE in bold (right).
@@ -1357,7 +1445,7 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
         line('BALANCE KGS', v('Balance KGS'), rule: true),
         line('WT LOSS IN %', v('Wt Loss in %'), strong: true),
         const SizedBox(height: 4),
-        const Text('Purchased KGS = DC loaded kg of closed shifts for the selected dates/agent. Sold KGS = total kg of the tables above.',
+        const Text('Purchased KGS = DC net kg for the selected dates/agent. Sold KGS = total kg of the tables above. Wt Loss % = Shrinkage report loss % (closed shifts).',
             style: kTypeCaption),
       ]),
     );
@@ -1378,30 +1466,38 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
       ]),
       if (ret.isNotEmpty) ...[
         _sec('BY RETAILER'),
-        _tbl(['Shop','Phone','Orders','Total kg','Billed','Collected','Outstanding'],
-            ret.map((r)=>[_str(r,'shop_name'),_str(r,'phone'),'${_i(r,"orders")}',
-              (_d(r,"total_kg").toStringAsFixed(0)),Fmt.amount(_d(r,'billed')),
+        _tbl(['Shop','Dc.No','Phone','Orders','Birds','Total kg','Avg Wt','Rate','Billed','Collected','Outstanding'],
+            ret.map((r)=>[_str(r,'shop_name'),(r['doc_nos'] as String?) ?? '',_str(r,'phone'),'${_i(r,"orders")}',
+              '${_i(r,"total_birds")}',(_d(r,"total_kg").toStringAsFixed(0)),
+              _i(r,'total_birds') > 0 ? (_d(r,'total_kg') / _i(r,'total_birds')).toStringAsFixed(3) : '',
+              ReportPdfGenerator.retailerPurchaseRate(r),
+              Fmt.amount(_d(r,'billed')),
               Fmt.amount(_d(r,'collected')),Fmt.amount(_d(r,'outstanding'))]).toList(),
             tots: [
               'TOTAL',
               '',
+              '',
               '${ret.fold<int>(0, (sum, r) => sum + _i(r, "orders"))}',
+              '${ret.fold<int>(0, (sum, r) => sum + _i(r, "total_birds"))}',
               (ret.fold<double>(0, (sum, r) => sum + _d(r, "total_kg")).toStringAsFixed(0)),
+              '',
+              '',
               Fmt.amount(ret.fold<double>(0, (sum, r) => sum + _d(r, 'billed'))),
               Fmt.amount(ret.fold<double>(0, (sum, r) => sum + _d(r, 'collected'))),
               Fmt.amount(ret.fold<double>(0, (sum, r) => sum + _d(r, 'outstanding'))),
             ],
-            hi:[6]),
+            hi:[10],
+            // Print/PDF: the sales sheet (agent, bold date, totals block) with
+            // its own columns: S.No, Dc.No, Shop, Birds, Kgs, Rate, Amount, Remarks.
+            summary: sheet,
+            printVersion: ReportPdfGenerator.retailerPurchasePrintTable(ret)),
       ],
       _sec('ORDER HISTORY'),
       _tbl(['Date','Shop','kg','Birds','Rate','Billed','Collected'],
           day.map((d)=>[_fd(d['order_date']),_sh(_str(d,'shop_name'),10),
             (_d(d,"kg").toStringAsFixed(0)),'${_i(d,"birds")}',
             (_d(d,"rate").toStringAsFixed(2)),Fmt.amount(_d(d,'billed')),Fmt.amount(_d(d,'collected'))]).toList(),
-          hi:[5],
-          // carries the sales-sheet figures so this table's PDF / Print / Share
-          // prints the reference layout (agent, bold date, totals block)
-          summary: sheet),
+          hi:[5]),
       _rpSheetTotals(sheet),
     ]);
   }
@@ -1625,6 +1721,7 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
     // default off, so every existing call site's PDF is unaffected.
     bool landscape = false,
     List<double>? columnFlex,
+    ReportDataSet? printVersion,
   }) {
     final user = ref.read(appUserProvider).valueOrNull;
     final company = user?.companyName ?? 'Rooster';
@@ -1644,6 +1741,7 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
       summary: summary,
       landscape: landscape,
       columnFlex: columnFlex,
+      printVersion: printVersion,
       // useBrandedFooter left at its default (false) — the Table/Toolbar
       // PDF always gets the plain footer; only the Header PDF (built
       // separately in report_pdf_generator.dart's _customerLedgerDataSet)
@@ -1684,7 +1782,7 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
             if (_sel.key == 'retailer_purchase') {
         await ReportPdfGenerator.generateAndShow(
           context:     context,
-          reportData:  {..._data!, 'sheet_agent': _selectedAgentName, 'sheet_purchased_kg': _rpPurchasedKg},
+          reportData:  {..._data!, 'sheet_agent': _selectedAgentName, 'sheet_purchased_kg': _rpPurchasedKg, 'sheet_loss_pct': _rpLossPct},
           reportLabel: _sel.label,
           companyName: company,
           fromDate:    _from,

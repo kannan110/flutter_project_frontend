@@ -157,6 +157,11 @@ class ReportDataSet {
   /// (optimized for monochrome laser printing). See ReportPrintStyle above.
   final ReportPrintStyle printStyle;
 
+  /// When set, the PDF / Print / Share output uses this table (headers,
+  /// rows, totals, widths) instead of the on-screen one, e.g. Retailer
+  /// Purchase prints a sales sheet with fewer columns than the screen.
+  final ReportDataSet? printVersion;
+
   const ReportDataSet({
     required this.title,
     required this.headers,
@@ -175,6 +180,7 @@ class ReportDataSet {
     this.landscape = false,
     this.columnFlex,
     this.printStyle = ReportPrintStyle.color,
+    this.printVersion,
   });
 
   int get columnCount => headers.length;
@@ -207,6 +213,7 @@ class ReportDataSet {
     landscape: landscape,
     columnFlex: columnFlex,
     printStyle: printStyle ?? this.printStyle,
+    printVersion: printVersion,
   );
 
   /// Returns a copy with rows reordered — used by ReportTable column sort.
@@ -244,6 +251,7 @@ class ReportDataSet {
       landscape: landscape,
       columnFlex: columnFlex,
       printStyle: printStyle,
+      printVersion: printVersion,
     );
   }
 
