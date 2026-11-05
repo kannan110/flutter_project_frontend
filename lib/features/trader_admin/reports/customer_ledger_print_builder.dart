@@ -859,8 +859,8 @@ class CustomerLedgerPrintBuilder {
   // half can never overflow its slot. On Full Sheet the header row repeats on
   // every page.
   //
-  // Opening Balance, TOTAL and Closing Balance rows are bold, with their
-  // numbers bigger than every other cell.
+  // Opening Balance, TOTAL and Closing Balance rows are bold, at the same
+  // size as every other cell.
   static pw.Widget _ledgerTable(
       List<String> headers,
       List<List<String>> data,
@@ -880,15 +880,39 @@ class CustomerLedgerPrintBuilder {
       pw.Alignment.centerRight,
     ];
     final ink = bw ? PdfColors.black : _dark;
+
+    // One font scale for the whole table. If the widest text in any column
+    // wouldn't fit its width at the normal size, every cell (and the header)
+    // shrinks by the same amount, so all cells stay the same size instead of
+    // only the long ones shrinking. Details is counted up to its width cap;
+    // a longer remark still shrinks on its own.
+    final cleanRows = [for (final r in data) _halfCleanRow(r)];
+    final flex = [
+      for (var c = 0; c < aligns.length; c++)
+        (widths[c] is pw.FlexColumnWidth) ? (widths[c] as pw.FlexColumnWidth).flex : 1.0,
+    ];
+    final flexSum = flex.fold<double>(0, (a, b) => a + b);
+    const tableW = 595.28 - 48; // A4 width minus the 24pt side margins (Full and Half)
+    const charW = 0.5;          // average glyph width per point of font size (Roboto digits/₹/commas)
+    var scale = 1.0;
+    for (var c = 0; c < aligns.length; c++) {
+      var chars = c < headers.length ? headers[c].length * size.tableHeaderFontSize / size.tableCellFontSize : 0.0;
+      for (final r in cleanRows) {
+        if (c < r.length && r[c].length > chars) chars = r[c].length.toDouble();
+      }
+      if (c == _detailsCol && chars > 28) chars = 28;
+      if (chars == 0) continue;
+      final room = tableW * flex[c] / flexSum - 2 * size.cellPaddingH;
+      final need = chars * charW * size.tableCellFontSize;
+      if (need > room) scale = (room / need) < scale ? room / need : scale;
+    }
+
     final headStyle = pw.TextStyle(
-        fontSize: size.tableHeaderFontSize, fontWeight: pw.FontWeight.bold,
+        fontSize: size.tableHeaderFontSize * scale, fontWeight: pw.FontWeight.bold,
         color: bw ? PdfColors.black : PdfColors.white);
-    final cellStyle = pw.TextStyle(fontSize: size.tableCellFontSize, color: ink);
+    final cellStyle = pw.TextStyle(fontSize: size.tableCellFontSize * scale, color: ink);
     final boldStyle = pw.TextStyle(
-        fontSize: size.tableCellFontSize, fontWeight: pw.FontWeight.bold, color: ink);
-    final bigStyle = pw.TextStyle(
-        fontSize: size.tableCellFontSize + 2.5, // bigger than every other cell
-        fontWeight: pw.FontWeight.bold, color: ink);
+        fontSize: size.tableCellFontSize * scale, fontWeight: pw.FontWeight.bold, color: ink);
     final rowH = size.isHalf ? _halfRowH : _fullRowH;
 
     pw.Widget cell(String text, int col, pw.TextStyle style) {
@@ -931,9 +955,9 @@ class CustomerLedgerPrintBuilder {
 
     pw.TableRow bodyRow(List<String> raw) {
       final r = _halfCleanRow(raw);
-      // Opening, TOTAL and Closing rows: label bold, numbers big + bold
+      // Opening, TOTAL and Closing rows: bold, same size as every other cell
       if (isOpening(r) || isSummary(r) || isClosing(r)) {
-        return row(r, (c) => c > _detailsCol ? bigStyle : boldStyle);
+        return row(r, (_) => boldStyle);
       }
       return row(r, (_) => cellStyle);
     }
