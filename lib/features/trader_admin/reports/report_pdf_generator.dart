@@ -427,9 +427,10 @@ class ReportPdfGenerator {
                 final i = (dataSet.printVersion ?? dataSet).headers.indexOf('Date');
                 return i < 0 ? null : i;
               }(),
-              // Print versions (e.g. the Retailer Purchase sales sheet) are
-              // one line per row: cells shrink to fit instead of wrapping.
-              singleLine: dataSet.printVersion != null,
+              // Print versions (e.g. the Retailer Purchase sales sheet) and
+              // the Customer Ledger are one line per row: cells shrink to
+              // fit instead of wrapping.
+              singleLine: dataSet.printVersion != null || dataSet.customerLedgerData != null,
             ),
                       if (sheet != null) _sheetTotals(sheet, bw: bw),
         ]));
@@ -689,7 +690,9 @@ class ReportPdfGenerator {
       rows: [for (final r in t.rows) r.sublist(1)],
       totals: t.totals.sublist(1),
       highlightColumns: const [CustomerLedgerTableData.balanceColumn - 1],
-      columnFlex: t.columnFlex.sublist(1),
+      // +2 per column for cell padding, so short columns (Kgs, Rate,
+      // Birds) get enough room for their numbers on one line.
+      columnFlex: [for (final f in t.columnFlex.sublist(1)) f + 2],
       fromDate: fromDate,
       toDate: toDate,
       customerIdentity: CustomerReportIdentity(
