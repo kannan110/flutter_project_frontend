@@ -1389,11 +1389,11 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
         if (_agentId != null) 'p_agent_id': _agentId,
       }).timeout(const Duration(seconds: 20));
       final s = ((res as Map?)?['summary'] as Map?) ?? const {};
-      // No closed shifts with a loss summary yet → show "—", not 0 %.
-      if (((s['shift_count'] as num?) ?? 0) == 0) return null;
-      return (s['avg_loss_pct'] as num?)?.toDouble();
+      // Exactly the Shrinkage report's Avg Loss % (0 when it has no closed
+      // shifts for these dates, as on the Shrinkage screen).
+      return (s['avg_loss_pct'] as num?)?.toDouble() ?? 0;
     } catch (_) {
-      return null;
+      return null; // couldn't load → "—"
     }
   }
 
