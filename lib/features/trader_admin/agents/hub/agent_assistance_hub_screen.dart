@@ -1723,37 +1723,36 @@ class _AgentAssistanceHubScreenState
             ...List.generate(_timeline.length, (i) {
               final event = _timeline[i];
               final isLast = i == _timeline.length - 1;
-              return IntrinsicHeight(
-                child: Row(
+              // The spine line is drawn behind the row (Stack) rather than
+              // stretched with IntrinsicHeight, whose height estimate can be
+              // ~1px short of the laid-out text on web and overflow.
+              return Stack(
+                children: [
+                  if (!isLast)
+                    Positioned(
+                      left: 15.5, top: 30, bottom: 2,
+                      child: Container(width: 1, color: kBorderLight),
+                    ),
+                  Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Timeline spine
+                    // Timeline spine (dot; the line is in the Stack above)
                     SizedBox(
                       width: 32,
-                      child: Column(
-                        children: [
-                          Container(
-                            width: 28,
-                            height: 28,
-                            decoration: BoxDecoration(
-                              color: event.color.withValues(alpha: 0.12),
-                              shape: BoxShape.circle,
-                              border: Border.all(
-                                  color: event.color.withValues(alpha: 0.4)),
-                            ),
-                            child: Icon(event.icon,
-                                size: 14, color: event.color),
+                      child: Align(
+                        alignment: Alignment.topCenter,
+                        child: Container(
+                          width: 28,
+                          height: 28,
+                          decoration: BoxDecoration(
+                            color: event.color.withValues(alpha: 0.12),
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                                color: event.color.withValues(alpha: 0.4)),
                           ),
-                          if (!isLast)
-                            Expanded(
-                              child: Container(
-                                width: 1,
-                                margin:
-                                const EdgeInsets.symmetric(vertical: 2),
-                                color: kBorderLight,
-                              ),
-                            ),
-                        ],
+                          child: Icon(event.icon,
+                              size: 14, color: event.color),
+                        ),
                       ),
                     ),
                     const SizedBox(width: 10),
@@ -1814,7 +1813,8 @@ class _AgentAssistanceHubScreenState
                       ),
                     ),
                   ],
-                ),
+                  ),
+                ],
               );
             }),
         ],
