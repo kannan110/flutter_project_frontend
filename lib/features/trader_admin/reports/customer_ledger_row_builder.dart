@@ -89,6 +89,9 @@ class LedgerPrintRow {
 class CustomerLedgerRowBuilder {
   const CustomerLedgerRowBuilder._();
 
+  /// Shown after the item in Details for a sale made from the Stock Point.
+  static const String stockPointLabel = 'Stock Point';
+
   static String typeLabel(String sourceType) => switch (sourceType) {
     'invoice' => 'Sale',
     'return' => 'Return',
@@ -137,6 +140,10 @@ class CustomerLedgerRowBuilder {
       final orderRemarks = (r['order_remarks'] as String?)?.trim();
       String withRemarks(String base) =>
           (orderRemarks == null || orderRemarks.isEmpty) ? base : '$base  ·  Remarks: $orderRemarks';
+      // Stock Point sale (orders.source = 'in_house', via get_retailer_
+      // statement's order_source): every line of it says so in Details.
+      final isStockPoint = (r['order_source'] as String?) == 'in_house';
+      String withSource(String base) => isStockPoint ? '$base · $stockPointLabel' : base;
 
       final rateBreakdown = (r['rate_breakdown'] as List?)
           ?.map((e) => (e as Map).cast<String, dynamic>())
@@ -161,7 +168,9 @@ class CustomerLedgerRowBuilder {
             manualDocNo: i == 0 ? manualDocNo : null,
             refNo: i == 0 ? refNumber : null,
             type: i == 0 ? typeLabel(sourceType) : null,
-            description: i == 0 ? withRemarks((line['product_name'] as String?) ?? '—') : (line['product_name'] as String?) ?? '—',
+            description: i == 0
+                ? withRemarks(withSource((line['product_name'] as String?) ?? '—'))
+                : withSource((line['product_name'] as String?) ?? '—'),
             product: line['product_name'] as String?,
             sourceDate: entryDateStr,
             sourceDocNo: docNo,
@@ -188,7 +197,7 @@ class CustomerLedgerRowBuilder {
           manualDocNo: manualDocNo,
           refNo: refNumber,
           type: typeLabel(sourceType),
-          description: withRemarks(description.isEmpty ? 'Sale' : description),
+          description: withRemarks(withSource(description.isEmpty ? 'Sale' : description)),
           sourceDate: entryDateStr,
           sourceDocNo: docNo,
           sourceManualDocNo: manualDocNo,
