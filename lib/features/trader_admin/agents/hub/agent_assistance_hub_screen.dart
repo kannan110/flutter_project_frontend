@@ -736,22 +736,22 @@ class _AgentAssistanceHubScreenState
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // No fixed colours: white on the mobile navy bar, dark on the
+            // web page header (AppScaffold), so both stay readable.
             Text(
               widget.agentName,
-              style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w900,
-                  color: Colors.white),
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
             ),
-            const Text(
-              'Agent Assistance Hub',
-              style: TextStyle(fontSize: 11, color: Color(0xFFB4C6F4)),
+            const Opacity(
+              opacity: 0.75,
+              child: Text('Agent Assistance Hub', style: TextStyle(fontSize: 11)),
             ),
           ],
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.refresh_rounded, color: Colors.white),
+            icon: const Icon(Icons.refresh_rounded),
+            tooltip: 'Refresh',
             onPressed: _load,
           ),
         ],

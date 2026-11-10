@@ -199,7 +199,8 @@ class _WebAppBarHeader extends StatelessWidget {
         )),
         if (bar.actions != null && bar.actions!.isNotEmpty)
           IconTheme.merge(
-            data: const IconThemeData(color: WebColors.text2, size: 20),
+            // Brand navy, so header actions (Refresh, Add, …) stand out.
+            data: const IconThemeData(color: WebColors.navy, size: 20),
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
               decoration: BoxDecoration(

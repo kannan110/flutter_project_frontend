@@ -230,12 +230,12 @@ class _DailyStockScreenState extends ConsumerState<DailyStockScreen> {
             )
           else
             IconButton(
-              icon: const Icon(Icons.camera_alt_outlined, color: Colors.white),
+              icon: const Icon(Icons.camera_alt_outlined),
               tooltip: 'Snap Today',
               onPressed: () => _snapDate(DateTime.now()),
             ),
           IconButton(
-            icon: const Icon(Icons.refresh_rounded, color: Colors.white),
+            icon: const Icon(Icons.refresh_rounded),
             onPressed: _loading ? null : _load,
           ),
         ],

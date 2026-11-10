@@ -179,7 +179,7 @@ class _ExpenseRulesScreenState extends ConsumerState<ExpenseRulesScreen> {
         actions: [
           if (_availableTypes.isNotEmpty)
             IconButton(
-              icon: const Icon(Icons.add_rounded, color: Colors.white),
+              icon: const Icon(Icons.add_rounded),
               tooltip: 'Add Rule',
               onPressed: () => _openEditor(),
             ),
