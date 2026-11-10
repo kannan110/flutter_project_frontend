@@ -1524,20 +1524,19 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
     // Read straight from the DCs (by DC date), so open shifts count too. The
     // agent comes from the DC's batch.
     try {
-      final res = await _c
-          .rpc(
-            'get_report_data',
-            params: {
-              'p_trader_id': tid,
-              'p_from_date': DateFormat('yyyy-MM-dd').format(_from),
-              'p_to_date': DateFormat('yyyy-MM-dd').format(_to),
-              'p_report': 'shrinkage',
-              if (_agentId != null) 'p_agent_id': _agentId,
-            },
-          )
-          .timeout(const Duration(seconds: 20));
-      final s = ((res as Map?)?['summary'] as Map?) ?? const {};
-      return (s['total_dc_kg'] as num?)?.toDouble();
+      var q = _c
+          .from('delivery_challans')
+          .select('net_weight,dc_adjusted_weight,delivery_batches!inner(delivery_agent_id)')
+          .eq('trader_id', tid)
+          .gte('dc_date', DateFormat('yyyy-MM-dd').format(_from))
+          .lte('dc_date', DateFormat('yyyy-MM-dd').format(_to));
+      if (_agentId != null) q = q.eq('delivery_batches.delivery_agent_id', _agentId!);
+      final rows = await q.timeout(const Duration(seconds: 20));
+      return (rows as List).fold<double>(0, (sum, r) {
+        final m = r as Map;
+        final kg = (m['dc_adjusted_weight'] as num?) ?? (m['net_weight'] as num?) ?? 0;
+        return sum + kg.toDouble();
+      });
     } catch (_) {
       return null; // report still loads; the block shows "—"
     }
