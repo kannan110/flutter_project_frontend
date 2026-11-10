@@ -80,7 +80,7 @@ class _S extends ConsumerState<SupervisorRetailersScreen> {
               margin: const EdgeInsets.only(bottom: 10),
               decoration: BoxDecoration(color: kSurface, borderRadius: BorderRadius.circular(kRadiusCard),
                   border: Border.all(color: kBorderLight), boxShadow: kCardShadow),
-              child: ListTile(
+              child: Material(type: MaterialType.transparency, child: ListTile(
                 contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
                 leading: CircleAvatar(backgroundColor: kNavy.withValues(alpha: 0.08),
                     child: Text(
@@ -99,7 +99,7 @@ class _S extends ConsumerState<SupervisorRetailersScreen> {
                     context.push(R.supervisorLedgerPath(r['id'] as String));
                   }
                 },
-              ),
+              )),
             );
           }),
         ]),

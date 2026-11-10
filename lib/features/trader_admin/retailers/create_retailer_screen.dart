@@ -730,7 +730,7 @@ class _S extends ConsumerState<CreateRetailerScreen> {
                     final z = filtered[i];
                     final zid = z['id'] as String;
                     final isSelected = zid == _selectedZoneId;
-                    return ListTile(
+                    return Material(type: MaterialType.transparency, child: ListTile(
                       dense: true,
                       leading: Icon(
                         isSelected
@@ -762,7 +762,7 @@ class _S extends ConsumerState<CreateRetailerScreen> {
                         });
                         Navigator.of(ctx).pop();
                       },
-                    );
+                    ));
                   },
                 );
               }),
@@ -1100,7 +1100,7 @@ class _S extends ConsumerState<CreateRetailerScreen> {
                     final a = filtered[i];
                     final aid = a['id'] as String;
                     final isSelected = aid == _selectedAreaId;
-                    return ListTile(
+                    return Material(type: MaterialType.transparency, child: ListTile(
                       dense: true,
                       leading: Icon(
                         isSelected
@@ -1132,7 +1132,7 @@ class _S extends ConsumerState<CreateRetailerScreen> {
                         });
                         Navigator.of(ctx).pop();
                       },
-                    );
+                    ));
                   },
                 );
               }),

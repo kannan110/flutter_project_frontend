@@ -1076,7 +1076,7 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
                                   ? Colors.orange.shade400
                                   : Colors.green.shade300,
                               width: 1.5)),
-                      child: SwitchListTile(
+                      child: Material(type: MaterialType.transparency, child: SwitchListTile(
                         value: _isPartial,
                         onChanged: (v) => setState(() {
                           _isPartial = v;
@@ -1112,7 +1112,7 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
                                 color: _isPartial
                                     ? Colors.orange.shade700
                                     : Colors.green.shade700)),
-                      )),
+                      ))),
 
                   if (_isPartial)
                     Container(

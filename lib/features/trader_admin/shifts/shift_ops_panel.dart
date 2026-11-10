@@ -788,7 +788,7 @@ class _CloseShiftTileState
           borderRadius: BorderRadius.circular(10),
           border: Border.all(color: kBorderLight)),
       child: Column(children: [
-        ListTile(
+        Material(type: MaterialType.transparency, child: ListTile(
           leading: Container(
             width: 36,
             height: 36,
@@ -812,7 +812,7 @@ class _CloseShiftTileState
               color: kTextHint),
           onTap: () => setState(() => _expanded = !_expanded),
           dense: true,
-        ),
+        )),
         if (_expanded)
           Padding(
             padding:
@@ -1004,7 +1004,7 @@ class _AddExpenseTileState
           borderRadius: BorderRadius.circular(10),
           border: Border.all(color: kBorderLight)),
       child: Column(children: [
-        ListTile(
+        Material(type: MaterialType.transparency, child: ListTile(
           leading: Container(
             width: 36,
             height: 36,
@@ -1029,7 +1029,7 @@ class _AddExpenseTileState
               color: kTextHint),
           onTap: () => setState(() => _expanded = !_expanded),
           dense: true,
-        ),
+        )),
         if (_expanded)
           Padding(
             padding:

@@ -1102,7 +1102,7 @@ class _ShiftVerificationScreenState
                             ? Colors.orange.shade300 : kBorderLight,
                       ),
                     ),
-                    child: SwitchListTile(
+                    child: Material(type: MaterialType.transparency, child: SwitchListTile(
                       value: _hasDiscrepancy[id] ?? false,
                       onChanged: (v) =>
                           setState(() => _hasDiscrepancy[id] = v),
@@ -1129,7 +1129,7 @@ class _ShiftVerificationScreenState
                             : 'Agent figures look correct',
                         style: const TextStyle(fontSize: 11),
                       ),
-                    ),
+                    )),
                   ),
                   const SizedBox(height: 14),
 

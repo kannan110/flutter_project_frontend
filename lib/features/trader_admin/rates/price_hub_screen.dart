@@ -1290,7 +1290,7 @@ class _ProductsTabState extends ConsumerState<_ProductsTab> {
                   children: (grouped[cat] ?? []).map((p) {
                     final enabled = p['is_enabled'] as bool? ?? false;
                     final isVariant = p['is_variant'] as bool? ?? false;
-                    return ListTile(
+                    return Material(type: MaterialType.transparency, child: ListTile(
                       contentPadding: EdgeInsets.symmetric(
                           horizontal: 16, vertical: isVariant ? 4 : 8),
                       leading: Container(
@@ -1327,7 +1327,7 @@ class _ProductsTabState extends ConsumerState<_ProductsTab> {
                           value: enabled,
                           activeColor: kNavy,
                           onChanged: (_) => _toggle(p)),
-                    );
+                    ));
                   }).toList()),
             ),
             const SizedBox(height: 8),
