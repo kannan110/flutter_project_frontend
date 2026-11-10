@@ -387,6 +387,12 @@ class ReportPdfGenerator {
               // the Customer Ledger are one line per row: cells shrink to
               // fit instead of wrapping.
               singleLine: dataSet.printVersion != null || dataSet.customerLedgerData != null,
+              // Customer Ledger: Details wraps onto up to 3 lines instead.
+              wrapColumn: () {
+                if (dataSet.customerLedgerData == null) return null;
+                final i = (dataSet.printVersion ?? dataSet).headers.indexOf('Details');
+                return i < 0 ? null : i;
+              }(),
             ),
                       if (sheet != null) _sheetTotals(sheet, bw: bw),
         ]));
@@ -850,6 +856,7 @@ class ReportPdfGenerator {
     ReportPrintStyle style = ReportPrintStyle.color,
     int? serialContinuationColumn,
     bool singleLine = false,
+    int? wrapColumn,
   }) {
     final serials = reportSerialNumbers(rows, continuationColumn: serialContinuationColumn);
     return _tableWithSerial(
@@ -862,6 +869,7 @@ class ReportPdfGenerator {
       columnFlex: columnFlex,
       style: style,
       singleLine: singleLine,
+      wrapColumn: wrapColumn == null ? null : wrapColumn + 1,
     );
   }
 
@@ -886,6 +894,9 @@ class ReportPdfGenerator {
     // Keep every cell on one line: text too wide for its column shrinks
     // instead of wrapping. Off by default, so other reports are unchanged.
     bool singleLine = false,
+    // With [singleLine]: this one column (e.g. Details) may wrap onto up
+    // to 3 lines instead of shrinking. Index includes S.No at 0.
+    int? wrapColumn,
   }) {
     final bw = style == ReportPrintStyle.blackAndWhite;
 
@@ -907,7 +918,9 @@ class ReportPdfGenerator {
     // text that is too wide instead of wrapping it. Empty cells skip
     // FittedBox (a zero-width child trips the pdf package's `width > 0`
     // assertion).
-    pw.Widget fitCell(String cell, pw.Widget text) => !singleLine
+    // [wrap] = the wrapColumn's body cells: those wrap onto up to 3 lines
+    // instead (their Text carries maxLines), and the row grows to fit.
+    pw.Widget fitCell(String cell, bool wrap, pw.Widget text) => (!singleLine || wrap)
         ? text
         : pw.SizedBox(
             height: bodyFs * 1.4,
@@ -976,7 +989,7 @@ class ReportPdfGenerator {
                       ? const pw.BoxDecoration(
                       border: pw.Border(top: pw.BorderSide(color: _dark, width: 1.2)))
                       : null),
-                  child: fitCell(cell, pw.Text(cell,
+                  child: fitCell(cell, false, pw.Text(cell,
                       textAlign: bw && looksNumeric(cell) ? pw.TextAlign.right : null,
                       style: pw.TextStyle(
                           fontSize: isHeader ? headFs : bodyFs,
@@ -1018,7 +1031,8 @@ class ReportPdfGenerator {
                               border: pw.Border.symmetric(
                                   horizontal: pw.BorderSide(color: PdfColors.black, width: 1.2)))
                               : null,
-                          child: fitCell(cell, pw.Text(cell,
+                          child: fitCell(cell, ci == wrapColumn, pw.Text(cell,
+                              maxLines: ci == wrapColumn ? 3 : null,
                               textAlign: bw && looksNumeric(cell) ? pw.TextAlign.right : null,
                               style: pw.TextStyle(
                                   fontSize: bodyFs,
