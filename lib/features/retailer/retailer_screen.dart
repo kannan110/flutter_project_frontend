@@ -8,6 +8,7 @@ import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../shared/widgets/tables/scrollable_table_wrapper.dart';
 import 'retailer_invoice_detail_screen.dart';
+import 'package:rooster_trader/core/util/number_input.dart';
 
 class RetailerScreen extends ConsumerStatefulWidget {
   const RetailerScreen({super.key});
@@ -949,6 +950,7 @@ if (_ledgerData?['opening_balance'] == null && rows.isNotEmpty) {
                   ]),
                   const SizedBox(height: 10),
                   TextField(controller: qtyCtrl,
+                      inputFormatters: kgInputFormatters,
                       keyboardType: const TextInputType.numberWithOptions(decimal: true),
                       decoration: InputDecoration(
                           labelText: mode == 'kg' ? 'Quantity (kg) *' : 'Number of Birds *',
@@ -1267,6 +1269,7 @@ if (_ledgerData?['opening_balance'] == null && rows.isNotEmpty) {
                                       color: mode == m ? Colors.white : kTextSub)))))).toList()),
                   const SizedBox(height: 12),
                   TextField(controller: amtCtrl,
+                      inputFormatters: moneyInputFormatters,
                       keyboardType: const TextInputType.numberWithOptions(decimal: true),
                       onTap: () {
                         if (amtCtrl.text.isEmpty && due > 0) {
@@ -1346,6 +1349,7 @@ if (_ledgerData?['opening_balance'] == null && rows.isNotEmpty) {
                           hintText: 'Describe the issue...')),
                   const SizedBox(height: 8),
                   TextField(controller: amtCtrl,
+                      inputFormatters: moneyInputFormatters,
                       keyboardType: const TextInputType.numberWithOptions(decimal: true),
                       decoration: const InputDecoration(labelText: 'Claim Amount (optional)',
                           prefixText: 'Rs.')),

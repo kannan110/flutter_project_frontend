@@ -22,6 +22,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/providers/session_provider.dart';
 import '../../../core/theme/app_theme.dart';
 import 'package:rooster_trader/shared/widgets/web/app_scaffold.dart';
+import 'package:rooster_trader/core/util/number_input.dart';
 
 class StockPointEffectiveCostScreen extends ConsumerStatefulWidget {
   const StockPointEffectiveCostScreen({
@@ -270,6 +271,7 @@ class _StockPointEffectiveCostScreenState extends ConsumerState<StockPointEffect
             ),
           TextField(
             controller: _costCtrl,
+            inputFormatters: moneyInputFormatters,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
             decoration: InputDecoration(
               labelText: 'Cost per kg (₹)',

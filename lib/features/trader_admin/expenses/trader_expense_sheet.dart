@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/providers/session_provider.dart';
 import '../../../core/theme/app_theme.dart';
+import 'package:rooster_trader/core/util/number_input.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // SHARED DELETE FLOW — used by both the Recent Expenses list and the View
@@ -365,6 +366,7 @@ class _TraderExpenseSheetState extends ConsumerState<_TraderExpenseSheet> {
                 Row(children: [
                   Expanded(child: TextField(
                     controller: _amtCtrl,
+                    inputFormatters: moneyInputFormatters,
                     keyboardType: const TextInputType.numberWithOptions(decimal: true),
                     decoration: InputDecoration(
                       labelText: 'Amount (₹)',
@@ -746,6 +748,7 @@ class _EditExpenseSheetState extends ConsumerState<_EditExpenseSheet> {
 
               TextField(
                 controller: _amtCtrl,
+                inputFormatters: moneyInputFormatters,
                 keyboardType: const TextInputType.numberWithOptions(decimal: true),
                 decoration: InputDecoration(
                   labelText: 'Amount (₹)',

@@ -8,6 +8,7 @@ import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../shared/layouts/responsive_layout.dart';
 import 'package:rooster_trader/shared/widgets/web/app_scaffold.dart';
+import 'package:rooster_trader/core/util/number_input.dart';
 
 // ══════════════════════════════════════════════════════════════════════════
 // INVOICE CORRECTION SCREEN
@@ -536,6 +537,7 @@ class _S extends ConsumerState<InvoiceCorrectionScreen> {
           Expanded(
             child: TextField(
               controller: l.weightCtrl,
+              inputFormatters: kgInputFormatters,
               keyboardType: const TextInputType.numberWithOptions(decimal: true),
               decoration: const InputDecoration(
                   labelText: 'Weight (kg)', border: OutlineInputBorder(), isDense: true),
@@ -546,6 +548,7 @@ class _S extends ConsumerState<InvoiceCorrectionScreen> {
           Expanded(
             child: TextField(
               controller: l.birdsCtrl,
+              inputFormatters: birdsInputFormatters,
               keyboardType: TextInputType.number,
               decoration: const InputDecoration(
                   labelText: 'Bird Count', border: OutlineInputBorder(), isDense: true),
@@ -556,6 +559,7 @@ class _S extends ConsumerState<InvoiceCorrectionScreen> {
         const SizedBox(height: 8),
         TextField(
           controller: l.rateCtrl,
+          inputFormatters: moneyInputFormatters,
           keyboardType: const TextInputType.numberWithOptions(decimal: true),
           decoration: const InputDecoration(
               labelText: 'Rate (₹/kg)', border: OutlineInputBorder(), isDense: true),

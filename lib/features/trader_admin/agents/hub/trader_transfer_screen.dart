@@ -6,6 +6,7 @@ import '../../../../core/providers/session_provider.dart';
 import '../../../../core/theme/app_theme.dart';
 import 'entry_mode_selector.dart';
 import 'package:rooster_trader/shared/widgets/web/app_scaffold.dart';
+import 'package:rooster_trader/core/util/number_input.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TRADER TRANSFER SCREEN
@@ -560,6 +561,7 @@ class _TraderTransferScreenState
             Expanded(
               child: TextField(
                 controller: _birdsCtrl,
+                inputFormatters: birdsInputFormatters,
                 keyboardType: TextInputType.number,
                 decoration: const InputDecoration(
                     labelText: 'Birds *', suffixText: 'birds'),
@@ -569,6 +571,7 @@ class _TraderTransferScreenState
             Expanded(
               child: TextField(
                 controller: _weightCtrl,
+                inputFormatters: kgInputFormatters,
                 keyboardType: const TextInputType.numberWithOptions(
                     decimal: true),
                 decoration: const InputDecoration(

@@ -7,6 +7,7 @@ import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../shared/layouts/responsive_layout.dart';
 import '../../../shared/widgets/web/web.dart';
+import 'package:rooster_trader/core/util/number_input.dart';
 
 class DayClosureScreen extends ConsumerStatefulWidget {
   const DayClosureScreen({super.key});
@@ -76,12 +77,12 @@ class _S extends ConsumerState<DayClosureScreen> {
           TextField(controller: odoCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'End odometer (km)', suffixText: 'km')),
           const SizedBox(height: 8),
           Row(children: [
-            Expanded(child: TextField(controller: birdsCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Unsold birds'))),
+            Expanded(child: TextField(controller: birdsCtrl, inputFormatters: birdsInputFormatters, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Unsold birds'))),
             const SizedBox(width: 8),
-            Expanded(child: TextField(controller: weightCtrl, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'Unsold kg'))),
+            Expanded(child: TextField(controller: weightCtrl, inputFormatters: kgInputFormatters, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'Unsold kg'))),
           ]),
           const SizedBox(height: 8),
-          TextField(controller: expCtrl, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'Expenses (₹)', prefixText: '₹')),
+          TextField(controller: expCtrl, inputFormatters: moneyInputFormatters, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'Expenses (₹)', prefixText: '₹')),
         ])),
         actions: [
           TextButton(onPressed: () => Navigator.of(ctx, rootNavigator: true).pop(false), child: const Text('Cancel')),

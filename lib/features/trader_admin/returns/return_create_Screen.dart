@@ -6,6 +6,7 @@ import '../../../core/providers/session_provider.dart';
 import '../../../core/theme/app_theme.dart' hide AppSearchBar;
 import '../../../shared/widgets/filters/search_bar.dart';
 import 'package:rooster_trader/shared/widgets/web/app_scaffold.dart';
+import 'package:rooster_trader/core/util/number_input.dart';
 
 // ══════════════════════════════════════════════════════════════════════════
 // RETURN CREATE SCREEN — real trader workflow:
@@ -527,6 +528,7 @@ class _S extends ConsumerState<ReturnCreateScreen> {
           Expanded(
             child: TextField(
               controller: _weightCtrls[i],
+              inputFormatters: kgInputFormatters,
               keyboardType: const TextInputType.numberWithOptions(decimal: true),
               decoration: const InputDecoration(
                   labelText: 'Return Weight (kg) *', border: OutlineInputBorder(), isDense: true),
@@ -536,6 +538,7 @@ class _S extends ConsumerState<ReturnCreateScreen> {
           Expanded(
             child: TextField(
               controller: _birdCtrls[i],
+              inputFormatters: birdsInputFormatters,
               keyboardType: TextInputType.number,
               decoration: const InputDecoration(
                   labelText: 'Return Birds', border: OutlineInputBorder(), isDense: true),

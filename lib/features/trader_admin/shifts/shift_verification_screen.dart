@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/providers/session_provider.dart';
 import '../../../core/theme/app_theme.dart';
 import 'package:rooster_trader/shared/widgets/web/app_scaffold.dart';
+import 'package:rooster_trader/core/util/number_input.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // SHIFT VERIFICATION SCREEN
@@ -766,6 +767,7 @@ class _ShiftVerificationScreenState
                   // ── 2. Confirmed Bird Count ──────────────────────────────
                   TextField(
                     controller: _dcBirds[id],
+                    inputFormatters: birdsInputFormatters,
                     keyboardType: TextInputType.number,
                     decoration: InputDecoration(
                       labelText: 'Confirmed Bird Count',
@@ -782,6 +784,7 @@ class _ShiftVerificationScreenState
                   // ── 3. Confirmed Net Weight ───────────────────────────────
                   TextField(
                     controller: _dcWt[id],
+                    inputFormatters: kgInputFormatters,
                     keyboardType: const TextInputType.numberWithOptions(decimal: true),
                     decoration: InputDecoration(
                       labelText: 'Confirmed Net Weight (kg)',
@@ -1046,6 +1049,7 @@ class _ShiftVerificationScreenState
                   Row(children: [
                     Expanded(child: TextField(
                       controller: _wt[id],
+                      inputFormatters: kgInputFormatters,
                       keyboardType: const TextInputType.numberWithOptions(
                           decimal: true),
                       decoration: const InputDecoration(
@@ -1057,6 +1061,7 @@ class _ShiftVerificationScreenState
                     const SizedBox(width: 10),
                     Expanded(child: TextField(
                       controller: _birds[id],
+                      inputFormatters: birdsInputFormatters,
                       keyboardType: TextInputType.number,
                       decoration: const InputDecoration(
                         labelText: 'Confirmed Birds',

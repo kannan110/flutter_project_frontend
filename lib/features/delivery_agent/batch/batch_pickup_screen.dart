@@ -10,6 +10,7 @@ import '../../../core/providers/ui_mode_provider.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/util/weight_calc.dart';
+import 'package:rooster_trader/core/util/number_input.dart';
 
 class BatchPickupScreen extends ConsumerStatefulWidget {
   const BatchPickupScreen({super.key, required this.batchId});
@@ -331,17 +332,19 @@ class _S extends ConsumerState<BatchPickupScreen> {
                       Expanded(child: TextField(controller: cratesCtrl, keyboardType: TextInputType.number,
                           decoration: const InputDecoration(labelText: 'Crates'))),
                       const SizedBox(width: 10),
-                      Expanded(child: TextField(controller: birdsCtrl, keyboardType: TextInputType.number,
+                      Expanded(child: TextField(controller: birdsCtrl, inputFormatters: birdsInputFormatters, keyboardType: TextInputType.number,
                           decoration: const InputDecoration(labelText: 'Bird Count'))),
                     ]),
                     const SizedBox(height: 10),
                     Row(children: [
                       Expanded(child: TextField(controller: grossCtrl,
+                          inputFormatters: kgInputFormatters,
                           keyboardType: const TextInputType.numberWithOptions(decimal: true),
                           decoration: const InputDecoration(labelText: 'Gross Weight (kg)'),
                           onChanged: (_) => setSheetState(() {}))),
                       const SizedBox(width: 10),
                       Expanded(child: TextField(controller: emptyCtrl,
+                          inputFormatters: kgInputFormatters,
                           keyboardType: const TextInputType.numberWithOptions(decimal: true),
                           decoration: const InputDecoration(labelText: 'Empty Weight (kg)'),
                           onChanged: (_) => setSheetState(() {}))),
@@ -1477,6 +1480,7 @@ class _S extends ConsumerState<BatchPickupScreen> {
                     Expanded(
                         child: TextFormField(
                             controller: _grossWt,
+                            inputFormatters: kgInputFormatters,
                             keyboardType: const TextInputType.numberWithOptions(
                                 decimal: true),
                             decoration: const InputDecoration(
@@ -1493,6 +1497,7 @@ class _S extends ConsumerState<BatchPickupScreen> {
                     Expanded(
                         child: TextFormField(
                             controller: _emptyWt,
+                            inputFormatters: kgInputFormatters,
                             keyboardType: const TextInputType.numberWithOptions(
                                 decimal: true),
                             decoration: const InputDecoration(
@@ -1535,6 +1540,7 @@ class _S extends ConsumerState<BatchPickupScreen> {
                     Expanded(
                         child: TextFormField(
                             controller: _birds,
+                            inputFormatters: birdsInputFormatters,
                             keyboardType: TextInputType.number,
                             decoration: const InputDecoration(
                                 labelText: 'Bird Count', suffixText: 'birds'),
@@ -1550,6 +1556,7 @@ class _S extends ConsumerState<BatchPickupScreen> {
                     Expanded(
                         child: TextFormField(
                             controller: _farmRate,
+                            inputFormatters: moneyInputFormatters,
                             keyboardType: const TextInputType.numberWithOptions(
                                 decimal: true),
                             decoration: const InputDecoration(

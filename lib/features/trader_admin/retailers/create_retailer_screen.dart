@@ -6,6 +6,7 @@ import '../../../core/providers/session_provider.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_theme.dart';
 import 'package:rooster_trader/shared/widgets/web/app_scaffold.dart';
+import 'package:rooster_trader/core/util/number_input.dart';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // CREATE RETAILER SCREEN
@@ -455,6 +456,7 @@ class _S extends ConsumerState<CreateRetailerScreen> {
               const SectionHeader('CREDIT LIMIT'),
               TextFormField(
                   controller: _creditLimit,
+                  inputFormatters: moneyInputFormatters,
                   keyboardType:
                   const TextInputType.numberWithOptions(decimal: true),
                   decoration: const InputDecoration(
@@ -1326,6 +1328,7 @@ class _S extends ConsumerState<CreateRetailerScreen> {
                       width: 110,
                       child: TextFormField(
                         controller: _rateCtrl[pid],
+                        inputFormatters: moneyInputFormatters,
                         keyboardType:
                         const TextInputType.numberWithOptions(
                             decimal: true),
@@ -1446,6 +1449,7 @@ class _S extends ConsumerState<CreateRetailerScreen> {
                   ),
                   TextFormField(
                     controller: _openingBalance,
+                    inputFormatters: moneyInputFormatters,
                     keyboardType: const TextInputType.numberWithOptions(
                         decimal: true),
                     decoration: const InputDecoration(

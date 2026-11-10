@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/providers/session_provider.dart';
 import '../../../core/theme/app_theme.dart';
+import 'package:rooster_trader/core/util/number_input.dart';
 
 class ExpensesScreen extends ConsumerStatefulWidget {
   const ExpensesScreen({super.key});
@@ -59,7 +60,7 @@ class _S extends ConsumerState<ExpensesScreen> {
               const SizedBox(height: 10),
               TextField(
                   textInputAction: TextInputAction.next,
-                  onSubmitted: (_) => FocusScope.of(context).nextFocus(),controller: amtCtrl, keyboardType: const TextInputType.numberWithOptions(decimal: true), autofocus: true,
+                  onSubmitted: (_) => FocusScope.of(context).nextFocus(),controller: amtCtrl, inputFormatters: moneyInputFormatters, keyboardType: const TextInputType.numberWithOptions(decimal: true), autofocus: true,
                   decoration: const InputDecoration(labelText: 'Amount (₹) *', prefixText: '₹')),
               const SizedBox(height: 8),
               TextField(

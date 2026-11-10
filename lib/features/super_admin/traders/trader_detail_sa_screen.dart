@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_theme.dart';
+import 'package:rooster_trader/core/util/number_input.dart';
 
 class TraderDetailSaScreen extends StatefulWidget {
   const TraderDetailSaScreen({super.key, required this.traderId});
@@ -544,7 +545,7 @@ class _S extends State<TraderDetailSaScreen> with SingleTickerProviderStateMixin
             child: Column(mainAxisSize: MainAxisSize.min, children: [
               const Text('Record Payment', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800)),
               const SizedBox(height: 14),
-              TextField(controller: amtCtrl, keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              TextField(controller: amtCtrl, inputFormatters: moneyInputFormatters, keyboardType: const TextInputType.numberWithOptions(decimal: true),
                   decoration: const InputDecoration(labelText: 'Amount (₹) *', prefixText: '₹')),
               const SizedBox(height: 10),
               DropdownButtonFormField<String>(

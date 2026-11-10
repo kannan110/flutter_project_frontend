@@ -6,6 +6,7 @@ import '../../../core/providers/session_provider.dart';
 import '../../../core/providers/ui_mode_provider.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_theme.dart';
+import 'package:rooster_trader/core/util/number_input.dart';
 
 class BirdTransferScreen extends ConsumerStatefulWidget {
   const BirdTransferScreen({super.key, required this.batchId});
@@ -284,12 +285,14 @@ class _S extends ConsumerState<BirdTransferScreen> {
         Row(children: [
           Expanded(child: TextFormField(
               controller: _birdsCtrl,
+              inputFormatters: birdsInputFormatters,
               keyboardType: TextInputType.number,
               decoration: const InputDecoration(labelText: 'Birds *', suffixText: 'birds',
                   prefixIcon: Icon(Icons.set_meal_outlined, size: 18, color: kPrimary)))),
           const SizedBox(width: 12),
           Expanded(child: TextFormField(
               controller: _weightCtrl,
+              inputFormatters: kgInputFormatters,
               keyboardType: const TextInputType.numberWithOptions(decimal: true),
               decoration: const InputDecoration(labelText: 'Weight (kg) *', suffixText: 'kg',
                   prefixIcon: Icon(Icons.balance_outlined, size: 18, color: kPrimary)))),

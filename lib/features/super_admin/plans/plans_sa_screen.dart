@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/theme/app_theme.dart';
+import 'package:rooster_trader/core/util/number_input.dart';
 
 class PlansSaScreen extends StatefulWidget {
   const PlansSaScreen({super.key});
@@ -52,7 +53,7 @@ class _S extends State<PlansSaScreen> {
                   decoration: const InputDecoration(labelText: 'Plan Name *')),
               const SizedBox(height: 10),
               Row(children: [
-                Expanded(child: TextField(controller: priceCtrl, keyboardType: TextInputType.number,
+                Expanded(child: TextField(controller: priceCtrl, inputFormatters: moneyInputFormatters, keyboardType: TextInputType.number,
                     decoration: const InputDecoration(labelText: 'Price (₹)', prefixText: '₹'))),
                 const SizedBox(width: 12),
                 Expanded(child: TextField(controller: daysCtrl, keyboardType: TextInputType.number,

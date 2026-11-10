@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/theme/app_theme.dart';
+import 'package:rooster_trader/core/util/number_input.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // RETAILER OPENING BALANCE SHEET
@@ -204,6 +205,7 @@ class _OpeningBalanceSheetState extends ConsumerState<_OpeningBalanceSheet> {
 
             TextField(
               controller: _amountCtrl,
+              inputFormatters: moneyInputFormatters,
               keyboardType: const TextInputType.numberWithOptions(decimal: true),
               autofocus: true,
               decoration: const InputDecoration(

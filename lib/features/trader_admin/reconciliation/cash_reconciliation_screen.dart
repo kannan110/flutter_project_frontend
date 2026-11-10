@@ -7,6 +7,7 @@ import '../../../core/theme/app_theme.dart';
 import '../../../core/router/app_router.dart';
 import '../../../shared/layouts/responsive_layout.dart';
 import '../../../shared/widgets/web/web.dart';
+import 'package:rooster_trader/core/util/number_input.dart';
 
 class CashReconciliationScreen extends ConsumerStatefulWidget {
   const CashReconciliationScreen({super.key});
@@ -113,6 +114,7 @@ class _S extends ConsumerState<CashReconciliationScreen> {
                       textInputAction: TextInputAction.next,
                       onSubmitted: (_) => FocusScope.of(context).nextFocus(),
                       controller: cashCtrl,
+                      inputFormatters: moneyInputFormatters,
                       keyboardType:
                           const TextInputType.numberWithOptions(decimal: true),
                       autofocus: true,

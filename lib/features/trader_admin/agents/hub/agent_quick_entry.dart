@@ -7,6 +7,7 @@ import '../../../../core/theme/app_theme.dart';
 import '../../../../core/util/weight_calc.dart';
 import '../../../../shared/widgets/common/horizontalscroll_wheel.dart';
 import 'package:flutter/services.dart';
+import 'package:rooster_trader/core/util/number_input.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // AGENT QUICK ENTRY (multi-product)  — formerly "Simple Entry"
@@ -1455,7 +1456,7 @@ class _AgentQuickEntrySheetState extends ConsumerState<AgentQuickEntrySheet> {
         TextField(
           controller: controller,
           focusNode: focusNode,
-          inputFormatters: inputFormatters,
+          inputFormatters: inputFormatters ?? (decimal ? kgInputFormatters : birdsInputFormatters),
           textAlign: TextAlign.center,
           keyboardType:
           decimal ? const TextInputType.numberWithOptions(decimal: true) : TextInputType.number,

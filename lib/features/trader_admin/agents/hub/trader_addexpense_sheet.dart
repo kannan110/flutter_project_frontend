@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../core/providers/session_provider.dart';
 import '../../../../core/theme/app_theme.dart';
 import 'entry_mode_selector.dart';
+import 'package:rooster_trader/core/util/number_input.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TRADER ADD EXPENSE SHEET
@@ -278,6 +279,7 @@ class _AddExpenseSheetState extends ConsumerState<_AddExpenseSheet> {
               Expanded(
                 child: TextField(
                   controller: _amtCtrl,
+                  inputFormatters: moneyInputFormatters,
                   keyboardType: const TextInputType.numberWithOptions(
                       decimal: true),
                   autofocus: true,

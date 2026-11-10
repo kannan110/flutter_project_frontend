@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../core/providers/session_provider.dart';
 import '../../../../core/theme/app_theme.dart';
 import 'entry_mode_selector.dart';
+import 'package:rooster_trader/core/util/number_input.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // AGENT SIMPLE ENTRY (multi-product)
@@ -662,6 +663,7 @@ class _ProductRow extends StatelessWidget {
               Expanded(
                 child: TextField(
                   controller: line.birdsCtrl,
+                  inputFormatters: birdsInputFormatters,
                   keyboardType: TextInputType.number,
                   onChanged: (_) => onChanged(),
                   decoration: const InputDecoration(
@@ -674,6 +676,7 @@ class _ProductRow extends StatelessWidget {
               Expanded(
                 child: TextField(
                   controller: line.weightCtrl,
+                  inputFormatters: kgInputFormatters,
                   keyboardType:
                   const TextInputType.numberWithOptions(decimal: true),
                   onChanged: (_) => onChanged(),

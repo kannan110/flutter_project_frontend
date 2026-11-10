@@ -8,6 +8,7 @@ import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../shared/layouts/responsive_layout.dart';
 import 'package:rooster_trader/shared/widgets/web/app_scaffold.dart';
+import 'package:rooster_trader/core/util/number_input.dart';
 
 class ApprovalDetailScreen extends ConsumerStatefulWidget {
   const ApprovalDetailScreen({super.key, required this.id});
@@ -796,6 +797,7 @@ class _S extends ConsumerState<ApprovalDetailScreen> {
                             Expanded(
                                 child: TextField(
                                     controller: ctrl,
+                                    inputFormatters: moneyInputFormatters,
                                     keyboardType:
                                     const TextInputType.numberWithOptions(
                                         decimal: true),
@@ -835,6 +837,7 @@ class _S extends ConsumerState<ApprovalDetailScreen> {
               const SizedBox(height: 4),
               TextField(
                   controller: _rateCtrl,
+                  inputFormatters: moneyInputFormatters,
                   keyboardType:
                   const TextInputType.numberWithOptions(decimal: true),
                   decoration: InputDecoration(

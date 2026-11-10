@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/providers/session_provider.dart';
 import '../../core/theme/app_theme.dart';
+import 'package:rooster_trader/core/util/number_input.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Collect Cash — Supervisor version.
@@ -56,7 +57,7 @@ Future<void> showCollectCashSheet(
           Text('Outstanding: ${Fmt.amount(outstanding)}',
               style: TextStyle(fontSize: 12, color: outstanding > 0 ? Colors.orange : Colors.green, fontWeight: FontWeight.w600)),
           const SizedBox(height: 14),
-          TextField(controller: amtCtrl, keyboardType: const TextInputType.numberWithOptions(decimal: true), autofocus: true,
+          TextField(controller: amtCtrl, inputFormatters: moneyInputFormatters, keyboardType: const TextInputType.numberWithOptions(decimal: true), autofocus: true,
               decoration: const InputDecoration(labelText: 'Amount received (₹) *', prefixText: '₹')),
           const SizedBox(height: 10),
           SegmentedButton<String>(

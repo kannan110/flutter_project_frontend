@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/providers/session_provider.dart';
 import '../../../core/theme/app_theme.dart';
 import 'package:rooster_trader/shared/widgets/web/app_scaffold.dart';
+import 'package:rooster_trader/core/util/number_input.dart';
 
 // ══════════════════════════════════════════════════════════════════════════
 // IN-HOUSE STOCK ADJUSTMENT SCREEN (Phase 1 — In-House Stock Operations)
@@ -380,6 +381,7 @@ class _S extends ConsumerState<StockAdjustmentScreen> {
             Expanded(
               child: TextField(
                 controller: _birdsAfterCtrl,
+                inputFormatters: birdsInputFormatters,
                 keyboardType: TextInputType.number,
                 textInputAction: TextInputAction.next,
                 onSubmitted: (_) => FocusScope.of(context).nextFocus(),
@@ -390,6 +392,7 @@ class _S extends ConsumerState<StockAdjustmentScreen> {
             Expanded(
               child: TextField(
                 controller: _kgAfterCtrl,
+                inputFormatters: kgInputFormatters,
                 keyboardType: const TextInputType.numberWithOptions(decimal: true),
                 textInputAction: TextInputAction.next,
                 onSubmitted: (_) => FocusScope.of(context).nextFocus(),

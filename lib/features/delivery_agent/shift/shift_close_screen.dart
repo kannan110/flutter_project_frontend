@@ -9,6 +9,7 @@ import '../../../core/providers/session_provider.dart';
 import '../../../core/providers/ui_mode_provider.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_theme.dart';
+import 'package:rooster_trader/core/util/number_input.dart';
 
 // =============================================================================
 // SHIFT CLOSE  —  Enterprise Reconciliation & Audit System
@@ -1238,6 +1239,7 @@ class _S extends ConsumerState<ShiftCloseScreen> {
                     textInputAction: TextInputAction.next,
                     onSubmitted: (_) => FocusScope.of(context).nextFocus(),
                     controller: _returnBirdsCtrl,
+                    inputFormatters: birdsInputFormatters,
                     keyboardType: TextInputType.number,
                     autofocus: hasStock,
                     onChanged: (_) {
@@ -1256,6 +1258,7 @@ class _S extends ConsumerState<ShiftCloseScreen> {
                     textInputAction: TextInputAction.next,
                     onSubmitted: (_) => FocusScope.of(context).nextFocus(),
                     controller: _returnWtCtrl,
+                    inputFormatters: kgInputFormatters,
                     keyboardType:
                     const TextInputType.numberWithOptions(decimal: true),
                     onChanged: (_) {
@@ -1480,6 +1483,7 @@ class _S extends ConsumerState<ShiftCloseScreen> {
                     textInputAction: TextInputAction.next,
                     onSubmitted: (_) => FocusScope.of(context).nextFocus(),
                     controller: _mortReturnBirdsCtrl,
+                    inputFormatters: birdsInputFormatters,
                     keyboardType: TextInputType.number,
                     onChanged: (_) {
                       if (mounted) setState(() {});
@@ -1495,6 +1499,7 @@ class _S extends ConsumerState<ShiftCloseScreen> {
                     textInputAction: TextInputAction.next,
                     onSubmitted: (_) => FocusScope.of(context).nextFocus(),
                     controller: _mortReturnWtCtrl,
+                    inputFormatters: kgInputFormatters,
                     keyboardType:
                     const TextInputType.numberWithOptions(decimal: true),
                     onChanged: (_) {
@@ -1638,6 +1643,7 @@ class _S extends ConsumerState<ShiftCloseScreen> {
                   textInputAction: TextInputAction.next,
                   onSubmitted: (_) => FocusScope.of(context).nextFocus(),
                   controller: _expAmtCtrl,
+                  inputFormatters: moneyInputFormatters,
                   keyboardType:
                   const TextInputType.numberWithOptions(decimal: true),
                   decoration: const InputDecoration(
@@ -2491,6 +2497,7 @@ class _S extends ConsumerState<ShiftCloseScreen> {
               textInputAction: TextInputAction.next,
               onSubmitted: (_) => FocusScope.of(context).nextFocus(),
               controller: _returnBirdsCtrl,
+              inputFormatters: birdsInputFormatters,
               keyboardType: TextInputType.number,
               style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
               onChanged: (_) {
@@ -2516,6 +2523,7 @@ class _S extends ConsumerState<ShiftCloseScreen> {
               textInputAction: TextInputAction.next,
               onSubmitted: (_) => FocusScope.of(context).nextFocus(),
               controller: _returnWtCtrl,
+              inputFormatters: kgInputFormatters,
               keyboardType:
               const TextInputType.numberWithOptions(decimal: true),
               style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
@@ -2801,6 +2809,7 @@ class _S extends ConsumerState<ShiftCloseScreen> {
                   textInputAction: TextInputAction.next,
                   onSubmitted: (_) => FocusScope.of(context).nextFocus(),
                   controller: _mortReturnBirdsCtrl,
+                  inputFormatters: birdsInputFormatters,
                   keyboardType: TextInputType.number,
                   style: const TextStyle(
                       fontSize: 18, fontWeight: FontWeight.w800),
@@ -2823,6 +2832,7 @@ class _S extends ConsumerState<ShiftCloseScreen> {
                   textInputAction: TextInputAction.next,
                   onSubmitted: (_) => FocusScope.of(context).nextFocus(),
                   controller: _mortReturnWtCtrl,
+                  inputFormatters: kgInputFormatters,
                   keyboardType:
                   const TextInputType.numberWithOptions(decimal: true),
                   style: const TextStyle(
@@ -3115,6 +3125,7 @@ class _S extends ConsumerState<ShiftCloseScreen> {
               textInputAction: TextInputAction.next,
               onSubmitted: (_) => FocusScope.of(context).nextFocus(),
               controller: _expAmtCtrl,
+              inputFormatters: moneyInputFormatters,
               keyboardType:
               const TextInputType.numberWithOptions(decimal: true),
               style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
@@ -3195,6 +3206,7 @@ class _S extends ConsumerState<ShiftCloseScreen> {
         textInputAction: TextInputAction.next,
         onSubmitted: (_) => FocusScope.of(context).nextFocus(),
         controller: c,
+        inputFormatters: moneyInputFormatters,
         keyboardType: const TextInputType.numberWithOptions(decimal: true),
         style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
         onChanged: (_) {
@@ -3438,6 +3450,7 @@ class _S extends ConsumerState<ShiftCloseScreen> {
       textInputAction: TextInputAction.done,
       onSubmitted: (_) => FocusScope.of(context).unfocus(),
       controller: c,
+      inputFormatters: moneyInputFormatters,
       keyboardType: const TextInputType.numberWithOptions(decimal: true),
       onChanged: (_) {
         if (mounted) setState(() {});

@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/providers/session_provider.dart';
 import '../../../core/theme/app_theme.dart';
 import 'package:rooster_trader/shared/widgets/web/app_scaffold.dart';
+import 'package:rooster_trader/core/util/number_input.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // EXPENSE RULES SCREEN
@@ -530,6 +531,7 @@ class _RuleEditorSheetState extends ConsumerState<_RuleEditorSheet> {
                     const SizedBox(height: 10),
                     TextField(
                       controller: _fuelCtrl,
+                      inputFormatters: moneyInputFormatters,
                       keyboardType: const TextInputType.numberWithOptions(decimal: true),
                       autofocus: widget.existing == null,
                       decoration: const InputDecoration(
@@ -603,6 +605,7 @@ class _RuleEditorSheetState extends ConsumerState<_RuleEditorSheet> {
       {String? helperText}) =>
       TextField(
         controller: ctrl,
+        inputFormatters: moneyInputFormatters,
         keyboardType: const TextInputType.numberWithOptions(decimal: true),
         decoration: InputDecoration(
           labelText: label,

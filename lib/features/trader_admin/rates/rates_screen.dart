@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/providers/session_provider.dart';
 import '../../../core/theme/app_theme.dart';
 import 'package:rooster_trader/shared/widgets/web/app_scaffold.dart';
+import 'package:rooster_trader/core/util/number_input.dart';
 
 class RatesScreen extends ConsumerStatefulWidget {
   const RatesScreen({super.key});
@@ -65,6 +66,7 @@ class _S extends ConsumerState<RatesScreen> {
         title: Text('Rate — ${product['name']}'),
         content: Column(mainAxisSize: MainAxisSize.min, children: [
           TextField(controller: ctrl,
+              inputFormatters: moneyInputFormatters,
               keyboardType: const TextInputType.numberWithOptions(decimal: true),
               autofocus: true,
               decoration: const InputDecoration(
