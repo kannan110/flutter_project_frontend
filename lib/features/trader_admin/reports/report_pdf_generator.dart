@@ -419,9 +419,14 @@ class ReportPdfGenerator {
               bold: (dataSet.printVersion ?? dataSet).highlightColumns,
               columnFlex: (dataSet.printVersion ?? dataSet).columnFlex,
               style: dataSet.printStyle,
-              serialContinuationColumn: dataSet.customerLedgerData != null
-                  ? CustomerLedgerTableData.dateColumn
-                  : null,
+              // Customer Ledger: a sale's 2nd+ product lines (blank Date)
+              // share its S.No. Found by header, since the PDF table drops
+              // the Doc.No column the screen has.
+              serialContinuationColumn: () {
+                if (dataSet.customerLedgerData == null) return null;
+                final i = (dataSet.printVersion ?? dataSet).headers.indexOf('Date');
+                return i < 0 ? null : i;
+              }(),
               // Print versions (e.g. the Retailer Purchase sales sheet) are
               // one line per row: cells shrink to fit instead of wrapping.
               singleLine: dataSet.printVersion != null,
@@ -676,13 +681,15 @@ class ReportPdfGenerator {
       }) {
     final header = (data['header'] as Map?)?.cast<String, dynamic>() ?? {};
     final t = CustomerLedgerTableData.from(data);
+    // Same as the Full/Half prints: Doc.No (column 0) is left out and
+    // Man.Doc.No is shown as "Bill No".
     return ReportDataSet(
       title: 'Customer Ledger Statement',
-      headers: t.headers,
-      rows: t.rows,
-      totals: t.totals,
-      highlightColumns: const [CustomerLedgerTableData.balanceColumn],
-      columnFlex: t.columnFlex,
+      headers: ['Bill No', ...t.headers.sublist(2)],
+      rows: [for (final r in t.rows) r.sublist(1)],
+      totals: t.totals.sublist(1),
+      highlightColumns: const [CustomerLedgerTableData.balanceColumn - 1],
+      columnFlex: t.columnFlex.sublist(1),
       fromDate: fromDate,
       toDate: toDate,
       customerIdentity: CustomerReportIdentity(
