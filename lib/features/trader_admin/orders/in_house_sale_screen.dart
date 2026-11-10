@@ -70,6 +70,13 @@ class _S extends ConsumerState<InHouseSaleScreen> {
   DateTime _saleDate = DateTime.now();
   final _notesCtrl = TextEditingController();
 
+  // Document numbers, same as Quick Entry: Doc No is assigned by the backend
+  // on save (DOC-YYYYMM-NNNNN, shared series); _docNoPreview is only the next
+  // expected number, shown read-only. Manual Doc No is optional free text
+  // (e.g. the paper bill no).
+  String? _docNoPreview;
+  final _manualDocNoCtrl = TextEditingController();
+
   String? get _traderId => ref.read(appUserProvider).valueOrNull?.traderId;
   String? get _userId => ref.read(appUserProvider).valueOrNull?.userId;
 
@@ -84,6 +91,7 @@ class _S extends ConsumerState<InHouseSaleScreen> {
     _walkinNameCtrl.dispose();
     _walkinPhoneCtrl.dispose();
     _notesCtrl.dispose();
+    _manualDocNoCtrl.dispose();
     _customerScrollCtrl.dispose();
     _productScrollCtrl.dispose();
     for (final l in _lines) {
@@ -92,9 +100,24 @@ class _S extends ConsumerState<InHouseSaleScreen> {
     super.dispose();
   }
 
+  // Next expected Doc No for the sale date's month — display only; the
+  // backend assigns the real number at save time.
+  Future<void> _loadDocNoPreview() async {
+    final tid = _traderId;
+    if (tid == null) return;
+    try {
+      final res = await _c.rpc('preview_quick_entry_doc_no', params: {
+        'p_trader_id': tid,
+        'p_date': DateFormat('yyyy-MM-dd').format(_saleDate),
+      });
+      if (mounted) setState(() => _docNoPreview = res as String?);
+    } catch (_) {}
+  }
+
   Future<void> _load() async {
     final tid = _traderId;
     if (tid == null || !mounted) return;
+    _loadDocNoPreview();
     setState(() => _loading = true);
     try {
       final retailers = await _c
@@ -303,11 +326,16 @@ class _S extends ConsumerState<InHouseSaleScreen> {
         'p_notes': _notesCtrl.text.trim().isEmpty ? null : _notesCtrl.text.trim(),
         'p_created_by': uid,
         'p_sale_date': DateFormat('yyyy-MM-dd').format(_saleDate),
+        'p_assign_doc_no': true,
+        if (_manualDocNoCtrl.text.trim().isNotEmpty)
+          'p_manual_doc_no': _manualDocNoCtrl.text.trim(),
       });
       if (!mounted) return;
       final result = res as Map<String, dynamic>;
       setState(() => _submitting = false);
-      showSuccess(context, 'Sale recorded ✓  Invoice ${result['invoice_number']}');
+      final docNo = result['doc_no'] as String?;
+      showSuccess(context,
+          'Sale recorded ✓  Invoice ${result['invoice_number']}${docNo != null ? '  ·  Doc No $docNo' : ''}');
       Navigator.of(context).pop(true);
     } catch (e) {
       if (mounted) setState(() => _submitting = false);
@@ -680,6 +708,46 @@ class _S extends ConsumerState<InHouseSaleScreen> {
         ),
       ]);
 
+  // ── Doc No (auto, read-only) + Manual Doc No (optional) — as in Quick Entry
+  Widget _docNumbersRow() {
+    final fieldDecoration = InputDecoration(
+      isDense: true,
+      filled: true,
+      fillColor: kBgPage,
+      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+    );
+    return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Expanded(
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          const Text('Doc No (auto)', style: TextStyle(fontSize: 10, color: kTextHint)),
+          const SizedBox(height: 4),
+          InputDecorator(
+            decoration: fieldDecoration.copyWith(
+              prefixIcon: const Icon(Icons.lock_outline, size: 14, color: kTextHint),
+              prefixIconConstraints: const BoxConstraints(minWidth: 32),
+            ),
+            child: Text(_docNoPreview ?? '—',
+                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: kTextSub)),
+          ),
+        ]),
+      ),
+      const SizedBox(width: 10),
+      Expanded(
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          const Text('Manual Doc No (optional)', style: TextStyle(fontSize: 10, color: kTextHint)),
+          const SizedBox(height: 4),
+          TextField(
+            controller: _manualDocNoCtrl,
+            textCapitalization: TextCapitalization.characters,
+            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+            decoration: fieldDecoration.copyWith(hintText: 'e.g. 1045'),
+          ),
+        ]),
+      ),
+    ]);
+  }
+
   Widget _paymentRow() {
     final modes = _isWalkIn ? ['upi', 'bank', 'cash'] : ['credit', 'upi', 'bank', 'cash'];
     return Column(
@@ -695,7 +763,10 @@ class _S extends ConsumerState<InHouseSaleScreen> {
               firstDate: DateTime.now().subtract(const Duration(days: 365)),
               lastDate: DateTime.now(),
             );
-            if (picked != null) setState(() => _saleDate = picked);
+            if (picked != null) {
+              setState(() => _saleDate = picked);
+              _loadDocNoPreview(); // the Doc No series is per month
+            }
           },
           child: InputDecorator(
             decoration: InputDecoration(
@@ -710,6 +781,10 @@ class _S extends ConsumerState<InHouseSaleScreen> {
                 style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
           ),
         ),
+        const SizedBox(height: 14),
+        const SectionHeader('DOCUMENT NUMBERS'),
+        const SizedBox(height: 6),
+        _docNumbersRow(),
         const SizedBox(height: 14),
         const SectionHeader('PAYMENT'),
         const SizedBox(height: 6),
