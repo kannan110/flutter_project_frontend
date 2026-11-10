@@ -7,6 +7,7 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/providers/ui_mode_provider.dart';
 import '../../../core/theme/app_theme.dart';
+import 'package:rooster_trader/core/util/number_input.dart';
 
 // ═══════════════════════════════════════════════════════════════════
 //  DATA MODELS — unchanged interface so delivery_complete_screen.dart
@@ -555,6 +556,7 @@ class _WS extends ConsumerState<WeighmentScreen> {
                     textInputAction: TextInputAction.next,
                     onSubmitted: (_) => FocusScope.of(context).nextFocus(),
                     controller: ctrl,
+                    inputFormatters: birdsInputFormatters,
                     keyboardType: TextInputType.number,
                     autofocus: true,
                     decoration: const InputDecoration(
@@ -753,6 +755,7 @@ class _WS extends ConsumerState<WeighmentScreen> {
                       textInputAction: TextInputAction.next,
                       onSubmitted: (_) => FocusScope.of(context).nextFocus(),
                       controller: wtCtrl,
+                      inputFormatters: kgInputFormatters,
                       keyboardType:
                       const TextInputType.numberWithOptions(
                           decimal: true),
@@ -784,6 +787,7 @@ class _WS extends ConsumerState<WeighmentScreen> {
                         textInputAction: TextInputAction.next,
                         onSubmitted: (_) => FocusScope.of(context).nextFocus(),
                         controller: emptyWtCtrl!,
+                        inputFormatters: kgInputFormatters,
                         keyboardType:
                         const TextInputType.numberWithOptions(
                             decimal: true),
@@ -1218,6 +1222,7 @@ class _WS extends ConsumerState<WeighmentScreen> {
                         textInputAction: TextInputAction.next,
                         onSubmitted: (_) => FocusScope.of(context).nextFocus(),
                         controller: _manualWtCtrl,
+                        inputFormatters: kgInputFormatters,
                         keyboardType:
                         const TextInputType.numberWithOptions(decimal: true),
                         decoration: const InputDecoration(
@@ -1929,6 +1934,7 @@ class _WS extends ConsumerState<WeighmentScreen> {
                 textInputAction: TextInputAction.next,
                 onSubmitted: (_) => FocusScope.of(context).nextFocus(),
                 controller: _manualWtCtrl,
+                inputFormatters: kgInputFormatters,
                 keyboardType: const TextInputType.numberWithOptions(decimal: true),
                 style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
                 decoration: InputDecoration(

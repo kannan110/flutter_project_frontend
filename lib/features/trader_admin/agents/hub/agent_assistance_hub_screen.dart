@@ -10,6 +10,7 @@ import '../../../../core/theme/app_theme.dart';
 import 'agent_quick_entry.dart';
 import 'current_batch_active_screen.dart';
 import 'entry_mode_selector.dart';
+import 'package:rooster_trader/core/util/number_input.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // AGENT ASSISTANCE HUB
@@ -2427,6 +2428,7 @@ class _InstantOrderSheetState extends ConsumerState<_InstantOrderSheet> {
                 Expanded(
                   child: TextField(
                     controller: _birdsCtrl,
+                    inputFormatters: birdsInputFormatters,
                     keyboardType: TextInputType.number,
                     onChanged: (_) => setState(() {}),
                     decoration: const InputDecoration(
@@ -2438,6 +2440,7 @@ class _InstantOrderSheetState extends ConsumerState<_InstantOrderSheet> {
                 Expanded(
                   child: TextField(
                     controller: _weightCtrl,
+                    inputFormatters: kgInputFormatters,
                     keyboardType:
                     const TextInputType.numberWithOptions(
                         decimal: true),
@@ -2452,6 +2455,7 @@ class _InstantOrderSheetState extends ConsumerState<_InstantOrderSheet> {
             const SizedBox(height: 10),
             TextField(
               controller: _rateCtrl,
+              inputFormatters: moneyInputFormatters,
               keyboardType: const TextInputType.numberWithOptions(
                   decimal: true),
               onChanged: (_) => setState(() {}),

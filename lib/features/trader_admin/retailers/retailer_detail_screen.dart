@@ -6,6 +6,7 @@ import 'package:rooster_trader/features/trader_admin/retailers/retailer_openinh_
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_theme.dart';
+import 'package:rooster_trader/core/util/number_input.dart';
 
 class RetailerDetailScreen extends ConsumerStatefulWidget {
   const RetailerDetailScreen({super.key, required this.id});
@@ -466,6 +467,7 @@ class _S extends ConsumerState<RetailerDetailScreen> {
           const SizedBox(height: 16),
           const SectionHeader('CREDIT LIMIT'),
           TextField(controller: _creditCtrl,
+              inputFormatters: moneyInputFormatters,
               keyboardType: const TextInputType.numberWithOptions(decimal: true),
               decoration: const InputDecoration(
                   labelText: 'Credit Limit (₹)', prefixText: '₹',

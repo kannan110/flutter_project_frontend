@@ -8,6 +8,7 @@ import '../../../../core/models/dashboard_models.dart';
 import '../../../../core/providers/session_provider.dart';
 import '../../../../core/theme/app_theme.dart';
 import 'entry_mode_selector.dart';
+import 'package:rooster_trader/core/util/number_input.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TRADER DELIVERY SCREEN
@@ -893,6 +894,7 @@ class _TraderDeliveryScreenState
             Row(children: [
               Expanded(child: TextFormField(
                 controller: _birdsCtrl,
+                inputFormatters: birdsInputFormatters,
                 keyboardType: TextInputType.number,
                 onChanged: (_) => setState(() {}),
                 decoration: const InputDecoration(
@@ -902,6 +904,7 @@ class _TraderDeliveryScreenState
               const SizedBox(width: 12),
               Expanded(child: TextFormField(
                 controller: _weightCtrl,
+                inputFormatters: kgInputFormatters,
                 keyboardType: const TextInputType.numberWithOptions(decimal: true),
                 onChanged: (_) => setState(() {}),
                 decoration: const InputDecoration(
@@ -943,12 +946,14 @@ class _TraderDeliveryScreenState
             Row(children: [
               Expanded(child: TextFormField(
                 controller: _rcvBirdsCtrl,
+                inputFormatters: birdsInputFormatters,
                 keyboardType: TextInputType.number,
                 decoration: const InputDecoration(labelText: 'Birds confirmed'),
               )),
               const SizedBox(width: 12),
               Expanded(child: TextFormField(
                 controller: _rcvWtCtrl,
+                inputFormatters: kgInputFormatters,
                 keyboardType: const TextInputType.numberWithOptions(decimal: true),
                 decoration: const InputDecoration(
                     labelText: 'Weight confirmed (kg)'),
@@ -961,6 +966,7 @@ class _TraderDeliveryScreenState
             Row(children: [
               Expanded(child: TextFormField(
                 controller: _mortCtrl,
+                inputFormatters: birdsInputFormatters,
                 keyboardType: TextInputType.number,
                 onChanged: (_) => setState(() {}),
                 decoration: const InputDecoration(
@@ -975,6 +981,7 @@ class _TraderDeliveryScreenState
               const SizedBox(width: 8),
               Expanded(child: TextFormField(
                 controller: _shrinkCtrl,
+                inputFormatters: kgInputFormatters,
                 keyboardType: const TextInputType.numberWithOptions(decimal: true),
                 decoration: const InputDecoration(labelText: 'Shrinkage (kg)'),
               )),
@@ -1011,12 +1018,14 @@ class _TraderDeliveryScreenState
             Row(children: [
               Expanded(child: TextFormField(
                 controller: _retBirdsCtrl,
+                inputFormatters: birdsInputFormatters,
                 keyboardType: TextInputType.number,
                 decoration: const InputDecoration(labelText: 'Return birds'),
               )),
               const SizedBox(width: 12),
               Expanded(child: TextFormField(
                 controller: _retWtCtrl,
+                inputFormatters: kgInputFormatters,
                 keyboardType: const TextInputType.numberWithOptions(decimal: true),
                 decoration: const InputDecoration(
                     labelText: 'Return weight (kg)'),
@@ -1045,6 +1054,7 @@ class _TraderDeliveryScreenState
             const SectionHeader('CASH COLLECTION'),
             TextFormField(
               controller: _cashCtrl,
+              inputFormatters: moneyInputFormatters,
               keyboardType: const TextInputType.numberWithOptions(decimal: true),
               decoration: const InputDecoration(
                   labelText: 'Amount Collected (₹)', prefixText: '₹'),

@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/providers/session_provider.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../shared/layouts/responsive_layout.dart';
+import 'package:rooster_trader/core/util/number_input.dart';
 
 class RetailerLedgerScreen extends ConsumerStatefulWidget {
   const RetailerLedgerScreen({super.key, required this.retailerId});
@@ -94,7 +95,7 @@ class _S extends ConsumerState<RetailerLedgerScreen> {
               Text('Collect Payment — ${_retailer?['shop_name'] ?? ''}', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
               Text('Outstanding: ${Fmt.amount(_outstanding)}', style: TextStyle(fontSize: 12, color: _outstanding > 0 ? Colors.orange : Colors.green, fontWeight: FontWeight.w600)),
               const SizedBox(height: 14),
-              TextField(controller: amtCtrl, keyboardType: const TextInputType.numberWithOptions(decimal: true), autofocus: true,
+              TextField(controller: amtCtrl, inputFormatters: moneyInputFormatters, keyboardType: const TextInputType.numberWithOptions(decimal: true), autofocus: true,
                   decoration: const InputDecoration(labelText: 'Amount received (₹) *', prefixText: '₹')),
               const SizedBox(height: 10),
               SegmentedButton<String>(
@@ -235,7 +236,7 @@ class _S extends ConsumerState<RetailerLedgerScreen> {
               style: TextStyle(fontSize: 12, color: kTextSub),
             ),
             const SizedBox(height: 14),
-            TextField(controller: amtCtrl, keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            TextField(controller: amtCtrl, inputFormatters: moneyInputFormatters, keyboardType: const TextInputType.numberWithOptions(decimal: true),
                 decoration: const InputDecoration(labelText: 'Amount (₹) *', prefixText: '₹')),
             const SizedBox(height: 10),
             SegmentedButton<String>(

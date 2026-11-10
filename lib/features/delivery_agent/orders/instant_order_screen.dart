@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/providers/session_provider.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_theme.dart';
+import 'package:rooster_trader/core/util/number_input.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Instant Order Screen — Delivery Agent (v3 — multi-product)
@@ -827,12 +828,14 @@ class _S extends ConsumerState<InstantOrderScreen> {
     required IconData icon,
     required VoidCallback onChanged,
     bool decimal = false,
+    bool money = false,
   }) =>
       Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text(label, style: const TextStyle(fontSize: 11, color: kTextSub)),
         const SizedBox(height: 4),
         TextField(
             controller: controller,
+            inputFormatters: money ? moneyInputFormatters : decimal ? kgInputFormatters : birdsInputFormatters,
             textAlign: TextAlign.center,
             keyboardType: decimal ? const TextInputType.numberWithOptions(decimal: true) : TextInputType.number,
             style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 18),

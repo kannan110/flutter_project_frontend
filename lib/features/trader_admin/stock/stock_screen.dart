@@ -7,6 +7,7 @@ import '../../../core/models/dashboard_models.dart';
 import '../../../core/providers/session_provider.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_theme.dart';
+import 'package:rooster_trader/core/util/number_input.dart';
 
 class StockScreen extends ConsumerStatefulWidget {
   const StockScreen({super.key});
@@ -185,6 +186,7 @@ class _S extends ConsumerState<StockScreen> {
                             onSubmitted: (_) =>
                                 FocusScope.of(context).nextFocus(),
                             controller: birdsCtrl,
+                            inputFormatters: birdsInputFormatters,
                             keyboardType: TextInputType.number,
                             decoration: const InputDecoration(
                                 labelText: 'Birds *', suffixText: 'birds'))),
@@ -195,6 +197,7 @@ class _S extends ConsumerState<StockScreen> {
                             onSubmitted: (_) =>
                                 FocusScope.of(context).nextFocus(),
                             controller: kgCtrl,
+                            inputFormatters: kgInputFormatters,
                             keyboardType: const TextInputType.numberWithOptions(
                                 decimal: true),
                             decoration: const InputDecoration(

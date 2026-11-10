@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/providers/session_provider.dart';
 import '../../../core/theme/app_theme.dart';
+import 'package:rooster_trader/core/util/number_input.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TRADER SHIFT OPERATIONS PANEL
@@ -650,6 +651,7 @@ class _MiniResolveFormState
           Expanded(
               child: TextField(
                 controller: _weightCtrl,
+                inputFormatters: kgInputFormatters,
                 keyboardType:
                 const TextInputType.numberWithOptions(
                     decimal: true),
@@ -660,6 +662,7 @@ class _MiniResolveFormState
           Expanded(
               child: TextField(
                 controller: _cashCtrl,
+                inputFormatters: moneyInputFormatters,
                 keyboardType:
                 const TextInputType.numberWithOptions(
                     decimal: true),
@@ -864,6 +867,7 @@ class _CloseShiftTileState
                 Expanded(
                     child: TextField(
                       controller: _weightCtrl,
+                      inputFormatters: kgInputFormatters,
                       keyboardType:
                       const TextInputType.numberWithOptions(
                           decimal: true),
@@ -1052,6 +1056,7 @@ class _AddExpenseTileState
                 Expanded(
                     child: TextField(
                       controller: _amtCtrl,
+                      inputFormatters: moneyInputFormatters,
                       keyboardType:
                       const TextInputType.numberWithOptions(
                           decimal: true),

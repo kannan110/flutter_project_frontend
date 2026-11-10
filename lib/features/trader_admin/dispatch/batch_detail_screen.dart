@@ -8,6 +8,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/providers/session_provider.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_theme.dart';
+import 'package:rooster_trader/core/util/number_input.dart';
 
 class BatchDetailScreen extends ConsumerStatefulWidget {
   const BatchDetailScreen({super.key, required this.id});
@@ -916,6 +917,7 @@ class _S extends ConsumerState<BatchDetailScreen> {
                                   onSubmitted: (_) =>
                                       FocusScope.of(context).nextFocus(),
                                   controller: grossWtCtrl,
+                                  inputFormatters: kgInputFormatters,
                                   keyboardType: const TextInputType
                                       .numberWithOptions(decimal: true),
                                   decoration: const InputDecoration(
@@ -927,6 +929,7 @@ class _S extends ConsumerState<BatchDetailScreen> {
                                   onSubmitted: (_) =>
                                       FocusScope.of(context).nextFocus(),
                                   controller: emptyWtCtrl,
+                                  inputFormatters: kgInputFormatters,
                                   keyboardType: const TextInputType
                                       .numberWithOptions(decimal: true),
                                   decoration: const InputDecoration(
@@ -938,6 +941,7 @@ class _S extends ConsumerState<BatchDetailScreen> {
                                   onSubmitted: (_) =>
                                       FocusScope.of(context).nextFocus(),
                                   controller: birdsCtrl,
+                                  inputFormatters: birdsInputFormatters,
                                   keyboardType: TextInputType.number,
                                   decoration: const InputDecoration(
                                       labelText: 'Birds'),
@@ -1856,11 +1860,12 @@ class _DcCardState extends State<_DcCard> {
                       Expanded(child: TextField(controller: cratesCtrl, keyboardType: TextInputType.number,
                           decoration: const InputDecoration(labelText: 'Crates'))),
                       const SizedBox(width: 10),
-                      Expanded(child: TextField(controller: birdsCtrl, keyboardType: TextInputType.number,
+                      Expanded(child: TextField(controller: birdsCtrl, inputFormatters: birdsInputFormatters, keyboardType: TextInputType.number,
                           decoration: const InputDecoration(labelText: 'Confirmed Bird Count'))),
                     ]),
                     const SizedBox(height: 10),
                     TextField(controller: weightCtrl,
+                        inputFormatters: kgInputFormatters,
                         keyboardType: const TextInputType.numberWithOptions(decimal: true),
                         decoration: const InputDecoration(labelText: 'Confirmed Net Weight (kg)')),
                     const SizedBox(height: 10),

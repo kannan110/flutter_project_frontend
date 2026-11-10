@@ -8,6 +8,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../core/providers/session_provider.dart';
 import '../../../../core/theme/app_theme.dart';
 import 'entry_mode_selector.dart';
+import 'package:rooster_trader/core/util/number_input.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TRADER SHIFT CLOSE SCREEN
@@ -959,6 +960,7 @@ class _TraderShiftCloseScreenState
         Row(children: [
           Expanded(child: TextField(
             controller: _returnBirdsCtrl,
+            inputFormatters: birdsInputFormatters,
             keyboardType: TextInputType.number,
             onChanged: (_) { if (mounted) setState(() {}); },
             decoration: InputDecoration(
@@ -968,6 +970,7 @@ class _TraderShiftCloseScreenState
           const SizedBox(width: 10),
           Expanded(child: TextField(
             controller: _returnWtCtrl,
+            inputFormatters: kgInputFormatters,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
             onChanged: (_) { if (mounted) setState(() {}); },
             decoration: const InputDecoration(
@@ -1046,6 +1049,7 @@ class _TraderShiftCloseScreenState
         Row(children: [
           Expanded(child: TextField(
             controller: _mortReturnBirdsCtrl,
+            inputFormatters: birdsInputFormatters,
             keyboardType: TextInputType.number,
             onChanged: (_) { if (mounted) setState(() {}); },
             decoration: const InputDecoration(
@@ -1054,6 +1058,7 @@ class _TraderShiftCloseScreenState
           const SizedBox(width: 10),
           Expanded(child: TextField(
             controller: _mortReturnWtCtrl,
+            inputFormatters: kgInputFormatters,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
             onChanged: (_) { if (mounted) setState(() {}); },
             decoration: const InputDecoration(
@@ -1140,6 +1145,7 @@ class _TraderShiftCloseScreenState
         const SizedBox(width: 8),
         Expanded(child: TextField(
           controller: _expAmtCtrl,
+          inputFormatters: moneyInputFormatters,
           keyboardType: const TextInputType.numberWithOptions(decimal: true),
           decoration: const InputDecoration(labelText: 'Amount ₹', prefixText: '₹',
               contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 10)),
@@ -1337,6 +1343,7 @@ class _TraderShiftCloseScreenState
 
   Widget _expField(TextEditingController c, String label) => TextField(
       controller: c,
+      inputFormatters: moneyInputFormatters,
       keyboardType: const TextInputType.numberWithOptions(decimal: true),
       onChanged: (_) { if (mounted) setState(() {}); },
       decoration: InputDecoration(labelText: label, prefixText: '₹',

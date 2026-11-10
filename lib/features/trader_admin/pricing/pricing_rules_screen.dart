@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/providers/session_provider.dart';
 import '../../../core/theme/app_theme.dart';
+import 'package:rooster_trader/core/util/number_input.dart';
 
 class PricingRulesScreen extends ConsumerStatefulWidget {
   const PricingRulesScreen({super.key});
@@ -123,6 +124,7 @@ class _S extends ConsumerState<PricingRulesScreen> {
                           if (ruleType == 'flat')
                             TextField(
                                 controller: rateCtrl,
+                                inputFormatters: moneyInputFormatters,
                                 keyboardType:
                                     const TextInputType.numberWithOptions(
                                         decimal: true),
@@ -131,6 +133,7 @@ class _S extends ConsumerState<PricingRulesScreen> {
                           if (ruleType == 'percentage_discount')
                             TextField(
                                 controller: discPctCtrl,
+                                inputFormatters: moneyInputFormatters,
                                 keyboardType:
                                     const TextInputType.numberWithOptions(
                                         decimal: true),
@@ -139,6 +142,7 @@ class _S extends ConsumerState<PricingRulesScreen> {
                           if (ruleType == 'absolute_discount')
                             TextField(
                                 controller: rateCtrl,
+                                inputFormatters: moneyInputFormatters,
                                 keyboardType:
                                     const TextInputType.numberWithOptions(
                                         decimal: true),
@@ -148,6 +152,7 @@ class _S extends ConsumerState<PricingRulesScreen> {
                           const SizedBox(height: 8),
                           TextField(
                               controller: minQtyCtrl,
+                              inputFormatters: kgInputFormatters,
                               keyboardType:
                                   const TextInputType.numberWithOptions(
                                       decimal: true),

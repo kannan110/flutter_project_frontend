@@ -7,6 +7,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/providers/session_provider.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_theme.dart';
+import 'package:rooster_trader/core/util/number_input.dart';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // PRICING MANAGEMENT HUB — Phase 2 (Daily Rate UI removed)
@@ -243,6 +244,7 @@ class _ZoneRatesTabState extends ConsumerState<_ZoneRatesTab> {
                   const SizedBox(height: 12),
                   TextFormField(
                     controller: rateCtrl,
+                    inputFormatters: moneyInputFormatters,
                     autofocus: true,
                     keyboardType: const TextInputType.numberWithOptions(
                         decimal: true),
@@ -725,6 +727,7 @@ class _CustomerRatesTabState extends ConsumerState<_CustomerRatesTab> {
                 if (selType.needsRate)
                   TextFormField(
                     controller: rateCtrl,
+                    inputFormatters: moneyInputFormatters,
                     keyboardType: const TextInputType.numberWithOptions(
                         decimal: true),
                     style: const TextStyle(

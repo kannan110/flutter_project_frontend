@@ -9,6 +9,7 @@ import '../../../core/providers/session_provider.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../shared/widgets/common/horizontalscroll_wheel.dart';
+import 'package:rooster_trader/core/util/number_input.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Create Order — v2 (UX redesign only)
@@ -1261,12 +1262,14 @@ class _S extends ConsumerState<CreateOrderScreen> {
     required IconData icon,
     required VoidCallback onChanged,
     bool decimal = false,
+    bool money = false,
   }) =>
       Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text(label, style: const TextStyle(fontSize: 10, color: kTextSub)),
         const SizedBox(height: 4),
         TextFormField(
             controller: controller,
+            inputFormatters: money ? moneyInputFormatters : decimal ? kgInputFormatters : birdsInputFormatters,
             textAlign: TextAlign.center,
             keyboardType: decimal
                 ? const TextInputType.numberWithOptions(decimal: true)
@@ -1290,7 +1293,7 @@ class _S extends ConsumerState<CreateOrderScreen> {
           label: 'Rate (₹/kg)',
           controller: line.rate,
           icon: Icons.currency_rupee,
-          decimal: true,
+          decimal: true, money: true,
           onChanged: () => setState(() {}));
     }
     return GestureDetector(

@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/providers/session_provider.dart';
 import '../../../core/theme/app_theme.dart';
+import 'package:rooster_trader/core/util/number_input.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // PENDING OPERATIONS SCREEN
@@ -513,6 +514,7 @@ class _ResolveFormState extends ConsumerState<_ResolveForm> {
                 Expanded(
                   child: TextFormField(
                     controller: _weightCtrl,
+                    inputFormatters: kgInputFormatters,
                     keyboardType: const TextInputType.numberWithOptions(
                         decimal: true),
                     decoration: const InputDecoration(
@@ -570,6 +572,7 @@ class _ResolveFormState extends ConsumerState<_ResolveForm> {
                 Expanded(
                   child: TextFormField(
                     controller: _cashCtrl,
+                    inputFormatters: moneyInputFormatters,
                     keyboardType: const TextInputType.numberWithOptions(
                         decimal: true),
                     decoration: const InputDecoration(

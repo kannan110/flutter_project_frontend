@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../../core/providers/session_provider.dart';
 import '../../../core/theme/app_theme.dart';
+import 'package:rooster_trader/core/util/number_input.dart';
 
 // =============================================================================
 // PURCHASE MANAGEMENT — 7-TAB ERP
@@ -2068,6 +2069,7 @@ class _S extends ConsumerState<PurchaseScreen>
                         const SizedBox(height: 10),
                         TextField(
                             controller: rateCtrl,
+                            inputFormatters: moneyInputFormatters,
                             keyboardType:
                             const TextInputType.numberWithOptions(
                                 decimal: true),
@@ -2085,6 +2087,7 @@ class _S extends ConsumerState<PurchaseScreen>
                           Expanded(
                               child: TextField(
                                   controller: transportCtrl,
+                                  inputFormatters: moneyInputFormatters,
                                   onChanged: (_) => ss(() {}),
                                   keyboardType:
                                   const TextInputType.numberWithOptions(
@@ -2096,6 +2099,7 @@ class _S extends ConsumerState<PurchaseScreen>
                           Expanded(
                               child: TextField(
                                   controller: loadingCtrl,
+                                  inputFormatters: moneyInputFormatters,
                                   onChanged: (_) => ss(() {}),
                                   keyboardType:
                                   const TextInputType.numberWithOptions(
@@ -2107,6 +2111,7 @@ class _S extends ConsumerState<PurchaseScreen>
                           Expanded(
                               child: TextField(
                                   controller: handlingCtrl,
+                                  inputFormatters: moneyInputFormatters,
                                   onChanged: (_) => ss(() {}),
                                   keyboardType:
                                   const TextInputType.numberWithOptions(
@@ -2118,6 +2123,7 @@ class _S extends ConsumerState<PurchaseScreen>
                           Expanded(
                               child: TextField(
                                   controller: otherCtrl,
+                                  inputFormatters: moneyInputFormatters,
                                   onChanged: (_) => ss(() {}),
                                   keyboardType:
                                   const TextInputType.numberWithOptions(
@@ -2139,6 +2145,7 @@ class _S extends ConsumerState<PurchaseScreen>
                           Expanded(
                               child: TextField(
                                   controller: arrWtCtrl,
+                                  inputFormatters: kgInputFormatters,
                                   onChanged: (_) => ss(() {}),
                                   keyboardType:
                                   const TextInputType.numberWithOptions(
@@ -2150,6 +2157,7 @@ class _S extends ConsumerState<PurchaseScreen>
                           Expanded(
                               child: TextField(
                                   controller: arrBirdCtrl,
+                                  inputFormatters: birdsInputFormatters,
                                   onChanged: (_) => ss(() {}),
                                   keyboardType: TextInputType.number,
                                   decoration: const InputDecoration(
@@ -2539,6 +2547,7 @@ class _S extends ConsumerState<PurchaseScreen>
                       const SizedBox(height: 10),
                       TextField(
                           controller: amtCtrl,
+                          inputFormatters: moneyInputFormatters,
                           keyboardType: const TextInputType.numberWithOptions(
                               decimal: true),
                           decoration: const InputDecoration(
@@ -2643,6 +2652,7 @@ class _S extends ConsumerState<PurchaseScreen>
                   const SizedBox(height: 12),
                   TextField(
                       controller: amtCtrl,
+                      inputFormatters: moneyInputFormatters,
                       keyboardType:
                       const TextInputType.numberWithOptions(decimal: true),
                       decoration: const InputDecoration(
@@ -3031,6 +3041,7 @@ class _S extends ConsumerState<PurchaseScreen>
                       const SizedBox(height: 8),
                       TextField(
                           controller: rateCtrl,
+                          inputFormatters: moneyInputFormatters,
                           keyboardType: const TextInputType.numberWithOptions(
                               decimal: true),
                           decoration: const InputDecoration(
@@ -3188,6 +3199,7 @@ class _S extends ConsumerState<PurchaseScreen>
                         Expanded(
                             child: TextField(
                                 controller: rateCtrl,
+                                inputFormatters: moneyInputFormatters,
                                 keyboardType:
                                 const TextInputType.numberWithOptions(
                                     decimal: true),

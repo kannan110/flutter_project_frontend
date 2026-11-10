@@ -10,6 +10,7 @@ import '../../../core/providers/ui_mode_provider.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_theme.dart';
 import '../weighment/weighment_screen.dart';
+import 'package:rooster_trader/core/util/number_input.dart';
 
 class DeliveryCompleteScreen extends ConsumerStatefulWidget {
   const DeliveryCompleteScreen({super.key, required this.deliveryId});
@@ -1243,6 +1244,7 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
                             onFieldSubmitted: (_) =>
                                 FocusScope.of(context).nextFocus(),
                             controller: _birdsCtrl,
+                            inputFormatters: birdsInputFormatters,
                             keyboardType: TextInputType.number,
                             decoration: const InputDecoration(
                                 labelText: 'Birds delivered *',
@@ -1258,6 +1260,7 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
                             onFieldSubmitted: (_) =>
                                 FocusScope.of(context).nextFocus(),
                             controller: _weightCtrl,
+                            inputFormatters: kgInputFormatters,
                             keyboardType: const TextInputType.numberWithOptions(
                                 decimal: true),
                             decoration: const InputDecoration(
@@ -1397,6 +1400,7 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
                             onFieldSubmitted: (_) =>
                                 FocusScope.of(context).nextFocus(),
                             controller: _rcvBirdsCtrl,
+                            inputFormatters: birdsInputFormatters,
                             keyboardType: TextInputType.number,
                             decoration: const InputDecoration(
                                 labelText: 'Birds confirmed'))),
@@ -1407,6 +1411,7 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
                             onFieldSubmitted: (_) =>
                                 FocusScope.of(context).nextFocus(),
                             controller: _rcvWeightCtrl,
+                            inputFormatters: kgInputFormatters,
                             keyboardType: const TextInputType.numberWithOptions(
                                 decimal: true),
                             decoration: const InputDecoration(
@@ -1423,6 +1428,7 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
                             onFieldSubmitted: (_) =>
                                 FocusScope.of(context).nextFocus(),
                             controller: _mortalityCtrl,
+                            inputFormatters: birdsInputFormatters,
                             keyboardType: TextInputType.number,
                             decoration: const InputDecoration(
                                 labelText: 'Dead birds', suffixText: 'birds'),
@@ -1436,6 +1442,7 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
                             onFieldSubmitted: (_) =>
                                 FocusScope.of(context).nextFocus(),
                             controller: _rejectedCtrl,
+                            inputFormatters: birdsInputFormatters,
                             keyboardType: TextInputType.number,
                             decoration: const InputDecoration(
                                 labelText: 'Rejected birds'))),
@@ -1446,6 +1453,7 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
                             onFieldSubmitted: (_) =>
                                 FocusScope.of(context).nextFocus(),
                             controller: _shrinkKgCtrl,
+                            inputFormatters: kgInputFormatters,
                             keyboardType: const TextInputType.numberWithOptions(
                                 decimal: true),
                             decoration: const InputDecoration(
@@ -1486,6 +1494,7 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
                             onFieldSubmitted: (_) =>
                                 FocusScope.of(context).nextFocus(),
                             controller: _returnBirdsCtrl,
+                            inputFormatters: birdsInputFormatters,
                             keyboardType: TextInputType.number,
                             decoration: const InputDecoration(
                                 labelText: 'Return birds'))),
@@ -1496,6 +1505,7 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
                             onFieldSubmitted: (_) =>
                                 FocusScope.of(context).nextFocus(),
                             controller: _returnWtCtrl,
+                            inputFormatters: kgInputFormatters,
                             keyboardType: const TextInputType.numberWithOptions(
                                 decimal: true),
                             decoration: const InputDecoration(
@@ -1535,6 +1545,7 @@ class _S extends ConsumerState<DeliveryCompleteScreen> {
                       onFieldSubmitted: (_) =>
                           FocusScope.of(context).nextFocus(),
                       controller: _cashCtrl,
+                      inputFormatters: moneyInputFormatters,
                       keyboardType:
                       const TextInputType.numberWithOptions(decimal: true),
                       decoration: const InputDecoration(

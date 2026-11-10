@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/providers/session_provider.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../shared/widgets/common/horizontalscroll_wheel.dart';
+import 'package:rooster_trader/core/util/number_input.dart';
 
 // ══════════════════════════════════════════════════════════════════════════
 // STOCK POINT SALE (In-House) — UI redesign only, no backend changes.
@@ -589,7 +590,7 @@ class _S extends ConsumerState<InHouseSaleScreen> {
               label: 'Rate/kg',
               controller: line.rateCtrl,
               icon: Icons.currency_rupee,
-              decimal: true,
+              decimal: true, money: true,
               onChanged: () => setState(() {}),
             ),
           ),
@@ -656,12 +657,14 @@ class _S extends ConsumerState<InHouseSaleScreen> {
     required IconData icon,
     required VoidCallback onChanged,
     bool decimal = false,
+    bool money = false,
   }) =>
       Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text(label, style: const TextStyle(fontSize: 10, color: kTextHint)),
         const SizedBox(height: 4),
         TextField(
           controller: controller,
+          inputFormatters: money ? moneyInputFormatters : decimal ? kgInputFormatters : birdsInputFormatters,
           textAlign: TextAlign.center,
           keyboardType: decimal ? const TextInputType.numberWithOptions(decimal: true) : TextInputType.number,
           style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
