@@ -170,14 +170,14 @@ class _S extends ConsumerState<InHouseSaleScreen> {
                   itemCount: filtered.length,
                   itemBuilder: (ctx, i) {
                     final r = filtered[i];
-                    return ListTile(
+                    return Material(type: MaterialType.transparency, child: ListTile(
                       title: Text(r['shop_name'] as String? ?? ''),
                       subtitle: Text(r['phone'] as String? ?? ''),
                       onTap: () {
                         Navigator.of(ctx).pop();
                         setState(() => _selectedRetailer = r);
                       },
-                    );
+                    ));
                   },
                 ),
               ),

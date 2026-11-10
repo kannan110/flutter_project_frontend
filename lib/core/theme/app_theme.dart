@@ -971,7 +971,7 @@ class _PickerSheetState extends State<_PickerSheet> {
         const Divider(height: 1),
         // None option
         if (widget.allowNone)
-          ListTile(
+          Material(type: MaterialType.transparency, child: ListTile(
             dense: true,
             leading: const Icon(Icons.clear_rounded,
                 size: 18, color: kTextHint),
@@ -979,7 +979,7 @@ class _PickerSheetState extends State<_PickerSheet> {
                 style: const TextStyle(fontSize: 14, color: kTextSub)),
             onTap: () =>
                 Navigator.of(context, rootNavigator: true).pop({}),
-          ),
+          )),
         // List
         Expanded(
           child: _filtered.isEmpty
@@ -1004,7 +1004,7 @@ class _PickerSheetState extends State<_PickerSheet> {
                   ? (item[widget.subKey!] as String?)
                   : null;
               final isSelected = id != null && id == widget.selectedId;
-              return ListTile(
+              return Material(type: MaterialType.transparency, child: ListTile(
                 dense: true,
                 leading: Container(
                   width: 34, height: 34,
@@ -1044,7 +1044,7 @@ class _PickerSheetState extends State<_PickerSheet> {
                     : null,
                 onTap: () => Navigator.of(context,
                     rootNavigator: true).pop(item),
-              );
+              ));
             },
           ),
         ),

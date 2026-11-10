@@ -127,7 +127,7 @@ class _S extends ConsumerState<CreateSupervisorScreen> {
                       ? const Padding(padding: EdgeInsets.all(16), child: Text('No retailers yet.', style: TextStyle(color: kTextHint)))
                       : ListView(shrinkWrap: true, children: _retailers.map((r) {
                     final id = r['id'] as String;
-                    return CheckboxListTile(
+                    return Material(type: MaterialType.transparency, child: CheckboxListTile(
                       dense: true,
                       value: _selectedRetailers.contains(id),
                       title: Text(r['shop_name'] as String? ?? '—', style: const TextStyle(fontSize: 13)),
@@ -138,7 +138,7 @@ class _S extends ConsumerState<CreateSupervisorScreen> {
                           _selectedRetailers.remove(id);
                         }
                       }),
-                    );
+                    ));
                   }).toList()),
                 ),
                 const SizedBox(height: 24),

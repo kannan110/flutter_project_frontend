@@ -428,7 +428,7 @@ class _AgentAssistanceHubScreenState
                       (o['estimated_birds'] as num?)?.toInt() ?? 0;
                   final kg = (o['total_quantity'] as num?)
                       ?.toStringAsFixed(1) ?? '—';
-                  return ListTile(
+                  return Material(type: MaterialType.transparency, child: ListTile(
                     leading: CircleAvatar(
                       backgroundColor:
                       const Color(0xFF0284C7).withValues(alpha: 0.12),
@@ -450,7 +450,7 @@ class _AgentAssistanceHubScreenState
                       chosen = o;
                       Navigator.of(ctx, rootNavigator: true).pop();
                     },
-                  );
+                  ));
                 },
               ),
             ),

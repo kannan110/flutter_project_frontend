@@ -800,7 +800,7 @@ class _TraderDeliveryScreenState
                         ? Colors.orange.shade400 : Colors.green.shade300,
                     width: 1.5),
               ),
-              child: SwitchListTile(
+              child: Material(type: MaterialType.transparency, child: SwitchListTile(
                 value: _isPartial,
                 onChanged: (v) => setState(() {
                   _isPartial = v;
@@ -829,7 +829,7 @@ class _TraderDeliveryScreenState
                     style: TextStyle(fontSize: 11,
                         color: _isPartial
                             ? Colors.orange.shade700 : Colors.green.shade700)),
-              ),
+              )),
             ),
 
             if (_isPartial)

@@ -591,12 +591,12 @@ class _S extends ConsumerState<PendingOrderScreen> {
                             itemCount: filtered.length,
                             itemBuilder: (ctx, i) {
                               final r = filtered[i];
-                              return ListTile(
+                              return Material(type: MaterialType.transparency, child: ListTile(
                                   title: Text(r['shop_name'] as String? ?? ''),
                                   onTap: () {
                                     Navigator.of(ctx).pop();
                                     setState(() => _selRetailer = r);
-                                  });
+                                  }));
                             })),
                   ])));
         }));
