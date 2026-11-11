@@ -52,6 +52,12 @@ _TxConfig _txConfig(String reason, String entryType, String paymentMode) {
     return _TxConfig('Payment Made${m.isNotEmpty ? " ($m)" : ""}',
         Icons.payments_outlined, const Color(0xFFE8F5E9), const Color(0xFF1B5E20));
   }
+  // Set when the supplier was added (normally folded into the statement's
+  // Opening Balance line by get_supplier_statement; this is the fallback).
+  if (reason == 'opening_balance') {
+    return const _TxConfig('Opening Balance', Icons.account_balance_outlined,
+        Color(0xFFE8EAF6), Color(0xFF1A237E));
+  }
   return const _TxConfig('Adjustment', Icons.swap_horiz_outlined,
       Color(0xFFF5F5F5), Color(0xFF424242));
 }

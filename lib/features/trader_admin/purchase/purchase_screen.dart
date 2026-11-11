@@ -174,6 +174,25 @@ class _S extends ConsumerState<PurchaseScreen>
                   (farmStats[fid]!['overdue'] as int) + 1;
             }
           }
+          // Ledger entries not tied to a purchase (opening balance, and
+          // payments made against the supplier rather than a specific DC):
+          // 'untied' goes into Outstanding, 'opening' is shown on its own.
+          final untied = await _c
+              .from('supplier_ledger')
+              .select('farm_id,entry_type,amount,reason')
+              .eq('trader_id', tid)
+              .isFilter('purchase_entry_id', null)
+              .not('farm_id', 'is', null);
+          for (final row in List<Map<String, dynamic>>.from(untied as List? ?? [])) {
+            final fid = row['farm_id'] as String;
+            final amt = (row['amount'] as num?)?.toDouble() ?? 0;
+            farmStats[fid] ??= {'total': 0.0, 'paid': 0.0, 'claim': 0.0, 'overdue': 0};
+            farmStats[fid]!['untied'] = ((farmStats[fid]!['untied'] as double?) ?? 0) +
+                (row['entry_type'] == 'debit' ? amt : -amt);
+            if (row['reason'] == 'opening_balance') {
+              farmStats[fid]!['opening'] = ((farmStats[fid]!['opening'] as double?) ?? 0) + amt;
+            }
+          }
           final cos = await _c
               .from('poultry_companies')
               .select('id,company_name')
@@ -1149,7 +1168,8 @@ class _S extends ConsumerState<PurchaseScreen>
           final total = (st['total'] as double?) ?? 0;
           final pd = (st['paid'] as double?) ?? 0;
           final cl = (st['claim'] as double?) ?? 0;
-          final outstanding = (total - pd - cl).clamp(0.0, double.infinity);
+          final untied = (st['untied'] as double?) ?? 0; // opening balance etc.
+          final outstanding = (total - pd - cl + untied).clamp(0.0, double.infinity);
           final overdueCnt = (st['overdue'] as int?) ?? 0;
           final co =
           (f['poultry_companies'] as Map?)?['company_name'] as String?;
@@ -1322,7 +1342,10 @@ class _S extends ConsumerState<PurchaseScreen>
                           child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(e['reason'] as String? ?? '--',
+                                Text(
+                                    e['reason'] == 'opening_balance'
+                                        ? 'Opening Balance'
+                                        : e['reason'] as String? ?? '--',
                                     style: TextStyle(
                                         fontSize: 11,
                                         fontWeight: FontWeight.w700,
@@ -2831,142 +2854,358 @@ class _S extends ConsumerState<PurchaseScreen>
   }
 
   void _showSupplierDashboard(Map<String, dynamic> farm) {
+    final st = farm['_stats'] as Map<String, dynamic>? ?? {};
+    final total = (st['total'] as num?)?.toDouble() ?? 0;
+    final pd = (st['paid'] as num?)?.toDouble() ?? 0;
+    final cl = (st['claim'] as num?)?.toDouble() ?? 0;
+    final untied = (st['untied'] as num?)?.toDouble() ?? 0; // opening balance etc.
+    final opening = (st['opening'] as num?)?.toDouble() ?? 0;
+    final outstanding =
+        (total - pd - cl + untied).clamp(0.0, double.infinity).toDouble();
+    final payable = total + untied;
+    final settled =
+        payable <= 0 ? 1.0 : ((pd + cl) / payable).clamp(0.0, 1.0).toDouble();
+    final name = (farm['farmer_name'] as String?)?.trim() ?? '';
+    final initial = name.isEmpty ? '?' : name[0].toUpperCase();
+    const purchaseColor = Color(0xFF2563EB);
+    const paidColor = Color(0xFF16A34A);
+    final dueColor =
+        outstanding > 0 ? const Color(0xFFEA580C) : const Color(0xFF16A34A);
+
     showModalBottomSheet(
         context: context,
         useRootNavigator: true,
         isScrollControlled: true,
-        shape: const RoundedRectangleBorder(
-            borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+        backgroundColor: Colors.transparent,
+        // Phones use the full width; wide screens get a centred card.
+        constraints: const BoxConstraints(maxWidth: 600),
         builder: (ctx) {
-          final st = farm['_stats'] as Map<String, dynamic>? ?? {};
-          final total = (st['total'] as double?) ?? 0;
-          final pd = (st['paid'] as double?) ?? 0;
-          final cl = (st['claim'] as double?) ?? 0;
-          final outstanding = (total - pd - cl).clamp(0.0, double.infinity);
-          return DraggableScrollableSheet(
-              expand: false,
-              initialChildSize: 0.6,
-              maxChildSize: 0.9,
-              builder: (_, ctrl) => SingleChildScrollView(
-                  controller: ctrl,
-                  padding: const EdgeInsets.all(20),
-                  child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(children: [
-                          CircleAvatar(
-                              radius: 22,
-                              backgroundColor: kNavy.withValues(alpha: 0.08),
-                              child: Text(
-                                  (farm['farmer_name'] as String? ?? '?')[0]
-                                      .toUpperCase(),
-                                  style: const TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w900,
-                                      color: kNavy))),
-                          const SizedBox(width: 12),
-                          Expanded(
-                              child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(farm['farmer_name'] as String? ?? '--',
+          void close() => Navigator.of(ctx, rootNavigator: true).pop();
+          final mq = MediaQuery.of(ctx);
+          return ConstrainedBox(
+              constraints: BoxConstraints(maxHeight: mq.size.height * 0.9),
+              child: Container(
+                  clipBehavior: Clip.antiAlias,
+                  decoration: const BoxDecoration(
+                      color: Colors.white,
+                      borderRadius:
+                          BorderRadius.vertical(top: Radius.circular(24))),
+                  child: SingleChildScrollView(
+                      child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                        // ── Gradient header ──────────────────────────────
+                        Container(
+                            padding: const EdgeInsets.fromLTRB(20, 10, 8, 22),
+                            decoration: const BoxDecoration(
+                                gradient: LinearGradient(
+                                    colors: [
+                                  Color(0xFF1E3A8A),
+                                  Color(0xFF4F46E5),
+                                  Color(0xFF7C3AED),
+                                ],
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight)),
+                            child: Column(children: [
+                              Container(
+                                  width: 40,
+                                  height: 4,
+                                  decoration: BoxDecoration(
+                                      color: Colors.white54,
+                                      borderRadius: BorderRadius.circular(2))),
+                              const SizedBox(height: 14),
+                              Row(children: [
+                                Container(
+                                    width: 52,
+                                    height: 52,
+                                    alignment: Alignment.center,
+                                    decoration: BoxDecoration(
+                                        color: Colors.white,
+                                        shape: BoxShape.circle,
+                                        boxShadow: [
+                                          BoxShadow(
+                                              color: Colors.black
+                                                  .withValues(alpha: 0.18),
+                                              blurRadius: 10,
+                                              offset: const Offset(0, 3)),
+                                        ]),
+                                    child: Text(initial,
                                         style: const TextStyle(
-                                            fontSize: 15,
-                                            fontWeight: FontWeight.w800)),
-                                    if (farm['farm_name'] != null)
-                                      Text(farm['farm_name'] as String,
+                                            fontSize: 22,
+                                            fontWeight: FontWeight.w900,
+                                            color: Color(0xFF4F46E5)))),
+                                const SizedBox(width: 14),
+                                Expanded(
+                                    child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                      Text(name.isEmpty ? '--' : name,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
                                           style: const TextStyle(
-                                              fontSize: 11, color: kTextHint)),
-                                    if (farm['phone'] != null)
-                                      Text(farm['phone'] as String,
-                                          style: const TextStyle(
-                                              fontSize: 11, color: kTextHint)),
-                                  ])),
-                          IconButton(
-                              icon: const Icon(Icons.close),
-                              onPressed: () =>
-                                  Navigator.of(ctx, rootNavigator: true).pop()),
-                        ]),
-                        const SizedBox(height: 16),
-                        Row(children: [
-                          _kpiCard('Purchase', Fmt.amount(total),
-                              Colors.blue, Icons.shopping_cart_outlined),
-                          const SizedBox(width: 8),
-                          _kpiCard('Paid', Fmt.amount(pd),
-                              Colors.green, Icons.payments_outlined),
-                          const SizedBox(width: 8),
-                          _kpiCard(
-                              'Due',
-                              Fmt.amount(outstanding),
-                              outstanding > 0 ? Colors.orange : Colors.green,
-                              Icons.account_balance_outlined),
-                        ]),
-                        const SizedBox(height: 12),
-                        if (farm['credit_days'] != null)
-                          Row(children: [
-                            const Icon(Icons.schedule_outlined,
-                                size: 12, color: kTextHint),
-                            const SizedBox(width: 4),
-                            Text('Credit: ${farm['credit_days']} days',
-                                style: const TextStyle(
-                                    fontSize: 11, color: kTextSub)),
-                            const SizedBox(width: 16),
-                            if (farm['default_rate_per_kg'] != null) ...[
-                              const Icon(Icons.price_change_outlined,
-                                  size: 12, color: kTextHint),
-                              const SizedBox(width: 4),
-                              Text(
-                                  'Default rate: Rs.${(farm['default_rate_per_kg'] as num).toStringAsFixed(2)}/kg',
-                                  style: const TextStyle(
-                                      fontSize: 11, color: kTextSub)),
-                            ],
-                          ]),
-                        const SizedBox(height: 16),
-                        Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                            children: [
-                              ElevatedButton.icon(
-                                  onPressed: () {
-                                    Navigator.of(ctx, rootNavigator: true)
-                                        .pop();
-                                    _showPaymentForFarm(farm);
-                                  },
-                                  style: ElevatedButton.styleFrom(
-                                    minimumSize: Size.zero,
-                                    tapTargetSize:
-                                    MaterialTapTargetSize.shrinkWrap,
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 14, vertical: 10),
-                                  ),
-                                  icon: const Icon(Icons.payments_outlined,
-                                      size: 14),
-                                  label: const Text('Pay')),
-                              OutlinedButton.icon(
-                                  onPressed: () {
-                                    Navigator.of(ctx, rootNavigator: true)
-                                        .pop();
-                                    setState(() {
-                                      _farmFilter = farm['id'] as String?;
-                                    });
-                                    _tab.animateTo(3);
-                                    _load();
-                                  },
-                                  icon:
-                                  const Icon(Icons.book_outlined, size: 14),
-                                  label: const Text('Ledger')),
-                              OutlinedButton.icon(
-                                  onPressed: () {
-                                    Navigator.of(ctx, rootNavigator: true)
-                                        .pop();
-                                    _showEditFarm(farm);
-                                  },
-                                  icon:
-                                  const Icon(Icons.edit_outlined, size: 14),
-                                  label: const Text('Edit')),
-                            ]),
-                      ])));
+                                              fontSize: 18,
+                                              fontWeight: FontWeight.w800,
+                                              color: Colors.white)),
+                                      if (farm['farm_name'] != null)
+                                        Text(farm['farm_name'] as String,
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: const TextStyle(
+                                                fontSize: 13,
+                                                color: Colors.white70)),
+                                      if (farm['phone'] != null)
+                                        Padding(
+                                            padding:
+                                                const EdgeInsets.only(top: 4),
+                                            child: Row(
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: [
+                                                  const Icon(
+                                                      Icons.phone_outlined,
+                                                      size: 13,
+                                                      color: Colors.white70),
+                                                  const SizedBox(width: 4),
+                                                  Text(farm['phone'] as String,
+                                                      style: const TextStyle(
+                                                          fontSize: 13,
+                                                          color:
+                                                              Colors.white)),
+                                                ])),
+                                    ])),
+                                IconButton(
+                                    tooltip: 'Close',
+                                    icon: const Icon(Icons.close,
+                                        color: Colors.white),
+                                    onPressed: close),
+                              ]),
+                            ])),
+
+                        Padding(
+                            padding: EdgeInsets.fromLTRB(
+                                16, 18, 16, 20 + mq.padding.bottom),
+                            child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  // ── Stat tiles: a row, stacked when narrow ──
+                                  LayoutBuilder(builder: (_, box) {
+                                    final tiles = [
+                                      _dashStatTile('Purchase', total,
+                                          Icons.shopping_cart_outlined,
+                                          purchaseColor),
+                                      _dashStatTile('Paid', pd,
+                                          Icons.payments_outlined, paidColor),
+                                      _dashStatTile(
+                                          'Due',
+                                          outstanding,
+                                          Icons.account_balance_wallet_outlined,
+                                          dueColor),
+                                    ];
+                                    if (box.maxWidth < 340) {
+                                      return Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.stretch,
+                                          children: [
+                                            for (final t in tiles)
+                                              Padding(
+                                                  padding:
+                                                      const EdgeInsets.only(
+                                                          bottom: 8),
+                                                  child: t),
+                                          ]);
+                                    }
+                                    return Row(children: [
+                                      for (var i = 0; i < tiles.length; i++) ...[
+                                        if (i > 0) const SizedBox(width: 10),
+                                        Expanded(child: tiles[i]),
+                                      ],
+                                    ]);
+                                  }),
+                                  const SizedBox(height: 16),
+
+                                  // ── Settled progress ──
+                                  Container(
+                                      padding: const EdgeInsets.all(12),
+                                      decoration: BoxDecoration(
+                                          color: const Color(0xFFF8FAFC),
+                                          borderRadius:
+                                              BorderRadius.circular(14),
+                                          border: Border.all(
+                                              color: const Color(0xFFE2E8F0))),
+                                      child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.stretch,
+                                          children: [
+                                            Row(children: [
+                                              const Text('Settled',
+                                                  style: TextStyle(
+                                                      fontSize: 12,
+                                                      fontWeight:
+                                                          FontWeight.w600,
+                                                      color: kTextSub)),
+                                              const Spacer(),
+                                              Text(
+                                                  '${(settled * 100).toStringAsFixed(0)}%',
+                                                  style: TextStyle(
+                                                      fontSize: 12,
+                                                      fontWeight:
+                                                          FontWeight.w800,
+                                                      color: dueColor)),
+                                            ]),
+                                            const SizedBox(height: 8),
+                                            ClipRRect(
+                                                borderRadius:
+                                                    BorderRadius.circular(6),
+                                                child: LinearProgressIndicator(
+                                                    value: settled,
+                                                    minHeight: 8,
+                                                    backgroundColor:
+                                                        dueColor.withValues(
+                                                            alpha: 0.15),
+                                                    color: paidColor)),
+                                          ])),
+                                  const SizedBox(height: 14),
+
+                                  // ── Info chips ──
+                                  Wrap(spacing: 8, runSpacing: 8, children: [
+                                    if (farm['credit_days'] != null)
+                                      _dashChip(
+                                          Icons.schedule_outlined,
+                                          'Credit ${farm['credit_days']} days',
+                                          const Color(0xFF0D9488)),
+                                    if (farm['default_rate_per_kg'] != null)
+                                      _dashChip(
+                                          Icons.price_change_outlined,
+                                          'Rate Rs.${(farm['default_rate_per_kg'] as num).toStringAsFixed(2)}/kg',
+                                          const Color(0xFF7C3AED)),
+                                    if (opening != 0)
+                                      _dashChip(
+                                          Icons.account_balance_outlined,
+                                          'Opening ${Fmt.amount(opening)}',
+                                          const Color(0xFFB45309)),
+                                    if (cl > 0)
+                                      _dashChip(
+                                          Icons.report_gmailerrorred_outlined,
+                                          'Claims ${Fmt.amount(cl)}',
+                                          const Color(0xFFDC2626)),
+                                  ]),
+                                  const SizedBox(height: 20),
+
+                                  // ── Actions (equal width) ──
+                                  Row(children: [
+                                    Expanded(
+                                        child: _dashActionBtn(
+                                            'Pay',
+                                            Icons.payments_outlined,
+                                            paidColor,
+                                            filled: true, onTap: () {
+                                      close();
+                                      _showPaymentForFarm(farm);
+                                    })),
+                                    const SizedBox(width: 10),
+                                    Expanded(
+                                        child: _dashActionBtn('Ledger',
+                                            Icons.menu_book_outlined,
+                                            purchaseColor, onTap: () {
+                                      close();
+                                      setState(() {
+                                        _farmFilter = farm['id'] as String?;
+                                      });
+                                      _tab.animateTo(3);
+                                      _load();
+                                    })),
+                                    const SizedBox(width: 10),
+                                    Expanded(
+                                        child: _dashActionBtn(
+                                            'Edit',
+                                            Icons.edit_outlined,
+                                            const Color(0xFF4F46E5),
+                                            onTap: () {
+                                      close();
+                                      _showEditFarm(farm);
+                                    })),
+                                  ]),
+                                ])),
+                      ]))));
         });
   }
+
+  Widget _dashStatTile(
+          String label, double value, IconData icon, Color color) =>
+      Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+              gradient: LinearGradient(colors: [
+                color.withValues(alpha: 0.16),
+                color.withValues(alpha: 0.04),
+              ], begin: Alignment.topLeft, end: Alignment.bottomRight),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: color.withValues(alpha: 0.25))),
+          child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                    padding: const EdgeInsets.all(7),
+                    decoration: BoxDecoration(
+                        color: color, borderRadius: BorderRadius.circular(10)),
+                    child: Icon(icon, size: 16, color: Colors.white)),
+                const SizedBox(height: 10),
+                Text(label,
+                    style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: color)),
+                const SizedBox(height: 2),
+                FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerLeft,
+                    child: Text(Fmt.amount(value),
+                        style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w900,
+                            color: Color(0xFF0F172A)))),
+              ]));
+
+  Widget _dashChip(IconData icon, String text, Color color) => Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.10),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: color.withValues(alpha: 0.30))),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        Icon(icon, size: 14, color: color),
+        const SizedBox(width: 6),
+        Text(text,
+            style: TextStyle(
+                fontSize: 12, fontWeight: FontWeight.w600, color: color)),
+      ]));
+
+  // Buttons sit inside Expanded, so a zero minimum width is safe (the theme's
+  // Size.fromHeight minimum would be infinitely wide in a Row).
+  Widget _dashActionBtn(String label, IconData icon, Color color,
+          {bool filled = false, required VoidCallback onTap}) =>
+      ElevatedButton.icon(
+          onPressed: onTap,
+          style: ElevatedButton.styleFrom(
+              elevation: filled ? 2 : 0,
+              backgroundColor: filled ? color : color.withValues(alpha: 0.10),
+              foregroundColor: filled ? Colors.white : color,
+              minimumSize: const Size(0, 46),
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  side: filled
+                      ? BorderSide.none
+                      : BorderSide(color: color.withValues(alpha: 0.35)))),
+          icon: Icon(icon, size: 16),
+          label: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(label,
+                  style: const TextStyle(fontWeight: FontWeight.w700))));
 
   void _showPaymentForFarm(Map<String, dynamic> farm) async {
     try {
@@ -2993,6 +3232,8 @@ class _S extends ConsumerState<PurchaseScreen>
     final locCtrl = TextEditingController();
     final creditCtrl = TextEditingController(text: '7');
     final rateCtrl = TextEditingController();
+    final openingCtrl = TextEditingController();
+    DateTime openingDate = DateTime.now();
     String? selectedCompanyId;
 
     showModalBottomSheet(
@@ -3066,7 +3307,7 @@ class _S extends ConsumerState<PurchaseScreen>
                       if (_companies.isNotEmpty) ...[
                         const SizedBox(height: 8),
                         DropdownButtonFormField<String>(
-                            initialValue: selectedCompanyId,
+                            initialValue: _companies.any((c) => c['id'] == selectedCompanyId) ? selectedCompanyId : null,
                             decoration: const InputDecoration(
                                 labelText: 'Company (optional)'),
                             items: [
@@ -3079,6 +3320,9 @@ class _S extends ConsumerState<PurchaseScreen>
                             ],
                             onChanged: (v) => ss(() => selectedCompanyId = v)),
                       ],
+                      const SizedBox(height: 8),
+                      _openingBalanceFields(ctx, openingCtrl, openingDate,
+                          (d) => ss(() => openingDate = d)),
                       const SizedBox(height: 16),
                       ElevatedButton(
                           style: ElevatedButton.styleFrom(
@@ -3094,7 +3338,7 @@ class _S extends ConsumerState<PurchaseScreen>
                                   .read(appUserProvider)
                                   .valueOrNull
                                   ?.traderId;
-                              await _c.from('farms').insert({
+                              final farm = await _c.from('farms').insert({
                                 'trader_id': tid,
                                 'farmer_name': nameCtrl.text.trim(),
                                 'farm_name': farmCtrl.text.trim().isEmpty
@@ -3113,7 +3357,13 @@ class _S extends ConsumerState<PurchaseScreen>
                                     ? null
                                     : double.tryParse(rateCtrl.text.trim()),
                                 'company_id': selectedCompanyId,
-                              });
+                              }).select('id').single();
+                              await _saveOpeningBalance(
+                                traderId: tid,
+                                farmId: farm['id'] as String,
+                                amountText: openingCtrl.text,
+                                date: openingDate,
+                              );
                               _load();
                               if (mounted) {
                                 showSuccess(context, 'Supplier added');
@@ -3251,7 +3501,7 @@ class _S extends ConsumerState<PurchaseScreen>
                       if (_companies.isNotEmpty) ...[
                         const SizedBox(height: 8),
                         DropdownButtonFormField<String>(
-                            initialValue: selectedCompanyId,
+                            initialValue: _companies.any((c) => c['id'] == selectedCompanyId) ? selectedCompanyId : null,
                             decoration:
                             const InputDecoration(labelText: 'Company'),
                             items: [
@@ -3385,6 +3635,8 @@ class _S extends ConsumerState<PurchaseScreen>
     final codeCtrl = TextEditingController();
     final phoneCtrl = TextEditingController();
     final gstCtrl = TextEditingController();
+    final openingCtrl = TextEditingController();
+    DateTime openingDate = DateTime.now();
 
     showModalBottomSheet(
         context: context,
@@ -3392,7 +3644,7 @@ class _S extends ConsumerState<PurchaseScreen>
         isScrollControlled: true,
         shape: const RoundedRectangleBorder(
             borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-        builder: (ctx) => Padding(
+        builder: (ctx) => StatefulBuilder(builder: (ctx, ss) => Padding(
             padding:
             EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
             child: Padding(
@@ -3434,6 +3686,9 @@ class _S extends ConsumerState<PurchaseScreen>
                       controller: gstCtrl,
                       decoration: const InputDecoration(
                           labelText: 'GST Number (optional)')),
+                  const SizedBox(height: 8),
+                  _openingBalanceFields(ctx, openingCtrl, openingDate,
+                      (d) => ss(() => openingDate = d)),
                   const SizedBox(height: 16),
                   ElevatedButton(
                       style: ElevatedButton.styleFrom(
@@ -3447,7 +3702,7 @@ class _S extends ConsumerState<PurchaseScreen>
                         try {
                           final tid =
                               ref.read(appUserProvider).valueOrNull?.traderId;
-                          await _c.from('poultry_companies').insert({
+                          final company = await _c.from('poultry_companies').insert({
                             'trader_id': tid,
                             'company_name': nameCtrl.text.trim(),
                             'company_code': codeCtrl.text.trim().isEmpty
@@ -3459,7 +3714,13 @@ class _S extends ConsumerState<PurchaseScreen>
                             'gst_number': gstCtrl.text.trim().isEmpty
                                 ? null
                                 : gstCtrl.text.trim(),
-                          });
+                          }).select('id').single();
+                          await _saveOpeningBalance(
+                            traderId: tid,
+                            companyId: company['id'] as String,
+                            amountText: openingCtrl.text,
+                            date: openingDate,
+                          );
                           _load();
                           if (mounted) showSuccess(context, 'Company added');
                         } catch (e) {
@@ -3470,7 +3731,73 @@ class _S extends ConsumerState<PurchaseScreen>
                         }
                       },
                       child: const Text('Add Company')),
-                ]))));
+                ])))));
+  }
+
+  // ── Opening balance (Add Supplier / Add Company) ──────────────────────────
+  // Amount the trader already owes this supplier/company when it is added,
+  // as of a date. Saved as a supplier_ledger debit (reason opening_balance,
+  // no purchase entry): it shows in the Ledger tab and Supplier Statement,
+  // and is part of Outstanding.
+  Widget _openingBalanceFields(BuildContext ctx, TextEditingController amountCtrl,
+      DateTime date, ValueChanged<DateTime> onDate) {
+    return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Expanded(
+        child: TextField(
+          controller: amountCtrl,
+          inputFormatters: moneyInputFormatters,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          decoration: const InputDecoration(
+            labelText: 'Opening Balance (optional)',
+            helperText: 'Amount you already owe',
+            prefixText: 'Rs.',
+          ),
+        ),
+      ),
+      const SizedBox(width: 8),
+      Expanded(
+        child: InkWell(
+          onTap: () async {
+            final picked = await showDatePicker(
+              context: ctx,
+              initialDate: date,
+              firstDate: DateTime(2020),
+              lastDate: DateTime.now(),
+            );
+            if (picked != null) onDate(picked);
+          },
+          child: InputDecorator(
+            decoration: const InputDecoration(
+              labelText: 'As of',
+              suffixIcon: Icon(Icons.calendar_today_outlined, size: 16),
+            ),
+            child: Text(DateFormat('d MMM yyyy').format(date)),
+          ),
+        ),
+      ),
+    ]);
+  }
+
+  Future<void> _saveOpeningBalance({
+    required String? traderId,
+    String? farmId,
+    String? companyId,
+    required String amountText,
+    required DateTime date,
+  }) async {
+    final amount = double.tryParse(amountText.trim()) ?? 0;
+    if (amount <= 0 || traderId == null) return;
+    await _c.from('supplier_ledger').insert({
+      'trader_id': traderId,
+      'farm_id': farmId,
+      'company_id': companyId,
+      'entry_type': 'debit',
+      'reason': 'opening_balance',
+      'amount': amount,
+      'entry_date': DateFormat('yyyy-MM-dd').format(date),
+      'description': 'Opening balance',
+      'created_by': ref.read(appUserProvider).valueOrNull?.userId,
+    });
   }
 
   // ==========================================================================
@@ -3505,9 +3832,12 @@ class _S extends ConsumerState<PurchaseScreen>
               borderRadius: BorderRadius.circular(kRadiusCard),
               border: Border.all(color: kBorder)),
           child:
-          Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          // Spacer only when the card has a fixed height (grids); in a Row
+          // inside a scrolling sheet (supplier dashboard) the height is
+          // unbounded and a Spacer throws, so use a small gap there.
+          LayoutBuilder(builder: (_, box) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Icon(icon, color: color, size: 16),
-            const Spacer(),
+            if (box.hasBoundedHeight) const Spacer() else const SizedBox(height: 6),
             Text(value,
                 style: TextStyle(
                     fontSize: 13, fontWeight: FontWeight.w900, color: color)),
@@ -3515,7 +3845,7 @@ class _S extends ConsumerState<PurchaseScreen>
                 style: const TextStyle(fontSize: 9, color: kTextHint),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis),
-          ]));
+          ])));
 
   Widget _sectionHeader(String title,
       {String? action, VoidCallback? onAction}) =>
