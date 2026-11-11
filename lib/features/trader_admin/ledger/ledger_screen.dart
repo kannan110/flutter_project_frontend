@@ -78,7 +78,12 @@ class _S extends ConsumerState<LedgerScreen> {
       if (!mounted) return;
       setState(() {
         _list    = List<Map<String, dynamic>>.from(
-            (res as List? ?? []).map((e) => Map<String, dynamic>.from(e as Map)));
+            (res as List? ?? []).map((e) => Map<String, dynamic>.from(e as Map)))
+          // Alphabetical by shop name (case-insensitive); filters and
+          // search keep this order.
+          ..sort((a, b) =>
+              (a['shop_name'] as String? ?? '').trim().toLowerCase().compareTo(
+                  (b['shop_name'] as String? ?? '').trim().toLowerCase()));
         _loading = false;
       });
     } catch (e) {

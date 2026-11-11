@@ -49,7 +49,13 @@ class _S extends ConsumerState<AgentsScreen> {
       final data = await _c.from('delivery_agents')
           .select('id,name,phone,vehicle_no,vehicle_type,is_active,auth_user_id,notes')
           .eq('trader_id', tid).order('name');
-      if (mounted) setState(() { _agents = List<Map<String,dynamic>>.from(data); _loading = false; _applySearch(_searchCtrl.text); });
+      // Alphabetical by name, case-insensitive (the database's order can put
+      // mixed-case names after all-caps ones).
+      final agents = List<Map<String,dynamic>>.from(data)
+        ..sort((a, b) =>
+            (a['name'] as String? ?? '').trim().toLowerCase().compareTo(
+                (b['name'] as String? ?? '').trim().toLowerCase()));
+      if (mounted) setState(() { _agents = agents; _loading = false; _applySearch(_searchCtrl.text); });
     } catch (_) { if (mounted) setState(() => _loading = false); }
   }
 
