@@ -61,6 +61,7 @@ class _S extends ConsumerState<ReturnCreateScreen> {
   int _deliveryOffset = 0;
   bool _hasMoreDeliveries = false;
   Map<String, dynamic>? _selectedDelivery;
+  DateTime? _deliveryDate; // null = latest deliveries; set = only that day
 
   // ── Step 2: Products (auto-loaded from the delivery's invoice) ───────
   bool _loadingProducts = false;
@@ -137,6 +138,7 @@ class _S extends ConsumerState<ReturnCreateScreen> {
       _deliveries = [];
       _deliveryOffset = 0;
       _hasMoreDeliveries = false;
+      _deliveryDate = null;
       _step = 1;
     });
     await _loadDeliveries();
@@ -151,7 +153,7 @@ class _S extends ConsumerState<ReturnCreateScreen> {
     setState(() => _loadingDeliveries = true);
     try {
       final offset = loadMore ? _deliveryOffset : 0;
-      final rows = await _c
+      var q = _c
           .from('deliveries')
           .select('id,delivery_agent_id,delivered_at,delivered_bird_count,'
           'delivered_total_weight,final_rate,batch_id,order_id,'
@@ -159,7 +161,17 @@ class _S extends ConsumerState<ReturnCreateScreen> {
           'delivery_batches(delivery_challans(dc_number))')
           .eq('trader_id', tid)
           .eq('retailer_id', retailerId)
-          .eq('status', 'delivered')
+          .eq('status', 'delivered');
+      final day = _deliveryDate;
+      if (day != null) {
+        // The picked local day, as a UTC range for the timestamptz column.
+        final start = DateTime(day.year, day.month, day.day);
+        final end = start.add(const Duration(days: 1));
+        q = q
+            .gte('delivered_at', start.toUtc().toIso8601String())
+            .lt('delivered_at', end.toUtc().toIso8601String());
+      }
+      final rows = await q
           .order('delivered_at', ascending: false)
           .range(offset, offset + _kDeliveryPageSize - 1);
       if (!mounted) return;
@@ -411,21 +423,86 @@ class _S extends ConsumerState<ReturnCreateScreen> {
 
   // ── Step 1: Recent deliveries ─────────────────────────────────────────
 
+  Future<void> _pickDeliveryDate() async {
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _deliveryDate ?? now,
+      firstDate: DateTime(now.year - 2),
+      lastDate: now,
+      helpText: 'Show deliveries on',
+    );
+    if (picked == null || !mounted) return;
+    setState(() {
+      _deliveryDate = picked;
+      _deliveries = [];
+      _deliveryOffset = 0;
+    });
+    await _loadDeliveries();
+  }
+
+  Future<void> _clearDeliveryDate() async {
+    setState(() {
+      _deliveryDate = null;
+      _deliveries = [];
+      _deliveryOffset = 0;
+    });
+    await _loadDeliveries();
+  }
+
+  Widget _deliveryDateFilter() {
+    final d = _deliveryDate;
+    if (d == null) {
+      return OutlinedButton.icon(
+        onPressed: _pickDeliveryDate,
+        style: OutlinedButton.styleFrom(
+          minimumSize: Size.zero,
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        ),
+        icon: const Icon(Icons.calendar_month_outlined, size: 16),
+        label: const Text('Select Date'),
+      );
+    }
+    return InputChip(
+      avatar: const Icon(Icons.event, size: 16, color: kNavy),
+      label: Text(DateFormat('d MMM y').format(d),
+          style: const TextStyle(fontWeight: FontWeight.w700, color: kNavy)),
+      onPressed: _pickDeliveryDate,
+      onDeleted: _clearDeliveryDate,
+      deleteButtonTooltipMessage: 'Show recent deliveries',
+      backgroundColor: kNavy.withValues(alpha: 0.06),
+      side: BorderSide(color: kNavy.withValues(alpha: 0.25)),
+    );
+  }
+
   Widget _deliveryStep() => Column(children: [
     Container(
       width: double.infinity,
       color: Colors.white,
       padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
-      child: Text(_selectedRetailer?['shop_name'] as String? ?? '—',
-          style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15, color: kNavy)),
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        alignment: WrapAlignment.spaceBetween,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          Text(_selectedRetailer?['shop_name'] as String? ?? '—',
+              style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15, color: kNavy)),
+          _deliveryDateFilter(),
+        ],
+      ),
     ),
     const Divider(height: 1),
     Expanded(
       child: _loadingDeliveries && _deliveries.isEmpty
           ? const LoadingList()
           : _deliveries.isEmpty
-          ? const EmptyState(
-          icon: Icons.local_shipping_outlined, message: 'No delivered orders for this customer')
+          ? EmptyState(
+          icon: Icons.local_shipping_outlined,
+          message: _deliveryDate == null
+              ? 'No delivered orders for this customer'
+              : 'No deliveries on ${DateFormat('d MMM y').format(_deliveryDate!)}')
           : ListView.separated(
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
         itemCount: _deliveries.length + (_hasMoreDeliveries ? 1 : 0),
