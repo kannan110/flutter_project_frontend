@@ -66,6 +66,11 @@ class _S extends ConsumerState<CreateRetailerScreen> {
   final _newAreaCode = TextEditingController();
   final _areaSearch  = TextEditingController();
 
+  // ── Supervisor (optional; retailers.supervisor_id) ──────────────────────
+  List<Map<String, dynamic>> _supervisors = [];
+  String? _selectedSupervisorId;
+  bool _loadingSupervisors = true;
+
   // ── Customer Rate state ─────────────────────────────────────────────────
   List<Map<String, dynamic>> _products  = [];
   bool   _loadingProducts               = true;
@@ -96,7 +101,26 @@ class _S extends ConsumerState<CreateRetailerScreen> {
   Future<void> _loadData() async {
     final tid = ref.read(appUserProvider).valueOrNull?.traderId;
     if (tid == null) return;
-    await Future.wait([_loadZones(tid), _loadAreas(tid), _loadProducts(tid)]);
+    await Future.wait([
+      _loadZones(tid), _loadAreas(tid), _loadProducts(tid),
+      _loadSupervisors(tid),
+    ]);
+  }
+
+  Future<void> _loadSupervisors(String tid) async {
+    try {
+      final res = await _c.from('supervisor_profiles')
+          .select('id,name,mobile')
+          .eq('trader_id', tid).eq('is_active', true).order('name');
+      if (mounted) {
+        setState(() {
+          _supervisors = List<Map<String, dynamic>>.from(res as List? ?? []);
+          _loadingSupervisors = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _loadingSupervisors = false);
+    }
   }
 
   Future<void> _loadAreas(String tid) async {
@@ -296,6 +320,7 @@ class _S extends ConsumerState<CreateRetailerScreen> {
         'credit_limit':    double.tryParse(_creditLimit.text.trim()) ?? 100000,
         'zone_id':         _selectedZoneId,   // ← zone set at INSERT time
         'area_id':         _selectedAreaId,   // ← optional; dispatch-only, independent of zone_id
+        'supervisor_id':   _selectedSupervisorId, // ← optional
         'is_active':       true,
       }).select('id').single();
 
@@ -446,6 +471,10 @@ class _S extends ConsumerState<CreateRetailerScreen> {
               // ── Section 2b: Delivery Area (optional, dispatch-only) ──────
               const SizedBox(height: 16),
               _buildAreaSection(),
+
+              // ── Section 2c: Supervisor (optional) ───────────────────────
+              const SizedBox(height: 16),
+              _buildSupervisorSection(),
 
               // ── Section 3: Customer Rate (optional) ─────────────────────
               const SizedBox(height: 16),
@@ -855,6 +884,43 @@ class _S extends ConsumerState<CreateRetailerScreen> {
   }
 
   // ── Delivery Area Section (optional, dispatch-only) ──────────────────────
+  Widget _buildSupervisorSection() {
+    if (_loadingSupervisors) {
+      return const LinearProgressIndicator(minHeight: 2);
+    }
+    final ids = _supervisors.map((s) => s['id'] as String).toSet();
+    return DropdownButtonFormField<String?>(
+      initialValue: ids.contains(_selectedSupervisorId)
+          ? _selectedSupervisorId
+          : null,
+      isExpanded: true,
+      decoration: InputDecoration(
+        labelText: 'Supervisor (optional)',
+        prefixIcon: const Icon(Icons.supervisor_account_outlined, size: 20),
+        helperText: _supervisors.isEmpty
+            ? 'No active supervisors yet. Add them under Supervisors.'
+            : 'The supervisor who collects from this retailer',
+      ),
+      items: [
+        const DropdownMenuItem<String?>(
+            value: null, child: Text('No supervisor')),
+        for (final s in _supervisors)
+          DropdownMenuItem<String?>(
+            value: s['id'] as String,
+            child: Text(
+              [s['name'], s['mobile']]
+                  .where((v) => v != null && '$v'.trim().isNotEmpty)
+                  .join('  ·  '),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+      ],
+      onChanged: _supervisors.isEmpty
+          ? null
+          : (v) => setState(() => _selectedSupervisorId = v),
+    );
+  }
+
   Widget _buildAreaSection() {
     return Container(
       decoration: BoxDecoration(
