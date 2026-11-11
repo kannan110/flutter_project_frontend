@@ -2076,6 +2076,13 @@ class _S extends ConsumerState<PurchaseScreen>
                                             fontSize: 10, color: kTextHint)),
                                   ])),
                           IconButton(
+                              tooltip: 'Change Supplier',
+                              icon: const Icon(Icons.swap_horiz_rounded),
+                              onPressed: () {
+                                Navigator.of(ctx, rootNavigator: true).pop();
+                                _showChangeSupplier(p);
+                              }),
+                          IconButton(
                               icon: const Icon(Icons.close),
                               onPressed: () =>
                                   Navigator.of(ctx, rootNavigator: true)
@@ -2354,6 +2361,14 @@ class _S extends ConsumerState<PurchaseScreen>
                               p['status'] == 'locked'
                                   ? Colors.grey
                                   : Colors.green),
+                          if (p['status'] != 'locked')
+                            IconButton(
+                                tooltip: 'Change Supplier',
+                                icon: const Icon(Icons.swap_horiz_rounded),
+                                onPressed: () {
+                                  Navigator.of(ctx, rootNavigator: true).pop();
+                                  _showChangeSupplier(p);
+                                }),
                           IconButton(
                               icon: const Icon(Icons.close),
                               onPressed: () =>
@@ -2444,6 +2459,103 @@ class _S extends ConsumerState<PurchaseScreen>
                         ]),
                       ]));
             }));
+  }
+
+  // Change Supplier — moves this DC's purchase to another supplier through
+  // the change_dc_supplier RPC (purchase, DC name, stock note, any supplier
+  // ledger rows, audit), all in one transaction.
+  Future<void> _showChangeSupplier(Map<String, dynamic> p) async {
+    final tid = ref.read(appUserProvider).valueOrNull?.traderId;
+    if (tid == null) return;
+    List<Map<String, dynamic>> farms;
+    try {
+      farms = List<Map<String, dynamic>>.from(await _c
+          .from('farms')
+          .select('id,farmer_name,farm_name')
+          .eq('trader_id', tid)
+          .eq('is_active', true)
+          .order('farmer_name'));
+    } catch (e) {
+      if (mounted) showError(context, e.toString().replaceAll('Exception: ', ''));
+      return;
+    }
+    final currentId = p['farm_id'] as String?;
+    final options = farms.where((f) => f['id'] != currentId).toList();
+    if (!mounted) return;
+    if (options.isEmpty) {
+      showError(context, 'No other supplier to move this DC to.');
+      return;
+    }
+    String? selected;
+    final picked = await showDialog<String>(
+      context: context,
+      useRootNavigator: true,
+      builder: (ctx) => StatefulBuilder(builder: (ctx, ss) => AlertDialog(
+        title: Text('Change Supplier · DC ${p['dc_number'] ?? '--'}'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Current: ${p['farmer_name'] ?? '--'}',
+                style: const TextStyle(fontSize: 12, color: kTextSub)),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<String>(
+              initialValue: selected,
+              isExpanded: true,
+              decoration: const InputDecoration(labelText: 'New supplier'),
+              items: [
+                for (final f in options)
+                  DropdownMenuItem(
+                    value: f['id'] as String,
+                    child: Text(
+                      [f['farmer_name'], f['farm_name']]
+                          .where((v) => v != null && '$v'.trim().isNotEmpty)
+                          .toSet()
+                          .join(' · '),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+              ],
+              onChanged: (v) => ss(() => selected = v),
+            ),
+            const SizedBox(height: 12),
+            const Text(
+                'Moves this DC\'s purchase, and any amount already in the '
+                'supplier ledger, to the new supplier. Retailer deliveries, '
+                'birds and weights are not changed.',
+                style: TextStyle(fontSize: 11, color: kTextHint)),
+          ],
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('Cancel')),
+          ElevatedButton(
+              onPressed: selected == null
+                  ? null
+                  : () => Navigator.of(ctx).pop(selected),
+              child: const Text('Change')),
+        ],
+      )),
+    );
+    if (picked == null || !mounted) return;
+    try {
+      final res = await _c.rpc('change_dc_supplier', params: {
+        'p_purchase_entry_id': p['id'],
+        'p_new_farm_id': picked,
+      });
+      final r = (res as Map?)?.cast<String, dynamic>() ?? {};
+      if (mounted) {
+        showSuccess(context,
+            'DC ${p['dc_number'] ?? ''} moved to ${r['supplier'] ?? 'new supplier'} ✓');
+      }
+      _load();
+    } catch (e) {
+      if (mounted) {
+        showError(context,
+            e.toString().replaceAll('Exception: ', '').replaceAll('PostgrestException(message: ', ''));
+      }
+    }
   }
 
   Widget _detailSection(String title, List<Widget> rows) =>
