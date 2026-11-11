@@ -77,7 +77,12 @@ class _S extends ConsumerState<RetailersScreen> {
           .order('shop_name');
       if (!mounted) return;
       setState(() {
-        _list = List<Map<String, dynamic>>.from(data);
+        // Alphabetical by shop name, case-insensitive (the database's
+        // order can put mixed-case names after all-caps ones).
+        _list = List<Map<String, dynamic>>.from(data)
+          ..sort((a, b) =>
+              (a['shop_name'] as String? ?? '').trim().toLowerCase().compareTo(
+                  (b['shop_name'] as String? ?? '').trim().toLowerCase()));
         _filtered = List.from(_list);
         _loading = false;
       });
