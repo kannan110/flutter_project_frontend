@@ -129,7 +129,10 @@ class SettingsScreen extends ConsumerWidget {
 
           const SizedBox(height: 12),
           _sectionLabel('PREFERENCES'),
-          _menuCard(context, const [_AutoApproveQuickEntryTile()]),
+          _menuCard(context, const [
+            _AutoApproveQuickEntryTile(),
+            _AutoApproveShiftCloseTile(),
+          ]),
 
           const SizedBox(height: 12),
           _sectionLabel('OPERATIONS'),
@@ -305,16 +308,63 @@ class SettingsScreen extends ConsumerWidget {
 // (traders.auto_approve_quick_entry). On: Quick Entries the trader saves are
 // approved straight away. Off: they wait in Approvals. Agent entries always
 // wait for approval either way.
-class _AutoApproveQuickEntryTile extends ConsumerStatefulWidget {
+class _AutoApproveQuickEntryTile extends StatelessWidget {
   const _AutoApproveQuickEntryTile();
 
   @override
-  ConsumerState<_AutoApproveQuickEntryTile> createState() =>
-      _AutoApproveQuickEntryTileState();
+  Widget build(BuildContext context) => const _TraderPrefSwitch(
+        column: 'auto_approve_quick_entry',
+        icon: Icons.verified_outlined,
+        title: 'Auto-approve Quick Entry',
+        subtitle: 'Quick Entries you save are approved and invoiced at once. '
+            'Agent entries still wait for your approval.',
+        onMessage: 'Quick Entries will be approved straight away',
+        offMessage: 'Quick Entries will wait in Approvals',
+      );
 }
 
-class _AutoApproveQuickEntryTileState
-    extends ConsumerState<_AutoApproveQuickEntryTile> {
+// Settings → Preferences → Auto-approve shift close
+// (traders.auto_approve_shift_close). On: a shift the trader closes is
+// approved straight away. Off: it waits in Shifts. Shifts closed by agents
+// always wait for approval either way.
+class _AutoApproveShiftCloseTile extends StatelessWidget {
+  const _AutoApproveShiftCloseTile();
+
+  @override
+  Widget build(BuildContext context) => const _TraderPrefSwitch(
+        column: 'auto_approve_shift_close',
+        icon: Icons.lock_clock_outlined,
+        title: 'Auto-approve shift close',
+        subtitle: 'Shifts you close are approved at once. '
+            'Shifts closed by agents still wait for your approval.',
+        onMessage: 'Shifts you close will be approved straight away',
+        offMessage: 'Closed shifts will wait in Shifts for approval',
+      );
+}
+
+// An on/off preference stored as a boolean column on the trader's row.
+class _TraderPrefSwitch extends ConsumerStatefulWidget {
+  const _TraderPrefSwitch({
+    required this.column,
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onMessage,
+    required this.offMessage,
+  });
+
+  final String column;
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final String onMessage;
+  final String offMessage;
+
+  @override
+  ConsumerState<_TraderPrefSwitch> createState() => _TraderPrefSwitchState();
+}
+
+class _TraderPrefSwitchState extends ConsumerState<_TraderPrefSwitch> {
   final _c = Supabase.instance.client;
   bool? _on; // null while loading
   bool _saving = false;
@@ -330,9 +380,9 @@ class _AutoApproveQuickEntryTileState
     if (tid == null) return;
     try {
       final t = await _c.from('traders')
-          .select('auto_approve_quick_entry').eq('id', tid).maybeSingle();
+          .select(widget.column).eq('id', tid).maybeSingle();
       if (mounted) {
-        setState(() => _on = (t?['auto_approve_quick_entry'] as bool?) ?? false);
+        setState(() => _on = (t?[widget.column] as bool?) ?? false);
       }
     } catch (_) {
       if (mounted) setState(() => _on = false);
@@ -345,12 +395,9 @@ class _AutoApproveQuickEntryTileState
     final before = _on;
     setState(() { _on = v; _saving = true; });
     try {
-      await _c.from('traders')
-          .update({'auto_approve_quick_entry': v}).eq('id', tid);
+      await _c.from('traders').update({widget.column: v}).eq('id', tid);
       if (mounted) {
-        showSuccess(context,
-            v ? 'Quick Entries will be approved straight away'
-              : 'Quick Entries will wait in Approvals');
+        showSuccess(context, v ? widget.onMessage : widget.offMessage);
       }
     } catch (e) {
       if (mounted) {
@@ -373,18 +420,17 @@ class _AutoApproveQuickEntryTileState
           color: kNavy.withValues(alpha: 0.06),
           borderRadius: BorderRadius.circular(kRadiusInner),
         ),
-        child: const Icon(Icons.verified_outlined, size: 18, color: kNavy),
+        child: Icon(widget.icon, size: 18, color: kNavy),
       ),
       const SizedBox(width: 14),
-      const Expanded(
+      Expanded(
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text('Auto-approve Quick Entry',
-              style: TextStyle(
+          Text(widget.title,
+              style: const TextStyle(
                   fontSize: 15, fontWeight: FontWeight.w600, color: kTextMain)),
-          SizedBox(height: 2),
-          Text('Quick Entries you save are approved and invoiced at once. '
-              'Agent entries still wait for your approval.',
-              style: TextStyle(fontSize: 11, color: kTextHint)),
+          const SizedBox(height: 2),
+          Text(widget.subtitle,
+              style: const TextStyle(fontSize: 11, color: kTextHint)),
         ]),
       ),
       const SizedBox(width: 8),
