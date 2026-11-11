@@ -110,11 +110,23 @@ class _QuickLine {
   // entered" apart from "some lines summed to zero."
   int? get birdsToRecord => int.tryParse(birdsCtrl.text.trim());
   double get weight => double.tryParse(weightCtrl.text.trim()) ?? 0;
-  double get estimatedBill => weight * (suggestRate ?? 0);
+
+  // Rate/kg — auto-filled from pricing (suggestRate); once the trader types
+  // over it, rateEdited is set and the typed rate is sent with the order
+  // (order_items.rate_per_kg, rate_source 'manual') and used on the invoice.
+  final rateCtrl = TextEditingController();
+  bool rateEdited = false;
+  double? get typedRate {
+    final v = double.tryParse(rateCtrl.text.trim());
+    return v != null && v > 0 ? v : null;
+  }
+  double? get billRate => rateEdited ? typedRate : suggestRate;
+  double get estimatedBill => weight * (billRate ?? 0);
 
   void dispose() {
     birdsCtrl.dispose();
     weightCtrl.dispose();
+    rateCtrl.dispose();
   }
 }
 
@@ -424,7 +436,13 @@ class _AgentQuickEntrySheetState extends ConsumerState<AgentQuickEntrySheet> {
 
   // ── Customer selection ───────────────────────────────────────────────────
   void _selectRetailer(Map<String, dynamic> r) {
-    setState(() => _selRetailer = r);
+    setState(() {
+      _selRetailer = r;
+      // A rate typed for the previous customer doesn't carry over.
+      for (final l in _lines) {
+        l.rateEdited = false;
+      }
+    });
     // Customer Rate & Bill Preview: refresh every line now that a customer
     // (and therefore a Zone) is known.
     for (int i = 0; i < _lines.length; i++) {
@@ -463,10 +481,14 @@ class _AgentQuickEntrySheetState extends ConsumerState<AgentQuickEntrySheet> {
           line.adjustmentValue = (row['adjustment_value'] as num?)?.toDouble() ?? 0;
           line.rateZoneId = row['zone_id'] as String?;
           line.rateZoneName = row['zone_name'] as String?;
+          if (!line.rateEdited) line.rateCtrl.text = _fmtRate(rate);
         });
       }
     } catch (_) {}
   }
+
+  static String _fmtRate(double r) =>
+      r == r.roundToDouble() ? r.toStringAsFixed(0) : r.toStringAsFixed(2);
 
   String _rateSourceLabel(_QuickLine line) {
     if (line.rateSourceLabel != null && line.rateSourceLabel!.trim().isNotEmpty) {
@@ -676,7 +698,8 @@ class _AgentQuickEntrySheetState extends ConsumerState<AgentQuickEntrySheet> {
 
     final itemSummary = activeLines
         .map((l) =>
-    '${l.product!['name']}: ${l.birds > 0 ? '${l.birds} birds, ' : ''}${l.weight.toStringAsFixed(1)} kg')
+    '${l.product!['name']}: ${l.birds > 0 ? '${l.birds} birds, ' : ''}${l.weight.toStringAsFixed(1)} kg'
+        '${l.billRate != null ? ' @ ₹${_fmtRate(l.billRate!)}/kg${l.rateEdited ? ' (edited)' : ''}' : ''}')
         .join('\n');
 
     final ok = await confirmDialog(
@@ -721,6 +744,9 @@ class _AgentQuickEntrySheetState extends ConsumerState<AgentQuickEntrySheet> {
           'product_id': l.product!['id'],
           'birds': l.birds > 0 ? l.birds : null,
           'weight_kg': l.weight,
+          // Only a rate the trader typed is sent; untouched lines keep the
+          // existing behaviour (rate resolved from pricing on approval).
+          if (l.rateEdited && l.typedRate != null) 'rate_per_kg': l.typedRate,
         })
             .toList(),
         'p_payment_mode': _payMode,
@@ -1369,26 +1395,59 @@ class _AgentQuickEntrySheetState extends ConsumerState<AgentQuickEntrySheet> {
               border: Border.all(color: kPrimary.withValues(alpha: 0.2)),
             ),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Row(children: [
+              Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
                 Expanded(
-                  child: Text('Rate Source: ${_rateSourceLabel(line)}',
-                      style: const TextStyle(fontSize: 11, color: kTextSub)),
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text(
+                        line.rateEdited
+                            ? 'Rate Source: Edited here'
+                            : 'Rate Source: ${_rateSourceLabel(line)}',
+                        style: TextStyle(
+                            fontSize: 11,
+                            color: line.rateEdited ? kWarning : kTextSub,
+                            fontWeight: line.rateEdited ? FontWeight.w700 : FontWeight.normal)),
+                    if (line.rateEdited && line.suggestRate != null)
+                      InkWell(
+                        onTap: () => setState(() {
+                          line.rateEdited = false;
+                          line.rateCtrl.text = _fmtRate(line.suggestRate!);
+                        }),
+                        child: Padding(
+                          padding: const EdgeInsets.only(top: 4),
+                          child: Text(
+                              'Pricing: ₹${_fmtRate(line.suggestRate!)}/kg · Reset',
+                              style: const TextStyle(
+                                  fontSize: 11,
+                                  color: kPrimary,
+                                  fontWeight: FontWeight.w700,
+                                  decoration: TextDecoration.underline)),
+                        ),
+                      ),
+                  ]),
                 ),
-                Text(
-                  line.suggestRate != null
-                      ? '₹${line.suggestRate!.toStringAsFixed(2)}/kg'
-                      : '—',
-                  style: const TextStyle(
-                      fontSize: 13, fontWeight: FontWeight.w800, color: kPrimary),
+                const SizedBox(width: 10),
+                SizedBox(
+                  width: 130,
+                  child: _compactField(
+                    label: 'Rate / kg (₹)',
+                    controller: line.rateCtrl,
+                    icon: Icons.currency_rupee,
+                    decimal: true,
+                    inputFormatters: moneyInputFormatters,
+                    onChanged: () => setState(() {
+                      line.rateEdited = line.suggestRate == null ||
+                          line.typedRate != line.suggestRate;
+                    }),
+                  ),
                 ),
               ]),
-              const SizedBox(height: 4),
+              const SizedBox(height: 8),
               Row(children: [
                 const Expanded(
                   child: Text('Estimated Bill', style: TextStyle(fontSize: 11, color: kTextSub)),
                 ),
                 Text(
-                  line.suggestRate != null ? Fmt.amount(line.estimatedBill) : '—',
+                  line.billRate != null ? Fmt.amount(line.estimatedBill) : '—',
                   style: const TextStyle(
                       fontSize: 14, fontWeight: FontWeight.w900, color: kNavy),
                 ),
