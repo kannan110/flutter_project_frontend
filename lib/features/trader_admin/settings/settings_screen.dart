@@ -320,9 +320,10 @@ class SettingsScreen extends ConsumerWidget {
       ]),
       const WebListCard(children: [
         WebCardHeader(title: 'Preferences', icon: Icons.tune_rounded,
-            subtitle: '1 item'),
+            subtitle: '2 items'),
         Divider(height: 1, color: WebColors.border),
         _AutoApproveQuickEntryTile(),
+        _AutoApproveShiftCloseTile(),
         SizedBox(height: 6),
       ]),
       section('Operations', Icons.local_shipping_outlined, [
