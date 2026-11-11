@@ -65,7 +65,8 @@ class _S extends ConsumerState<InvoicesScreen> {
           'balance_amount,status,bird_count,quantity_kg,price_per_kg,'
           'retailers(shop_name)')
           .eq('trader_id', tid)
-          .order('invoice_date', ascending: false)
+          // Latest invoice number first (INV-YYYYMM-NNNNN sorts by text).
+          .order('invoice_number', ascending: false)
           .limit(200);
       if (!mounted) return;
       final list = List<Map<String, dynamic>>.from(data);
