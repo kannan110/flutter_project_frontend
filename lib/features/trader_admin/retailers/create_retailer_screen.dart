@@ -1235,6 +1235,10 @@ class _S extends ConsumerState<CreateRetailerScreen> {
       ),
       child: Theme(
         data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+        // Own (transparent) Material so the tile's ink isn't hidden by the
+        // card's white background (Flutter's ListTile check).
+        child: Material(
+        type: MaterialType.transparency,
         child: ExpansionTile(
           initiallyExpanded: false,
           onExpansionChanged: (v) =>
@@ -1349,6 +1353,7 @@ class _S extends ConsumerState<CreateRetailerScreen> {
                 );
               }),
           ],
+        ),
         ),
       ),
     );
