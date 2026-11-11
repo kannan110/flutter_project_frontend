@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/providers/session_provider.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/theme/app_theme.dart';
@@ -125,6 +126,10 @@ class SettingsScreen extends ConsumerWidget {
           _menuCard(context, [
             _item(context, Icons.storefront_outlined, 'Profile', R.traderProfile),
           ]),
+
+          const SizedBox(height: 12),
+          _sectionLabel('PREFERENCES'),
+          _menuCard(context, const [_AutoApproveQuickEntryTile()]),
 
           const SizedBox(height: 12),
           _sectionLabel('OPERATIONS'),
@@ -293,5 +298,102 @@ class SettingsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) => ResponsiveLayout(
     mobile: (_) => _buildScaffold(context, ref),
     desktop: (_) => _buildScaffold(context, ref),
+  );
+}
+
+// Settings → Preferences → Auto-approve Quick Entry
+// (traders.auto_approve_quick_entry). On: Quick Entries the trader saves are
+// approved straight away. Off: they wait in Approvals. Agent entries always
+// wait for approval either way.
+class _AutoApproveQuickEntryTile extends ConsumerStatefulWidget {
+  const _AutoApproveQuickEntryTile();
+
+  @override
+  ConsumerState<_AutoApproveQuickEntryTile> createState() =>
+      _AutoApproveQuickEntryTileState();
+}
+
+class _AutoApproveQuickEntryTileState
+    extends ConsumerState<_AutoApproveQuickEntryTile> {
+  final _c = Supabase.instance.client;
+  bool? _on; // null while loading
+  bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final tid = ref.read(appUserProvider).valueOrNull?.traderId;
+    if (tid == null) return;
+    try {
+      final t = await _c.from('traders')
+          .select('auto_approve_quick_entry').eq('id', tid).maybeSingle();
+      if (mounted) {
+        setState(() => _on = (t?['auto_approve_quick_entry'] as bool?) ?? false);
+      }
+    } catch (_) {
+      if (mounted) setState(() => _on = false);
+    }
+  }
+
+  Future<void> _set(bool v) async {
+    final tid = ref.read(appUserProvider).valueOrNull?.traderId;
+    if (tid == null) return;
+    final before = _on;
+    setState(() { _on = v; _saving = true; });
+    try {
+      await _c.from('traders')
+          .update({'auto_approve_quick_entry': v}).eq('id', tid);
+      if (mounted) {
+        showSuccess(context,
+            v ? 'Quick Entries will be approved straight away'
+              : 'Quick Entries will wait in Approvals');
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _on = before);
+        showError(context, e.toString().replaceAll('Exception: ', ''));
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+    child: Row(children: [
+      Container(
+        width: 36,
+        height: 36,
+        decoration: BoxDecoration(
+          color: kNavy.withValues(alpha: 0.06),
+          borderRadius: BorderRadius.circular(kRadiusInner),
+        ),
+        child: const Icon(Icons.verified_outlined, size: 18, color: kNavy),
+      ),
+      const SizedBox(width: 14),
+      const Expanded(
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text('Auto-approve Quick Entry',
+              style: TextStyle(
+                  fontSize: 15, fontWeight: FontWeight.w600, color: kTextMain)),
+          SizedBox(height: 2),
+          Text('Quick Entries you save are approved and invoiced at once. '
+              'Agent entries still wait for your approval.',
+              style: TextStyle(fontSize: 11, color: kTextHint)),
+        ]),
+      ),
+      const SizedBox(width: 8),
+      if (_on == null || _saving)
+        const SizedBox(
+            width: 20, height: 20,
+            child: CircularProgressIndicator(strokeWidth: 2))
+      else
+        Switch(value: _on!, onChanged: _set),
+    ]),
   );
 }

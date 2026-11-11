@@ -808,12 +808,41 @@ class _AgentQuickEntrySheetState extends ConsumerState<AgentQuickEntrySheet> {
         if (_emptyWeight != null) 'p_empty_weight_kg': _emptyWeight,
       });
 
+      // ── Step 3 (optional): Settings → Auto-approve Quick Entry. Approve
+      //    now through the same RPC and automatic-rate path as Approve All
+      //    (an edited Rate/kg is kept). If approval fails the delivery just
+      //    stays in Approvals, exactly as when the setting is off.
+      String approvalNote = '';
+      try {
+        final t = await _c.from('traders')
+            .select('auto_approve_quick_entry')
+            .eq('id', user.traderId as Object)
+            .maybeSingle();
+        if ((t?['auto_approve_quick_entry'] as bool?) ?? false) {
+          try {
+            await _c.rpc('approve_delivery_and_order', params: {
+              'p_delivery_id': deliveryId,
+              'p_final_rate': null,
+              'p_final_amount': null,
+              'p_approved_by': user.userId,
+              'p_approval_notes': 'Auto-approved (Quick Entry)',
+            });
+            approvalNote = '\nApproved and invoiced';
+          } catch (e) {
+            approvalNote = '\nNot auto-approved (${_cleanError(e)}). '
+                'It is waiting in Approvals.';
+          }
+        }
+      } catch (_) {
+        // Setting couldn't be read: leave it for Approvals, as before.
+      }
+
       if (mounted) {
         showSuccess(
             context,
             '✅ Delivery completed for ${widget.agentName}\n'
                 '${_selRetailer!['shop_name']} — ${activeLines.length} product(s)'
-                '${docNo != null ? '\nDoc No: $docNo' : ''}');
+                '${docNo != null ? '\nDoc No: $docNo' : ''}$approvalNote');
         Navigator.of(context, rootNavigator: true).pop();
         widget.onDone();
       }
