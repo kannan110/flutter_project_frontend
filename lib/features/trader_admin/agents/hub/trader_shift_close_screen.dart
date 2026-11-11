@@ -7,6 +7,7 @@ import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../core/providers/session_provider.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../shifts/shift_auto_approve.dart';
 import 'entry_mode_selector.dart';
 import 'package:rooster_trader/shared/widgets/web/app_scaffold.dart';
 import 'package:rooster_trader/core/util/number_input.dart';
@@ -523,9 +524,13 @@ class _TraderShiftCloseScreenState
           'p_actual_at':  _actualAt!.toIso8601String(),
       });
 
+      // Settings → Auto-approve shift close (no-op when off).
+      final approvalNote = await autoApproveShiftIfEnabled(
+          client: _c, traderId: user.traderId, shiftId: sid, userId: user.userId);
+
       if (mounted) {
         showSuccess(context,
-            '✅ Shift closed for ${widget.agentName}');
+            '✅ Shift closed for ${widget.agentName}$approvalNote');
         if (context.canPop()) context.pop();
       }
     } catch (e) {

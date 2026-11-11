@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/providers/session_provider.dart';
 import '../../../core/theme/app_theme.dart';
 import 'package:rooster_trader/core/util/number_input.dart';
+import 'shift_auto_approve.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TRADER SHIFT OPERATIONS PANEL
@@ -766,8 +767,12 @@ class _CloseShiftTileState
         'p_actor_id': user.userId,
         'p_entry_mode': _mode,
       });
+      // Settings → Auto-approve shift close (no-op when off).
+      final approvalNote = await autoApproveShiftIfEnabled(
+          client: _c, traderId: user.traderId,
+          shiftId: widget.shiftId, userId: user.userId);
       if (mounted) {
-        showSuccess(context, 'Shift closed ✓');
+        showSuccess(context, 'Shift closed ✓$approvalNote');
         widget.onDone();
       }
     } catch (e) {
