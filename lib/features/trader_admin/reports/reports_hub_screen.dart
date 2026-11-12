@@ -87,6 +87,8 @@ const _kR = [
   _Rep('profitability_breakdown','Profit Breakdown',    Icons.pie_chart_outline,         _cFinancial),
   // ── Ledger (new) ────────────────────────────────────────────────────────
   _Rep('customer_ledger',       'Customer Ledger',      Icons.receipt_long_outlined,     _cLedger),
+  // ── Daily Report (new) — one customer, one row per day ──────────────────
+  _Rep('daily_report',          'Daily Report',         Icons.event_note_outlined,       _cLedger),
   // ── Stock Point (new — Stock Point Management Phase 2) ──────────────────
   _Rep('daily_closing_report',  'Daily Closing',        Icons.today_outlined,             _cStockPoint),
   _Rep('inventory_history',     'Inventory History',    Icons.history_outlined,           _cStockPoint),
@@ -248,12 +250,13 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
     if (tid == null) return;
 
     final isCustomerLedger = _sel.key == 'customer_ledger';
-    // Customer Ledger is retailer-scoped (get_retailer_statement), unlike
-    // every other report here (trader-wide get_report_data). Without a
-    // retailer picked there is nothing to fetch — skip the call rather
-    // than error, and let _rCustomerLedger() render the "pick a customer"
-    // prompt instead.
-    if (isCustomerLedger && _retailerId == null) {
+    final isDailyReport = _sel.key == 'daily_report';
+    // Customer Ledger and Daily Report are retailer-scoped
+    // (get_retailer_statement), unlike every other report here (trader-wide
+    // get_report_data). Without a retailer picked there is nothing to fetch —
+    // skip the call rather than error, and let the screen render the
+    // "pick a customer" prompt instead.
+    if ((isCustomerLedger || isDailyReport) && _retailerId == null) {
       setState(() { _loading = false; _error = null; _data = null; });
       return;
     }
@@ -302,6 +305,34 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
         final res = await _c.rpc(stockPointRpc, params: params)
             .timeout(const Duration(seconds: 20));
         if (mounted) setState(() => _data = res as Map<String,dynamic>?);
+        return;
+      }
+      if (isDailyReport) {
+        // Daily Report — two EXISTING RPCs in parallel, no backend change:
+        //  • get_retailer_statement → opening balance, sales, collections
+        //  • get_report_data (retailer_purchase) → birds / kg per order
+        final fmt = DateFormat('yyyy-MM-dd');
+        final results = await Future.wait<dynamic>([
+          _c.rpc('get_retailer_statement', params: {
+            'p_retailer_id': _retailerId,
+            'p_from_date':   fmt.format(_from),
+            'p_to_date':     fmt.format(_to),
+          }).timeout(const Duration(seconds: 20)),
+          _c.rpc('get_report_data', params: {
+            'p_trader_id':   tid,
+            'p_from_date':   fmt.format(_from),
+            'p_to_date':     fmt.format(_to),
+            'p_report':      'retailer_purchase',
+            'p_retailer_id': _retailerId,
+          }).timeout(const Duration(seconds: 20)),
+        ]);
+        if (mounted) {
+          setState(() => _data = {
+            'report': 'daily_report',
+            'statement': (results[0] as Map?)?.cast<String, dynamic>() ?? <String, dynamic>{},
+            'sales_lines': ((results[1] as Map?)?['daily'] as List?) ?? const [],
+          });
+        }
         return;
       }
       if (isCustomerLedger) {
@@ -394,11 +425,12 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
           // is retailer-scoped), so its filters are always visible for
           // this report regardless of the collapsed/expanded toggle state
           // — same inline filter row every other report already has.
-          if (_filtersExpanded || _sel.key == 'customer_ledger' || _sel.key == 'inventory_ledger') _buildInlineFilters(),
+          // Daily Report is retailer-scoped too, so same rule.
+          if (_filtersExpanded || _sel.key == 'customer_ledger' || _sel.key == 'daily_report' || _sel.key == 'inventory_ledger') _buildInlineFilters(),
           if (_sel.key == 'profitability_breakdown') _buildDimensionBar(),
           Expanded(child: _loading ? const LoadingList()
               : _error != null ? _buildError()
-              : (_sel.key == 'customer_ledger' && _retailerId == null)
+              : ((_sel.key == 'customer_ledger' || _sel.key == 'daily_report') && _retailerId == null)
               ? const EmptyState(
               icon: Icons.storefront_outlined,
               message: 'Pick a customer to view their ledger',
@@ -548,6 +580,7 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
       'profitability_enhanced'=> _rProfitabilityEnhanced(),
       'profitability_breakdown'=> _rProfitabilityBreakdown(),
       'customer_ledger'       => _rCustomerLedger(),
+      'daily_report'          => _rDailyReport(),
     // ── Stock Point (new — Stock Point Management Phase 2) ──────────────
       'daily_closing_report'   => _rDailyClosingReport(),
       'inventory_history'      => _rInventoryHistory(),
@@ -1570,6 +1603,56 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
+  // DAILY REPORT  (one customer, one row per day)
+  //
+  // Table is built by ReportPdfGenerator.dailyReportTable — the same result
+  // feeds the screen (Card/Table), the table's PDF/Print/Share buttons, and
+  // the AppBar PDF/Share buttons, so they always match.
+  //   Day 1 Old Balance = opening balance; Day N Old Balance = Day N-1
+  //   Current Balance. Cash Collected / Sales Amount show 0 on days with none.
+  // ═══════════════════════════════════════════════════════════════════════════
+  DailyReportResult? _dailyReportResult() {
+    final st = (_data?['statement'] as Map?)?.cast<String, dynamic>();
+    if (st == null) return null;
+    final shop = _retailers.firstWhere((r) => r['id'] == _retailerId,
+        orElse: () => const {})['shop_name'] as String?;
+    return ReportPdfGenerator.dailyReportTable(
+      statement: st,
+      salesLines: List<Map<String, dynamic>>.from(_data?['sales_lines'] as List? ?? const []),
+      fromDate: _from,
+      toDate: _to,
+      shopName: shop,
+    );
+  }
+
+  Widget _rDailyReport() {
+    final r = _dailyReportResult();
+    if (r == null) {
+      return const EmptyState(icon: Icons.event_note_outlined, message: 'No data for the selected range');
+    }
+    final ds = r.dataSet;
+    return _scroll([
+      _kpiGrid([
+        _kpi2('Old Balance',  Fmt.amount(r.opening),   Colors.blueGrey,         Icons.history_outlined),
+        _kpi2('Collected',    Fmt.amount(r.collected), Colors.green,            Icons.payments_outlined),
+        _kpi2('Sales',        Fmt.amount(r.sales),     const Color(0xFFE65100), Icons.receipt_outlined),
+        _kpi2('Current Bal.', Fmt.amount(r.closing),   r.closing > 0 ? Colors.red : Colors.green,
+            Icons.account_balance_wallet_outlined),
+      ]),
+      _kpiGrid([
+        _kpi2('Birds',  '${r.birds}',                    const Color(0xFF283593), Icons.egg_outlined),
+        _kpi2('Weight', '${r.kg.toStringAsFixed(3)} kg', Colors.teal,             Icons.scale_outlined),
+      ]),
+      _sec('${ds.customerIdentity?.customerName ?? 'Customer'} — DAY-WISE'),
+      _tbl(ds.headers, ds.rows,
+          tots: ds.totals,
+          hi: ds.highlightColumns,
+          customerIdentity: ds.customerIdentity,
+          columnFlex: ds.columnFlex),
+    ]);
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
   // 11. PROFITABILITY
   // ═══════════════════════════════════════════════════════════════════════════
   Widget _rProfitability() {
@@ -1795,6 +1878,13 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
         );
         return;
       }
+      if (_sel.key == 'daily_report') {
+        final r = _dailyReportResult();
+        if (r == null) { showError(context, 'Pick a customer first'); return; }
+        await ReportPdfGenerator.generateFromDataSetAndShow(
+            context: context, dataSet: r.dataSet, companyName: company);
+        return;
+      }
             if (_sel.key == 'retailer_purchase') {
         await ReportPdfGenerator.generateAndShow(
           context:     context,
@@ -1862,7 +1952,10 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
         ]),
       );
     }
-    final isCustomerLedgerFilters = _sel.key == 'customer_ledger';
+    // Daily Report reuses Customer Ledger's Supervisor + searchable Retailer
+    // row. The Item filter and bulk-print buttons below still check
+    // 'customer_ledger' directly, so they stay Customer-Ledger-only.
+    final isCustomerLedgerFilters = _sel.key == 'customer_ledger' || _sel.key == 'daily_report';
     if (!isCustomerLedgerFilters && _agents.isEmpty && _retailers.isEmpty) return const SizedBox.shrink();
     if (isCustomerLedgerFilters && _supervisors.isEmpty && _retailers.isEmpty) return const SizedBox.shrink();
     return Container(
@@ -2129,6 +2222,18 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
           toDate: _to,
           agentFilterName: null,
         );
+      } catch (e) {
+        if (mounted) showError(context, e.toString().replaceAll('Exception: ', ''));
+      }
+      return;
+    }
+    if (_sel.key == 'daily_report') {
+      final r = _dailyReportResult();
+      if (r == null) { showError(context, 'Pick a customer first'); return; }
+      final user = ref.read(appUserProvider).valueOrNull;
+      try {
+        await ReportPdfGenerator.shareFromDataSet(
+            dataSet: r.dataSet, companyName: user?.companyName ?? 'DSR Chicken');
       } catch (e) {
         if (mounted) showError(context, e.toString().replaceAll('Exception: ', ''));
       }

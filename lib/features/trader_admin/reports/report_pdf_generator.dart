@@ -15,6 +15,17 @@ import 'customer_ledger_row_builder.dart';
 // Uses the same `get_report_data` JSON structure from the reports hub.
 // ─────────────────────────────────────────────────────────────────────────────
 
+/// Daily Report result — the table plus the totals the screen's KPI cards use.
+typedef DailyReportResult = ({
+  ReportDataSet dataSet,
+  double opening,
+  double collected,
+  double sales,
+  double closing,
+  int birds,
+  double kg,
+});
+
 class ReportPdfGenerator {
   // Brand colors
   static const _primary  = PdfColor.fromInt(0xFFBF1B2C);
@@ -283,6 +294,116 @@ class ReportPdfGenerator {
       ]),
     );
   }
+
+  // ─── DAILY REPORT — one customer, one row per day ────────────────────────
+  // The ONE place that computes the Daily Report. The screen table, the card
+  // view, and every PDF/Print/Share path read this same result.
+  //   Old Balance (day 1)  = statement opening balance
+  //   Old Balance (day N)  = Current Balance of day N-1
+  //   Current Balance      = Old + Sales − Cash Collected (± other adjustments)
+  // Birds / Weight come from the Retailer Purchase order lines for that day.
+  static DailyReportResult dailyReportTable({
+    required Map<String, dynamic> statement,
+    required List<Map<String, dynamic>> salesLines,
+    required DateTime fromDate,
+    required DateTime toDate,
+    String? shopName,
+  }) {
+    final header = (statement['header'] as Map?)?.cast<String, dynamic>() ?? {};
+    final opening = (statement['opening_balance'] as num?)?.toDouble() ?? 0;
+    final keyFmt = DateFormat('yyyy-MM-dd');
+
+    String? dayKey(dynamic raw) {
+      final dt = DateTime.tryParse(raw?.toString() ?? '');
+      if (dt == null) return null;
+      return keyFmt.format(dt.isUtc ? dt.toLocal() : dt);
+    }
+
+    void add(Map<String, double> m, String k, double v) => m[k] = (m[k] ?? 0) + v;
+
+    // Ledger entries per day. Invoices count as Sales and payments as Cash
+    // Collected. Returns, credit notes and adjustments still move the balance
+    // but are not shown as sales or cash, so the running balance always
+    // matches Customer Ledger.
+    final sales = <String, double>{}, coll = <String, double>{};
+    final otherDr = <String, double>{}, otherCr = <String, double>{};
+    for (final r in _rowList(statement['rows'])) {
+      final k = dayKey(r['entry_date']);
+      if (k == null) continue;
+      final amt = _d(r, 'amount');
+      final src = (r['source_type'] as String? ?? '').toLowerCase();
+      if (r['entry_type'] == 'debit') {
+        final isSale = !(src.contains('adjust') || src.contains('opening'));
+        add(isSale ? sales : otherDr, k, amt);
+      } else {
+        final isCash = !(src.contains('credit_note') || src.contains('return') || src.contains('adjust'));
+        add(isCash ? coll : otherCr, k, amt);
+      }
+    }
+
+    // Birds / kg per day from the order lines (only this customer's shop).
+    final want = shopName?.trim().toLowerCase();
+    final birds = <String, int>{};
+    final kg = <String, double>{};
+    for (final l in salesLines) {
+      final shop = (l['shop_name'] as String?)?.trim().toLowerCase();
+      if (want != null && want.isNotEmpty && shop != null && shop != want) continue;
+      final k = dayKey(l['order_date']);
+      if (k == null) continue;
+      birds[k] = (birds[k] ?? 0) + _i(l, 'birds');
+      add(kg, k, _d(l, 'kg'));
+    }
+
+    final rows = <List<String>>[];
+    var bal = opening;
+    double tColl = 0, tSales = 0, tKg = 0;
+    var tBirds = 0;
+    final start = DateTime(fromDate.year, fromDate.month, fromDate.day);
+    final end = DateTime(toDate.year, toDate.month, toDate.day);
+    for (var d = start; !d.isAfter(end); d = DateTime(d.year, d.month, d.day + 1)) {
+      final k = keyFmt.format(d);
+      final old = bal;
+      final c = coll[k] ?? 0;
+      final s = sales[k] ?? 0;
+      bal = old + s + (otherDr[k] ?? 0) - c - (otherCr[k] ?? 0);
+      final b = birds[k] ?? 0;
+      final w = kg[k] ?? 0;
+      rows.add([
+        DateFormat('d MMM').format(d),
+        Fmt.amount(old),
+        Fmt.amount(c),
+        Fmt.amount(s),
+        Fmt.amount(bal),
+        '$b',
+        w.toStringAsFixed(3),
+      ]);
+      tColl += c; tSales += s; tBirds += b; tKg += w;
+    }
+
+    final ds = ReportDataSet(
+      title: 'Daily Report',
+      headers: const ['Date', 'Old Balance', 'Cash Collected', 'Sales Amount',
+        'Current Balance', 'Birds', 'Weight (kg)'],
+      rows: rows,
+      totals: ['TOTAL', Fmt.amount(opening), Fmt.amount(tColl), Fmt.amount(tSales),
+        Fmt.amount(bal), '$tBirds', tKg.toStringAsFixed(3)],
+      highlightColumns: const [4],
+      columnFlex: const [1.0, 1.3, 1.3, 1.3, 1.3, 0.8, 1.0],
+      fromDate: fromDate,
+      toDate: toDate,
+      // Same compact identity block Customer Ledger uses:
+      // Customer / Area / Period | Opening.
+      customerIdentity: CustomerReportIdentity(
+        customerName: header['retailer_name'] as String? ?? shopName ?? 'Customer',
+        area: header['retailer_area'] as String?,
+        periodLabel: '${DateFormat("d MMM yyyy").format(fromDate)} - ${DateFormat("d MMM yyyy").format(toDate)}',
+        openingLabel: Fmt.amount(opening),
+      ),
+    );
+    return (dataSet: ds, opening: opening, collected: tColl, sales: tSales,
+        closing: bal, birds: tBirds, kg: tKg);
+  }
+
   // ─── Generic entry: build a PDF from a ReportDataSet ─────────────────────
   // This is the NEW canonical path — every report Card View, Table View,
   // and PDF now come from the exact same ReportDataSet, so they can never
