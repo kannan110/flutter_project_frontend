@@ -105,6 +105,9 @@ const List<ReportInventoryEntry> kReportInventory = [
   // Share toolbar) as every other report, e.g. Retailer Purchase. Only its
   // summary cards and table columns differ.
   ReportInventoryEntry(key: 'customer_ledger', label: 'Customer Ledger', category: ReportCategory.ledger, frequency: 'Ad hoc'),
+  // Daily Report — one customer, one row per day (Old Balance / Cash
+  // Collected / Sales / Current Balance / Birds / Weight). Also a _kR tab.
+  ReportInventoryEntry(key: 'daily_report', label: 'Daily Report', category: ReportCategory.ledger, frequency: 'Daily'),
 
   // ── Stock Point (new — Stock Point Management Phase 2) ──────────────────
   ReportInventoryEntry(key: 'daily_closing_report', label: 'Daily Closing', category: ReportCategory.stockPoint, frequency: 'Daily'),
