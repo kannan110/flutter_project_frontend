@@ -31,7 +31,7 @@ class _S extends ConsumerState<RetailerLedgerScreen> {
           .select('id,shop_name,owner_name,phone,credit_limit').eq('id', widget.retailerId).maybeSingle();
 
       var q = _c.from('ledger_entries')
-          .select('id,entry_type,amount,payment_mode,description,entry_date,created_at,source_type')
+          .select('id,entry_type,amount,payment_mode,description,entry_date,created_at,source_type,doc_no,manual_doc_no')
           .eq('retailer_id', widget.retailerId);
       if (_filter == 'debit')  q = q.eq('entry_type', 'debit');
       if (_filter == 'credit') q = q.eq('entry_type', 'credit');
@@ -82,10 +82,26 @@ class _S extends ConsumerState<RetailerLedgerScreen> {
   Future<void> _recordPayment() async {
     final amtCtrl  = TextEditingController();
     final descCtrl = TextEditingController();
+    final manualDocCtrl = TextEditingController();
     String mode = 'cash';
     DateTime entryDate = DateTime.now();
     final tid = ref.read(appUserProvider).valueOrNull?.traderId;
     final uid = ref.read(appUserProvider).valueOrNull?.userId;
+
+    // Doc No preview (CSH-YYYYMM-XXXXX) — the real number is assigned by
+    // record_payment on save; this only shows what it will most likely be.
+    Future<String?> previewDocNo(DateTime d) async {
+      try {
+        return await _c.rpc('preview_cash_collection_doc_no', params: {
+          'p_trader_id': tid,
+          'p_date': DateFormat('yyyy-MM-dd').format(d),
+        }) as String?;
+      } catch (_) {
+        return null;
+      }
+    }
+    String? docNo = await previewDocNo(entryDate);
+    if (!mounted) return;
 
     await showModalBottomSheet(context: context, isScrollControlled: true, useRootNavigator: true,
         shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
@@ -95,6 +111,20 @@ class _S extends ConsumerState<RetailerLedgerScreen> {
               Text('Collect Payment — ${_retailer?['shop_name'] ?? ''}', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
               Text('Outstanding: ${Fmt.amount(_outstanding)}', style: TextStyle(fontSize: 12, color: _outstanding > 0 ? Colors.orange : Colors.green, fontWeight: FontWeight.w600)),
               const SizedBox(height: 14),
+              Row(children: [
+                Expanded(child: InputDecorator(
+                  decoration: const InputDecoration(labelText: 'Doc No (auto)',
+                      prefixIcon: Icon(Icons.tag, size: 18)),
+                  child: Text(docNo ?? 'Assigned on save',
+                      style: TextStyle(fontWeight: FontWeight.w700,
+                          color: docNo == null ? kTextHint : kNavy)),
+                )),
+                const SizedBox(width: 10),
+                Expanded(child: TextField(controller: manualDocCtrl,
+                    textCapitalization: TextCapitalization.characters,
+                    decoration: const InputDecoration(labelText: 'Man. Doc No (optional)'))),
+              ]),
+              const SizedBox(height: 10),
               TextField(controller: amtCtrl, inputFormatters: moneyInputFormatters, keyboardType: const TextInputType.numberWithOptions(decimal: true), autofocus: true,
                   decoration: const InputDecoration(labelText: 'Amount received (₹) *', prefixText: '₹')),
               const SizedBox(height: 10),
@@ -116,7 +146,11 @@ class _S extends ConsumerState<RetailerLedgerScreen> {
                     firstDate: DateTime.now().subtract(const Duration(days: 365)),
                     lastDate: DateTime.now(),
                   );
-                  if (picked != null) ss(() => entryDate = picked);
+                  if (picked != null) {
+                    ss(() => entryDate = picked);
+                    final n = await previewDocNo(picked);
+                    ss(() => docNo = n);
+                  }
                 },
                 child: InputDecorator(
                   decoration: const InputDecoration(labelText: 'Business Date',
@@ -132,14 +166,27 @@ class _S extends ConsumerState<RetailerLedgerScreen> {
                 if (amt == null || amt <= 0) return;
                 Navigator.of(ctx, rootNavigator: true).pop();
                 try {
-                  await _c.rpc('record_payment', params: {
+                  final entryId = await _c.rpc('record_payment', params: {
                     'p_trader_id': tid, 'p_retailer_id': widget.retailerId,
                     'p_amount': amt, 'p_payment_mode': mode,
                     'p_description': descCtrl.text.trim().isEmpty ? 'Payment via $mode' : descCtrl.text.trim(),
                     'p_recorded_by': uid,
                     'p_entry_date': DateFormat('yyyy-MM-dd').format(entryDate),
+                    'p_assign_doc_no': true,
+                    if (manualDocCtrl.text.trim().isNotEmpty)
+                      'p_manual_doc_no': manualDocCtrl.text.trim(),
                   });
-                  _load(); if (mounted) showSuccess(context, 'Payment recorded ✓');
+                  String? savedDoc;
+                  try {
+                    final row = await _c.from('ledger_entries')
+                        .select('doc_no').eq('id', entryId as String).maybeSingle();
+                    savedDoc = row?['doc_no'] as String?;
+                  } catch (_) {}
+                  _load();
+                  if (mounted) {
+                    showSuccess(context,
+                        'Payment recorded ✓${savedDoc != null ? '\nDoc No: $savedDoc' : ''}');
+                  }
                 } catch (e) { if (mounted) showError(context, e.toString()); }
               }, child: const Text('Record Payment')),
             ]))));
@@ -416,6 +463,14 @@ class _S extends ConsumerState<RetailerLedgerScreen> {
                           Text((e['payment_mode'] as String).toUpperCase(), style: const TextStyle(fontSize: 10, color: kTextHint)),
                         ],
                       ]),
+                      // Cash Collection Doc No / Man. Doc No
+                      if (e['doc_no'] != null || e['manual_doc_no'] != null)
+                        Text(
+                            [
+                              if (e['doc_no'] != null) e['doc_no'] as String,
+                              if (e['manual_doc_no'] != null) 'Man: ${e['manual_doc_no']}',
+                            ].join(' · '),
+                            style: const TextStyle(fontSize: 10, color: kNavy, fontWeight: FontWeight.w600)),
                     ])),
                     Text('${isDebit ? '+' : '−'}${Fmt.amount(amt)}',
                         style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14, color: isDebit ? Colors.red : Colors.green)),
