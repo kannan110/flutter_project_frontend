@@ -42,8 +42,23 @@ Future<void> showCollectCashSheet(
 
   final amtCtrl  = TextEditingController();
   final descCtrl = TextEditingController();
+  final manualDocCtrl = TextEditingController();
   String mode = 'cash';
   DateTime entryDate = DateTime.now();
+
+  // Doc No preview (CSH-YYYYMM-XXXXX) — record_payment assigns the real
+  // number on save; this only shows what it will most likely be.
+  Future<String?> previewDocNo(DateTime d) async {
+    try {
+      return await c.rpc('preview_cash_collection_doc_no', params: {
+        'p_trader_id': tid,
+        'p_date': DateFormat('yyyy-MM-dd').format(d),
+      }) as String?;
+    } catch (_) {
+      return null;
+    }
+  }
+  String? docNo = await previewDocNo(entryDate);
 
   if (!context.mounted) return;
   await showModalBottomSheet(
@@ -57,6 +72,20 @@ Future<void> showCollectCashSheet(
           Text('Outstanding: ${Fmt.amount(outstanding)}',
               style: TextStyle(fontSize: 12, color: outstanding > 0 ? Colors.orange : Colors.green, fontWeight: FontWeight.w600)),
           const SizedBox(height: 14),
+          Row(children: [
+            Expanded(child: InputDecorator(
+              decoration: const InputDecoration(labelText: 'Doc No (auto)',
+                  prefixIcon: Icon(Icons.tag, size: 18)),
+              child: Text(docNo ?? 'Assigned on save',
+                  style: TextStyle(fontWeight: FontWeight.w700,
+                      color: docNo == null ? kTextHint : kNavy)),
+            )),
+            const SizedBox(width: 10),
+            Expanded(child: TextField(controller: manualDocCtrl,
+                textCapitalization: TextCapitalization.characters,
+                decoration: const InputDecoration(labelText: 'Man. Doc No (optional)'))),
+          ]),
+          const SizedBox(height: 10),
           TextField(controller: amtCtrl, inputFormatters: moneyInputFormatters, keyboardType: const TextInputType.numberWithOptions(decimal: true), autofocus: true,
               decoration: const InputDecoration(labelText: 'Amount received (₹) *', prefixText: '₹')),
           const SizedBox(height: 10),
@@ -73,7 +102,11 @@ Future<void> showCollectCashSheet(
                 firstDate: DateTime.now().subtract(const Duration(days: 365)),
                 lastDate: DateTime.now(),
               );
-              if (picked != null) ss(() => entryDate = picked);
+              if (picked != null) {
+                ss(() => entryDate = picked);
+                final n = await previewDocNo(picked);
+                ss(() => docNo = n);
+              }
             },
             child: InputDecorator(
               decoration: const InputDecoration(labelText: 'Business Date',
@@ -91,14 +124,26 @@ Future<void> showCollectCashSheet(
               if (tid == null || uid == null) return;
               Navigator.of(ctx, rootNavigator: true).pop();
               try {
-                await c.rpc('record_payment', params: {
+                final entryId = await c.rpc('record_payment', params: {
                   'p_trader_id': tid, 'p_retailer_id': retailerId,
                   'p_amount': amt, 'p_payment_mode': mode,
                   'p_description': descCtrl.text.trim().isEmpty ? 'Payment via $mode' : descCtrl.text.trim(),
                   'p_recorded_by': uid,
                   'p_entry_date': DateFormat('yyyy-MM-dd').format(entryDate),
+                  'p_assign_doc_no': true,
+                  if (manualDocCtrl.text.trim().isNotEmpty)
+                    'p_manual_doc_no': manualDocCtrl.text.trim(),
                 });
-                if (context.mounted) showSuccess(context, 'Payment recorded ✓');
+                String? savedDoc;
+                try {
+                  final row = await c.from('ledger_entries')
+                      .select('doc_no').eq('id', entryId as String).maybeSingle();
+                  savedDoc = row?['doc_no'] as String?;
+                } catch (_) {}
+                if (context.mounted) {
+                  showSuccess(context,
+                      'Payment recorded ✓${savedDoc != null ? '\nDoc No: $savedDoc' : ''}');
+                }
               } catch (e) {
                 if (context.mounted) showError(context, e.toString().replaceAll('Exception: ', ''));
               }
