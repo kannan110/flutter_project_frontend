@@ -243,9 +243,15 @@ class CustomerLedgerRowBuilder {
             : (mode != null && mode.isNotEmpty ? '$mode Received' : 'Payment Received');
         out.add(LedgerPrintRow(
           date: entryDateStr,
+          // Cash collection's own Doc No (CSH-…) and Man. Doc No (Bill No).
+          docNo: docNo,
+          manualDocNo: manualDocNo,
           refNo: refNumber,
           type: typeLabel(sourceType),
           description: withRemarks(desc),
+          sourceDate: entryDateStr,
+          sourceDocNo: docNo,
+          sourceManualDocNo: manualDocNo,
           saleAmt: isDebit ? amount : null,
           paymentAmt: !isDebit ? amount : null,
           balance: runningBalance,
