@@ -28,7 +28,7 @@ class _S extends ConsumerState<RetailerLedgerScreen> {
     if (mounted) setState(() => _loading = true);
     try {
       final r = await _c.from('retailers')
-          .select('id,shop_name,owner_name,phone,credit_limit').eq('id', widget.retailerId).maybeSingle();
+          .select('id,shop_name,owner_name,phone,credit_limit,supervisor_id').eq('id', widget.retailerId).maybeSingle();
 
       var q = _c.from('ledger_entries')
           .select('id,entry_type,amount,payment_mode,description,entry_date,created_at,source_type,doc_no,manual_doc_no')
@@ -101,6 +101,21 @@ class _S extends ConsumerState<RetailerLedgerScreen> {
       }
     }
     String? docNo = await previewDocNo(entryDate);
+
+    // Supervisor — active supervisors; pre-selected with the retailer's
+    // assigned supervisor (retailers.supervisor_id) when there is one.
+    List<Map<String, dynamic>> supervisors = [];
+    try {
+      supervisors = List<Map<String, dynamic>>.from(await _c
+          .from('supervisor_profiles')
+          .select('id,name')
+          .eq('trader_id', tid as Object)
+          .eq('is_active', true)
+          .order('name'));
+    } catch (_) {}
+    final assignedSupervisorId = _retailer?['supervisor_id'] as String?;
+    String? supervisorId =
+        supervisors.any((s) => s['id'] == assignedSupervisorId) ? assignedSupervisorId : null;
     if (!mounted) return;
 
     await showModalBottomSheet(context: context, isScrollControlled: true, useRootNavigator: true,
@@ -124,6 +139,28 @@ class _S extends ConsumerState<RetailerLedgerScreen> {
                     textCapitalization: TextCapitalization.characters,
                     decoration: const InputDecoration(labelText: 'Man. Doc No (optional)'))),
               ]),
+              if (supervisors.isNotEmpty) ...[
+                const SizedBox(height: 10),
+                DropdownButtonFormField<String?>(
+                  initialValue: supervisorId,
+                  isExpanded: true,
+                  decoration: InputDecoration(
+                    labelText: 'Supervisor',
+                    prefixIcon: const Icon(Icons.supervisor_account_outlined, size: 18),
+                    helperText: assignedSupervisorId != null && supervisorId == assignedSupervisorId
+                        ? 'Assigned to this retailer'
+                        : null,
+                  ),
+                  items: [
+                    const DropdownMenuItem<String?>(value: null, child: Text('No supervisor')),
+                    for (final s in supervisors)
+                      DropdownMenuItem<String?>(
+                          value: s['id'] as String,
+                          child: Text(s['name'] as String? ?? '—', overflow: TextOverflow.ellipsis)),
+                  ],
+                  onChanged: (v) => ss(() => supervisorId = v),
+                ),
+              ],
               const SizedBox(height: 10),
               TextField(controller: amtCtrl, inputFormatters: moneyInputFormatters, keyboardType: const TextInputType.numberWithOptions(decimal: true), autofocus: true,
                   decoration: const InputDecoration(labelText: 'Amount received (₹) *', prefixText: '₹')),
@@ -175,6 +212,7 @@ class _S extends ConsumerState<RetailerLedgerScreen> {
                     'p_assign_doc_no': true,
                     if (manualDocCtrl.text.trim().isNotEmpty)
                       'p_manual_doc_no': manualDocCtrl.text.trim(),
+                    if (supervisorId != null) 'p_supervisor_id': supervisorId,
                   });
                   String? savedDoc;
                   try {
