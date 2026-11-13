@@ -89,6 +89,10 @@ const _kR = [
   _Rep('customer_ledger',       'Customer Ledger',      Icons.receipt_long_outlined,     _cLedger),
   // ── Daily Report (new) — one customer, one row per day ──────────────────
   _Rep('daily_report',          'Daily Report',         Icons.event_note_outlined,       _cLedger),
+  // ── Weekly Report (new) — one customer, one row per 7-day block ─────────
+  _Rep('weekly_report',         'Weekly Report',        Icons.date_range_outlined,       _cLedger),
+  // ── Monthly Report (new) — one customer, one row per calendar month ───────
+  _Rep('monthly_report',        'Monthly Report',       Icons.calendar_month_outlined,   _cLedger),
   // ── Stock Point (new — Stock Point Management Phase 2) ──────────────────
   _Rep('daily_closing_report',  'Daily Closing',        Icons.today_outlined,             _cStockPoint),
   _Rep('inventory_history',     'Inventory History',    Icons.history_outlined,           _cStockPoint),
@@ -250,7 +254,7 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
     if (tid == null) return;
 
     final isCustomerLedger = _sel.key == 'customer_ledger';
-    final isDailyReport = _sel.key == 'daily_report';
+    final isDailyReport = _sel.key == 'daily_report' || _sel.key == 'weekly_report' || _sel.key == 'monthly_report';
     // Customer Ledger and Daily Report are retailer-scoped
     // (get_retailer_statement), unlike every other report here (trader-wide
     // get_report_data). Without a retailer picked there is nothing to fetch —
@@ -328,7 +332,7 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
         ]);
         if (mounted) {
           setState(() => _data = {
-            'report': 'daily_report',
+            'report': _sel.key,
             'statement': (results[0] as Map?)?.cast<String, dynamic>() ?? <String, dynamic>{},
             'sales_lines': ((results[1] as Map?)?['daily'] as List?) ?? const [],
           });
@@ -426,11 +430,11 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
           // this report regardless of the collapsed/expanded toggle state
           // — same inline filter row every other report already has.
           // Daily Report is retailer-scoped too, so same rule.
-          if (_filtersExpanded || _sel.key == 'customer_ledger' || _sel.key == 'daily_report' || _sel.key == 'inventory_ledger') _buildInlineFilters(),
+          if (_filtersExpanded || _sel.key == 'customer_ledger' || _sel.key == 'daily_report' || _sel.key == 'weekly_report' || _sel.key == 'monthly_report' || _sel.key == 'inventory_ledger') _buildInlineFilters(),
           if (_sel.key == 'profitability_breakdown') _buildDimensionBar(),
           Expanded(child: _loading ? const LoadingList()
               : _error != null ? _buildError()
-              : ((_sel.key == 'customer_ledger' || _sel.key == 'daily_report') && _retailerId == null)
+              : ((_sel.key == 'customer_ledger' || _sel.key == 'daily_report' || _sel.key == 'weekly_report' || _sel.key == 'monthly_report') && _retailerId == null)
               ? const EmptyState(
               icon: Icons.storefront_outlined,
               message: 'Pick a customer to view their ledger',
@@ -581,6 +585,8 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
       'profitability_breakdown'=> _rProfitabilityBreakdown(),
       'customer_ledger'       => _rCustomerLedger(),
       'daily_report'          => _rDailyReport(),
+      'weekly_report'         => _rWeeklyReport(),
+      'monthly_report'        => _rWeeklyReport(),
     // ── Stock Point (new — Stock Point Management Phase 2) ──────────────
       'daily_closing_report'   => _rDailyClosingReport(),
       'inventory_history'      => _rInventoryHistory(),
@@ -1653,6 +1659,53 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
+  // WEEKLY REPORT  (one customer, one row per 7-day block from the From date)
+  //
+  // Same data as the Daily Report; table built by
+  // ReportPdfGenerator.weeklyReportTable for screen, PDF and Share alike.
+  // ═══════════════════════════════════════════════════════════════════════════
+  WeeklyReportResult? _weeklyReportResult() {
+    final st = (_data?['statement'] as Map?)?.cast<String, dynamic>();
+    if (st == null) return null;
+    final shop = _retailers.firstWhere((r) => r['id'] == _retailerId,
+        orElse: () => const {})['shop_name'] as String?;
+    return ReportPdfGenerator.weeklyReportTable(
+      statement: st,
+      salesLines: List<Map<String, dynamic>>.from(_data?['sales_lines'] as List? ?? const []),
+      fromDate: _from,
+      toDate: _to,
+      shopName: shop,
+      monthly: _sel.key == 'monthly_report',
+    );
+  }
+
+  Widget _rWeeklyReport() {
+    final r = _weeklyReportResult();
+    if (r == null) {
+      return const EmptyState(icon: Icons.date_range_outlined, message: 'No data for the selected range');
+    }
+    final ds = r.dataSet;
+    return _scroll([
+      _kpiGrid([
+        _kpi2('Opening',     Fmt.amount(r.opening), Colors.blueGrey,         Icons.history_outlined),
+        _kpi2('Bill Amount', Fmt.amount(r.bill),    const Color(0xFFE65100), Icons.receipt_outlined),
+        _kpi2('Receipt',     Fmt.amount(r.receipt), Colors.green,            Icons.payments_outlined),
+        _kpi2('Closing',     Fmt.amount(r.closing), r.closing > 0 ? Colors.red : Colors.green,
+            Icons.account_balance_wallet_outlined),
+      ]),
+      _kpiGrid([
+        _kpi2('Kgs', '${r.kg.toStringAsFixed(3)} kg', Colors.teal, Icons.scale_outlined),
+      ]),
+      _sec('${ds.customerIdentity?.customerName ?? 'Customer'} — ${_sel.key == 'monthly_report' ? 'MONTH-WISE' : 'WEEK-WISE'}'),
+      _tbl(ds.headers, ds.rows,
+          tots: ds.totals,
+          hi: ds.highlightColumns,
+          customerIdentity: ds.customerIdentity,
+          columnFlex: ds.columnFlex),
+    ]);
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
   // 11. PROFITABILITY
   // ═══════════════════════════════════════════════════════════════════════════
   Widget _rProfitability() {
@@ -1885,6 +1938,13 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
             context: context, dataSet: r.dataSet, companyName: company);
         return;
       }
+      if (_sel.key == 'weekly_report' || _sel.key == 'monthly_report') {
+        final r = _weeklyReportResult();
+        if (r == null) { showError(context, 'Pick a customer first'); return; }
+        await ReportPdfGenerator.generateFromDataSetAndShow(
+            context: context, dataSet: r.dataSet, companyName: company);
+        return;
+      }
             if (_sel.key == 'retailer_purchase') {
         await ReportPdfGenerator.generateAndShow(
           context:     context,
@@ -1955,7 +2015,7 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
     // Daily Report reuses Customer Ledger's Supervisor + searchable Retailer
     // row. The Item filter and bulk-print buttons below still check
     // 'customer_ledger' directly, so they stay Customer-Ledger-only.
-    final isCustomerLedgerFilters = _sel.key == 'customer_ledger' || _sel.key == 'daily_report';
+    final isCustomerLedgerFilters = _sel.key == 'customer_ledger' || _sel.key == 'daily_report' || _sel.key == 'weekly_report' || _sel.key == 'monthly_report';
     if (!isCustomerLedgerFilters && _agents.isEmpty && _retailers.isEmpty) return const SizedBox.shrink();
     if (isCustomerLedgerFilters && _supervisors.isEmpty && _retailers.isEmpty) return const SizedBox.shrink();
     return Container(
@@ -2227,13 +2287,15 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
       }
       return;
     }
-    if (_sel.key == 'daily_report') {
-      final r = _dailyReportResult();
-      if (r == null) { showError(context, 'Pick a customer first'); return; }
+    if (_sel.key == 'daily_report' || _sel.key == 'weekly_report' || _sel.key == 'monthly_report') {
+      final ds = _sel.key != 'daily_report'
+          ? _weeklyReportResult()?.dataSet
+          : _dailyReportResult()?.dataSet;
+      if (ds == null) { showError(context, 'Pick a customer first'); return; }
       final user = ref.read(appUserProvider).valueOrNull;
       try {
         await ReportPdfGenerator.shareFromDataSet(
-            dataSet: r.dataSet, companyName: user?.companyName ?? 'DSR Chicken');
+            dataSet: ds, companyName: user?.companyName ?? 'DSR Chicken');
       } catch (e) {
         if (mounted) showError(context, e.toString().replaceAll('Exception: ', ''));
       }

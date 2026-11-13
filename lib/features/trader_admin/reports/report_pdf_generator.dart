@@ -26,6 +26,16 @@ typedef DailyReportResult = ({
   double kg,
 });
 
+/// Weekly Report result — the table plus the totals the screen's KPI cards use.
+typedef WeeklyReportResult = ({
+  ReportDataSet dataSet,
+  double opening,
+  double bill,
+  double receipt,
+  double closing,
+  double kg,
+});
+
 class ReportPdfGenerator {
   // Brand colors
   static const _primary  = PdfColor.fromInt(0xFFBF1B2C);
@@ -293,6 +303,111 @@ class ReportPdfGenerator {
         line('WT LOSS IN %', 'Wt Loss in %', strong: true),
       ]),
     );
+  }
+
+  // ─── WEEKLY REPORT — one customer, one row per week ──────────────────────
+  // Weeks are 7-day blocks starting on the From date; the last block ends on
+  // the To date. Same data as the Daily Report.
+  //   Opening (week 1) = statement opening balance
+  //   Opening (week N) = Closing of week N-1
+  //   Bill Amount      = every debit in the week (sales and other charges)
+  //   Receipt          = every credit in the week (collections, returns,
+  //                      credit notes, adjustments)
+  //   Closing          = Opening + Bill Amount − Receipt
+  // so each row balances and the final Closing matches Customer Ledger.
+  // Kgs come from the Retailer Purchase order lines.
+  // monthly: true gives the Monthly Report — calendar months instead of
+  // 7-day blocks (first and last month clipped to the From / To dates).
+  static WeeklyReportResult weeklyReportTable({
+    required Map<String, dynamic> statement,
+    required List<Map<String, dynamic>> salesLines,
+    required DateTime fromDate,
+    required DateTime toDate,
+    String? shopName,
+    bool monthly = false,
+  }) {
+    final header = (statement['header'] as Map?)?.cast<String, dynamic>() ?? {};
+    final opening = (statement['opening_balance'] as num?)?.toDouble() ?? 0;
+    final keyFmt = DateFormat('yyyy-MM-dd');
+
+    String? dayKey(dynamic raw) {
+      final dt = DateTime.tryParse(raw?.toString() ?? '');
+      if (dt == null) return null;
+      return keyFmt.format(dt.isUtc ? dt.toLocal() : dt);
+    }
+
+    void add(Map<String, double> m, String k, double v) => m[k] = (m[k] ?? 0) + v;
+
+    final debit = <String, double>{}, credit = <String, double>{};
+    for (final r in _rowList(statement['rows'])) {
+      final k = dayKey(r['entry_date']);
+      if (k == null) continue;
+      add(r['entry_type'] == 'debit' ? debit : credit, k, _d(r, 'amount'));
+    }
+
+    final want = shopName?.trim().toLowerCase();
+    final kg = <String, double>{};
+    for (final l in salesLines) {
+      final shop = (l['shop_name'] as String?)?.trim().toLowerCase();
+      if (want != null && want.isNotEmpty && shop != null && shop != want) continue;
+      final k = dayKey(l['order_date']);
+      if (k == null) continue;
+      add(kg, k, _d(l, 'kg'));
+    }
+
+    final rows = <List<String>>[];
+    var bal = opening;
+    double tBill = 0, tRcpt = 0, tKg = 0;
+    final dFmt = DateFormat('d MMM yyyy');
+    final start = DateTime(fromDate.year, fromDate.month, fromDate.day);
+    final end = DateTime(toDate.year, toDate.month, toDate.day);
+    for (var ws = start; !ws.isAfter(end);
+        ws = monthly ? DateTime(ws.year, ws.month + 1, 1) : DateTime(ws.year, ws.month, ws.day + 7)) {
+      var we = monthly
+          ? DateTime(ws.year, ws.month + 1, 0)
+          : DateTime(ws.year, ws.month, ws.day + 6);
+      if (we.isAfter(end)) we = end;
+      double b = 0, rc = 0, w = 0;
+      for (var d = ws; !d.isAfter(we); d = DateTime(d.year, d.month, d.day + 1)) {
+        final k = keyFmt.format(d);
+        b += debit[k] ?? 0;
+        rc += credit[k] ?? 0;
+        w += kg[k] ?? 0;
+      }
+      final old = bal;
+      bal = old + b - rc;
+      rows.add([
+        dFmt.format(ws),
+        dFmt.format(we),
+        Fmt.amount(old),
+        w.toStringAsFixed(3),
+        Fmt.amount(b),
+        Fmt.amount(rc),
+        Fmt.amount(bal),
+      ]);
+      tBill += b; tRcpt += rc; tKg += w;
+    }
+
+    final ds = ReportDataSet(
+      title: monthly ? 'Monthly Report' : 'Weekly Report',
+      headers: const ['From Date', 'To Date', 'Opening', 'Kgs',
+        'Bill Amount', 'Receipt', 'Closing'],
+      rows: rows,
+      totals: ['TOTAL', '', Fmt.amount(opening), tKg.toStringAsFixed(3),
+        Fmt.amount(tBill), Fmt.amount(tRcpt), Fmt.amount(bal)],
+      highlightColumns: const [6],
+      columnFlex: const [1.2, 1.2, 1.3, 1.0, 1.3, 1.3, 1.3],
+      fromDate: fromDate,
+      toDate: toDate,
+      customerIdentity: CustomerReportIdentity(
+        customerName: header['retailer_name'] as String? ?? shopName ?? 'Customer',
+        area: header['retailer_area'] as String?,
+        periodLabel: '${dFmt.format(fromDate)} - ${dFmt.format(toDate)}',
+        openingLabel: Fmt.amount(opening),
+      ),
+    );
+    return (dataSet: ds, opening: opening, bill: tBill, receipt: tRcpt,
+        closing: bal, kg: tKg);
   }
 
   // ─── DAILY REPORT — one customer, one row per day ────────────────────────

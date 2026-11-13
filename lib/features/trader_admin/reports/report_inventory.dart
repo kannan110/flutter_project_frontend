@@ -108,6 +108,11 @@ const List<ReportInventoryEntry> kReportInventory = [
   // Daily Report — one customer, one row per day (Old Balance / Cash
   // Collected / Sales / Current Balance / Birds / Weight). Also a _kR tab.
   ReportInventoryEntry(key: 'daily_report', label: 'Daily Report', category: ReportCategory.ledger, frequency: 'Daily'),
+  // Weekly Report — one customer, one row per week (From / To / Opening /
+  // Kgs / Bill Amount / Receipt / Closing). Also a _kR tab.
+  ReportInventoryEntry(key: 'weekly_report', label: 'Weekly Report', category: ReportCategory.ledger, frequency: 'Weekly'),
+  // Monthly Report — same columns as Weekly, one row per calendar month.
+  ReportInventoryEntry(key: 'monthly_report', label: 'Monthly Report', category: ReportCategory.ledger, frequency: 'Monthly'),
 
   // ── Stock Point (new — Stock Point Management Phase 2) ──────────────────
   ReportInventoryEntry(key: 'daily_closing_report', label: 'Daily Closing', category: ReportCategory.stockPoint, frequency: 'Daily'),
