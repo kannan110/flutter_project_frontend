@@ -382,7 +382,11 @@ class _S extends ConsumerState<BatchPickupScreen> {
                             }
                           } catch (e) {
                             setSheetState(() => submitting = false);
-                            if (mounted) showError(context, e.toString().replaceAll('Exception: ', ''));
+                            if (mounted) {
+                              showError(context, e is PostgrestException
+                                  ? e.message
+                                  : e.toString().replaceAll('Exception: ', ''));
+                            }
                           }
                         },
                         child: submitting
@@ -526,7 +530,7 @@ class _S extends ConsumerState<BatchPickupScreen> {
       }
     } catch (e) {
       if (mounted) {
-        final msg = e
+        final msg = e is PostgrestException ? e.message : e
             .toString()
             .replaceAll('Exception: ', '')
             .replaceAll('PostgrestException(message: ', '')
