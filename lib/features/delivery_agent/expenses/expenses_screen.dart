@@ -103,7 +103,7 @@ class _S extends ConsumerState<ExpensesScreen> {
     body: _loading ? const LoadingList() : Column(children: [
       Container(
           decoration: const BoxDecoration(
-              gradient: LinearGradient(colors: [kNavy, kNavyMid], begin: Alignment.topLeft, end: Alignment.bottomRight)),
+              gradient: LinearGradient(colors: kGradHeroColors, begin: Alignment.topLeft, end: Alignment.bottomRight)),
           padding: const EdgeInsets.all(20), child: Row(children: [
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           const Text('TODAY\'S EXPENSES', style: TextStyle(fontSize: 10, color: Color(0xFFB4C6F4), fontWeight: FontWeight.w800, letterSpacing: 0.6)),

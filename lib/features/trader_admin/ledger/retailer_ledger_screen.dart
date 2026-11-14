@@ -119,12 +119,34 @@ class _S extends ConsumerState<RetailerLedgerScreen> {
     if (!mounted) return;
 
     await showModalBottomSheet(context: context, isScrollControlled: true, useRootNavigator: true,
+        // Cap the width on desktop web so the form doesn't stretch edge to edge.
+        constraints: const BoxConstraints(maxWidth: 620),
         shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
         builder: (ctx) => Padding(
             padding: EdgeInsets.fromLTRB(20, 20, 20, MediaQuery.of(ctx).viewInsets.bottom + 20),
-            child: StatefulBuilder(builder: (_, ss) => Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-              Text('Collect Payment — ${_retailer?['shop_name'] ?? ''}', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
-              Text('Outstanding: ${Fmt.amount(_outstanding)}', style: TextStyle(fontSize: 12, color: _outstanding > 0 ? Colors.orange : Colors.green, fontWeight: FontWeight.w600)),
+            // Scrollable so the keyboard never pushes fields into an overflow
+            // on short phones.
+            child: StatefulBuilder(builder: (_, ss) => SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+              GradientHeader(
+                title: 'Collect Payment',
+                subtitle: '${_retailer?['shop_name'] ?? ''}',
+                icon: Icons.payments_rounded,
+                gradient: kGradEmerald,
+                radius: 16,
+                padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+                trailing: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(color: Colors.white,
+                      borderRadius: BorderRadius.circular(12)),
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.end, mainAxisSize: MainAxisSize.min, children: [
+                    const Text('OUTSTANDING', style: TextStyle(fontSize: 8,
+                        fontWeight: FontWeight.w900, color: kTextHint, letterSpacing: 0.6)),
+                    Text(Fmt.amount(_outstanding), style: TextStyle(fontSize: 13,
+                        fontWeight: FontWeight.w900,
+                        color: _outstanding > 0 ? kAccentOrange : kSuccess)),
+                  ]),
+                ),
+              ),
               const SizedBox(height: 14),
               Row(children: [
                 Expanded(child: InputDecorator(
@@ -226,8 +248,9 @@ class _S extends ConsumerState<RetailerLedgerScreen> {
                         'Payment recorded ✓${savedDoc != null ? '\nDoc No: $savedDoc' : ''}');
                   }
                 } catch (e) { if (mounted) showError(context, e.toString()); }
-              }, child: const Text('Record Payment')),
-            ]))));
+              }, style: ElevatedButton.styleFrom(backgroundColor: kAccentEmerald),
+                  child: const Text('Record Payment')),
+            ])))));
     // controllers are ephemeral locals — GC handles disposal
   }
 
@@ -406,13 +429,11 @@ class _S extends ConsumerState<RetailerLedgerScreen> {
       ),
       body: Column(children: [
 
-        // Summary header — navy gradient
+        // Summary header — indigo/violet gradient
         Container(
             decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                colors: [kNavy, kNavyMid],
-                begin: Alignment.topLeft, end: Alignment.bottomRight,
-              ),
+              gradient: kGradHero,
+              borderRadius: BorderRadius.vertical(bottom: Radius.circular(22)),
             ),
             padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
             child: Column(children: [
@@ -421,16 +442,18 @@ class _S extends ConsumerState<RetailerLedgerScreen> {
                   const Text('OUTSTANDING', style: TextStyle(fontSize: 10, color: Color(0xFFB4C6F4),
                       fontWeight: FontWeight.w800, letterSpacing: 0.6)),
                   const SizedBox(height: 4),
-                  Text(Fmt.amount(_outstanding), style: TextStyle(fontSize: 30, fontWeight: FontWeight.w900,
-                      color: _outstanding > 0 ? kGoldLight : const Color(0xFF86EFAC))),
+                  FittedBox(fit: BoxFit.scaleDown, alignment: Alignment.centerLeft,
+                    child: Text(Fmt.amount(_outstanding), maxLines: 1, style: TextStyle(fontSize: 30, fontWeight: FontWeight.w900,
+                        color: _outstanding > 0 ? const Color(0xFFFECACA) : const Color(0xFF86EFAC))),
+                  ),
                 ])),
                 ElevatedButton.icon(
                     onPressed: _recordPayment,
                     icon: const Icon(Icons.add, size: 16),
                     label: const Text('Collect'),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: kGold,
-                      foregroundColor: kNavy,
+                      backgroundColor: kAccentEmerald,
+                      foregroundColor: Colors.white,
                       minimumSize: const Size(0, 42),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kRadiusChip)),
                     )),
@@ -484,7 +507,9 @@ class _S extends ConsumerState<RetailerLedgerScreen> {
                   && !_reversedIds.contains(e['id']);
               return Container(
                   padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(10), border: Border.all(color: kBorder)),
+                  decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: (isDebit ? Colors.red : Colors.green).withValues(alpha: 0.22)),
+                      boxShadow: kCardShadow),
                   child: Row(children: [
                     Container(width: 38, height: 38,
                         decoration: BoxDecoration(color: (isDebit ? Colors.red : Colors.green).withValues(alpha: 0.1), shape: BoxShape.circle),
@@ -510,8 +535,9 @@ class _S extends ConsumerState<RetailerLedgerScreen> {
                             ].join(' · '),
                             style: const TextStyle(fontSize: 10, color: kNavy, fontWeight: FontWeight.w600)),
                     ])),
-                    Text('${isDebit ? '+' : '−'}${Fmt.amount(amt)}',
-                        style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14, color: isDebit ? Colors.red : Colors.green)),
+                    Flexible(flex: 0, child: FittedBox(fit: BoxFit.scaleDown,
+                      child: Text('${isDebit ? '+' : '−'}${Fmt.amount(amt)}',
+                          style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14, color: isDebit ? Colors.red : Colors.green)))),
                     if (canEditDelete) ...[
                       IconButton(
                         icon: const Icon(Icons.edit_outlined, size: 16, color: kTextHint),
@@ -532,15 +558,22 @@ class _S extends ConsumerState<RetailerLedgerScreen> {
 
   Widget _statBox(String l, String v, Color c) => Container(
       padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.1),
-          borderRadius: BorderRadius.circular(kRadiusInner)),
+      decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(kRadiusInner),
+          border: Border.all(color: Color.lerp(c, Colors.white, 0.35)!.withValues(alpha: 0.6))),
       child: Column(children: [
-        Text(v, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: Colors.white)),
-        Text(l, style: const TextStyle(fontSize: 10, color: Color(0xFFB4C6F4), fontWeight: FontWeight.w700)),
+        FittedBox(fit: BoxFit.scaleDown,
+            child: Text(v, maxLines: 1, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: Colors.white))),
+        Text(l, maxLines: 1, overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 10, color: Color(0xFFE0E7FF), fontWeight: FontWeight.w700)),
       ]));
   @override
   Widget build(BuildContext context) => ResponsiveLayout(
     mobile:  (_) => _buildScaffold(context),
-    desktop: (_) => _buildScaffold(context),
+    // Wide screens: keep the ledger at a readable width instead of
+    // stretching rows across the whole window.
+    desktop: (_) => ColoredBox(color: kBgPage, child: Center(child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 980),
+        child: _buildScaffold(context)))),
   );
 }

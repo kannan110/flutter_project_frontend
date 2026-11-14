@@ -2045,7 +2045,7 @@ class _S extends ConsumerState<BatchPickupScreen> {
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
-            color: color ?? kPrimary.withValues(alpha: 0.3), width: 2),
+            color: color ?? kAccentIndigo.withValues(alpha: 0.3), width: 2),
         boxShadow: [
           BoxShadow(
               color: Colors.black.withValues(alpha: 0.04),
@@ -2060,6 +2060,7 @@ class _S extends ConsumerState<BatchPickupScreen> {
             child:
             Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(title,
+                  maxLines: 2, overflow: TextOverflow.ellipsis,
                   style:
                   const TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
               if (subtitle != null)
@@ -2076,12 +2077,14 @@ class _S extends ConsumerState<BatchPickupScreen> {
     required String title,
     required List<Widget> children,
   }) {
+    // Each section gets its own stable accent colour (multi-colour look).
+    final accent = kAccentAt(title.hashCode.abs());
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: kBorder),
+        border: Border.all(color: accent.withValues(alpha: 0.25)),
         boxShadow: [
           BoxShadow(
               color: Colors.black.withValues(alpha: 0.04),
@@ -2091,11 +2094,19 @@ class _S extends ConsumerState<BatchPickupScreen> {
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
-          Text(emoji, style: const TextStyle(fontSize: 22)),
+          Container(
+            width: 40, height: 40,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(gradient: accentWash(accent),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: accent.withValues(alpha: 0.25))),
+            child: Text(emoji, style: const TextStyle(fontSize: 20)),
+          ),
           const SizedBox(width: 10),
-          Text(title,
+          Expanded(child: Text(title,
+              maxLines: 2, overflow: TextOverflow.ellipsis,
               style:
-              const TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+              TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: accent))),
         ]),
         const SizedBox(height: 14),
         ...children,
@@ -2136,7 +2147,7 @@ class _S extends ConsumerState<BatchPickupScreen> {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(kRadiusCard),
-          borderSide: const BorderSide(color: kPrimary, width: 2),
+          borderSide: const BorderSide(color: kAccentIndigo, width: 2),
         ),
       ),
     );
@@ -2144,29 +2155,31 @@ class _S extends ConsumerState<BatchPickupScreen> {
 
   Widget _simpleSourceChip(String label, String value, IconData icon) {
     final selected = _srcType == value;
+    final accent = kAccentAt(value.hashCode.abs());
     return Expanded(
       child: GestureDetector(
         onTap: () => setState(() => _srcType = value),
-        child: Container(
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 160),
           padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
           decoration: BoxDecoration(
-            color: selected
-                ? kPrimary.withValues(alpha: 0.1)
-                : Colors.grey.shade100,
+            gradient: selected ? accentGradient(accent) : null,
+            color: selected ? null : accent.withValues(alpha: 0.06),
             borderRadius: BorderRadius.circular(kRadiusCard),
             border: Border.all(
-              color: selected ? kPrimary : Colors.grey.shade300,
+              color: selected ? accent : accent.withValues(alpha: 0.25),
               width: selected ? 2 : 1,
             ),
           ),
           child: Column(children: [
-            Icon(icon, size: 22, color: selected ? kPrimary : kTextHint),
+            Icon(icon, size: 22, color: selected ? Colors.white : accent),
             const SizedBox(height: 4),
             Text(label,
+                maxLines: 1, overflow: TextOverflow.ellipsis,
                 style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w700,
-                    color: selected ? kPrimary : kTextHint)),
+                    color: selected ? Colors.white : accent)),
           ]),
         ),
       ),
@@ -2341,9 +2354,9 @@ class _S extends ConsumerState<BatchPickupScreen> {
 
   Widget _miniStat(String l, String v, Color c) => Expanded(
       child: Column(children: [
-        Text(v,
+        FittedBox(fit: BoxFit.scaleDown, child: Text(v, maxLines: 1,
             style:
-            TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: c)),
+            TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: c))),
         Text(l,
             style: const TextStyle(fontSize: 9, color: kTextHint),
             textAlign: TextAlign.center),

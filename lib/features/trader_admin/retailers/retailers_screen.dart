@@ -381,7 +381,7 @@ class _RetailerCard extends StatelessWidget {
               gradient: LinearGradient(
                 colors: blocked
                     ? [Colors.red.shade700, Colors.red.shade600]
-                    : [kNavy, kNavyMid],
+                    : kGradHeroColors,
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),

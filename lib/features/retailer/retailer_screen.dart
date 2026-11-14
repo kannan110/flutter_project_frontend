@@ -185,7 +185,7 @@ class _RS extends ConsumerState<RetailerScreen>
                   ])),
               if (rate != null) Container(
                   decoration: const BoxDecoration(
-                      gradient: LinearGradient(colors: [kNavy, kNavyMid],
+                      gradient: LinearGradient(colors: kGradHeroColors,
                           begin: Alignment.centerLeft, end: Alignment.centerRight)),
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                   child: Row(children: [
@@ -437,7 +437,7 @@ if (_ledgerData?['opening_balance'] == null && rows.isNotEmpty) {
     return Column(children: [
       _dateRangeBar(),
       Container(decoration: const BoxDecoration(
-          gradient: LinearGradient(colors: [kNavy, kNavyMid],
+          gradient: LinearGradient(colors: kGradHeroColors,
               begin: Alignment.topLeft, end: Alignment.bottomRight)),
           padding: const EdgeInsets.fromLTRB(16,16,16,16),
           child: Column(children: [
@@ -745,7 +745,7 @@ if (_ledgerData?['opening_balance'] == null && rows.isNotEmpty) {
           Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                  gradient: const LinearGradient(colors: [kNavy, kNavyMid],
+                  gradient: const LinearGradient(colors: kGradHeroColors,
                       begin: Alignment.topLeft, end: Alignment.bottomRight),
                   borderRadius: BorderRadius.circular(kRadiusHero),
                   boxShadow: kCardShadow),

@@ -99,7 +99,7 @@ class _S extends ConsumerState<SupervisorCollectionSummaryScreen> {
             width: double.infinity,
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              gradient: const LinearGradient(colors: [kNavy, kNavyMid], begin: Alignment.topLeft, end: Alignment.bottomRight),
+              gradient: const LinearGradient(colors: kGradHeroColors, begin: Alignment.topLeft, end: Alignment.bottomRight),
               borderRadius: BorderRadius.circular(kRadiusHero),
             ),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [

@@ -345,7 +345,7 @@ class _ZoneRatesTabState extends ConsumerState<_ZoneRatesTab> {
                     const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                     decoration: BoxDecoration(
                         gradient: isSel
-                            ? const LinearGradient(colors: [kNavy, kNavyMid])
+                            ? const LinearGradient(colors: kGradHeroColors)
                             : null,
                         color: isSel ? null : kBgGrey,
                         borderRadius: BorderRadius.circular(kRadiusChip),
@@ -388,7 +388,7 @@ class _ZoneRatesTabState extends ConsumerState<_ZoneRatesTab> {
                 margin: const EdgeInsets.only(bottom: 12),
                 decoration: BoxDecoration(
                     gradient: const LinearGradient(
-                        colors: [kNavy, kNavyMid],
+                        colors: kGradHeroColors,
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight),
                     borderRadius: BorderRadius.circular(kRadiusInner)),
@@ -1736,7 +1736,7 @@ class _ZoneAssignTabState extends ConsumerState<_ZoneAssignTab> {
                           decoration: BoxDecoration(
                               gradient: zoneId != null
                                   ? const LinearGradient(
-                                  colors: [kNavy, kNavyMid])
+                                  colors: kGradHeroColors)
                                   : null,
                               color: zoneId == null ? kBgGrey : null,
                               borderRadius: BorderRadius.circular(kRadiusChip)),
@@ -1829,7 +1829,7 @@ class _ZoneCard extends StatelessWidget {
             height: 44,
             decoration: BoxDecoration(
                 gradient: isActive
-                    ? const LinearGradient(colors: [kNavy, kNavyMid])
+                    ? const LinearGradient(colors: kGradHeroColors)
                     : null,
                 color: isActive ? null : kBgGrey,
                 borderRadius: BorderRadius.circular(kRadiusChip)),

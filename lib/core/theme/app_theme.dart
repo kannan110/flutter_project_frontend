@@ -31,7 +31,7 @@ const kWarning      = Color(0xFF775A19);
 const kWarningBg    = Color(0xFFFFFDE7);
 
 // ── Surfaces — cream bg is the reference's #FDFBF7 ────────────────────────
-const kBgPage       = Color(0xFFFDFBF7);   // cream — reference exact match
+const kBgPage       = Color(0xFFF6F7FC);   // cool off-white — pairs with the accent palette
 const kBgGrey       = Color(0xFFF3F4F5);
 const kSurface      = Color(0xFFFFFFFF);
 const kSurfaceHigh  = Color(0xFFE7E8E9);
@@ -46,6 +46,70 @@ const kTextSub      = Color(0xFF44464E);
 const kTextHint     = Color(0xFF75777F);
 const kTextOnNavy   = Color(0xFFFFFFFF);
 const kTextGold     = Color(0xFFC5A059);
+
+// ── Multi-colour accent palette ────────────────────────────────────────────
+// One distinct hue per category / stat tile so screens read at a glance.
+// These are ACCENTS only — the semantic meaning colours stay the same:
+// red (kError) = outstanding / overdue, green (kSuccess) = paid,
+// orange (kAccentOrange / kWarning) = warnings.
+const kAccentIndigo  = Color(0xFF4F46E5);
+const kAccentViolet  = Color(0xFF7C3AED);
+const kAccentBlue    = Color(0xFF2563EB);
+const kAccentSky     = Color(0xFF0284C7);
+const kAccentTeal    = Color(0xFF0D9488);
+const kAccentEmerald = Color(0xFF059669);
+const kAccentAmber   = Color(0xFFD97706);
+const kAccentOrange  = Color(0xFFEA580C);
+const kAccentRose    = Color(0xFFE11D48);
+const kAccentPink    = Color(0xFFDB2777);
+const kAccentSlate   = Color(0xFF475569);
+
+/// Rotating palette for lists of tiles that have no category of their own.
+const kAccentPalette = <Color>[
+  kAccentIndigo, kAccentTeal, kAccentAmber, kAccentViolet,
+  kAccentSky, kAccentPink, kAccentEmerald, kAccentOrange,
+];
+
+/// Picks a palette colour by index (wraps around).
+Color kAccentAt(int i) => kAccentPalette[i % kAccentPalette.length];
+
+// ── Gradients ──────────────────────────────────────────────────────────────
+/// Hero header gradient — navy → indigo → violet (matches the supplier
+/// dashboard popup in purchase_screen.dart).
+const kGradHeroColors = [Color(0xFF1E3A8A), Color(0xFF4F46E5), Color(0xFF7C3AED)];
+const kGradHero = LinearGradient(
+  colors: kGradHeroColors,
+  begin: Alignment.topLeft, end: Alignment.bottomRight,
+);
+/// Deep navy variant for dense hero cards (keeps white text very legible).
+const kGradNavy = LinearGradient(
+  colors: [kNavy, Color(0xFF1E3A8A), Color(0xFF3730A3)],
+  begin: Alignment.topLeft, end: Alignment.bottomRight,
+);
+const kGradTeal = LinearGradient(
+  colors: [Color(0xFF0F766E), Color(0xFF0891B2)],
+  begin: Alignment.topLeft, end: Alignment.bottomRight,
+);
+const kGradSunset = LinearGradient(
+  colors: [Color(0xFFEA580C), Color(0xFFDB2777)],
+  begin: Alignment.topLeft, end: Alignment.bottomRight,
+);
+const kGradEmerald = LinearGradient(
+  colors: [Color(0xFF047857), Color(0xFF0D9488)],
+  begin: Alignment.topLeft, end: Alignment.bottomRight,
+);
+
+/// Solid → slightly lighter gradient of one accent colour (icon badges).
+LinearGradient accentGradient(Color c) => LinearGradient(
+  colors: [c, Color.lerp(c, Colors.white, 0.22)!],
+  begin: Alignment.topLeft, end: Alignment.bottomRight,
+);
+
+/// Very soft wash of one accent colour (tile / card backgrounds).
+LinearGradient accentWash(Color c) => LinearGradient(
+  colors: [c.withValues(alpha: 0.14), c.withValues(alpha: 0.03)],
+  begin: Alignment.topLeft, end: Alignment.bottomRight,
+);
 
 // ── Sidebar (web — unchanged) ──────────────────────────────────────────────
 const kSidebarBg     = kNavy;
@@ -213,7 +277,7 @@ class AppTheme {
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(kRadiusInner),
-        borderSide:   const BorderSide(color: kNavy, width: 2),
+        borderSide:   const BorderSide(color: kAccentIndigo, width: 2),
       ),
       errorBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(kRadiusInner),
@@ -225,7 +289,7 @@ class AppTheme {
       ),
       labelStyle: const TextStyle(fontSize: 15, color: kTextSub, fontWeight: FontWeight.w500),
       hintStyle:  const TextStyle(fontSize: 15, color: kTextHint),
-      floatingLabelStyle: const TextStyle(fontSize: 13, color: kNavy, fontWeight: FontWeight.w700),
+      floatingLabelStyle: const TextStyle(fontSize: 13, color: kAccentIndigo, fontWeight: FontWeight.w700),
     ),
 
     // Elevated button
@@ -287,13 +351,59 @@ class AppTheme {
     // Chips
     chipTheme: ChipThemeData(
       backgroundColor: kBgGrey,
-      selectedColor:   kNavy.withValues(alpha: 0.10),
+      selectedColor:   kAccentIndigo.withValues(alpha: 0.14),
+      checkmarkColor:  kAccentIndigo,
       labelStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
       side:        BorderSide.none,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kRadiusChip)),
     ),
 
     dividerTheme: const DividerThemeData(color: kBorderLight, space: 1),
+
+    // Tabs — indigo pill-underline instead of plain navy line
+    tabBarTheme: const TabBarThemeData(
+      labelColor:           kAccentIndigo,
+      unselectedLabelColor: kTextHint,
+      indicatorColor:       kAccentIndigo,
+      indicatorSize:        TabBarIndicatorSize.label,
+      dividerColor:         kBorderLight,
+      labelStyle:   TextStyle(fontSize: 13, fontWeight: FontWeight.w800),
+      unselectedLabelStyle: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+      indicator: UnderlineTabIndicator(
+        borderSide:   BorderSide(color: kAccentIndigo, width: 3),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(3)),
+      ),
+    ),
+
+    progressIndicatorTheme: const ProgressIndicatorThemeData(
+      color:            kAccentIndigo,
+      linearTrackColor: Color(0xFFE0E7FF),
+    ),
+
+    dialogTheme: DialogThemeData(
+      backgroundColor: kSurface,
+      surfaceTintColor: Colors.transparent,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kRadiusCard)),
+    ),
+
+    bottomSheetTheme: const BottomSheetThemeData(
+      backgroundColor:  kSurface,
+      surfaceTintColor: Colors.transparent,
+      showDragHandle:   false,
+    ),
+
+    popupMenuTheme: PopupMenuThemeData(
+      color:            kSurface,
+      surfaceTintColor: Colors.transparent,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kRadiusChip)),
+    ),
+
+    switchTheme: SwitchThemeData(
+      thumbColor: WidgetStateProperty.resolveWith((s) =>
+          s.contains(WidgetState.selected) ? Colors.white : null),
+      trackColor: WidgetStateProperty.resolveWith((s) =>
+          s.contains(WidgetState.selected) ? kAccentEmerald : null),
+    ),
 
     floatingActionButtonTheme: const FloatingActionButtonThemeData(
       backgroundColor: kNavy,
@@ -360,15 +470,31 @@ class SectionHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Padding(
     padding: const EdgeInsets.only(bottom: 10, top: 6),
-    child: Text(
-      text.toUpperCase(),
-      style: const TextStyle(
-        fontSize:      10,
-        fontWeight:    FontWeight.w800,
-        color:         kTextHint,
-        letterSpacing: 1.0,
+    child: Row(children: [
+      Container(
+        width: 4, height: 12,
+        decoration: BoxDecoration(
+          gradient:     const LinearGradient(
+              colors: [kAccentIndigo, kAccentViolet],
+              begin: Alignment.topCenter, end: Alignment.bottomCenter),
+          borderRadius: BorderRadius.circular(2),
+        ),
       ),
-    ),
+      const SizedBox(width: 8),
+      Flexible(
+        child: Text(
+          text.toUpperCase(),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(
+            fontSize:      10,
+            fontWeight:    FontWeight.w800,
+            color:         kTextSub,
+            letterSpacing: 1.0,
+          ),
+        ),
+      ),
+    ]),
   );
 }
 
@@ -412,25 +538,38 @@ class KpiCard extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color:        kSurface,
+        gradient:     LinearGradient(
+          colors: [color.withValues(alpha: 0.10), kSurface],
+          begin: Alignment.topLeft, end: Alignment.bottomRight,
+        ),
         borderRadius: BorderRadius.circular(kRadiusCard),
-        border:       Border.all(color: kBorderLight, width: 0.5),
+        border:       Border.all(color: color.withValues(alpha: 0.22), width: 0.8),
         boxShadow:    kCardShadow,
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Container(
           width: 40, height: 40,
           decoration: BoxDecoration(
-            color:        kNavy,
+            gradient:     accentGradient(color),
             borderRadius: BorderRadius.circular(kRadiusChip),
+            boxShadow: [BoxShadow(color: color.withValues(alpha: 0.30),
+                blurRadius: 10, offset: const Offset(0, 4))],
           ),
-          child: Center(child: Icon(icon, color: kGoldLight, size: 20)),
+          child: Center(child: Icon(icon, color: Colors.white, size: 20)),
         ),
         const Spacer(),
-        Text(value,
-            style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w900,
-                color: kTextMain, letterSpacing: -0.5)),
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.centerLeft,
+          child: Text(value,
+              maxLines: 1,
+              style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w900,
+                  color: kTextMain, letterSpacing: -0.5)),
+        ),
         const SizedBox(height: 2),
         Text(label,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
             style: const TextStyle(fontSize: 13, color: kTextSub,
                 fontWeight: FontWeight.w600)),
         if (sub != null) ...[
@@ -464,12 +603,15 @@ class EmptyState extends StatelessWidget {
         Container(
           width: 80, height: 80,
           decoration: BoxDecoration(
-            color:        kNavy.withValues(alpha: 0.06),
+            gradient: const LinearGradient(
+              colors: [Color(0xFFE0E7FF), Color(0xFFF3E8FF)],
+              begin: Alignment.topLeft, end: Alignment.bottomRight,
+            ),
             borderRadius: BorderRadius.circular(kRadiusCard),
-            border:       Border.all(color: kBorderLight),
+            border:       Border.all(color: const Color(0xFFC7D2FE)),
           ),
           child: Center(
-              child: Icon(icon, size: 36, color: kNavy.withValues(alpha: 0.35))),
+              child: Icon(icon, size: 36, color: kAccentIndigo.withValues(alpha: 0.75))),
         ),
         const SizedBox(height: 24),
         Text(message,
@@ -602,6 +744,200 @@ class AppSearchBar extends StatelessWidget {
           contentPadding: const EdgeInsets.symmetric(vertical: 14),
         ),
       ),
+    ),
+  );
+}
+
+// ── ResponsiveGrid ─────────────────────────────────────────────────────────
+// Lays tiles out in as many equal columns as fit (each >= minTileWidth),
+// capped at maxColumns. 360px phone → 2 cols of stat tiles; desktop → 4-6.
+// Uses Wrap, so tiles may have different heights and nothing overflows.
+class ResponsiveGrid extends StatelessWidget {
+  const ResponsiveGrid({
+    super.key,
+    required this.children,
+    this.minTileWidth = 150,
+    this.maxColumns   = 6,
+    this.spacing      = 10,
+    this.runSpacing,
+  });
+  final List<Widget> children;
+  final double       minTileWidth;
+  final int          maxColumns;
+  final double       spacing;
+  final double?      runSpacing;
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(builder: (_, c) {
+    final w    = c.maxWidth.isFinite ? c.maxWidth : MediaQuery.of(context).size.width;
+    final cols = ((w + spacing) / (minTileWidth + spacing))
+        .floor().clamp(1, maxColumns);
+    final tileW = (w - spacing * (cols - 1)) / cols;
+    return Wrap(
+      spacing:    spacing,
+      runSpacing: runSpacing ?? spacing,
+      children: [
+        for (final child in children) SizedBox(width: tileW, child: child),
+      ],
+    );
+  });
+}
+
+// ── AccentStatTile ─────────────────────────────────────────────────────────
+// Soft colour-washed stat tile with a gradient icon badge. Give each tile in
+// a row its own accent (kAccent* or a semantic colour) for the multi-colour
+// look. Value text scales down instead of overflowing on narrow phones.
+class AccentStatTile extends StatelessWidget {
+  const AccentStatTile({
+    super.key,
+    required this.label,
+    required this.value,
+    required this.icon,
+    required this.color,
+    this.sub,
+    this.onTap,
+    this.valueColor,
+  });
+  final String        label, value;
+  final IconData      icon;
+  final Color         color;
+  final String?       sub;
+  final VoidCallback? onTap;
+  final Color?        valueColor;
+
+  @override
+  Widget build(BuildContext context) => Material(
+    color: Colors.transparent,
+    child: InkWell(
+      onTap:        onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Ink(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color:        kSurface,
+          gradient:     accentWash(color),
+          borderRadius: BorderRadius.circular(16),
+          border:       Border.all(color: color.withValues(alpha: 0.25)),
+        ),
+        child: Column(
+          mainAxisSize:       MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(children: [
+              Container(
+                padding: const EdgeInsets.all(7),
+                decoration: BoxDecoration(
+                  gradient:     accentGradient(color),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(icon, size: 16, color: Colors.white),
+              ),
+              const SizedBox(width: 8),
+              Expanded(child: Text(label,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700,
+                      color: color, height: 1.2))),
+              if (onTap != null)
+                Icon(Icons.chevron_right_rounded, size: 16,
+                    color: color.withValues(alpha: 0.7)),
+            ]),
+            const SizedBox(height: 10),
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerLeft,
+              child: Text(value,
+                  maxLines: 1,
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900,
+                      color: valueColor ?? kTextMain, letterSpacing: -0.3)),
+            ),
+            if (sub != null) ...[
+              const SizedBox(height: 2),
+              Text(sub!,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 11, color: kTextHint,
+                      fontWeight: FontWeight.w600)),
+            ],
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+// ── GradientHeader ─────────────────────────────────────────────────────────
+// Colourful hero banner (title + subtitle + icon + optional trailing / bottom
+// content) used at the top of hub screens and sheets.
+class GradientHeader extends StatelessWidget {
+  const GradientHeader({
+    super.key,
+    required this.title,
+    this.subtitle,
+    this.icon,
+    this.gradient = kGradHero,
+    this.trailing,
+    this.bottom,
+    this.padding  = const EdgeInsets.fromLTRB(18, 16, 18, 18),
+    this.radius   = kRadiusCard,
+  });
+  final String     title;
+  final String?    subtitle;
+  final IconData?  icon;
+  final Gradient   gradient;
+  final Widget?    trailing;
+  final Widget?    bottom;
+  final EdgeInsets padding;
+  final double     radius;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: padding,
+    decoration: BoxDecoration(
+      gradient:     gradient,
+      borderRadius: BorderRadius.circular(radius),
+      boxShadow: [BoxShadow(color: const Color(0xFF4F46E5).withValues(alpha: 0.25),
+          blurRadius: 20, offset: const Offset(0, 8))],
+    ),
+    child: Column(
+      mainAxisSize:       MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(children: [
+          if (icon != null) ...[
+            Container(
+              width: 42, height: 42,
+              decoration: BoxDecoration(
+                color:        Colors.white.withValues(alpha: 0.18),
+                borderRadius: BorderRadius.circular(12),
+                border:       Border.all(color: Colors.white.withValues(alpha: 0.25)),
+              ),
+              child: Icon(icon, color: Colors.white, size: 22),
+            ),
+            const SizedBox(width: 12),
+          ],
+          Expanded(child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900,
+                      color: Colors.white, letterSpacing: -0.2)),
+              if (subtitle != null) ...[
+                const SizedBox(height: 2),
+                Text(subtitle!,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600,
+                        color: Colors.white.withValues(alpha: 0.80))),
+              ],
+            ],
+          )),
+          if (trailing != null) ...[const SizedBox(width: 8), trailing!],
+        ]),
+        if (bottom != null) ...[const SizedBox(height: 14), bottom!],
+      ],
     ),
   );
 }

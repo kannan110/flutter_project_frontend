@@ -72,7 +72,10 @@ class _S extends ConsumerState<SupervisorDashboardScreen> {
           onRefresh: _load,
           child: _loading
               ? const Center(child: CircularProgressIndicator())
-              : ListView(padding: const EdgeInsets.fromLTRB(16, 16, 16, 110), children: [
+              : Center(child: ConstrainedBox(
+              // Phone: full width. Desktop web: a readable centred column.
+              constraints: const BoxConstraints(maxWidth: 760),
+              child: ListView(padding: const EdgeInsets.fromLTRB(16, 16, 16, 110), children: [
             Text('Hi, ${user?.companyName ?? 'Supervisor'}',
                 style: const TextStyle(fontSize: 13, color: kTextSub)),
             const Text('Today\'s Collection',
@@ -83,16 +86,27 @@ class _S extends ConsumerState<SupervisorDashboardScreen> {
               width: double.infinity,
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                gradient: const LinearGradient(colors: [kNavy, kNavyMid],
+                gradient: const LinearGradient(colors: kGradHeroColors,
                     begin: Alignment.topLeft, end: Alignment.bottomRight),
                 borderRadius: BorderRadius.circular(kRadiusHero),
+                boxShadow: [BoxShadow(color: kAccentIndigo.withValues(alpha: 0.3),
+                    blurRadius: 20, offset: const Offset(0, 8))],
               ),
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                const Text('TOTAL CASH COLLECTED TODAY',
-                    style: TextStyle(fontSize: 11, color: Colors.white70, fontWeight: FontWeight.w700, letterSpacing: 0.6)),
-                const SizedBox(height: 6),
-                Text(Fmt.amount(_collectedToday),
-                    style: const TextStyle(fontSize: 32, fontWeight: FontWeight.w900, color: Colors.white)),
+              child: Row(children: [
+                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  const Text('TOTAL CASH COLLECTED TODAY',
+                      style: TextStyle(fontSize: 11, color: Colors.white70, fontWeight: FontWeight.w700, letterSpacing: 0.6)),
+                  const SizedBox(height: 6),
+                  FittedBox(fit: BoxFit.scaleDown, alignment: Alignment.centerLeft,
+                    child: Text(Fmt.amount(_collectedToday), maxLines: 1,
+                        style: const TextStyle(fontSize: 32, fontWeight: FontWeight.w900, color: Colors.white))),
+                ])),
+                Container(
+                  width: 48, height: 48,
+                  decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.18),
+                      borderRadius: BorderRadius.circular(14)),
+                  child: const Icon(Icons.payments_rounded, color: Colors.white, size: 26),
+                ),
               ]),
             ),
             const SizedBox(height: 14),
@@ -103,7 +117,7 @@ class _S extends ConsumerState<SupervisorDashboardScreen> {
               Expanded(child: _statCard('Pending Retailers', '$_pendingRetailers', Icons.error_outline, Colors.orange.shade700)),
             ]),
             const SizedBox(height: 12),
-            _statCard('Assigned Retailers', '$_assignedCount', Icons.storefront_outlined, kNavy, wide: true),
+            _statCard('Assigned Retailers', '$_assignedCount', Icons.storefront_outlined, kAccentIndigo, wide: true),
             const SizedBox(height: 24),
 
             SizedBox(height: 56, child: ElevatedButton.icon(
@@ -116,31 +130,42 @@ class _S extends ConsumerState<SupervisorDashboardScreen> {
               },
               icon: const Icon(Icons.payments_outlined, size: 22),
               label: const Text('Collect Cash', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
-              style: ElevatedButton.styleFrom(backgroundColor: kPrimary),
+              style: ElevatedButton.styleFrom(backgroundColor: kAccentEmerald),
             )),
-          ]),
+          ]))),
         ),
       ),
     );
   }
 
-  Widget _statCard(String label, String value, IconData icon, Color color, {bool wide = false}) => Container(
+  Widget _statCard(String label, String value, IconData icon, Color color, {bool wide = false}) {
+    final badge = Container(
+      padding: const EdgeInsets.all(7),
+      decoration: BoxDecoration(gradient: accentGradient(color),
+          borderRadius: BorderRadius.circular(10)),
+      child: Icon(icon, color: Colors.white, size: 18),
+    );
+    return Container(
       padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(color: kSurface, borderRadius: BorderRadius.circular(kRadiusCard),
-          border: Border.all(color: kBorderLight), boxShadow: kCardShadow),
+      decoration: BoxDecoration(color: kSurface, gradient: accentWash(color),
+          borderRadius: BorderRadius.circular(kRadiusCard),
+          border: Border.all(color: color.withValues(alpha: 0.25)), boxShadow: kCardShadow),
       child: wide
           ? Row(children: [
-        Icon(icon, color: color, size: 22),
+        badge,
         const SizedBox(width: 10),
-        Text(label, style: const TextStyle(fontSize: 13, color: kTextSub, fontWeight: FontWeight.w600)),
-        const Spacer(),
+        Expanded(child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 13, color: kTextSub, fontWeight: FontWeight.w600))),
         Text(value, style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: color)),
       ])
           : Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Icon(icon, color: color, size: 20),
+        badge,
         const SizedBox(height: 8),
-        Text(value, style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: color)),
+        FittedBox(fit: BoxFit.scaleDown, alignment: Alignment.centerLeft,
+            child: Text(value, maxLines: 1, style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: color))),
         const SizedBox(height: 2),
-        Text(label, style: const TextStyle(fontSize: 11, color: kTextSub, fontWeight: FontWeight.w600)),
+        Text(label, maxLines: 2, overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 11, color: kTextSub, fontWeight: FontWeight.w600)),
       ]));
+  }
 }

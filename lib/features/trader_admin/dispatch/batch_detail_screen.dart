@@ -1256,35 +1256,34 @@ class _S extends ConsumerState<BatchDetailScreen> {
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 100), children: [
 
         // ── Agent card ────────────────────────────────────────────
-        WhiteCard(child: Row(children: [
-          Expanded(child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(a?['name'] as String? ?? '—',
-                style: const TextStyle(
-                    fontSize: 15, fontWeight: FontWeight.w700)),
-            if (a?['vehicle_no'] != null)
-              Text('Vehicle: ${a!['vehicle_no']}',
-                  style: const TextStyle(fontSize: 12, color: kTextSub)),
-            if (a?['phone'] != null)
-              Text('Phone: ${a!['phone']}',
-                  style: const TextStyle(fontSize: 12, color: kTextHint)),
-          ])),
-          Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-            StatusBadge(status, SC.order(status)),
+        GradientHeader(
+          title: a?['name'] as String? ?? '—',
+          subtitle: [
+            if (a?['vehicle_no'] != null) 'Vehicle: ${a!['vehicle_no']}',
+            if (a?['phone'] != null) 'Phone: ${a!['phone']}',
+          ].join('  ·  '),
+          icon: Icons.local_shipping_rounded,
+          trailing: Column(crossAxisAlignment: CrossAxisAlignment.end,
+              mainAxisSize: MainAxisSize.min, children: [
+            Container(
+              decoration: BoxDecoration(color: Colors.white,
+                  borderRadius: BorderRadius.circular(kRadiusChip)),
+              child: StatusBadge(status, SC.order(status)),
+            ),
             if (canEdit) ...[
               const SizedBox(height: 6),
               GestureDetector(
                   onTap: _reassignAgent,
-                  child: const Row(children: [
-                    Icon(Icons.swap_horiz, size: 14, color: kPrimary),
+                  child: const Row(mainAxisSize: MainAxisSize.min, children: [
+                    Icon(Icons.swap_horiz, size: 14, color: Colors.white),
                     SizedBox(width: 4),
                     Text('Swap Agent', style: TextStyle(fontSize: 11,
-                        color: kPrimary,
-                        fontWeight: FontWeight.w600)),
+                        color: Colors.white,
+                        fontWeight: FontWeight.w700)),
                   ])),
             ],
           ]),
-        ])),
+        ),
         const SizedBox(height: 14),
 
         // ── DC List ───────────────────────────────────────────────
@@ -1298,17 +1297,19 @@ class _S extends ConsumerState<BatchDetailScreen> {
         ]),
         if (_challans.isNotEmpty) Padding(
             padding: const EdgeInsets.only(bottom: 8),
-            child: Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                    color: kPrimary.withValues(alpha: 0.07),
-                    borderRadius: BorderRadius.circular(8)),
-                child: Row(children: [
-                  _miniStat('Total Birds', '$dcBirds', kPrimary),
-                  _miniStat('Total Weight', '${dcWeight.toStringAsFixed(1)} kg',
-                      Colors.teal),
-                  _miniStat('DCs', '${_challans.length}', Colors.blue),
-                ]))),
+            child: Row(children: [
+              Expanded(child: AccentStatTile(label: 'Total Birds',
+                  value: '$dcBirds', icon: Icons.egg_alt_rounded,
+                  color: kAccentIndigo)),
+              const SizedBox(width: 8),
+              Expanded(child: AccentStatTile(label: 'Total Weight',
+                  value: '${dcWeight.toStringAsFixed(1)} kg',
+                  icon: Icons.scale_rounded, color: kAccentTeal)),
+              const SizedBox(width: 8),
+              Expanded(child: AccentStatTile(label: 'DCs',
+                  value: '${_challans.length}',
+                  icon: Icons.receipt_long_rounded, color: kAccentSky)),
+            ])),
         if (_challans.isEmpty) Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
@@ -1494,13 +1495,6 @@ class _S extends ConsumerState<BatchDetailScreen> {
     );
   }
 
-  Widget _miniStat(String l, String v, Color c) =>
-      Expanded(child: Column(children: [
-        Text(v, style: TextStyle(
-            fontSize: 14, fontWeight: FontWeight.w800, color: c)),
-        Text(l, style: const TextStyle(fontSize: 9, color: kTextHint),
-            textAlign: TextAlign.center),
-      ]));
 }
 
 // ── DC Card — expandable with image ─────────────────────────────────────────

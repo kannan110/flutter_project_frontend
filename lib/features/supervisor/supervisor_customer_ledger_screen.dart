@@ -65,7 +65,7 @@ class _S extends ConsumerState<SupervisorCustomerLedgerScreen> {
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              gradient: const LinearGradient(colors: [kNavy, kNavyMid],
+              gradient: const LinearGradient(colors: kGradHeroColors,
                   begin: Alignment.topLeft, end: Alignment.bottomRight),
               borderRadius: BorderRadius.circular(kRadiusCard),
             ),

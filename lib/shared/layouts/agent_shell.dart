@@ -69,6 +69,7 @@ class _GlassAgentNav extends StatelessWidget {
             children: List.generate(_items.length, (i) {
               final item   = _items[i];
               final active = i == currentIndex;
+              final accent = kAccentAt(i);
               return GestureDetector(
                 onTap:    () => onTap(i),
                 behavior: HitTestBehavior.opaque,
@@ -79,13 +80,17 @@ class _GlassAgentNav extends StatelessWidget {
                       duration: const Duration(milliseconds: 200),
                       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                       decoration: BoxDecoration(
-                        color:        active ? kGoldBg : Colors.transparent,
+                        gradient:     active ? accentGradient(accent) : null,
                         borderRadius: BorderRadius.circular(14),
+                        boxShadow: active
+                            ? [BoxShadow(color: accent.withValues(alpha: 0.35),
+                                blurRadius: 10, offset: const Offset(0, 3))]
+                            : null,
                       ),
                       child: Icon(
                         active ? item.active : item.icon,
                         size:  22,
-                        color: active ? kWarning : kTextHint,
+                        color: active ? Colors.white : kTextHint,
                       ),
                     ),
                     const SizedBox(height: 2),
@@ -93,7 +98,7 @@ class _GlassAgentNav extends StatelessWidget {
                         style: TextStyle(
                             fontSize: 9, fontWeight: FontWeight.w800,
                             letterSpacing: 0.6,
-                            color: active ? kWarning : kTextHint)),
+                            color: active ? accent : kTextHint)),
                   ]),
                 ),
               );

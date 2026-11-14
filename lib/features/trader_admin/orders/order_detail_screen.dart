@@ -272,7 +272,7 @@ class _S extends ConsumerState<OrderDetailScreen> {
         margin: const EdgeInsets.only(bottom: 14),
         decoration: BoxDecoration(
           gradient: const LinearGradient(
-            colors: [kNavy, kNavyMid],
+            colors: kGradHeroColors,
             begin: Alignment.topLeft, end: Alignment.bottomRight,
           ),
           borderRadius: BorderRadius.circular(kRadiusHero),

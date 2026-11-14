@@ -30,13 +30,18 @@ class KpiCard extends StatelessWidget {
 
     return InkWell(
       onTap:        onTap,
-      borderRadius: BorderRadius.circular(8),
+      borderRadius: BorderRadius.circular(kRadiusChip),
       child: Container(
         padding: EdgeInsets.all(pad),
         decoration: BoxDecoration(
           color:        kSurface,
-          borderRadius: BorderRadius.circular(8),
-          border:       Border.all(color: kBorderLight),
+          gradient:     LinearGradient(
+            colors: [color.withValues(alpha: 0.10), kSurface],
+            begin: Alignment.topLeft, end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(kRadiusChip),
+          border:       Border.all(color: color.withValues(alpha: 0.22)),
+          boxShadow:    kCardShadow,
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -45,21 +50,26 @@ class KpiCard extends StatelessWidget {
             // Icon badge — Navy with Gold icon
             Container(
               width: 40, height: 40,
-              decoration: const BoxDecoration(
-                color: kNavy,
-                borderRadius: BorderRadius.all(Radius.circular(4)),
+              decoration: BoxDecoration(
+                gradient:     accentGradient(color),
+                borderRadius: const BorderRadius.all(Radius.circular(10)),
               ),
-              child: Center(child: Icon(icon, color: kGoldLight, size: 20)),
+              child: Center(child: Icon(icon, color: Colors.white, size: 20)),
             ),
             const Spacer(),
             // KPI value
-            Text(
-              value,
-              style: TextStyle(
-                fontSize:      valSz,
-                fontWeight:    FontWeight.w800,
-                color:         kTextMain,
-                letterSpacing: -0.5,
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerLeft,
+              child: Text(
+                value,
+                maxLines: 1,
+                style: TextStyle(
+                  fontSize:      valSz,
+                  fontWeight:    FontWeight.w800,
+                  color:         kTextMain,
+                  letterSpacing: -0.5,
+                ),
               ),
             ),
             const SizedBox(height: 2),

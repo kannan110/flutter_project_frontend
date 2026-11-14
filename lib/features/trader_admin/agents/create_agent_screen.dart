@@ -81,7 +81,7 @@ class _S extends ConsumerState<CreateAgentScreen> {
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
                             gradient: const LinearGradient(
-                                colors: [kNavy, kNavyMid],
+                                colors: kGradHeroColors,
                                 begin: Alignment.topLeft,
                                 end: Alignment.bottomRight),
                             borderRadius: BorderRadius.circular(kRadiusCard)),

@@ -407,7 +407,7 @@ class _InventoryDashboardScreenState extends ConsumerState<InventoryDashboardScr
       Container(
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          gradient: const LinearGradient(colors: [kNavy, kNavyMid]),
+          gradient: const LinearGradient(colors: kGradHeroColors),
           borderRadius: BorderRadius.circular(16),
         ),
         child: Row(children: [

@@ -184,7 +184,7 @@ class _S extends ConsumerState<UserManagementScreen> {
                 padding: const EdgeInsets.all(18),
                 margin: const EdgeInsets.only(bottom: 16),
                 decoration: BoxDecoration(
-                    gradient: const LinearGradient(colors: [kNavy, kNavyMid], begin: Alignment.topLeft, end: Alignment.bottomRight),
+                    gradient: const LinearGradient(colors: kGradHeroColors, begin: Alignment.topLeft, end: Alignment.bottomRight),
                     borderRadius: BorderRadius.circular(kRadiusCard)),
                 child: const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Row(children: [

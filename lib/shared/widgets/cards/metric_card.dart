@@ -21,26 +21,31 @@ class MetricCard extends StatelessWidget {
   final String?      sub;
   final VoidCallback? onTap;
 
+  // Default value colour (kTextMain) carries no hue — fall back to indigo
+  // for the accent so the card still gets the multi-colour treatment.
+  Color get _accent => color == kTextMain ? kAccentIndigo : color;
+
   @override
   Widget build(BuildContext context) => InkWell(
     onTap:        onTap,
-    borderRadius: BorderRadius.circular(8),
+    borderRadius: BorderRadius.circular(kRadiusChip),
     child: Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(
         color:        kSurface,
-        borderRadius: BorderRadius.circular(8),
-        border:       Border.all(color: kBorderLight),
+        gradient:     accentWash(_accent),
+        borderRadius: BorderRadius.circular(kRadiusChip),
+        border:       Border.all(color: _accent.withValues(alpha: 0.22)),
       ),
       child: Row(children: [
         if (icon != null) ...[
           Container(
             width:  32, height: 32,
-            decoration: const BoxDecoration(
-              color: kNavy,
-              borderRadius: BorderRadius.all(Radius.circular(4)),
+            decoration: BoxDecoration(
+              gradient:     accentGradient(_accent),
+              borderRadius: const BorderRadius.all(Radius.circular(9)),
             ),
-            child: Center(child: Icon(icon, size: 16, color: kGoldLight)),
+            child: Center(child: Icon(icon, size: 16, color: Colors.white)),
           ),
           const SizedBox(width: 12),
         ],

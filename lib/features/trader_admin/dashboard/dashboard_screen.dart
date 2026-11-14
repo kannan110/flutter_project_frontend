@@ -216,14 +216,13 @@ class _S extends ConsumerState<DashboardScreen> {
             const SizedBox(height: 20),
             _OpsBoard(data: d, onNavigate: (r) => context.go(r)),
             const SizedBox(height: 20),
-            Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Expanded(flex: 7, child: Column(children: [
+            LayoutBuilder(builder: (context, c) {
+            final main = Column(children: [
                 _RevenueTrendPanel(data: d, trend: _revenueTrend),
                 const SizedBox(height: 16),
                 _LiveStockPanel(stock: _stock, data: d),
-              ])),
-              const SizedBox(width: 16),
-              Expanded(flex: 4, child: Column(children: [
+              ]);
+            final side = Column(children: [
                 _NavigatorAgentShift(agents: d.agentStatus,
                     onTap: () => context.go(R.agents)),
                 const SizedBox(height: 16),
@@ -243,8 +242,18 @@ class _S extends ConsumerState<DashboardScreen> {
                   _AlertsPanel(data: d, stock: _stock,
                       onTap: () => context.go(R.alerts)),
                 ],
-              ])),
-            ]),
+              ]);
+            // Narrow desktop window: stack the side panels under the
+            // charts instead of squeezing both columns.
+            if (c.maxWidth < 1000) {
+              return Column(children: [main, const SizedBox(height: 16), side]);
+            }
+            return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Expanded(flex: 7, child: main),
+              const SizedBox(width: 16),
+              Expanded(flex: 4, child: side),
+            ]);
+            }),
             const SizedBox(height: 20),
             _RecentOrdersTable(
               orders: _recentOrders,
@@ -317,10 +326,9 @@ class _S extends ConsumerState<DashboardScreen> {
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
             child: Container(
               decoration: BoxDecoration(
-                gradient: const LinearGradient(colors: [kNavy, kNavyMid],
-                    begin: Alignment.topLeft, end: Alignment.bottomRight),
+                gradient: kGradHero,
                 borderRadius: BorderRadius.circular(kRadiusHero),
-                boxShadow: [BoxShadow(color: kNavy.withValues(alpha: 0.35),
+                boxShadow: [BoxShadow(color: kAccentIndigo.withValues(alpha: 0.35),
                     blurRadius: 24, offset: const Offset(0, 8))],
               ),
               padding: const EdgeInsets.fromLTRB(24, 20, 24, 22),
@@ -410,7 +418,7 @@ class _S extends ConsumerState<DashboardScreen> {
                 children: [
                   const Padding(padding: EdgeInsets.only(bottom: 10),
                       child: Row(children: [
-                        Icon(Icons.bolt_rounded, color: kGold, size: 16),
+                        Icon(Icons.bolt_rounded, color: kAccentOrange, size: 16),
                         SizedBox(width: 6),
                         Text('PRIORITY ACTIONS', style: TextStyle(fontSize: 11,
                             fontWeight: FontWeight.w900, color: kNavy,
@@ -458,7 +466,7 @@ class _S extends ConsumerState<DashboardScreen> {
               child: Column(children: [
                 Padding(padding: const EdgeInsets.fromLTRB(18, 14, 18, 10),
                     child: Row(children: [
-                      const Icon(Icons.groups_rounded, color: kGold, size: 16),
+                      const Icon(Icons.groups_rounded, color: kAccentTeal, size: 16),
                       const SizedBox(width: 8),
                       const Text('LIVE DISPATCH', style: TextStyle(
                           fontSize: 11, fontWeight: FontWeight.w900,
@@ -467,7 +475,7 @@ class _S extends ConsumerState<DashboardScreen> {
                       GestureDetector(onTap: () => context.go(R.dispatch),
                           child: const Text('VIEW ALL', style: TextStyle(
                               fontSize: 10, fontWeight: FontWeight.w900,
-                              color: kGold, letterSpacing: 0.5))),
+                              color: kAccentTeal, letterSpacing: 0.5))),
                     ])),
                 const Divider(height: 1, color: kBorderLight),
                 ...agents.take(4).toList().asMap().entries.map((e) {
@@ -523,7 +531,7 @@ class _S extends ConsumerState<DashboardScreen> {
                 children: [
                   const Padding(padding: EdgeInsets.only(bottom: 12),
                       child: Row(children: [
-                        Icon(Icons.apps_rounded, color: kGold, size: 16),
+                        Icon(Icons.apps_rounded, color: kAccentViolet, size: 16),
                         SizedBox(width: 6),
                         Text('QUICK ACCESS', style: TextStyle(fontSize: 11,
                             fontWeight: FontWeight.w900, color: kNavy,
@@ -575,9 +583,14 @@ class _S extends ConsumerState<DashboardScreen> {
                   border: Border.all(color: c.withValues(alpha: 0.35))),
               child: Icon(icon, color: c, size: 20)),
           const SizedBox(height: 8),
-          Text(value, style: TextStyle(fontSize: 22,
-              fontWeight: FontWeight.w900, color: urgent ? c : Colors.white,
-              letterSpacing: -0.4)),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            child: FittedBox(fit: BoxFit.scaleDown,
+              child: Text(value, maxLines: 1, style: TextStyle(fontSize: 22,
+                  fontWeight: FontWeight.w900, color: urgent ? c : Colors.white,
+                  letterSpacing: -0.4)),
+            ),
+          ),
           Text(label, style: const TextStyle(fontSize: 9,
               fontWeight: FontWeight.w700, color: Color(0xFFB4C6F4),
               letterSpacing: -0.2), maxLines: 1,
@@ -783,9 +796,10 @@ class _S extends ConsumerState<DashboardScreen> {
       child: Row(children: [
         Container(width: 52,
             height: 52,
-            decoration: BoxDecoration(shape: BoxShape.circle,
-                border: Border.all(color: kGoldLight, width: 2)),
-            padding: const EdgeInsets.all(2),
+            decoration: const BoxDecoration(shape: BoxShape.circle,
+                gradient: SweepGradient(colors: [kAccentIndigo, kAccentPink,
+                  kAccentAmber, kAccentTeal, kAccentIndigo])),
+            padding: const EdgeInsets.all(2.5),
             child: CircleAvatar(backgroundColor: kNavyMid,
                 child: Text(_initials(user?.companyName),
                     style: const TextStyle(fontSize: 18,
@@ -806,7 +820,7 @@ class _S extends ConsumerState<DashboardScreen> {
               maxLines: 1,
               overflow: TextOverflow.ellipsis),
           Text(t('today'), style: const TextStyle(
-              fontSize: 11, fontWeight: FontWeight.w700, color: kGold)),
+              fontSize: 11, fontWeight: FontWeight.w700, color: kAccentIndigo)),
         ])),
         GestureDetector(onTap: () =>
         ref
@@ -851,9 +865,9 @@ class _S extends ConsumerState<DashboardScreen> {
             child: Container(width: 42,
                 height: 42,
                 decoration: const BoxDecoration(
-                    shape: BoxShape.circle, color: kNavy),
+                    shape: BoxShape.circle, gradient: kGradHero),
                 child: const Icon(
-                    Icons.person_outline_rounded, color: kGoldLight,
+                    Icons.person_outline_rounded, color: Colors.white,
                     size: 22))),
       ]),
     );
@@ -878,7 +892,7 @@ class _S extends ConsumerState<DashboardScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start, children: [
                   const Row(children: [
                     Icon(
-                        Icons.inventory_2_rounded, color: kGold, size: 18),
+                        Icons.inventory_2_rounded, color: kAccentTeal, size: 18),
                     SizedBox(width: 8),
                     Text('LIVE STOCK', style: TextStyle(fontSize: 12,
                         fontWeight: FontWeight.w900,
@@ -887,7 +901,7 @@ class _S extends ConsumerState<DashboardScreen> {
                     Spacer(),
                     Text('DETAILS ›', style: TextStyle(fontSize: 10,
                         fontWeight: FontWeight.w900,
-                        color: kGold,
+                        color: kAccentTeal,
                         letterSpacing: 0.6))
                   ]),
                   const SizedBox(height: 20),
@@ -899,7 +913,7 @@ class _S extends ConsumerState<DashboardScreen> {
                               child: CustomPaint(size: const Size(140, 140),
                                   painter: _DonutPainter(
                                       fraction: fraction.toDouble(),
-                                      ringColor: kGoldLight,
+                                      ringColor: kAccentTeal,
                                       trackColor: const Color(0xFFF3F4F6),
                                       strokeWidth: 12))),
                           Column(mainAxisSize: MainAxisSize.min, children: [
@@ -926,13 +940,12 @@ class _S extends ConsumerState<DashboardScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           ..._stock.map((s) =>
-                              _stockLegendRow(dot: kGoldLight,
+                              _stockLegendRow(dot: kAccentTeal,
                                   label: 'IN STOCK',
                                   value: '${s.availableBirds}',
                                   sub: '${s.availableKg.toStringAsFixed(
                                       0)} kg')),
-                          if(inTransit > 0)_stockLegendRow(dot: const Color(
-                              0xFF7687B2),
+                          if(inTransit > 0)_stockLegendRow(dot: kAccentIndigo,
                               label: 'IN TRANSIT',
                               value: '$inTransit'),
                           _stockLegendRow(dot: kError,
@@ -1002,7 +1015,7 @@ class _S extends ConsumerState<DashboardScreen> {
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           const Padding(padding: EdgeInsets.only(bottom: 12),
               child: Row(children: [
-                Icon(Icons.account_balance_wallet_rounded, color: kGold,
+                Icon(Icons.account_balance_wallet_rounded, color: kAccentIndigo,
                     size: 18),
                 SizedBox(width: 8),
                 Text('FINANCIAL OVERVIEW', style: TextStyle(fontSize: 12,
@@ -1012,11 +1025,10 @@ class _S extends ConsumerState<DashboardScreen> {
               ])),
           GestureDetector(onTap: () => context.go(R.ledger),
             child: Container(decoration: BoxDecoration(
-                gradient: const LinearGradient(colors: [kNavy, kNavyMid],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight),
+                gradient: kGradNavy,
                 borderRadius: BorderRadius.circular(kRadiusCard),
-                border: Border.all(color: kNavyMid)),
+                boxShadow: [BoxShadow(color: kAccentIndigo.withValues(alpha: 0.25),
+                    blurRadius: 18, offset: const Offset(0, 6))]),
                 padding: const EdgeInsets.symmetric(
                     horizontal: 22, vertical: 18),
                 child: Row(children: [
@@ -1027,11 +1039,14 @@ class _S extends ConsumerState<DashboardScreen> {
                             fontWeight: FontWeight.w900,
                             color: Color(0xFFB4C6F4),
                             letterSpacing: 0.7)), const SizedBox(height: 6),
-                    Text(Fmt.amount(d?.totalOutstanding ?? 0),
-                        style: const TextStyle(fontSize: 34,
-                            fontWeight: FontWeight.w900,
-                            color: kGoldLight,
-                            letterSpacing: -0.5))
+                    FittedBox(fit: BoxFit.scaleDown,
+                        alignment: Alignment.centerLeft,
+                        child: Text(Fmt.amount(d?.totalOutstanding ?? 0),
+                            maxLines: 1,
+                            style: const TextStyle(fontSize: 34,
+                                fontWeight: FontWeight.w900,
+                                color: kGoldLight,
+                                letterSpacing: -0.5)))
                   ])),
                   Container(width: 48,
                       height: 48,
@@ -1046,11 +1061,11 @@ class _S extends ConsumerState<DashboardScreen> {
           Row(children: [
             Expanded(child: _finSubCard(label: "TODAY'S ${t('cash')}",
                 value: Fmt.amount(d?.todayCashCollected ?? 0),
-                barColor: kGoldLight)),
+                barColor: kAccentEmerald)),
             const SizedBox(width: 10),
             Expanded(child: _finSubCard(label: "TODAY'S ${t('upi')}",
                 value: Fmt.amount(d?.todayUpiCollected ?? 0),
-                barColor: const Color(0xFF7687B2))),
+                barColor: kAccentViolet)),
           ]),
         ]));
   }
@@ -1059,20 +1074,25 @@ class _S extends ConsumerState<DashboardScreen> {
       {required String label, required String value, required Color barColor}) =>
       Container(padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(color: kSurface,
+              gradient: accentWash(barColor),
               borderRadius: BorderRadius.circular(kRadiusCard),
-              border: Border.all(color: kBorderLight.withValues(alpha: 0.5)),
+              border: Border.all(color: barColor.withValues(alpha: 0.25)),
               boxShadow: kCardShadow),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(label, style: const TextStyle(fontSize: 9,
+                Text(label, maxLines: 1, overflow: TextOverflow.ellipsis,
+                    style: TextStyle(fontSize: 9,
                     fontWeight: FontWeight.w900,
-                    color: kTextHint,
+                    color: barColor,
                     letterSpacing: 0.6)),
                 const SizedBox(height: 6),
-                Text(value, style: const TextStyle(fontSize: 20,
-                    fontWeight: FontWeight.w900,
-                    color: kNavy,
-                    letterSpacing: -0.3)),
+                FittedBox(fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerLeft,
+                    child: Text(value, maxLines: 1,
+                        style: const TextStyle(fontSize: 20,
+                        fontWeight: FontWeight.w900,
+                        color: kNavy,
+                        letterSpacing: -0.3))),
                 const SizedBox(height: 8),
                 Container(height: 3,
                     width: 32,
@@ -1334,20 +1354,20 @@ class _S extends ConsumerState<DashboardScreen> {
         _QA(Icons.store_outlined, t('customers'), const Color(0xFF0284C7),
             const Color(0xFFF0F9FF), () => context.go(R.retailers)),
         _QA(Icons.delivery_dining_outlined, t('agents'),
-            const Color(0xFF57534E), const Color(0xFFFAFAF9), () =>
+            kAccentPink, const Color(0xFFFDF2F8), () =>
                 context.go(R.agents)),
         _QA(Icons.assignment_return_outlined, t('returns'), kError,
             const Color(0xFFFEF2F2), () => context.go(R.returns)),
-        _QA(Icons.schedule_outlined, t('shifts'), kTextSub,
-            const Color(0xFFF9FAFB), () => context.go(R.shifts)),
+        _QA(Icons.schedule_outlined, t('shifts'), kAccentSlate,
+            const Color(0xFFF1F5F9), () => context.go(R.shifts)),
         _QA(Icons.account_balance_outlined, t('reconcile'), kSuccess,
             const Color(0xFFF0FDF4), () => context.go(R.cashRecon)),
         _QA(Icons.lock_clock_outlined, t('close_day'), kError,
             const Color(0xFFFEF2F2), () => context.go(R.dayClosure)),
         _QA(Icons.warning_amber_outlined, t('alerts'), Colors.orange,
             const Color(0xFFFFFBEB), () => context.go(R.alerts)),
-        _QA(Icons.summarize_outlined, t('report'), kNavy,
-            const Color(0xFFF8FAFC), () => context.go(R.dailyReport)),
+        _QA(Icons.summarize_outlined, t('report'), kAccentViolet,
+            const Color(0xFFF5F3FF), () => context.go(R.dailyReport)),
       ];
 
   Widget _qaBtn(_QA a) =>
@@ -1361,14 +1381,15 @@ class _S extends ConsumerState<DashboardScreen> {
               child: Row(children: [
                 Container(width: 36,
                     height: 36,
-                    decoration: BoxDecoration(color: kSurface,
+                    decoration: BoxDecoration(
+                        gradient: accentGradient(a.color),
                         borderRadius: BorderRadius.circular(kRadiusChip),
                         boxShadow: [
-                          BoxShadow(color: a.color.withValues(alpha: 0.15),
+                          BoxShadow(color: a.color.withValues(alpha: 0.30),
                               blurRadius: 8,
-                              offset: const Offset(0, 2))
+                              offset: const Offset(0, 3))
                         ]),
-                    child: Icon(a.icon, size: 20, color: a.color)),
+                    child: Icon(a.icon, size: 20, color: Colors.white)),
                 const SizedBox(width: 10),
                 Expanded(child: Text(a.label, style: TextStyle(fontSize: 12,
                     fontWeight: FontWeight.w900,
@@ -1581,7 +1602,7 @@ class _MetricStrip extends StatelessWidget {
         value: _fmt(totalBirds),
         sub: '${_fmt(stock.fold(0, (s, p) => s + p.agentBirds))} with agents',
         icon: Icons.egg_alt_outlined,
-        grad: [const Color(0xFFDC2626), const Color(0xFFB91C1C)],
+        grad: [const Color(0xFF0D9488), const Color(0xFF0F766E)],
         trend: null,
       ),
       _MetricDef(
@@ -1605,7 +1626,7 @@ class _MetricStrip extends StatelessWidget {
         value: Fmt.amount(data.totalOutstanding),
         sub: '${data.totalRetailers} Customers',
         icon: Icons.account_balance_wallet_outlined,
-        grad: [const Color(0xFF059669), const Color(0xFF047857)],
+        grad: [const Color(0xFFDC2626), const Color(0xFFB91C1C)],
         trend: null,
       ),
       _MetricDef(
@@ -1620,16 +1641,14 @@ class _MetricStrip extends StatelessWidget {
       ),
     ];
 
-    return Row(children: metrics
-        .asMap()
-        .entries
-        .map((e) =>
-        Expanded(
-          child: Padding(
-            padding: EdgeInsets.only(left: e.key > 0 ? 12 : 0),
-            child: _MetricPanel(def: e.value),
-          ),
-        )).toList());
+    // Wraps onto two rows when the content area is too narrow for five
+    // panels side by side (e.g. a 900-1100px window next to the sidebar).
+    return ResponsiveGrid(
+      minTileWidth: 170,
+      maxColumns:   5,
+      spacing:      12,
+      children: [for (final m in metrics) _MetricPanel(def: m)],
+    );
   }
 
   String _fmt(int n) => NumberFormat('#,##,###').format(n);
@@ -1660,7 +1679,7 @@ class _MetricPanel extends StatelessWidget {
               colors: def.grad,
               begin: Alignment.topLeft,
               end: Alignment.bottomRight),
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: BorderRadius.circular(16),
           boxShadow: [BoxShadow(
               color: def.grad.first.withValues(alpha: 0.3),
               blurRadius: 12, offset: const Offset(0, 4))
@@ -1679,10 +1698,14 @@ class _MetricPanel extends StatelessWidget {
             const SizedBox(width: 48, height: 24),
           ]),
           const SizedBox(height: 12),
-          Text(def.value,
-              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w800,
-                  color: Colors.white, letterSpacing: -0.5),
-              maxLines: 1, overflow: TextOverflow.ellipsis),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(def.value,
+                style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w800,
+                    color: Colors.white, letterSpacing: -0.5),
+                maxLines: 1),
+          ),
           const SizedBox(height: 2),
           Text(def.label,
               style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600,

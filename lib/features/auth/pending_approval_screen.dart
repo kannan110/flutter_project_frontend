@@ -26,7 +26,7 @@ class PendingApprovalScreen extends ConsumerWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
                 decoration: BoxDecoration(
                   gradient: const LinearGradient(
-                    colors: [kNavy, kNavyMid],
+                    colors: kGradHeroColors,
                     begin: Alignment.topLeft, end: Alignment.bottomRight,
                   ),
                   borderRadius: BorderRadius.circular(kRadiusHero),
@@ -119,7 +119,7 @@ class PendingApprovalScreen extends ConsumerWidget {
                       padding: const EdgeInsets.all(18),
                       decoration: BoxDecoration(
                         gradient: const LinearGradient(
-                          colors: [kNavy, kNavyMid],
+                          colors: kGradHeroColors,
                           begin: Alignment.topLeft, end: Alignment.bottomRight,
                         ),
                         borderRadius: BorderRadius.circular(kRadiusCard),

@@ -131,7 +131,7 @@ class _S extends ConsumerState<ReturnsScreen> {
         Container(
             decoration: const BoxDecoration(
                 gradient: LinearGradient(
-                    colors: [kNavy, kNavyMid],
+                    colors: kGradHeroColors,
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight)),
             padding: const EdgeInsets.all(16),

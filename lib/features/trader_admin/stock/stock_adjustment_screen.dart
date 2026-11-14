@@ -268,7 +268,7 @@ class _S extends ConsumerState<StockAdjustmentScreen> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(colors: [kNavy, kNavyMid]),
+        gradient: const LinearGradient(colors: kGradHeroColors),
         borderRadius: BorderRadius.circular(20),
       ),
       child: _loadingBalance

@@ -3353,8 +3353,9 @@ class _S extends ConsumerState<PurchaseScreen>
 
     try {
       // Use share_plus to show native share sheet
-      await Share.share(lines.toString(),
-          subject: 'Purchase Report: $_fromStr to $_toStr');
+      await SharePlus.instance.share(ShareParams(
+          text: lines.toString(),
+          subject: 'Purchase Report: $_fromStr to $_toStr'));
     } catch (e) {
       // Fallback: copy to clipboard via SnackBar
       if (mounted) {

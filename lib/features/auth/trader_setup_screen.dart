@@ -102,7 +102,7 @@ class _S extends ConsumerState<TraderSetupScreen> {
           padding: const EdgeInsets.all(22),
           decoration: BoxDecoration(
             gradient: const LinearGradient(
-                colors: [kNavy, kNavyMid],
+                colors: kGradHeroColors,
                 begin: Alignment.topLeft, end: Alignment.bottomRight),
             borderRadius: BorderRadius.circular(kRadiusHero),
             boxShadow: kCardShadow,

@@ -470,7 +470,7 @@ class _S extends ConsumerState<DispatchScreen> with SingleTickerProviderStateMix
         child: TabBar(controller: _tab, tabs: [
           Tab(height: 40, child: _tabLabel('Pending', _confirmedOrders.length)),
           Tab(height: 40, child: _tabLabel('Live', _liveBatches.length)),
-        ], labelColor: kNavy, unselectedLabelColor: kTextHint, indicatorColor: kNavy, indicatorWeight: 3),
+        ], labelColor: kAccentIndigo, unselectedLabelColor: kTextHint, indicatorColor: kAccentIndigo, indicatorWeight: 3),
       ),
     ),
     body: _loading
@@ -502,9 +502,9 @@ class _S extends ConsumerState<DispatchScreen> with SingleTickerProviderStateMix
       const SizedBox(width: 6),
       Container(
           padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 1),
-          decoration: BoxDecoration(color: kGoldLight, borderRadius: BorderRadius.circular(8)),
+          decoration: BoxDecoration(gradient: accentGradient(kAccentOrange), borderRadius: BorderRadius.circular(8)),
           child: Text('$count',
-              style: const TextStyle(fontSize: 9, color: kNavy, fontWeight: FontWeight.w900))),
+              style: const TextStyle(fontSize: 9, color: Colors.white, fontWeight: FontWeight.w900))),
     ],
   ]);
 
@@ -597,14 +597,16 @@ class _S extends ConsumerState<DispatchScreen> with SingleTickerProviderStateMix
     final weight = g.orders.fold(0.0, (s, o) => s + ((o['total_quantity'] as num?)?.toDouble() ?? 0));
     final amount = g.orders.fold(0.0, (s, o) => s + _amt(o));
     final isUnassigned = g.id == null;
+    // Stable per-area accent so each delivery area keeps its own colour.
+    final accent = isUnassigned ? kAccentAmber : kAccentAt(g.name.hashCode.abs());
 
     return Container(
       decoration: BoxDecoration(
         color: kSurface,
         borderRadius: BorderRadius.circular(kRadiusCard),
         border: Border.all(
-            color: expanded ? kNavyMid.withValues(alpha: 0.35) : kBorderLight,
-            width: expanded ? 1.4 : 0.5),
+            color: expanded ? accent.withValues(alpha: 0.45) : accent.withValues(alpha: 0.18),
+            width: expanded ? 1.4 : 0.8),
         boxShadow: kCardShadow,
       ),
       padding: const EdgeInsets.all(10),
@@ -629,12 +631,10 @@ class _S extends ConsumerState<DispatchScreen> with SingleTickerProviderStateMix
             Container(
               width: 36, height: 36,
               decoration: BoxDecoration(
-                  color: isUnassigned
-                      ? Colors.amber.withValues(alpha: 0.16)
-                      : kGoldLight.withValues(alpha: 0.22),
+                  gradient: accentGradient(accent),
                   borderRadius: BorderRadius.circular(10)),
               child: Icon(isUnassigned ? Icons.priority_high_rounded : Icons.map_rounded,
-                  color: isUnassigned ? Colors.amber.shade800 : kNavyMid, size: 19),
+                  color: Colors.white, size: 19),
             ),
             const SizedBox(width: 10),
             Expanded(
@@ -654,7 +654,7 @@ class _S extends ConsumerState<DispatchScreen> with SingleTickerProviderStateMix
               padding: const EdgeInsets.all(3),
               decoration: const BoxDecoration(color: kBgPage, shape: BoxShape.circle),
               child: Icon(expanded ? Icons.expand_less_rounded : Icons.expand_more_rounded,
-                  color: kNavyMid, size: 18),
+                  color: accent, size: 18),
             ),
           ]),
         ),
@@ -668,8 +668,8 @@ class _S extends ConsumerState<DispatchScreen> with SingleTickerProviderStateMix
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13)),
             style: ElevatedButton.styleFrom(
-              backgroundColor: kGoldLight,
-              foregroundColor: kNavy,
+              backgroundColor: accent.withValues(alpha: 0.12),
+              foregroundColor: accent,
               minimumSize: const Size.fromHeight(44),
               elevation: 0,
               padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -793,9 +793,9 @@ class _S extends ConsumerState<DispatchScreen> with SingleTickerProviderStateMix
   Widget _cartBar() => Container(
     padding: EdgeInsets.fromLTRB(18, 14, 18, MediaQuery.of(context).padding.bottom + 14),
     decoration: BoxDecoration(
-      color: kNavy,
+      gradient: kGradHero,
       borderRadius: const BorderRadius.vertical(top: Radius.circular(kRadiusHero)),
-      boxShadow: [BoxShadow(color: kNavy.withValues(alpha: 0.35), blurRadius: 16, offset: const Offset(0, -4))],
+      boxShadow: [BoxShadow(color: kAccentIndigo.withValues(alpha: 0.35), blurRadius: 16, offset: const Offset(0, -4))],
     ),
     child: Row(children: [
       Expanded(
@@ -804,7 +804,8 @@ class _S extends ConsumerState<DispatchScreen> with SingleTickerProviderStateMix
               style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: Colors.white)),
           const SizedBox(height: 2),
           Text('$_cartBirds birds · ${_cartWeight.toStringAsFixed(0)} kg · ${Fmt.amount(_cartAmount)}',
-              style: const TextStyle(fontSize: 11, color: Color(0xFFB4C6F4), fontWeight: FontWeight.w600)),
+              maxLines: 2, overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 11, color: Color(0xFFE0E7FF), fontWeight: FontWeight.w600)),
         ]),
       ),
       const SizedBox(width: 12),
@@ -953,7 +954,8 @@ class _LiveBatchCard extends StatelessWidget {
   }
 
   Widget _kpi(String l, String v, Color c) => Column(children: [
-    Text(v, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: c)),
+    FittedBox(fit: BoxFit.scaleDown,
+        child: Text(v, maxLines: 1, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: c))),
     Text(l, style: const TextStyle(fontSize: 9, color: kTextHint)),
   ]);
 }

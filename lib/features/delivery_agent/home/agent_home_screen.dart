@@ -701,7 +701,11 @@ class _S extends ConsumerState<AgentHomeScreen> {
   Widget _buildShiftCard() => Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-          color: _hasShift ? const Color(0xFF1A7A3C) : const Color(0xFF374151),
+          gradient: _hasShift
+              ? const LinearGradient(colors: [Color(0xFF166534), Color(0xFF059669), Color(0xFF0D9488)],
+                  begin: Alignment.topLeft, end: Alignment.bottomRight)
+              : const LinearGradient(colors: [Color(0xFF334155), Color(0xFF475569), Color(0xFF6366F1)],
+                  begin: Alignment.topLeft, end: Alignment.bottomRight),
           borderRadius: BorderRadius.circular(kRadiusHero),
           boxShadow: [
             BoxShadow(
@@ -1727,12 +1731,12 @@ class _S extends ConsumerState<AgentHomeScreen> {
             color: Colors.white.withValues(alpha: 0.12),
             borderRadius: BorderRadius.circular(kRadiusInner),
           ),
-          child: Text(v,
-              style: TextStyle(
-                  fontSize: 16, fontWeight: FontWeight.w900, color: c),
-              textAlign: TextAlign.center,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis),
+          child: FittedBox(fit: BoxFit.scaleDown,
+            child: Text(v,
+                style: TextStyle(
+                    fontSize: 16, fontWeight: FontWeight.w900, color: c),
+                textAlign: TextAlign.center,
+                maxLines: 1)),
         ),
         const SizedBox(height: 4),
         Text(l,
@@ -1750,9 +1754,9 @@ class _S extends ConsumerState<AgentHomeScreen> {
             style:
             TextStyle(fontSize: 10, color: c, fontWeight: FontWeight.w700)),
         const SizedBox(height: 6),
-        Text('$birds',
+        FittedBox(fit: BoxFit.scaleDown, child: Text('$birds', maxLines: 1,
             style:
-            TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: c)),
+            TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: c))),
         Text('birds',
             style: TextStyle(fontSize: 9, color: c.withValues(alpha: 0.7))),
         const SizedBox(height: 2),
@@ -1776,19 +1780,23 @@ class _S extends ConsumerState<AgentHomeScreen> {
         Text('$label: ',
             style:
             TextStyle(fontSize: 11, color: c, fontWeight: FontWeight.w600)),
-        Text(value,
+        Flexible(child: Text(value,
+            maxLines: 1, overflow: TextOverflow.ellipsis,
             style:
-            TextStyle(fontSize: 11, color: c, fontWeight: FontWeight.w800)),
+            TextStyle(fontSize: 11, color: c, fontWeight: FontWeight.w800))),
       ]);
 
   Widget _todayStat(String l, String v, Color c) => Expanded(
       child: Column(children: [
-        Text(v,
-            style:
-            TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: c),
-            textAlign: TextAlign.center,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 2),
+          child: FittedBox(fit: BoxFit.scaleDown,
+            child: Text(v,
+                style:
+                TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: c),
+                textAlign: TextAlign.center,
+                maxLines: 1)),
+        ),
         const SizedBox(height: 2),
         Text(l,
             style: const TextStyle(fontSize: 9, color: kTextHint),
@@ -1805,11 +1813,12 @@ class _S extends ConsumerState<AgentHomeScreen> {
                 fontWeight: FontWeight.w700,
                 letterSpacing: 0.5)),
         const SizedBox(height: 2),
-        Text(v,
-            style: const TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w900,
-                color: Colors.white)),
+        FittedBox(fit: BoxFit.scaleDown, alignment: Alignment.centerLeft,
+          child: Text(v, maxLines: 1,
+              style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w900,
+                  color: Colors.white))),
       ]));
 
   Widget _qaBtn(IconData icon, String label, Color color, VoidCallback onTap,
@@ -1835,16 +1844,16 @@ class _S extends ConsumerState<AgentHomeScreen> {
                       width: 40,
                       height: 40,
                       decoration: BoxDecoration(
-                        color: Colors.white,
+                        gradient: accentGradient(color),
                         borderRadius: BorderRadius.circular(kRadiusChip),
                         boxShadow: [
                           BoxShadow(
-                              color: color.withValues(alpha: 0.2),
-                              blurRadius: 6,
-                              offset: const Offset(0, 2))
+                              color: color.withValues(alpha: 0.30),
+                              blurRadius: 8,
+                              offset: const Offset(0, 3))
                         ],
                       ),
-                      child: Icon(icon, size: 22, color: color),
+                      child: Icon(icon, size: 22, color: Colors.white),
                     ),
                     const SizedBox(height: 6),
                     Text(label,

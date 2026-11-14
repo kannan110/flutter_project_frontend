@@ -149,24 +149,24 @@ class _MoreSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     const items = [
-      _MoreItem(Icons.account_balance_wallet_rounded, 'Ledger',        Color(0xFF00081E), R.ledger),
+      _MoreItem(Icons.account_balance_wallet_rounded, 'Ledger',        kAccentIndigo, R.ledger),
       _MoreItem(Icons.inventory_2_rounded,            'Stock',         Color(0xFF0D9488), R.stock),
       _MoreItem(Icons.bar_chart_rounded,              'Analytics',     Color(0xFF7C3AED), R.analytics),
       _MoreItem(Icons.storefront_rounded,             'Retailers',     Color(0xFF0284C7), R.retailers),
-      _MoreItem(Icons.directions_bike_rounded,        'Agents',        Color(0xFF57534E), R.agents),
+      _MoreItem(Icons.directions_bike_rounded,        'Agents',        kAccentPink, R.agents),
       _MoreItem(Icons.map_rounded,                    'Delivery Areas',Color(0xFFB45309), R.areaManagement),
       _MoreItem(Icons.assignment_return_rounded,      'Returns',       Color(0xFFDC2626), R.returns),
       _MoreItem(Icons.receipt_long_rounded,           'Invoices',      Color(0xFFB45309), R.invoices),
       _MoreItem(Icons.price_change_rounded,           'Rates',         Color(0xFF059669), R.rates),
       _MoreItem(Icons.inventory_rounded,              'Crates',        Color(0xFF7C3AED), R.crates),
-      _MoreItem(Icons.schedule_rounded,               'Shifts',        Color(0xFF475569), R.shifts),
+      _MoreItem(Icons.schedule_rounded,               'Shifts',        kAccentSlate, R.shifts),
       _MoreItem(Icons.rule_rounded,                   'Pricing',       Color(0xFF0369A1), R.pricing),
       _MoreItem(Icons.balance_rounded,                'Cash Recon',    Color(0xFF059669), R.cashRecon),
       _MoreItem(Icons.today_rounded,                  'Day Closure',   Color(0xFFDC2626), R.dayClosure),
       _MoreItem(Icons.trending_up_rounded,            'P&L',           Color(0xFF1B5E20), R.pnlStatement),
       _MoreItem(Icons.water_drop_rounded,             'Cash Flow',     Color(0xFF0369A1), R.cashFlowStatement),
-      _MoreItem(Icons.summarize_rounded,              'Reports',       Color(0xFF00081E), R.reportsHub),
-      _MoreItem(Icons.settings_rounded,               'Settings',      Color(0xFF475569), R.settings),
+      _MoreItem(Icons.summarize_rounded,              'Reports',       kAccentViolet, R.reportsHub),
+      _MoreItem(Icons.settings_rounded,               'Settings',      kAccentSlate, R.settings),
     ];
 
     return Container(
@@ -239,12 +239,19 @@ class _MoreTile extends StatelessWidget {
     borderRadius: BorderRadius.circular(12),
     child: Container(
       decoration: BoxDecoration(
-        color: item.color.withValues(alpha: 0.07),
+        gradient: accentWash(item.color),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: item.color.withValues(alpha: 0.15)),
+        border: Border.all(color: item.color.withValues(alpha: 0.20)),
       ),
       child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-        Icon(item.icon, color: item.color, size: 22),
+        Container(
+          padding: const EdgeInsets.all(5),
+          decoration: BoxDecoration(
+            gradient: accentGradient(item.color),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(item.icon, color: Colors.white, size: 16),
+        ),
         const SizedBox(height: 4),
         Text(item.label,
             textAlign: TextAlign.center,
@@ -294,6 +301,7 @@ class _GlassBottomNav extends StatelessWidget {
                 final item    = items[i];
                 final active  = i == currentIndex;
                 return _NavItem(
+                  color:    kAccentAt(i),
                   icon:     active ? item.activeIcon : item.icon,
                   label:    item.label,
                   badge:    item.badge,
@@ -358,10 +366,12 @@ class _NavItem extends StatelessWidget {
     required this.label,
     required this.isActive,
     required this.onTap,
+    required this.color,
     this.badge,
   });
   final IconData icon;
   final String   label;
+  final Color    color;
   final bool     isActive;
   final VoidCallback onTap;
   final int?     badge;
@@ -382,15 +392,17 @@ class _NavItem extends StatelessWidget {
                 duration: const Duration(milliseconds: 200),
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                 decoration: BoxDecoration(
-                  color: isActive
-                      ? kGoldBg
-                      : Colors.transparent,
+                  gradient: isActive ? accentGradient(color) : null,
                   borderRadius: BorderRadius.circular(14),
+                  boxShadow: isActive
+                      ? [BoxShadow(color: color.withValues(alpha: 0.35),
+                          blurRadius: 10, offset: const Offset(0, 3))]
+                      : null,
                 ),
                 child: Icon(
                   icon,
                   size:  22,
-                  color: isActive ? kWarning : kTextHint,
+                  color: isActive ? Colors.white : kTextHint,
                 ),
               ),
               // Badge dot
@@ -423,7 +435,7 @@ class _NavItem extends StatelessWidget {
               fontSize:      9,
               fontWeight:    FontWeight.w800,
               letterSpacing: 0.6,
-              color:         isActive ? kWarning : kTextHint,
+              color:         isActive ? color : kTextHint,
             ),
           ),
         ]),

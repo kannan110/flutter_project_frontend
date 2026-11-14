@@ -264,7 +264,7 @@ class _S extends ConsumerState<DailyReportScreen> {
       // Header
       Container(padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
-              gradient: const LinearGradient(colors: [kNavy, kNavyMid], begin: Alignment.topLeft, end: Alignment.bottomRight),
+              gradient: const LinearGradient(colors: kGradHeroColors, begin: Alignment.topLeft, end: Alignment.bottomRight),
               borderRadius: BorderRadius.circular(kRadiusCard), boxShadow: kCardShadow),
           child: Column(children: [
             Text(DateFormat('EEEE, d MMMM y').format(_date),

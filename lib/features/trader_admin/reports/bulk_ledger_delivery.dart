@@ -51,25 +51,17 @@ class BulkLedgerDelivery {
   }
 
   static Future<void> _deliverViaShareSheet({required List<IndividualLedgerFile> files}) async {
-    // NOTE ON FILENAMES: share_plus added a `fileNameOverrides` parameter
-    // to Share.shareXFiles() in a later release than what this project
-    // has pinned (confirmed — that parameter doesn't exist here and was
-    // removed after a compile error). Without it, XFile.fromData's own
-    // `name:` is the only naming mechanism available in this version.
-    // share_plus's own docs warn that `name:` is "ignored in most
-    // platforms" in versions that DO have fileNameOverrides — which
-    // means naming may be unreliable here too, since that's the same
-    // underlying limitation fileNameOverrides was added to fix. This is
-    // a real, not cosmetic, risk against the "CustomerName_
-    // CustomerLedger_<date>.pdf" naming requirement — verify actual
-    // shared filenames in a real device test. If they come through as
-    // random/UUID names instead, upgrading share_plus (and re-adding
-    // fileNameOverrides here) is the fix, not something this code can
-    // paper over on an old version.
+    // share_plus >= 10 supports fileNameOverrides, which is what makes the
+    // "CustomerName_CustomerLedger_<date>.pdf" names stick on Android/iOS
+    // (XFile.fromData's own `name:` is ignored on most platforms).
     final xfiles = files
         .map((f) => XFile.fromData(f.bytes, name: f.filename, mimeType: 'application/pdf'))
         .toList();
-    await Share.shareXFiles(xfiles, subject: 'Customer Ledgers');
+    await SharePlus.instance.share(ShareParams(
+      files: xfiles,
+      fileNameOverrides: files.map((f) => f.filename).toList(),
+      subject: 'Customer Ledgers',
+    ));
   }
 
   static Future<void> _deliverAsZipOnWeb({

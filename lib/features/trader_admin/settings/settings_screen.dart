@@ -28,7 +28,7 @@ class SettingsScreen extends ConsumerWidget {
             margin: const EdgeInsets.only(bottom: 20),
             decoration: BoxDecoration(
               gradient: const LinearGradient(
-                colors: [kNavy, kNavyMid],
+                colors: kGradHeroColors,
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),

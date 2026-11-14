@@ -75,7 +75,7 @@ class _RLS extends ConsumerState<RetailerLinkScreen> {
                     Center(child: Container(
                         width: 80, height: 80,
                         decoration: const BoxDecoration(
-                            gradient: LinearGradient(colors: [kNavy, kNavyMid], begin: Alignment.topLeft, end: Alignment.bottomRight),
+                            gradient: LinearGradient(colors: kGradHeroColors, begin: Alignment.topLeft, end: Alignment.bottomRight),
                             shape: BoxShape.circle,
                             boxShadow: kCardShadow),
                         child: const Icon(Icons.store_outlined, size: 38, color: kGoldLight))),

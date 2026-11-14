@@ -187,7 +187,7 @@ class _AgentLinkState extends ConsumerState<AgentLinkScreen> {
               padding: const EdgeInsets.all(18),
               decoration: BoxDecoration(
                   gradient: const LinearGradient(
-                      colors: [kNavy, kNavyMid],
+                      colors: kGradHeroColors,
                       begin: Alignment.topLeft, end: Alignment.bottomRight),
                   borderRadius: BorderRadius.circular(kRadiusCard),
                   boxShadow: kCardShadow),

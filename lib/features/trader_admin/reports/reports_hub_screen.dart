@@ -466,9 +466,12 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
                     duration: const Duration(milliseconds: 180),
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
                     decoration: BoxDecoration(
-                        color: sel ? r.color : r.color.withValues(alpha: 0.08),
+                        gradient: sel ? accentGradient(r.color) : null,
+                        color: sel ? null : r.color.withValues(alpha: 0.08),
                         borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: sel ? r.color : r.color.withValues(alpha: 0.3))),
+                        border: Border.all(color: sel ? r.color : r.color.withValues(alpha: 0.3)),
+                        boxShadow: sel ? [BoxShadow(color: r.color.withValues(alpha: 0.3),
+                            blurRadius: 8, offset: const Offset(0, 3))] : null),
                     child: Row(mainAxisSize: MainAxisSize.min, children: [
                       Icon(r.icon, size: 14, color: sel ? Colors.white : r.color),
                       const SizedBox(width: 5),
@@ -482,7 +485,10 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
       color: kSurface,
       padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
       child: Row(children: [
-        Expanded(child: Row(children: DatePreset.values.where((p)=>p!=DatePreset.custom).map((p) =>
+        // Scrolls sideways on very narrow phones instead of overflowing.
+        Expanded(child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(children: DatePreset.values.where((p)=>p!=DatePreset.custom).map((p) =>
             Padding(padding: const EdgeInsets.only(right: 5),
                 child: GestureDetector(
                     onTap: () {
@@ -490,26 +496,32 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
                       setState(() { _preset=p; _from=f; _to=t; });
                       _load();
                     },
-                    child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                    child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 160),
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                         decoration: BoxDecoration(
-                            color: _preset==p ? kNavy : kBgGrey,
+                            gradient: _preset==p ? accentGradient(kAccentAt(p.index)) : null,
+                            color: _preset==p ? null : kAccentAt(p.index).withValues(alpha: 0.08),
+                            border: Border.all(color: kAccentAt(p.index).withValues(alpha: _preset==p ? 0 : 0.25)),
                             borderRadius: BorderRadius.circular(kRadiusChip)),
-                        child: Text(p.label, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700,
-                            color: _preset==p ? Colors.white : kTextSub)))))).toList())),
+                        child: Text(p.label, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800,
+                            color: _preset==p ? Colors.white : kAccentAt(p.index))))))).toList()))),
+        const SizedBox(width: 4),
         GestureDetector(
             onTap: _pickCustomRange,
             child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                 decoration: BoxDecoration(
-                    color: _preset==DatePreset.custom ? kNavy : kBgGrey,
+                    gradient: _preset==DatePreset.custom ? kGradHero : null,
+                    color: _preset==DatePreset.custom ? null : kAccentViolet.withValues(alpha: 0.08),
+                    border: Border.all(color: kAccentViolet.withValues(alpha: _preset==DatePreset.custom ? 0 : 0.25)),
                     borderRadius: BorderRadius.circular(kRadiusChip)),
                 child: Row(mainAxisSize: MainAxisSize.min, children: [
                   Icon(Icons.date_range_outlined, size: 12,
-                      color: _preset==DatePreset.custom ? Colors.white : kTextSub),
+                      color: _preset==DatePreset.custom ? Colors.white : kAccentViolet),
                   const SizedBox(width: 4),
-                  Text('Custom', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700,
-                      color: _preset==DatePreset.custom ? Colors.white : kTextSub)),
+                  Text('Custom', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800,
+                      color: _preset==DatePreset.custom ? Colors.white : kAccentViolet)),
                 ]))),
       ]));
 
@@ -2651,7 +2663,7 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
                 Container(
                   width: 36, height: 36,
                   decoration: BoxDecoration(
-                    gradient: const LinearGradient(colors: [kNavy, kNavyMid]),
+                    gradient: const LinearGradient(colors: kGradHeroColors),
                     borderRadius: BorderRadius.circular(kRadiusChip),
                   ),
                   child: Center(child: Text(
@@ -3166,11 +3178,16 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
     }
     return Expanded(child: Container(
         padding: const EdgeInsets.all(kSpMd),
-        decoration: BoxDecoration(color: c.withValues(alpha: 0.08),
+        decoration: BoxDecoration(gradient: accentWash(c),
             borderRadius: BorderRadius.circular(kRadiusCard),
             border: Border.all(color: c.withValues(alpha: 0.25))),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Icon(icon, size: 16, color: c),
+          Container(
+            padding: const EdgeInsets.all(5),
+            decoration: BoxDecoration(gradient: accentGradient(c),
+                borderRadius: BorderRadius.circular(8)),
+            child: Icon(icon, size: 14, color: Colors.white),
+          ),
           const SizedBox(height: kSpXs + 2),
           FittedBox(
             fit: BoxFit.scaleDown,
@@ -3185,8 +3202,9 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
   Widget _kpi2(String label, String value, Color c, IconData icon) =>
       Expanded(child: Container(
           padding: const EdgeInsets.all(kSpSm + 2),
-          decoration: BoxDecoration(color: c.withValues(alpha: 0.07),
-              borderRadius: BorderRadius.circular(kRadiusInner)),
+          decoration: BoxDecoration(gradient: accentWash(c),
+              borderRadius: BorderRadius.circular(kRadiusInner),
+              border: Border.all(color: c.withValues(alpha: 0.18))),
           child: Column(children: [
             Icon(icon, size: 16, color: c),
             const SizedBox(height: kSpXs),
@@ -3218,11 +3236,20 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
 
   Widget _hdr(String title, IconData icon, Color c) => Container(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(color: c.withValues(alpha: 0.07),
+      decoration: BoxDecoration(
+          gradient: LinearGradient(colors: [c.withValues(alpha: 0.16), c.withValues(alpha: 0.03)],
+              begin: Alignment.centerLeft, end: Alignment.centerRight),
           borderRadius: const BorderRadius.vertical(top: Radius.circular(kRadiusCard))),
       child: Row(children: [
-        Icon(icon, size: 16, color: c), const SizedBox(width: 8),
-        Text(title, style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15, color: c)),
+        Container(
+          padding: const EdgeInsets.all(5),
+          decoration: BoxDecoration(gradient: accentGradient(c),
+              borderRadius: BorderRadius.circular(8)),
+          child: Icon(icon, size: 14, color: Colors.white),
+        ),
+        const SizedBox(width: 10),
+        Expanded(child: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis,
+            style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15, color: c))),
       ]));
 
   Widget _reconR(String label, String birds, String kg, Color c) => Container(

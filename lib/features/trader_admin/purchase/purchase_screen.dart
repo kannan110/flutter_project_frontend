@@ -911,7 +911,11 @@ class _S extends ConsumerState<PurchaseScreen>
     final pendRate = (s['pending_rate'] as num?)?.toInt() ?? 0;
 
     return Container(
-        color: Colors.white,
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(colors: [Color(0xFFEEF2FF), Color(0xFFFDF4FF)],
+              begin: Alignment.topLeft, end: Alignment.bottomRight),
+          border: Border(bottom: BorderSide(color: kBorderLight)),
+        ),
         padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
         child: Column(children: [
           Row(children: [
@@ -937,10 +941,14 @@ class _S extends ConsumerState<PurchaseScreen>
 
   Widget _hStat(String l, String v, Color c) => Expanded(
       child: Column(children: [
-        Text(v,
-            style:
-            TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: c),
-            textAlign: TextAlign.center),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 2),
+          child: FittedBox(fit: BoxFit.scaleDown,
+            child: Text(v, maxLines: 1,
+                style:
+                TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: c),
+                textAlign: TextAlign.center)),
+        ),
         Text(l,
             style: const TextStyle(fontSize: 8, color: kTextHint),
             textAlign: TextAlign.center),
@@ -3730,8 +3738,9 @@ class _S extends ConsumerState<PurchaseScreen>
 
     try {
       // Use share_plus to show native share sheet
-      await Share.share(lines.toString(),
-          subject: 'Purchase Report: $_fromStr to $_toStr');
+      await SharePlus.instance.share(ShareParams(
+          text: lines.toString(),
+          subject: 'Purchase Report: $_fromStr to $_toStr'));
     } catch (e) {
       // Fallback: copy to clipboard via SnackBar
       if (mounted) {
@@ -3941,18 +3950,25 @@ class _S extends ConsumerState<PurchaseScreen>
           padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(
               color: Colors.white,
+              gradient: accentWash(color),
               borderRadius: BorderRadius.circular(kRadiusCard),
-              border: Border.all(color: kBorder)),
+              border: Border.all(color: color.withValues(alpha: 0.25))),
           child:
           // Spacer only when the card has a fixed height (grids); in a Row
           // inside a scrolling sheet (supplier dashboard) the height is
           // unbounded and a Spacer throws, so use a small gap there.
           LayoutBuilder(builder: (_, box) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Icon(icon, color: color, size: 16),
+            Container(
+              padding: const EdgeInsets.all(5),
+              decoration: BoxDecoration(gradient: accentGradient(color),
+                  borderRadius: BorderRadius.circular(8)),
+              child: Icon(icon, color: Colors.white, size: 14),
+            ),
             if (box.hasBoundedHeight) const Spacer() else const SizedBox(height: 6),
-            Text(value,
-                style: TextStyle(
-                    fontSize: 13, fontWeight: FontWeight.w900, color: color)),
+            FittedBox(fit: BoxFit.scaleDown, alignment: Alignment.centerLeft,
+              child: Text(value, maxLines: 1,
+                  style: TextStyle(
+                      fontSize: 13, fontWeight: FontWeight.w900, color: color))),
             Text(label,
                 style: const TextStyle(fontSize: 9, color: kTextHint),
                 maxLines: 1,
@@ -3964,13 +3980,19 @@ class _S extends ConsumerState<PurchaseScreen>
       Padding(
           padding: const EdgeInsets.only(bottom: 8),
           child: Row(children: [
-            Text(title,
+            Container(width: 3, height: 11,
+                decoration: BoxDecoration(
+                    gradient: const LinearGradient(colors: [kAccentIndigo, kAccentViolet],
+                        begin: Alignment.topCenter, end: Alignment.bottomCenter),
+                    borderRadius: BorderRadius.circular(2))),
+            const SizedBox(width: 6),
+            Expanded(child: Text(title,
+                maxLines: 1, overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
                     fontSize: 9,
                     fontWeight: FontWeight.w800,
-                    color: kTextHint,
-                    letterSpacing: 0.5)),
-            const Spacer(),
+                    color: kTextSub,
+                    letterSpacing: 0.5))),
             if (action != null && onAction != null)
               GestureDetector(
                   onTap: onAction,
@@ -3985,12 +4007,21 @@ class _S extends ConsumerState<PurchaseScreen>
   Widget _ovKpi(String label, String value, Color color, IconData icon) =>
       Expanded(
           child: Column(children: [
-            Icon(icon, size: 18, color: color),
+            Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(gradient: accentGradient(color),
+                  borderRadius: BorderRadius.circular(9)),
+              child: Icon(icon, size: 15, color: Colors.white),
+            ),
             const SizedBox(height: 4),
-            Text(value,
-                style: TextStyle(
-                    fontSize: 13, fontWeight: FontWeight.w800, color: color),
-                textAlign: TextAlign.center),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 2),
+              child: FittedBox(fit: BoxFit.scaleDown,
+                child: Text(value, maxLines: 1,
+                    style: TextStyle(
+                        fontSize: 13, fontWeight: FontWeight.w800, color: color),
+                    textAlign: TextAlign.center)),
+            ),
             Text(label,
                 style: const TextStyle(fontSize: 8, color: kTextHint),
                 textAlign: TextAlign.center),
@@ -4007,10 +4038,14 @@ class _S extends ConsumerState<PurchaseScreen>
 
   Widget _pStat(String l, String v, Color c) => Expanded(
       child: Column(children: [
-        Text(v,
-            style:
-            TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: c),
-            textAlign: TextAlign.center),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 2),
+          child: FittedBox(fit: BoxFit.scaleDown,
+            child: Text(v, maxLines: 1,
+                style:
+                TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: c),
+                textAlign: TextAlign.center)),
+        ),
         Text(l,
             style: const TextStyle(fontSize: 8, color: kTextHint),
             textAlign: TextAlign.center),

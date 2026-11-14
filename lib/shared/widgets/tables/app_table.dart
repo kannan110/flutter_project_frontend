@@ -157,7 +157,7 @@ class _DesktopTable<T> extends StatelessWidget {
         height:  headerHeight,
         decoration: const BoxDecoration(
           gradient: LinearGradient(
-            colors: [kNavy, kNavyMid],
+            colors: kGradHeroColors,
             begin:  Alignment.centerLeft,
             end:    Alignment.centerRight,
           ),
