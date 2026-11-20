@@ -1177,9 +1177,8 @@ class _S extends ConsumerState<BatchDetailScreen> {
                                     if (mounted) showSuccess(context, 'DC added ✓');
                                   } catch (e) {
                                     if (mounted) {
-                                      showError(context, e is PostgrestException
-                                          ? e.message
-                                          : e.toString().replaceAll('Exception: ', ''));
+                                      showError(context,
+                                        e.toString().replaceAll('Exception: ', ''));
                                     }
                                   }
                                 },
