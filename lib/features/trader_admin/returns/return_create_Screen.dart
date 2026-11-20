@@ -67,6 +67,8 @@ class _S extends ConsumerState<ReturnCreateScreen> {
   List<Map<String, dynamic>> _productLines = [];
   final List<TextEditingController> _weightCtrls = [];
   final List<TextEditingController> _birdCtrls = [];
+  // Rate per kg for each line — starts at the invoice rate, editable.
+  final List<TextEditingController> _rateCtrls = [];
 
   // ── Step 3: Return details ────────────────────────────────────────────
   DateTime _returnDate = DateTime.now();
@@ -89,6 +91,9 @@ class _S extends ConsumerState<ReturnCreateScreen> {
       ctrl.dispose();
     }
     for (final ctrl in _birdCtrls) {
+      ctrl.dispose();
+    }
+    for (final ctrl in _rateCtrls) {
       ctrl.dispose();
     }
     super.dispose();
@@ -232,15 +237,23 @@ class _S extends ConsumerState<ReturnCreateScreen> {
       for (final ctrl in _birdCtrls) {
         ctrl.dispose();
       }
+      for (final ctrl in _rateCtrls) {
+        ctrl.dispose();
+      }
       _weightCtrls.clear();
       _birdCtrls.clear();
+      _rateCtrls.clear();
       final lines = List<Map<String, dynamic>>.from(rows);
-      for (final _ in lines) {
+      for (final l in lines) {
         final wCtrl = TextEditingController();
         final bCtrl = TextEditingController();
         wCtrl.addListener(() => setState(() {}));
         _weightCtrls.add(wCtrl);
         _birdCtrls.add(bCtrl);
+        final r = (l['rate_per_kg'] as num?)?.toDouble();
+        final rCtrl = TextEditingController(text: r == null ? '' : _fmtRate(r));
+        rCtrl.addListener(() => setState(() {}));
+        _rateCtrls.add(rCtrl);
       }
       setState(() {
         _productLines = lines;
@@ -252,10 +265,18 @@ class _S extends ConsumerState<ReturnCreateScreen> {
     }
   }
 
+  // Invoice rate for a line, and the rate in use (edited or not).
+  double _invoiceRate(int i) =>
+      (_productLines[i]['rate_per_kg'] as num?)?.toDouble() ?? 0;
+  double _lineRate(int i) => double.tryParse(_rateCtrls[i].text.trim()) ?? 0;
+  bool _rateEdited(int i) => (_lineRate(i) - _invoiceRate(i)).abs() > 0.0001;
+
+  static String _fmtRate(double r) =>
+      r == r.roundToDouble() ? r.toStringAsFixed(0) : r.toStringAsFixed(2);
+
   double _lineCredit(int i) {
     final wt = double.tryParse(_weightCtrls[i].text) ?? 0;
-    final rate = (_productLines[i]['rate_per_kg'] as num?)?.toDouble() ?? 0;
-    return wt * rate;
+    return double.parse((wt * _lineRate(i)).toStringAsFixed(2));
   }
 
   double get _grandTotalCredit {
@@ -281,11 +302,18 @@ class _S extends ConsumerState<ReturnCreateScreen> {
     for (var i = 0; i < _productLines.length; i++) {
       final wt = double.tryParse(_weightCtrls[i].text) ?? 0;
       if (wt <= 0) continue;
+      if (_lineRate(i) <= 0) {
+        showError(context, 'Enter a rate for ${_productLines[i]['product_name'] ?? 'each product'}');
+        return;
+      }
       items.add({
         'product_id': _productLines[i]['product_id'],
         'bird_count': int.tryParse(_birdCtrls[i].text) ?? 0,
         'weight_kg': wt,
-        'rate_per_kg': (_productLines[i]['rate_per_kg'] as num?)?.toDouble(),
+        'rate_per_kg': _lineRate(i),
+        // This line's own credit (weight × rate) — the batch RPC gives each
+        // product its own credit note with this amount.
+        'credit_amount': _lineCredit(i),
       });
     }
     if (items.isEmpty) {
@@ -587,17 +615,17 @@ class _S extends ConsumerState<ReturnCreateScreen> {
     final p = _productLines[i];
     final deliveredBirds = (p['bird_count'] as num?)?.toInt() ?? 0;
     final deliveredKg = (p['weight_kg'] as num?)?.toDouble() ?? 0;
-    final rate = (p['rate_per_kg'] as num?)?.toDouble() ?? 0;
+    final rate = _invoiceRate(i);
+    final edited = _rateEdited(i);
     final credit = _lineCredit(i);
     return _card(
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text(p['product_name'] as String? ?? '—',
             style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15, color: kNavy)),
         const SizedBox(height: 6),
-        Row(children: [
+        Wrap(spacing: 8, runSpacing: 6, children: [
           _pill('Delivered: $deliveredBirds birds · ${deliveredKg.toStringAsFixed(1)} kg'),
-          const SizedBox(width: 8),
-          _pill('Rate: ${Fmt.amount(rate)}/kg'),
+          _pill('Invoice rate: ${Fmt.amount(rate)}/kg'),
         ]),
         const SizedBox(height: 10),
         Row(children: [
@@ -620,6 +648,34 @@ class _S extends ConsumerState<ReturnCreateScreen> {
                   labelText: 'Return Birds', border: OutlineInputBorder(), isDense: true),
             ),
           ),
+        ]),
+        const SizedBox(height: 10),
+        // Rate/kg — loads the invoice rate; change it to credit the return
+        // at a different rate.
+        Row(children: [
+          Expanded(
+            child: TextField(
+              controller: _rateCtrls[i],
+              inputFormatters: moneyInputFormatters,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              decoration: InputDecoration(
+                labelText: 'Rate / kg (₹) *',
+                prefixText: '₹ ',
+                border: const OutlineInputBorder(),
+                isDense: true,
+                helperText: edited ? 'Changed from invoice rate ${Fmt.amount(rate)}' : null,
+                helperStyle: const TextStyle(color: Colors.orange, fontWeight: FontWeight.w600),
+              ),
+            ),
+          ),
+          if (edited) ...[
+            const SizedBox(width: 6),
+            TextButton.icon(
+              onPressed: () => _rateCtrls[i].text = _fmtRate(rate),
+              icon: const Icon(Icons.restart_alt, size: 16),
+              label: const Text('Reset'),
+            ),
+          ],
         ]),
         if (credit > 0) ...[
           const SizedBox(height: 8),
