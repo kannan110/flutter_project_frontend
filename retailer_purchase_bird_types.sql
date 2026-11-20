@@ -11,6 +11,7 @@
 --   by_type    : one row per bird type — orders, birds, kg, amount
 --   summary / retailers / daily : the report's tables limited to the chosen
 --                bird type (used by the screen when a bird type is picked)
+--   shop_types : one row per shop and bird type — the printed sheet
 --
 -- Birds / kg come from the order lines. Amount = the approved invoice lines
 -- for that bird type; orders not invoiced yet use the same rate preview the
@@ -149,6 +150,27 @@ BEGIN
         FROM fl JOIN retailers rt ON rt.id = fl.retailer_id
         GROUP BY rt.id, rt.shop_name, rt.owner_name, rt.phone
       ) r
+    ),
+
+    -- One row per shop and bird type (the printed Retailer Purchase sheet),
+    -- by shop name, then bird type.
+    'shop_types', (
+      SELECT COALESCE(json_agg(row_to_json(s) ORDER BY lower(s.shop_name), lower(s.bird_type)), '[]'::json)
+      FROM (
+        SELECT rt.shop_name, COALESCE(mp.name, 'Unknown') AS bird_type,
+               COUNT(DISTINCT fl.order_id) AS orders,
+               SUM(fl.kg) AS total_kg,
+               SUM(fl.birds) AS total_birds,
+               STRING_AGG(DISTINCT NULLIF(btrim(fl.manual_doc_no), ''), ', ') AS doc_nos,
+               (SELECT STRING_AGG(DISTINCT x, ', ')
+                  FROM fl f2, unnest(string_to_array(f2.rates, ', ')) x
+                 WHERE f2.retailer_id = rt.id AND f2.type_id = fl.type_id) AS rates,
+               SUM(fl.amount) AS billed
+        FROM fl
+        JOIN retailers rt ON rt.id = fl.retailer_id
+        LEFT JOIN master_products mp ON mp.id = fl.type_id
+        GROUP BY rt.id, rt.shop_name, fl.type_id, mp.name
+      ) s
     ),
 
     'daily', (

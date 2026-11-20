@@ -204,6 +204,8 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
   String? _rpBirdTypeId;
   List<Map<String, dynamic>> _rpBirdTypes = const [];
   List<Map<String, dynamic>> _rpByType = const [];
+  // One row per shop and bird type, for the printed sheet.
+  List<Map<String, dynamic>> _rpShopTypes = const [];
 
   static const _kLedgerMovementTypes = [
     'returned_in','shift_close_return','transferred_out','theft',
@@ -416,6 +418,7 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
           if (isRp) {
             _rpBirdTypes = List<Map<String, dynamic>>.from(birds?['bird_types'] as List? ?? const []);
             _rpByType = List<Map<String, dynamic>>.from(birds?['by_type'] as List? ?? const []);
+            _rpShopTypes = List<Map<String, dynamic>>.from(birds?['shop_types'] as List? ?? const []);
           }
           _rpLossPct = lossPct;
           _collModes = collModes;
@@ -1816,7 +1819,7 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
             // Print/PDF: the sales sheet (agent, bold date, totals block) with
             // its own columns: S.No, Dc.No, Shop, Birds, Kgs, Rate, Amount, Remarks.
             summary: sheet,
-            printVersion: ReportPdfGenerator.retailerPurchasePrintTable(ret)),
+            printVersion: ReportPdfGenerator.retailerPurchasePrintTable(ret, shopTypes: _rpShopTypes)),
       ],
       _sec('ORDER HISTORY'),
       _tbl(['Date','Shop','kg','Birds','Rate','Billed','Collected'],
@@ -2230,7 +2233,7 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
             if (_sel.key == 'retailer_purchase') {
         await ReportPdfGenerator.generateAndShow(
           context:     context,
-          reportData:  {..._data!, 'sheet_agent': _selectedAgentName, 'sheet_purchased_kg': _rpPurchasedKg, 'sheet_loss_pct': _rpLossPct, 'sheet_bird_type': _rpBirdTypeName, 'sheet_by_type': _rpByType},
+          reportData:  {..._data!, 'sheet_agent': _selectedAgentName, 'sheet_purchased_kg': _rpPurchasedKg, 'sheet_loss_pct': _rpLossPct, 'sheet_bird_type': _rpBirdTypeName, 'sheet_by_type': _rpByType, 'sheet_shop_types': _rpShopTypes},
           reportLabel: _sel.label,
           companyName: company,
           fromDate:    _from,

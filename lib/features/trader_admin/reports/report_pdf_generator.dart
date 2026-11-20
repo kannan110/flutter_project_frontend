@@ -231,7 +231,11 @@ class ReportPdfGenerator {
   // _table): Dc.No (the orders' manual bill numbers), Shop, Birds, Kgs, Rate,
   // Amount and an empty Remarks column to fill in by hand. Phone, Orders,
   // Collected and Outstanding stay on the screen only.
-  static ReportDataSet retailerPurchasePrintTable(List<Map> retailers) {
+  static ReportDataSet retailerPurchasePrintTable(List<Map> retailers,
+      {List<Map>? shopTypes}) {
+    if (shopTypes != null && shopTypes.isNotEmpty) {
+      return _retailerPurchaseShopTypeTable(shopTypes);
+    }
     final birds = retailers.fold<int>(0, (sum, r) => sum + _i(r, 'total_birds'));
     final kg = retailers.fold<double>(0, (sum, r) => sum + _d(r, 'total_kg'));
     final billed = retailers.fold<double>(0, (sum, r) => sum + _d(r, 'billed'));
@@ -253,6 +257,40 @@ class ReportPdfGenerator {
     // Widths from each column's widest text (Shop may grow the most), with
     // room left in Remarks for writing by hand.
     final flex = CustomerLedgerTableData.fitFlex(headers, [...rows, totals], flexibleColumn: 1);
+    flex[7] = 14; // Remarks
+    return ReportDataSet(
+      title: 'Retailer Purchase',
+      headers: headers,
+      rows: rows,
+      totals: totals,
+      highlightColumns: const [6],
+      columnFlex: flex,
+    );
+  }
+
+  // Printed sheet with one line per shop and bird type (shop_types from
+  // get_retailer_purchase_bird_types): Shop, Bird Type, Birds, Kgs, Rate,
+  // Avg.Wt, Amount and an empty Remarks column.
+  static ReportDataSet _retailerPurchaseShopTypeTable(List<Map> shopTypes) {
+    final birds = shopTypes.fold<int>(0, (sum, r) => sum + _i(r, 'total_birds'));
+    final kg = shopTypes.fold<double>(0, (sum, r) => sum + _d(r, 'total_kg'));
+    final billed = shopTypes.fold<double>(0, (sum, r) => sum + _d(r, 'billed'));
+    const headers = ['Shop', 'Bird Type', 'Birds', 'Kgs', 'Rate', 'Avg.Wt', 'Amount', 'Remarks'];
+    final rows = [
+      for (final r in shopTypes)
+        [
+          _str(r, 'shop_name'),
+          _str(r, 'bird_type'),
+          '${_i(r, 'total_birds')}',
+          _d(r, 'total_kg').toStringAsFixed(3),
+          retailerPurchaseRate(r),
+          _avgWt(_d(r, 'total_kg'), _i(r, 'total_birds')),
+          Fmt.amount(_d(r, 'billed')),
+          '',
+        ],
+    ];
+    final totals = ['TOTAL', '', '$birds', kg.toStringAsFixed(3), '', _avgWt(kg, birds), Fmt.amount(billed), ''];
+    final flex = CustomerLedgerTableData.fitFlex(headers, [...rows, totals], flexibleColumn: 0);
     flex[7] = 14; // Remarks
     return ReportDataSet(
       title: 'Retailer Purchase',
@@ -1877,7 +1915,8 @@ class ReportPdfGenerator {
         footer: (_) => _footer(),
         // Same sales-sheet table as the report's own Print/PDF button.
         build: (_) {
-          final t = retailerPurchasePrintTable(retailers);
+          final t = retailerPurchasePrintTable(retailers,
+              shopTypes: _rowList(data['sheet_shop_types']));
           return [
             _table(
                 headers: t.headers,
