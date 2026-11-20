@@ -181,15 +181,50 @@ class ReportPdfGenerator {
     required double soldKg,
     // Shrinkage report's loss % (unaccounted loss / DC kg of closed shifts).
     required double? lossPct,
+    // Bird type filter (null = all bird types) and the bird-type-wise rows
+    // from get_retailer_purchase_bird_types (bird_type, birds, kg, amount).
+    String? birdType,
+    List<Map>? byType,
   }) {
     final balance = purchasedKg == null ? null : purchasedKg - soldKg;
     return [
       ReportSummaryItem('Agent', agentName),
+      ReportSummaryItem('Bird Type', birdType ?? 'All'),
       ReportSummaryItem('Purchased KGS', purchasedKg == null ? '—' : purchasedKg.toStringAsFixed(3)),
       ReportSummaryItem('Sold KGS', soldKg.toStringAsFixed(3)),
       ReportSummaryItem('Balance KGS', balance == null ? '—' : balance.toStringAsFixed(3)),
       ReportSummaryItem('Wt Loss in %', lossPct == null ? '—' : '${lossPct.toStringAsFixed(2)} %'),
+      // One item per bird type: label "BT|<name>", value "birds|kg|amount".
+      // Only the sales-sheet PDF reads these (see _sheetTotals).
+      for (final t in byType ?? const <Map>[])
+        ReportSummaryItem('$_kBirdTypePrefix${_str(t, 'bird_type')}',
+            '${_i(t, 'birds')}|${_d(t, 'kg')}|${_d(t, 'amount')}'),
     ];
+  }
+
+  static const _kBirdTypePrefix = 'BT|';
+
+  // Bird-type-wise table for the sales sheet: Bird Type, Birds, Kgs, Avg.Wt,
+  // Amount, with a total line.
+  static ReportDataSet retailerPurchaseBirdTypeTable(List<Map> byType) {
+    var birds = 0;
+    double kg = 0, amount = 0;
+    final rows = <List<String>>[];
+    for (final t in byType) {
+      final b = _i(t, 'birds');
+      final k = _d(t, 'kg');
+      final a = _d(t, 'amount');
+      birds += b; kg += k; amount += a;
+      rows.add([_str(t, 'bird_type'), '$b', k.toStringAsFixed(3), _avgWt(k, b), Fmt.amount(a)]);
+    }
+    return ReportDataSet(
+      title: 'Bird Type Wise',
+      headers: const ['Bird Type', 'Birds', 'Kgs', 'Avg.Wt', 'Amount'],
+      rows: rows,
+      totals: ['TOTAL', '$birds', kg.toStringAsFixed(3), _avgWt(kg, birds), Fmt.amount(amount)],
+      highlightColumns: const [4],
+      columnFlex: const [2.0, 1.0, 1.3, 1.0, 1.6],
+    );
   }
 
   // Retailer Purchase print/PDF table, one line per shop (S.No is added by
@@ -246,7 +281,7 @@ class ReportPdfGenerator {
 
   // Top block: company, title, AGENT (left), DATE in bold (right).
   static pw.Widget _sheetHeader(String company, String agent, DateTime from, DateTime to,
-      {bool bw = false}) {
+      {bool bw = false, String? birdType}) {
     final ink = bw ? PdfColors.black : _dark;
     final f = DateFormat('dd/MM/yyyy');
     final sameDay = from.year == to.year && from.month == to.month && from.day == to.day;
@@ -265,6 +300,13 @@ class ReportPdfGenerator {
         pw.Text('DATE :  $date',
             style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold, color: ink)),
       ]),
+      if (birdType != null && birdType != 'All') ...[
+        pw.SizedBox(height: 3),
+        pw.Align(
+            alignment: pw.Alignment.centerLeft,
+            child: pw.Text('BIRD TYPE :  $birdType',
+                style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold, color: ink))),
+      ],
       pw.SizedBox(height: 6),
       pw.Divider(color: ink, thickness: 1),
       pw.SizedBox(height: 6),
@@ -274,6 +316,7 @@ class ReportPdfGenerator {
   // Bottom block: Purchased / Sold / Balance / Wt Loss %.
   static pw.Widget _sheetTotals(Map<String, String> m, {bool bw = false}) {
     final ink = bw ? PdfColors.black : _dark;
+    final byType = _sheetBirdTypes(m);
     pw.Widget line(String label, String key, {bool rule = false, bool strong = false}) =>
         pw.Container(
           width: 250,
@@ -301,9 +344,39 @@ class ReportPdfGenerator {
         line('SOLD KGS', 'Sold KGS', rule: true),
         line('BALANCE KGS', 'Balance KGS', rule: true),
         line('WT LOSS IN %', 'Wt Loss in %', strong: true),
+        if (byType.isNotEmpty) ...[
+          pw.SizedBox(height: 14),
+          pw.Text('BIRD TYPE WISE',
+              style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold, color: ink,
+                  decoration: pw.TextDecoration.underline)),
+          pw.SizedBox(height: 4),
+          pw.SizedBox(
+            width: 380,
+            child: () {
+              final t = retailerPurchaseBirdTypeTable(byType);
+              return _table(headers: t.headers, rows: t.rows, totals: t.totals,
+                  bold: t.highlightColumns, columnFlex: t.columnFlex, singleLine: true);
+            }(),
+          ),
+        ],
       ]),
     );
   }
+
+  // Bird-type rows packed into the sheet summary by retailerPurchaseSheetSummary.
+  static List<Map> _sheetBirdTypes(Map<String, String> m) => [
+    for (final e in m.entries)
+      if (e.key.startsWith(_kBirdTypePrefix))
+        () {
+          final p = e.value.split('|');
+          return <String, dynamic>{
+            'bird_type': e.key.substring(_kBirdTypePrefix.length),
+            'birds': int.tryParse(p[0]) ?? 0,
+            'kg': p.length > 1 ? double.tryParse(p[1]) ?? 0 : 0,
+            'amount': p.length > 2 ? double.tryParse(p[2]) ?? 0 : 0,
+          };
+        }(),
+  ];
 
   // ─── WEEKLY REPORT — one customer, one row per week ──────────────────────
   // Weeks are 7-day blocks starting on the From date; the last block ends on
@@ -553,7 +626,7 @@ class ReportPdfGenerator {
         pageFormat: dataSet.landscape ? PdfPageFormat.a4.landscape : PdfPageFormat.a4,
         margin: const pw.EdgeInsets.all(28),
         header: (_) => sheet != null
-            ? _sheetHeader(companyName, sheet['Agent'] ?? 'All Agents', from, to, bw: bw)
+            ? _sheetHeader(companyName, sheet['Agent'] ?? 'All Agents', from, to, bw: bw, birdType: sheet['Bird Type'])
             : useRichHeader
             ? richCompanyHeader(
           companyName: (ledgerHeader['company_name'] as String?) ?? companyName,
@@ -1741,13 +1814,16 @@ class ReportPdfGenerator {
         purchasedKg: (data['sheet_purchased_kg'] as num?)?.toDouble(),
         soldKg: retailers.fold<double>(0, (sum, r) => sum + _d(r, 'total_kg')),
         lossPct: (data['sheet_loss_pct'] as num?)?.toDouble(),
+        birdType: data['sheet_bird_type'] as String?,
+        byType: _rowList(data['sheet_by_type']),
       ))
         i.label: i.value,
     };
     doc.addPage(pw.MultiPage(
         pageFormat: PdfPageFormat.a4,
         margin: const pw.EdgeInsets.all(28),
-        header: (_) => _sheetHeader(company, sheet['Agent'] ?? 'All Agents', from, to),
+        header: (_) => _sheetHeader(company, sheet['Agent'] ?? 'All Agents', from, to,
+            birdType: sheet['Bird Type']),
         footer: (_) => _footer(),
         // Same sales-sheet table as the report's own Print/PDF button.
         build: (_) {

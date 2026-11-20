@@ -197,6 +197,11 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
   // dates + agent, from the shrinkage report. null = not available.
   double? _rpPurchasedKg;
   double? _rpLossPct;
+  // Retailer Purchase bird type filter (null = all) and the bird-type-wise
+  // rows from get_retailer_purchase_bird_types for the current filters.
+  String? _rpBirdTypeId;
+  List<Map<String, dynamic>> _rpBirdTypes = const [];
+  List<Map<String, dynamic>> _rpByType = const [];
 
   static const _kLedgerMovementTypes = [
     'returned_in','shift_close_return','transferred_out','theft',
@@ -382,12 +387,31 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
       final res = await _c.rpc(rpcName, params: p)
           .timeout(const Duration(seconds: 20));
       final isRp = _sel.key == 'retailer_purchase';
+      final birds = isRp ? await _fetchBirdTypes(tid) : null;
       final purchased = isRp ? await _fetchPurchasedKg(tid) : null;
-      final lossPct = isRp ? await _fetchShrinkageLossPct(tid) : null;
+      // Wt Loss % comes from the Shrinkage report, which has no bird type —
+      // so it is left blank while a bird type is picked.
+      final lossPct = isRp && _rpBirdTypeId == null ? await _fetchShrinkageLossPct(tid) : null;
+      var data = res as Map<String, dynamic>?;
+      if (birds != null && _rpBirdTypeId != null && data != null) {
+        // Bird type picked: the tables come from the bird-type function
+        // (collected / outstanding can't be split by bird type).
+        data = {
+          ...data,
+          'summary': birds['summary'],
+          'retailers': birds['retailers'],
+          'daily': birds['daily'],
+          'bird_filtered': true,
+        };
+      }
       if (mounted) {
         setState(() {
-          _data = res as Map<String,dynamic>?;
+          _data = data;
           _rpPurchasedKg = purchased;
+          if (isRp) {
+            _rpBirdTypes = List<Map<String, dynamic>>.from(birds?['bird_types'] as List? ?? const []);
+            _rpByType = List<Map<String, dynamic>>.from(birds?['by_type'] as List? ?? const []);
+          }
           _rpLossPct = lossPct;
         });
       }
@@ -1395,6 +1419,72 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
   }
 
   /// Purchased KGS = DC net kg (adjusted when set), same dates and same agent as the report.
+  /// Retailer Purchase bird types: the filter list, the bird-type-wise rows
+  /// and (when a bird type is picked) the report tables for that bird type.
+  /// null when it can't load — the report then shows as before, unfiltered.
+  Future<Map<String, dynamic>?> _fetchBirdTypes(String tid) async {
+    try {
+      final res = await _c.rpc('get_retailer_purchase_bird_types', params: {
+        'p_trader_id': tid,
+        'p_from_date': DateFormat('yyyy-MM-dd').format(_from),
+        'p_to_date':   DateFormat('yyyy-MM-dd').format(_to),
+        if (_agentId != null) 'p_agent_id': _agentId,
+        if (_retailerId != null) 'p_retailer_id': _retailerId,
+        if (_rpBirdTypeId != null) 'p_bird_type_id': _rpBirdTypeId,
+      }).timeout(const Duration(seconds: 20));
+      return (res as Map?)?.cast<String, dynamic>();
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Name of the picked bird type (null = all bird types).
+  String? get _rpBirdTypeName {
+    if (_rpBirdTypeId == null) return null;
+    final t = _rpBirdTypes.where((b) => b['id'] == _rpBirdTypeId);
+    return t.isEmpty ? null : t.first['name'] as String?;
+  }
+
+  // Bird type chips: All + every bird type sold in the selected dates.
+  Widget _rpBirdTypeFilter() {
+    if (_rpBirdTypes.isEmpty && _rpBirdTypeId == null) return const SizedBox.shrink();
+    const palette = [
+      Color(0xFF1565C0), Color(0xFF2E7D32), Color(0xFFE65100), Color(0xFF6A1B9A),
+      Color(0xFF00838F), Color(0xFFAD1457), Color(0xFF5D4037), Color(0xFF283593),
+    ];
+    Widget chip(String label, String? id, Color color) {
+      final sel = _rpBirdTypeId == id;
+      return ChoiceChip(
+        label: Text(label),
+        selected: sel,
+        showCheckmark: false,
+        selectedColor: color,
+        backgroundColor: color.withValues(alpha: 0.08),
+        side: BorderSide(color: color.withValues(alpha: sel ? 1 : 0.35)),
+        labelStyle: TextStyle(
+            fontSize: 12, fontWeight: FontWeight.w700, color: sel ? Colors.white : color),
+        onSelected: (_) {
+          if (_rpBirdTypeId == id) return;
+          setState(() => _rpBirdTypeId = id);
+          _load();
+        },
+      );
+    }
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(kSpMd, kSpMd, kSpMd, 0),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        const Text('BIRD TYPE', style: kTypeCaption),
+        const SizedBox(height: 6),
+        Wrap(spacing: 8, runSpacing: 6, children: [
+          chip('All', null, kNavy),
+          for (var i = 0; i < _rpBirdTypes.length; i++)
+            chip(_rpBirdTypes[i]['name'] as String? ?? '—',
+                _rpBirdTypes[i]['id'] as String?, palette[i % palette.length]),
+        ]),
+      ]),
+    );
+  }
+
   Future<double?> _fetchPurchasedKg(String tid) async {
     // Read straight from the DCs (by DC date), so open shifts count too. The
     // agent comes from the DC's batch.
@@ -1406,6 +1496,9 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
           .gte('dc_date', DateFormat('yyyy-MM-dd').format(_from))
           .lte('dc_date', DateFormat('yyyy-MM-dd').format(_to));
       if (_agentId != null) q = q.eq('delivery_batches.delivery_agent_id', _agentId!);
+      // DCs are recorded at the main bird type (e.g. Broiler), the same level
+      // as the bird type filter.
+      if (_rpBirdTypeId != null) q = q.eq('product_id', _rpBirdTypeId!);
       final rows = await q.timeout(const Duration(seconds: 20));
       return (rows as List).fold<double>(0, (sum, r) {
         final m = r as Map;
@@ -1442,6 +1535,8 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
     purchasedKg: _rpPurchasedKg,
     soldKg: _rows('retailers').fold<double>(0, (sum, r) => sum + _d(r, 'total_kg')),
     lossPct: _rpLossPct,
+    birdType: _rpBirdTypeName,
+    byType: _rpByType,
   );
 
   // Top block: AGENT (left), DATE in bold (right).
@@ -1511,14 +1606,26 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
   Widget _rRetailerPurchase() {
     final s = _s(); final ret = _rows('retailers'); final day = _rows('daily');
     final sheet = _rpSheetItems();
+    // Bird type picked: collected / outstanding can't be split by bird type.
+    final byBird = _data?['bird_filtered'] == true;
+    String money(Map r, String k) => byBird ? '—' : Fmt.amount(_d(r, k));
     return _scroll([
       _rpSheetHeader(),
+      _rpBirdTypeFilter(),
       _kpiGrid([
         _kpi2('Orders',    '${_i(s,"total_orders")}',                              Colors.blue,   Icons.shopping_cart_outlined),
         _kpi2('Total kg',  _d(s,"total_kg").toStringAsFixed(0),               Colors.teal,   Icons.scale_outlined),
         _kpi2('Billed',    Fmt.amount(_d(s,'total_billed')),                       Colors.indigo, Icons.receipt_outlined),
-        _kpi2('Pending',   Fmt.amount(_d(s,'total_pending')),                      Colors.orange, Icons.pending_outlined),
+        _kpi2('Pending',   money(s, 'total_pending'),                              Colors.orange, Icons.pending_outlined),
       ]),
+      if (_rpByType.isNotEmpty) ...[
+        _sec('BY BIRD TYPE'),
+        () {
+          final t = ReportPdfGenerator.retailerPurchaseBirdTypeTable(_rpByType);
+          return _tbl(t.headers, t.rows, tots: t.totals, hi: t.highlightColumns,
+              columnFlex: t.columnFlex);
+        }(),
+      ],
       if (ret.isNotEmpty) ...[
         _sec('BY RETAILER'),
         _tbl(['Shop','Dc.No','Phone','Orders','Birds','Total kg','Avg Wt','Rate','Billed','Collected','Outstanding'],
@@ -1527,7 +1634,7 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
               _i(r,'total_birds') > 0 ? (_d(r,'total_kg') / _i(r,'total_birds')).toStringAsFixed(3) : '',
               ReportPdfGenerator.retailerPurchaseRate(r),
               Fmt.amount(_d(r,'billed')),
-              Fmt.amount(_d(r,'collected')),Fmt.amount(_d(r,'outstanding'))]).toList(),
+              money(r,'collected'),money(r,'outstanding')]).toList(),
             tots: [
               'TOTAL',
               '',
@@ -1538,8 +1645,8 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
               '',
               '',
               Fmt.amount(ret.fold<double>(0, (sum, r) => sum + _d(r, 'billed'))),
-              Fmt.amount(ret.fold<double>(0, (sum, r) => sum + _d(r, 'collected'))),
-              Fmt.amount(ret.fold<double>(0, (sum, r) => sum + _d(r, 'outstanding'))),
+              byBird ? '—' : Fmt.amount(ret.fold<double>(0, (sum, r) => sum + _d(r, 'collected'))),
+              byBird ? '—' : Fmt.amount(ret.fold<double>(0, (sum, r) => sum + _d(r, 'outstanding'))),
             ],
             hi:[10],
             // Print/PDF: the sales sheet (agent, bold date, totals block) with
@@ -1551,7 +1658,7 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
       _tbl(['Date','Shop','kg','Birds','Rate','Billed','Collected'],
           day.map((d)=>[_fd(d['order_date']),_sh(_str(d,'shop_name'),10),
             (_d(d,"kg").toStringAsFixed(0)),'${_i(d,"birds")}',
-            (_d(d,"rate").toStringAsFixed(2)),Fmt.amount(_d(d,'billed')),Fmt.amount(_d(d,'collected'))]).toList(),
+            (_d(d,"rate").toStringAsFixed(2)),Fmt.amount(_d(d,'billed')),money(d,'collected')]).toList(),
           hi:[5]),
       _rpSheetTotals(sheet),
     ]);
@@ -1948,7 +2055,7 @@ class _RHS extends ConsumerState<ReportsHubScreen> {
             if (_sel.key == 'retailer_purchase') {
         await ReportPdfGenerator.generateAndShow(
           context:     context,
-          reportData:  {..._data!, 'sheet_agent': _selectedAgentName, 'sheet_purchased_kg': _rpPurchasedKg, 'sheet_loss_pct': _rpLossPct},
+          reportData:  {..._data!, 'sheet_agent': _selectedAgentName, 'sheet_purchased_kg': _rpPurchasedKg, 'sheet_loss_pct': _rpLossPct, 'sheet_bird_type': _rpBirdTypeName, 'sheet_by_type': _rpByType},
           reportLabel: _sel.label,
           companyName: company,
           fromDate:    _from,
