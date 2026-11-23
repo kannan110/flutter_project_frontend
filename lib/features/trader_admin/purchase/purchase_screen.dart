@@ -55,6 +55,11 @@ class _S extends ConsumerState<PurchaseScreen>
   bool _webSortAsc = false;
   int _historySubTab = 0;
 
+  // ── Ledger tab (detailed statement) ───────────────────────────────────────
+  List<Map<String, dynamic>> _ledgerFarms = []; // supplier chips + header
+  double _ledgerBf = 0; // net balance of all entries before _from
+  String _ledgerView = 'statement'; // 'statement' | 'dc'
+
   static const _tabs = [
     'Overview',
     'Purchases',
@@ -102,6 +107,21 @@ class _S extends ConsumerState<PurchaseScreen>
   String get _fromStr => DateFormat('yyyy-MM-dd').format(_from);
 
   String get _toStr => DateFormat('yyyy-MM-dd').format(_to);
+
+  // Fetches every row of a PostgREST query in pages (PostgREST caps a
+  // single response at max_rows, usually 1000).
+  Future<List<Map<String, dynamic>>> _fetchAllPages(
+      Future<List<dynamic>> Function(int from, int to) page,
+      {int pageSize = 1000,
+      int maxRows = 20000}) async {
+    final out = <Map<String, dynamic>>[];
+    for (var start = 0; start < maxRows; start += pageSize) {
+      final rows = await page(start, start + pageSize - 1);
+      out.addAll(rows.map((r) => Map<String, dynamic>.from(r as Map)));
+      if (rows.length < pageSize) break;
+    }
+    return out;
+  }
 
   Future<void> _load() async {
     final tid = ref.read(appUserProvider).valueOrNull?.traderId;
@@ -235,19 +255,56 @@ class _S extends ConsumerState<PurchaseScreen>
           }
 
         case 3: // Ledger
-          var lq = _c.from('supplier_ledger').select(
-              'id,entry_type,amount,reason,payment_mode,entry_date,'
-                  'description,reference_number,payment_id,'
-                  'farms(farmer_name),purchase_entries(dc_number,net_weight_kg)');
-          lq = lq
+        // supplier_ledger is the single source of truth: DB triggers post
+        // a 'purchase' debit when a DC's rate is confirmed (entry_date =
+        // dc_date), a 'payment' credit for every purchase_payments row,
+        // 'claim' credits, 'payment_reversal' debits and 'opening_balance'
+        // debits. All rows in the range are fetched (paged, no 200 cap) so
+        // the running balance is correct, and everything before the range
+        // is netted into a brought-forward balance.
+          const ledgerCols =
+              'id,farm_id,company_id,purchase_entry_id,entry_type,amount,'
+              'reason,payment_mode,entry_date,created_at,description,'
+              'reference_number,payment_id,'
+              'farms(farmer_name),poultry_companies(company_name),'
+              'purchase_entries(dc_number,dc_date,bird_count,net_weight_kg,'
+              'purchase_rate_per_kg,purchase_rate_per_bird,total_landed_cost,'
+              'total_paid,claim_amount,payment_status)';
+          final farmId = _farmFilter;
+          final lr = await _fetchAllPages((a, b) {
+            var q = _c
+                .from('supplier_ledger')
+                .select(ledgerCols)
+                .eq('trader_id', tid)
+                .gte('entry_date', _fromStr)
+                .lte('entry_date', _toStr);
+            if (farmId != null) q = q.eq('farm_id', farmId);
+            return q.order('entry_date').order('id').range(a, b);
+          });
+          final prior = await _fetchAllPages((a, b) {
+            var q = _c
+                .from('supplier_ledger')
+                .select('id,entry_type,amount')
+                .eq('trader_id', tid)
+                .lt('entry_date', _fromStr);
+            if (farmId != null) q = q.eq('farm_id', farmId);
+            return q.order('id').range(a, b);
+          });
+          double bf = 0;
+          for (final p in prior) {
+            final amt = (p['amount'] as num?)?.toDouble() ?? 0;
+            bf += p['entry_type'] == 'debit' ? amt : -amt;
+          }
+          final lf = await _c
+              .from('farms')
+              .select('id,farmer_name,farm_name,phone,credit_days')
               .eq('trader_id', tid)
-              .gte('entry_date', _fromStr)
-              .lte('entry_date', _toStr);
-          if (_farmFilter != null) lq = lq.eq('farm_id', _farmFilter!);
-          final lr = await lq.order('entry_date', ascending: false).limit(200);
+              .order('farmer_name');
           if (mounted) {
             setState(() {
-              _ledger = List<Map<String, dynamic>>.from(lr as List? ?? []);
+              _ledger = lr;
+              _ledgerBf = bf;
+              _ledgerFarms = List<Map<String, dynamic>>.from(lf as List? ?? []);
             });
           }
 
@@ -420,7 +477,9 @@ class _S extends ConsumerState<PurchaseScreen>
                             _tabOverviewWeb(),
                             _tabPurchasesWeb(),
                             _tabSuppliersWeb(),
-                            _tabLedgerWeb(),
+                            // Same detailed supplier statement as the phone layout (Statement /
+                            // DC-wise views); it stretches to fill wide screens.
+                            _tabLedger(),
                             _tabCostingWeb(),
                             _tabReportsWeb(),
                             _tabHistoryWeb(),
@@ -1295,136 +1354,6 @@ class _S extends ConsumerState<PurchaseScreen>
     );
   }
 
-  Widget _tabLedgerWeb() {
-    final allFarms = <String, String>{};
-    for (final e in _ledger) {
-      final fid = e['farm_id'] as String?;
-      final fn = (e['farms'] as Map?)?['farmer_name'] as String?;
-      if (fid != null && fn != null) allFarms[fid] = fn;
-    }
-
-    double balance = 0;
-    final rows = _ledger.reversed.map((e) {
-      final amt = (e['amount'] as num?)?.toDouble() ?? 0;
-      if (e['entry_type'] == 'debit') {
-        balance += amt;
-      } else {
-        balance -= amt;
-      }
-      return {...e, '_balance': balance};
-    }).toList().reversed.toList();
-
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(WebSpace.xl),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        Row(children: [
-          Expanded(
-            child: WebKpiCard(
-              label: 'Outstanding Ledger Balance',
-              value: Fmt.amount(balance),
-              icon: Icons.account_balance_wallet_outlined,
-              color: balance > 0 ? WebColors.warning : WebColors.success,
-            ),
-          ),
-          const SizedBox(width: WebSpace.xl),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-            decoration: BoxDecoration(
-              color: WebColors.surface,
-              borderRadius: BorderRadius.circular(WebRadius.button),
-              border: Border.all(color: WebColors.border),
-            ),
-            child: DropdownButtonHideUnderline(
-              child: DropdownButton<String?>(
-                value: _farmFilter,
-                hint: const Text('All Suppliers', style: TextStyle(fontSize: 13, color: WebColors.text2)),
-                items: [
-                  const DropdownMenuItem<String?>(
-                    value: null,
-                    child: Text('All Suppliers', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-                  ),
-                  ...allFarms.entries.map((e) => DropdownMenuItem<String?>(
-                    value: e.key,
-                    child: Text(e.value, style: const TextStyle(fontSize: 13)),
-                  )),
-                ],
-                onChanged: (v) {
-                  setState(() => _farmFilter = v);
-                  _load();
-                },
-              ),
-            ),
-          ),
-        ]),
-        const SizedBox(height: WebSpace.lg),
-
-        WebListCard(children: [
-          WebDataTable<Map<String, dynamic>>(
-            columns: const [
-              WebColumn('Date', width: 120),
-              WebColumn('Supplier', flex: 2),
-              WebColumn('DC Number', width: 130),
-              WebColumn('Type', width: 130, align: TextAlign.center),
-              WebColumn('Amount', width: 140, align: TextAlign.right),
-              WebColumn('Balance', width: 150, align: TextAlign.right),
-              WebColumn('Notes', flex: 2),
-            ],
-            rows: rows,
-            paginate: true,
-            rowsPerPage: 25,
-            emptyText: 'No ledger entries for this period',
-            cellBuilder: (e, col) {
-              final isD = e['entry_type'] == 'debit';
-              final amt = (e['amount'] as num?)?.toDouble() ?? 0;
-              final bal = (e['_balance'] as double?) ?? 0;
-              final dt = DateTime.tryParse(e['entry_date'] as String? ?? '');
-              final farm = (e['farms'] as Map?)?['farmer_name'] as String? ?? '--';
-              final dc = (e['purchase_entries'] as Map?)?['dc_number'] as String?;
-              final notes = e['notes'] as String? ?? '—';
-
-              switch (col) {
-                case 0:
-                  return Text(
-                    dt != null ? DateFormat('d MMM y').format(dt) : '--',
-                    style: const TextStyle(fontSize: 12.5, color: WebColors.text2),
-                  );
-                case 1:
-                  return Text(farm, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: WebColors.text1));
-                case 2:
-                  return Text(dc ?? '—', style: const TextStyle(fontSize: 12.5, color: WebColors.navy, fontWeight: FontWeight.w600));
-                case 3:
-                  return isD
-                      ? const WebLabel('DEBIT (PURCHASE)', color: WebColors.error)
-                      : const WebLabel('CREDIT (PAYMENT)', color: WebColors.success);
-                case 4:
-                  return Text(
-                    '${isD ? '+' : '-'}${Fmt.amount(amt)}',
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w800,
-                      color: isD ? WebColors.error : WebColors.success,
-                    ),
-                  );
-                case 5:
-                  return Text(
-                    Fmt.amount(bal),
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                      color: bal > 0 ? WebColors.warning : WebColors.success,
-                    ),
-                  );
-                default:
-                  return Text(notes, maxLines: 1, overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontSize: 12, color: WebColors.text3));
-              }
-            },
-          ),
-        ]),
-      ]),
-    );
-  }
-
   Widget _tabCostingWeb() {
     if (_costing.isEmpty) {
       return const WebTableState.empty(
@@ -1852,6 +1781,11 @@ class _S extends ConsumerState<PurchaseScreen>
                   icon: const Icon(Icons.share_outlined),
                   tooltip: 'Export Report',
                   onPressed: _exportReport),
+            if (_tab.index == 3)
+              IconButton(
+                  icon: const Icon(Icons.share_outlined),
+                  tooltip: 'Share Ledger',
+                  onPressed: _exportLedger),
             PopupMenuButton<String>(
                 icon: const Icon(Icons.add),
                 onSelected: (v) {
@@ -2760,173 +2694,638 @@ class _S extends ConsumerState<PurchaseScreen>
   }
 
   // ==========================================================================
-  // TAB 3: LEDGER
+  // TAB 3: LEDGER — detailed supplier statement
   // ==========================================================================
-  Widget _tabLedger() {
-    final allFarms = <String, String>{};
-    for (final e in _ledger) {
-      final fid = e['farm_id'] as String?;
-      final fn = (e['farms'] as Map?)?['farmer_name'] as String?;
-      if (fid != null && fn != null) allFarms[fid] = fn;
-    }
-    if (_ledger.isEmpty && _farmFilter == null) {
-      return const EmptyState(
-          icon: Icons.book_outlined, message: 'No ledger entries');
-    }
+  // Two views over the same supplier_ledger rows for the selected date range:
+  //  • Statement — date-wise: Balance B/F, Opening Balance, every DC purchase
+  //    (birds, kg, rate, amount), every payment / claim, with the running
+  //    balance after each line.
+  //  • DC-wise   — one line per DC purchased in the range: birds, kg, rate,
+  //    amount, paid to date, claim, balance due and payment status.
+  // Positive balance = payable to the supplier; negative = advance paid.
 
-    double balance = 0;
-    final rows = _ledger.reversed
-        .map((e) {
+  static const Map<String, int> _ledgerReasonOrder = {
+    'opening_balance': 0,
+    'purchase': 1,
+  };
+
+  List<Map<String, dynamic>> _ledgerStatementRows() {
+    final sorted = [..._ledger]..sort((a, b) {
+        final d = (a['entry_date'] as String? ?? '')
+            .compareTo(b['entry_date'] as String? ?? '');
+        if (d != 0) return d;
+        final ra = _ledgerReasonOrder[a['reason']] ?? 2;
+        final rb = _ledgerReasonOrder[b['reason']] ?? 2;
+        if (ra != rb) return ra.compareTo(rb);
+        return (a['created_at'] as String? ?? '')
+            .compareTo(b['created_at'] as String? ?? '');
+      });
+    double bal = _ledgerBf;
+    return sorted.map((e) {
       final amt = (e['amount'] as num?)?.toDouble() ?? 0;
-      if (e['entry_type'] == 'debit') {
-        balance += amt;
+      bal += e['entry_type'] == 'debit' ? amt : -amt;
+      return {...e, '_balance': bal};
+    }).toList();
+  }
+
+  String _ledgerParticulars(Map<String, dynamic> e) {
+    final reason = e['reason'] as String? ?? '';
+    final mode = (e['payment_mode'] as String?)?.toUpperCase();
+    final ref = e['reference_number'] as String?;
+    switch (reason) {
+      case 'opening_balance':
+        return 'Opening Balance';
+      case 'purchase':
+        return 'Purchase';
+      case 'payment':
+        return [
+          'Paid',
+          if (mode != null && mode.isNotEmpty) mode,
+          if (ref != null && ref.isNotEmpty) 'Ref $ref',
+        ].join(' · ');
+      case 'payment_reversal':
+        return 'Payment reversed';
+      case 'claim':
+        return 'Claim';
+      default:
+        return reason.isEmpty ? '--' : reason.replaceAll('_', ' ');
+    }
+  }
+
+  // Second line under Particulars (claim notes, reversal reason, etc.).
+  String? _ledgerSubline(Map<String, dynamic> e) {
+    final reason = e['reason'] as String? ?? '';
+    if (reason == 'purchase' || reason == 'opening_balance') return null;
+    final d = (e['description'] as String?)?.trim();
+    if (d == null || d.isEmpty) return null;
+    if (reason == 'payment') {
+      final i = d.indexOf(' - ');
+      return i >= 0 ? d.substring(i + 3) : null; // payment notes only
+    }
+    return d;
+  }
+
+  String _ledgerParty(Map<String, dynamic> e) =>
+      (e['farms'] as Map?)?['farmer_name'] as String? ??
+      (e['poultry_companies'] as Map?)?['company_name'] as String? ??
+      '--';
+
+  String _ledgerRate(Map? pe) {
+    final perKg = (pe?['purchase_rate_per_kg'] as num?)?.toDouble();
+    if (perKg != null) return 'Rs.${perKg.toStringAsFixed(2)}/kg';
+    final perBird = (pe?['purchase_rate_per_bird'] as num?)?.toDouble();
+    if (perBird != null) return 'Rs.${perBird.toStringAsFixed(2)}/bird';
+    return '--';
+  }
+
+  String _ledgerBal(double b) =>
+      b < -0.005 ? '${Fmt.amount(-b)} Adv' : Fmt.amount(b < 0 ? 0 : b);
+
+  Color _ledgerBalColor(double b) => b > 0.005
+      ? Colors.orange.shade800
+      : b < -0.005
+          ? Colors.teal
+          : Colors.green;
+
+  Widget _tabLedger() {
+    final rows = _ledgerStatementRows();
+    final showParty = _farmFilter == null;
+    final farmSel = _farmFilter == null
+        ? null
+        : _ledgerFarms.where((f) => f['id'] == _farmFilter).firstOrNull;
+
+    double purchase = 0, paid = 0, claims = 0, opening = 0;
+    double totalDr = 0, totalCr = 0, kg = 0, untiedPaid = 0;
+    int birds = 0, dcCount = 0;
+    for (final e in rows) {
+      final amt = (e['amount'] as num?)?.toDouble() ?? 0;
+      final isD = e['entry_type'] == 'debit';
+      if (isD) {
+        totalDr += amt;
       } else {
-        balance -= amt;
+        totalCr += amt;
       }
-      return {...e, '_balance': balance};
-    })
-        .toList()
-        .reversed
-        .toList();
+      switch (e['reason']) {
+        case 'purchase':
+          {
+            final pe = e['purchase_entries'] as Map?;
+            purchase += amt;
+            dcCount++;
+            birds += (pe?['bird_count'] as num?)?.toInt() ?? 0;
+            kg += (pe?['net_weight_kg'] as num?)?.toDouble() ?? 0;
+          }
+        case 'opening_balance':
+          opening += isD ? amt : -amt;
+        case 'payment':
+          paid += isD ? -amt : amt;
+          if (e['purchase_entry_id'] == null && !isD) untiedPaid += amt;
+        case 'payment_reversal':
+          paid -= amt;
+        case 'claim':
+          claims += isD ? -amt : amt;
+      }
+    }
+    final closing =
+        rows.isEmpty ? _ledgerBf : (rows.last['_balance'] as double);
 
     return Column(children: [
-      _buildLedgerFilterBar(allFarms),
-      // Balance header
+      _buildLedgerFilterBar(),
+      if (farmSel != null) _buildLedgerSupplierHeader(farmSel),
+      // Summary strip
       Container(
           color: Colors.white,
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
           child: Row(children: [
-            const Icon(Icons.account_balance_outlined, size: 14),
-            const SizedBox(width: 8),
-            const Text('OUTSTANDING',
-                style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800)),
+            _hStat('Opening', _ledgerBal(_ledgerBf + opening),
+                Colors.brown),
+            _hStat('Purchase', Fmt.amount(purchase), Colors.blue),
+            _hStat('Paid', Fmt.amount(paid), Colors.green),
+            _hStat('Claims', Fmt.amount(claims), Colors.orange),
+            _hStat('Closing', _ledgerBal(closing), _ledgerBalColor(closing)),
+          ])),
+      // View toggle
+      Container(
+          color: kBgPage,
+          padding: const EdgeInsets.fromLTRB(12, 8, 12, 6),
+          child: Row(children: [
+            _filterChip('Statement',
+                active: _ledgerView == 'statement',
+                onTap: () => setState(() => _ledgerView = 'statement')),
+            const SizedBox(width: 6),
+            _filterChip('DC-wise',
+                active: _ledgerView == 'dc',
+                onTap: () => setState(() => _ledgerView = 'dc')),
             const Spacer(),
-            Text(Fmt.amount(balance),
-                style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w900,
-                    color: balance > 0 ? Colors.orange : Colors.green)),
+            Text(
+                '$dcCount DCs · $birds birds · ${kg.toStringAsFixed(1)} kg',
+                style: const TextStyle(fontSize: 10, color: kTextHint)),
           ])),
       Expanded(
-          child: ListView.builder(
-              padding: const EdgeInsets.all(12),
-              itemCount: rows.length,
-              itemBuilder: (_, i) {
-                final e = rows[i];
-                final isD = e['entry_type'] == 'debit';
-                final amt = (e['amount'] as num?)?.toDouble() ?? 0;
-                final bal = (e['_balance'] as double?) ?? 0;
-                final dt = DateTime.tryParse(e['entry_date'] as String? ?? '');
-                final farm = (e['farms'] as Map?)?['farmer_name'] as String?;
-                final dc =
-                (e['purchase_entries'] as Map?)?['dc_number'] as String?;
-                final c = isD ? Colors.red : Colors.green;
-                return Container(
-                    margin: const EdgeInsets.only(bottom: 6),
-                    padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(kRadiusCard),
-                      border: Border.all(color: kBorder),
-                    ),
-                    child: Row(children: [
-                      Expanded(
-                          child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                    e['reason'] == 'opening_balance'
-                                        ? 'Opening Balance'
-                                        : e['reason'] as String? ?? '--',
-                                    style: TextStyle(
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.w700,
-                                        color: c)),
-                                Text(
-                                    [farm, dc, e['description'] as String?]
-                                        .where((s) => s != null && s.isNotEmpty)
-                                        .cast<String>()
-                                        .join(' | '),
-                                    style: const TextStyle(
-                                        fontSize: 9, color: kTextHint),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis),
-                              ])),
-                      Column(
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: [
-                            Text('${isD ? "+" : "-"}${Fmt.amount(amt)}',
-                                style: TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w800,
-                                    color: c)),
-                            Text('Bal: ${Fmt.amount(bal)}',
-                                style: const TextStyle(
-                                    fontSize: 9, color: kTextHint)),
-                            if (dt != null)
-                              Text(DateFormat('d MMM').format(dt),
-                                  style: const TextStyle(
-                                      fontSize: 9, color: kTextHint)),
-                          ]),
-                    ]));
-              })),
+          child: RefreshIndicator(
+              onRefresh: _load,
+              // the vertical list sits inside a horizontal scroller
+              notificationPredicate: (n) => n.metrics.axis == Axis.vertical,
+              child: _ledgerView == 'dc'
+                  ? _ledgerDcTable(rows, showParty, untiedPaid)
+                  : _ledgerStatementTable(rows, showParty, totalDr,
+                      totalCr, closing, birds, kg))),
     ]);
   }
 
-  Widget _buildLedgerFilterBar(Map<String, String> allFarms) {
-    if (allFarms.isEmpty) return const SizedBox.shrink();
+  Widget _ledgerStatementTable(
+      List<Map<String, dynamic>> rows,
+      bool showParty,
+      double totalDr,
+      double totalCr,
+      double closing,
+      int birds,
+      double kg) {
+    final hasBf = _ledgerBf.abs() > 0.005;
+    final cols = <(String, double, TextAlign)>[
+      ('Date', 74, TextAlign.left),
+      if (showParty) ('Supplier', 120, TextAlign.left),
+      ('DC No', 96, TextAlign.left),
+      ('Particulars', 150, TextAlign.left),
+      ('Birds', 58, TextAlign.right),
+      ('Kg', 76, TextAlign.right),
+      ('Rate', 100, TextAlign.right),
+      ('Purchase (Dr)', 104, TextAlign.right),
+      ('Paid (Cr)', 104, TextAlign.right),
+      ('Balance', 112, TextAlign.right),
+    ];
+    final itemCount = rows.length + (hasBf ? 1 : 0);
+
+    return _ledgerTable(
+        cols: cols,
+        stretch: cols.indexWhere((c) => c.$1 == 'Particulars'),
+        itemCount: itemCount,
+        rowColor: (i) {
+          if (hasBf && i == 0) return Colors.brown.shade50;
+          final e = rows[i - (hasBf ? 1 : 0)];
+          switch (e['reason']) {
+            case 'opening_balance':
+              return Colors.brown.shade50;
+            case 'payment':
+              return Colors.green.shade50;
+            case 'claim':
+              return Colors.orange.shade50;
+            case 'payment_reversal':
+              return Colors.red.shade50;
+          }
+          return Colors.white;
+        },
+        cells: (i) {
+          if (hasBf && i == 0) {
+            return [
+              _lc(DateFormat('dd MMM yy').format(_from)),
+              if (showParty) _lc(''),
+              _lc(''),
+              _lc('Balance B/F',
+                  bold: true, sub: 'Before ${DateFormat('d MMM').format(_from)}'),
+              _lc(''),
+              _lc(''),
+              _lc(''),
+              _lc(''),
+              _lc(''),
+              _lc(_ledgerBal(_ledgerBf),
+                  align: TextAlign.right,
+                  bold: true,
+                  color: _ledgerBalColor(_ledgerBf)),
+            ];
+          }
+          final e = rows[i - (hasBf ? 1 : 0)];
+          final isD = e['entry_type'] == 'debit';
+          final isPurchase = e['reason'] == 'purchase';
+          final amt = (e['amount'] as num?)?.toDouble() ?? 0;
+          final bal = e['_balance'] as double;
+          final pe = e['purchase_entries'] as Map?;
+          final dt = DateTime.tryParse(e['entry_date'] as String? ?? '');
+          final peKg = (pe?['net_weight_kg'] as num?)?.toDouble();
+          return [
+            _lc(dt != null ? DateFormat('dd MMM yy').format(dt) : '--'),
+            if (showParty) _lc(_ledgerParty(e)),
+            _lc(pe?['dc_number'] as String? ?? '--', bold: isPurchase),
+            _lc(_ledgerParticulars(e),
+                bold: e['reason'] == 'opening_balance',
+                color: isD ? kTextMain : Colors.green.shade800,
+                sub: _ledgerSubline(e)),
+            _lc(isPurchase ? '${pe?['bird_count'] ?? '--'}' : '',
+                align: TextAlign.right),
+            _lc(isPurchase && peKg != null ? peKg.toStringAsFixed(1) : '',
+                align: TextAlign.right),
+            _lc(isPurchase ? _ledgerRate(pe) : '', align: TextAlign.right),
+            _lc(isD ? Fmt.amount(amt) : '',
+                align: TextAlign.right, color: Colors.red.shade700),
+            _lc(!isD ? Fmt.amount(amt) : '',
+                align: TextAlign.right, color: Colors.green.shade800),
+            _lc(_ledgerBal(bal),
+                align: TextAlign.right,
+                bold: true,
+                color: _ledgerBalColor(bal)),
+          ];
+        },
+        totals: [
+          _lc('TOTAL', bold: true),
+          if (showParty) _lc(''),
+          _lc(''),
+          _lc('${rows.length} entries', color: kTextSub),
+          _lc('$birds', align: TextAlign.right, bold: true),
+          _lc(kg.toStringAsFixed(1), align: TextAlign.right, bold: true),
+          _lc(''),
+          _lc(Fmt.amount(totalDr),
+              align: TextAlign.right, bold: true, color: Colors.red.shade700),
+          _lc(Fmt.amount(totalCr),
+              align: TextAlign.right,
+              bold: true,
+              color: Colors.green.shade800),
+          _lc(_ledgerBal(closing),
+              align: TextAlign.right,
+              bold: true,
+              color: _ledgerBalColor(closing),
+              sub: 'Closing'),
+        ]);
+  }
+
+  Widget _ledgerDcTable(
+      List<Map<String, dynamic>> rows, bool showParty, double untiedPaid) {
+    final dcs = rows
+        .where((e) =>
+            e['reason'] == 'purchase' && e['purchase_entries'] is Map)
+        .toList();
+    final cols = <(String, double, TextAlign)>[
+      ('DC Date', 74, TextAlign.left),
+      if (showParty) ('Supplier', 120, TextAlign.left),
+      ('DC No', 100, TextAlign.left),
+      ('Birds', 58, TextAlign.right),
+      ('Kg', 76, TextAlign.right),
+      ('Rate', 100, TextAlign.right),
+      ('Amount', 104, TextAlign.right),
+      ('Paid (to date)', 104, TextAlign.right),
+      ('Claim', 88, TextAlign.right),
+      ('Balance', 104, TextAlign.right),
+      ('Status', 76, TextAlign.left),
+    ];
+    double tAmt = 0, tPaid = 0, tClaim = 0, tBal = 0, tKg = 0;
+    int tBirds = 0;
+    final data = dcs.map((e) {
+      final pe = e['purchase_entries'] as Map;
+      final amt = (e['amount'] as num?)?.toDouble() ?? 0;
+      final pd = (pe['total_paid'] as num?)?.toDouble() ?? 0;
+      final cl = (pe['claim_amount'] as num?)?.toDouble() ?? 0;
+      final bal = amt - pd - cl;
+      final b = (pe['bird_count'] as num?)?.toInt() ?? 0;
+      final k = (pe['net_weight_kg'] as num?)?.toDouble() ?? 0;
+      tAmt += amt;
+      tPaid += pd;
+      tClaim += cl;
+      tBal += bal;
+      tKg += k;
+      tBirds += b;
+      return (e: e, pe: pe, amt: amt, pd: pd, cl: cl, bal: bal, b: b, k: k);
+    }).toList();
+
+    return Column(children: [
+      if (untiedPaid > 0.005)
+        _alertBanner(
+            Icons.info_outline,
+            'On-account payments in this period (not tied to a DC): '
+            '${Fmt.amount(untiedPaid)} — included in the Statement balance',
+            Colors.blue),
+      Expanded(
+          child: _ledgerTable(
+              cols: cols,
+              stretch: cols.indexWhere((c) => c.$1 == 'DC No'),
+              itemCount: data.length,
+              rowColor: (i) => data[i].bal > 0.005
+                  ? Colors.white
+                  : Colors.green.shade50,
+              cells: (i) {
+                final d = data[i];
+                final dt = DateTime.tryParse(
+                    (d.pe['dc_date'] ?? d.e['entry_date']) as String? ?? '');
+                final st = (d.pe['payment_status'] as String? ?? '--');
+                final stColor = st == 'paid'
+                    ? Colors.green
+                    : st == 'overdue'
+                        ? Colors.red
+                        : st == 'partial'
+                            ? Colors.blue
+                            : Colors.orange;
+                return [
+                  _lc(dt != null ? DateFormat('dd MMM yy').format(dt) : '--'),
+                  if (showParty) _lc(_ledgerParty(d.e)),
+                  _lc(d.pe['dc_number'] as String? ?? '--', bold: true),
+                  _lc('${d.b}', align: TextAlign.right),
+                  _lc(d.k.toStringAsFixed(1), align: TextAlign.right),
+                  _lc(_ledgerRate(d.pe), align: TextAlign.right),
+                  _lc(Fmt.amount(d.amt), align: TextAlign.right),
+                  _lc(d.pd > 0 ? Fmt.amount(d.pd) : '--',
+                      align: TextAlign.right, color: Colors.green.shade800),
+                  _lc(d.cl > 0 ? Fmt.amount(d.cl) : '--',
+                      align: TextAlign.right, color: Colors.orange.shade800),
+                  _lc(_ledgerBal(d.bal),
+                      align: TextAlign.right,
+                      bold: true,
+                      color: _ledgerBalColor(d.bal)),
+                  _lc(st.toUpperCase(), bold: true, color: stColor),
+                ];
+              },
+              totals: [
+                _lc('TOTAL', bold: true),
+                if (showParty) _lc(''),
+                _lc('${data.length} DCs', color: kTextSub),
+                _lc('$tBirds', align: TextAlign.right, bold: true),
+                _lc(tKg.toStringAsFixed(1), align: TextAlign.right, bold: true),
+                _lc(''),
+                _lc(Fmt.amount(tAmt), align: TextAlign.right, bold: true),
+                _lc(Fmt.amount(tPaid),
+                    align: TextAlign.right,
+                    bold: true,
+                    color: Colors.green.shade800),
+                _lc(Fmt.amount(tClaim),
+                    align: TextAlign.right,
+                    bold: true,
+                    color: Colors.orange.shade800),
+                _lc(_ledgerBal(tBal),
+                    align: TextAlign.right,
+                    bold: true,
+                    color: _ledgerBalColor(tBal)),
+                _lc(''),
+              ])),
+    ]);
+  }
+
+  // Scrollable table: header row + virtualised body + totals row. Scrolls
+  // sideways on phones; on wide screens the `stretch` column takes the
+  // spare width so the table fills the screen.
+  Widget _ledgerTable({
+    required List<(String, double, TextAlign)> cols,
+    required int stretch,
+    required int itemCount,
+    required List<Widget> Function(int i) cells,
+    Color Function(int i)? rowColor,
+    List<Widget>? totals,
+  }) {
+    return LayoutBuilder(builder: (_, box) {
+      final base = cols.fold<double>(0, (s, c) => s + c.$2);
+      final extra =
+          (box.maxWidth - 24 - base).clamp(0.0, double.infinity).toDouble();
+      final widths = [
+        for (var i = 0; i < cols.length; i++)
+          cols[i].$2 + (i == stretch ? extra : 0)
+      ];
+      final total = base + extra;
+
+      Widget line(List<Widget> cs, Color bg, {bool strong = false}) =>
+          Container(
+              decoration: BoxDecoration(
+                  color: bg,
+                  border: Border(
+                      top: strong
+                          ? const BorderSide(color: kTextHint, width: 1)
+                          : BorderSide.none,
+                      bottom: const BorderSide(color: kBorder))),
+              child: Row(children: [
+                for (var i = 0; i < cs.length && i < widths.length; i++)
+                  SizedBox(width: widths[i], child: cs[i]),
+              ]));
+
+      return SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          child: SizedBox(
+              width: total,
+              child: Column(children: [
+                line([
+                  for (final c in cols) _lc(c.$1, align: c.$3, header: true)
+                ], kNavy.withValues(alpha: 0.07)),
+                Expanded(
+                    child: itemCount == 0
+                        ? ListView(children: const [
+                            Padding(
+                                padding: EdgeInsets.all(32),
+                                child: Text('No ledger entries in this period',
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(
+                                        fontSize: 12, color: kTextHint))),
+                          ])
+                        : ListView.builder(
+                            padding: const EdgeInsets.only(bottom: 8),
+                            itemCount: itemCount,
+                            itemBuilder: (_, i) => line(
+                                cells(i), rowColor?.call(i) ?? Colors.white))),
+                if (totals != null && itemCount > 0)
+                  Padding(
+                      padding:
+                          const EdgeInsets.only(bottom: kBottomNavClearance),
+                      child: line(totals, Colors.grey.shade100, strong: true)),
+                if (totals == null || itemCount == 0)
+                  const SizedBox(height: kBottomNavClearance),
+              ])));
+    });
+  }
+
+  Widget _lc(String t,
+          {TextAlign align = TextAlign.left,
+          Color? color,
+          bool bold = false,
+          bool header = false,
+          String? sub}) =>
+      Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
+          child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: align == TextAlign.right
+                  ? CrossAxisAlignment.end
+                  : CrossAxisAlignment.start,
+              children: [
+                Text(t,
+                    textAlign: align,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                        fontSize: header ? 10 : 11,
+                        fontWeight: header || bold
+                            ? FontWeight.w800
+                            : FontWeight.w500,
+                        color: color ?? (header ? kTextSub : kTextMain))),
+                if (sub != null && sub.isNotEmpty)
+                  Text(sub,
+                      textAlign: align,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 9, color: kTextHint)),
+              ]));
+
+  Widget _buildLedgerSupplierHeader(Map<String, dynamic> f) {
+    final name = (f['farmer_name'] as String?)?.trim() ?? '';
+    final info = [
+      f['farm_name'] as String?,
+      f['phone'] as String?,
+      if (f['credit_days'] != null) 'Credit ${f['credit_days']}d',
+    ].where((s) => s != null && s.isNotEmpty).join(' · ');
     return Container(
         color: Colors.white,
-        height: 38,
+        padding: const EdgeInsets.fromLTRB(14, 8, 14, 8),
+        child: Row(children: [
+          CircleAvatar(
+              radius: 16,
+              backgroundColor: kNavy.withValues(alpha: 0.08),
+              child: Text(name.isEmpty ? '?' : name[0].toUpperCase(),
+                  style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                      color: kNavy))),
+          const SizedBox(width: 10),
+          Expanded(
+              child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                Text(name.isEmpty ? '--' : name,
+                    style: const TextStyle(
+                        fontSize: 13, fontWeight: FontWeight.w800)),
+                if (info.isNotEmpty)
+                  Text(info,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 10, color: kTextHint)),
+              ])),
+          _actionBtn('Statement', const Color(0xFF6A1B9A), () {
+            final fid = f['id'] as String?;
+            if (fid != null) context.push(R.supplierStatementPath(fid));
+          }),
+        ]));
+  }
+
+  Widget _buildLedgerFilterBar() {
+    Widget chip(String label, bool sel, VoidCallback onTap) => Padding(
+        padding: const EdgeInsets.only(right: 6),
+        child: Center(child: _filterChip(label, active: sel, onTap: onTap)));
+    return Container(
+        color: Colors.white,
+        height: 40,
         child: ListView(
             scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+            padding: const EdgeInsets.symmetric(horizontal: 12),
             children: [
-              GestureDetector(
-                  onTap: () => setState(() {
-                    _farmFilter = null;
-                    _load();
-                  }),
-                  child: Container(
-                      margin: const EdgeInsets.only(right: 6),
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                          color: _farmFilter == null ? kPrimary : Colors.white,
-                          borderRadius: BorderRadius.circular(kRadiusCard),
-                          border: Border.all(
-                              color: _farmFilter == null ? kPrimary : kBorder)),
-                      child: Text('All',
-                          style: TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w700,
-                              color: _farmFilter == null
-                                  ? Colors.white
-                                  : kTextSub)))),
-              ...allFarms.entries.map((e) {
-                final sel = _farmFilter == e.key;
-                return GestureDetector(
-                    onTap: () => setState(() {
-                      _farmFilter = sel ? null : e.key;
-                      _load();
-                    }),
-                    child: Container(
-                        margin: const EdgeInsets.only(right: 6),
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 10, vertical: 4),
-                        decoration: BoxDecoration(
-                            color: sel ? kPrimary : Colors.white,
-                            borderRadius: BorderRadius.circular(kRadiusCard),
-                            border:
-                            Border.all(color: sel ? kPrimary : kBorder)),
-                        child: Text(e.value,
-                            style: TextStyle(
-                                fontSize: 10,
-                                fontWeight: FontWeight.w700,
-                                color: sel ? Colors.white : kTextSub))));
+              Padding(
+                  padding: const EdgeInsets.only(right: 10),
+                  child: Center(
+                      child: _filterChip(
+                          '${DateFormat('d MMM').format(_from)} - ${DateFormat('d MMM').format(_to)}',
+                          active: true,
+                          onTap: _pickRange))),
+              chip('All Suppliers', _farmFilter == null, () {
+                setState(() => _farmFilter = null);
+                _load();
               }),
+              for (final f in _ledgerFarms)
+                chip(f['farmer_name'] as String? ?? '--',
+                    _farmFilter == f['id'], () {
+                  setState(() => _farmFilter =
+                      _farmFilter == f['id'] ? null : f['id'] as String?);
+                  _load();
+                }),
             ]));
+  }
+
+  // Share the ledger statement (current supplier + date range) as text.
+  Future<void> _exportLedger() async {
+    final rows = _ledgerStatementRows();
+    if (rows.isEmpty && _ledgerBf.abs() < 0.005) {
+      showError(context, 'No ledger entries to share');
+      return;
+    }
+    final farm = _farmFilter == null
+        ? null
+        : _ledgerFarms.where((f) => f['id'] == _farmFilter).firstOrNull;
+    final df = DateFormat('d MMM yyyy');
+    final b = StringBuffer()
+      ..writeln('SUPPLIER LEDGER')
+      ..writeln('Supplier: ${farm?['farmer_name'] ?? 'All suppliers'}')
+      ..writeln('Period: ${df.format(_from)} to ${df.format(_to)}')
+      ..writeln('')
+      ..writeln('Balance B/F: ${_ledgerBal(_ledgerBf)}')
+      ..writeln('')
+      ..writeln('Date      | DC No        | Particulars        | Birds | Kg      '
+          '| Rate          | Debit      | Credit     | Balance')
+      ..writeln('-' * 120);
+    for (final e in rows) {
+      final pe = e['purchase_entries'] as Map?;
+      final isD = e['entry_type'] == 'debit';
+      final isP = e['reason'] == 'purchase';
+      final amt = (e['amount'] as num?)?.toDouble() ?? 0;
+      final dt = DateTime.tryParse(e['entry_date'] as String? ?? '');
+      final particulars = _farmFilter == null
+          ? '${_ledgerParticulars(e)} (${_ledgerParty(e)})'
+          : _ledgerParticulars(e);
+      b.writeln([
+        (dt != null ? DateFormat('dd-MM-yy').format(dt) : '--').padRight(9),
+        (pe?['dc_number'] as String? ?? '--').padRight(12),
+        particulars.padRight(18),
+        (isP ? '${pe?['bird_count'] ?? ''}' : '').padRight(5),
+        (isP
+                ? ((pe?['net_weight_kg'] as num?)?.toStringAsFixed(1) ?? '')
+                : '')
+            .padRight(7),
+        (isP ? _ledgerRate(pe) : '').padRight(13),
+        (isD ? Fmt.amount(amt) : '').padRight(10),
+        (!isD ? Fmt.amount(amt) : '').padRight(10),
+        _ledgerBal(e['_balance'] as double),
+      ].join(' | '));
+    }
+    final closing =
+        rows.isEmpty ? _ledgerBf : (rows.last['_balance'] as double);
+    b
+      ..writeln('-' * 120)
+      ..writeln('Closing Balance: ${_ledgerBal(closing)}');
+    try {
+      await Share.share(b.toString(),
+          subject: 'Supplier Ledger: ${farm?['farmer_name'] ?? 'All'} '
+              '$_fromStr to $_toStr');
+    } catch (e) {
+      if (mounted) showError(context, 'Could not share ledger');
+    }
   }
 
   // ==========================================================================
