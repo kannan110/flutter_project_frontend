@@ -151,6 +151,10 @@ class _S extends ConsumerState<OrdersScreen> {
               tooltip: 'In-House Sale',
               onPressed: () => context.push(R.inHouseSale)),
           IconButton(
+              icon: const Icon(Icons.swap_horiz_rounded),
+              tooltip: 'Retailer Transfer',
+              onPressed: () => context.push(R.retailerTransfer)),
+          IconButton(
               icon: const Icon(Icons.refresh_outlined), onPressed: _load)
         ],
       ),
@@ -173,6 +177,10 @@ class _S extends ConsumerState<OrdersScreen> {
               icon: const Icon(Icons.storefront_outlined),
               onPressed: () => context.push(R.inHouseSale),
               tooltip: 'In-House Sale'),
+          IconButton(
+              icon: const Icon(Icons.swap_horiz_rounded),
+              onPressed: () => context.push(R.retailerTransfer),
+              tooltip: 'Retailer Transfer'),
           IconButton(
               icon: const Icon(Icons.refresh_outlined),
               onPressed: _load,

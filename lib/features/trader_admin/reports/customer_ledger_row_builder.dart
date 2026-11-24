@@ -100,6 +100,7 @@ class CustomerLedgerRowBuilder {
     'credit_note' => 'Credit',
     'debit_note' => 'Debit',
     'adjustment' => 'Adjust',
+    'retailer_transfer' => 'Transfer',
     _ => 'Adjust', // invoice_cancellation and any other future type
   };
 
@@ -226,6 +227,39 @@ class CustomerLedgerRowBuilder {
           description: withRemarks(desc),
           product: productName,
           sourceDate: entryDateStr,
+          birds: _birdsOrNull(r['birds']),
+          kg: hasWeight ? weightKg : null,
+          rate: hasWeight ? _numOrNull(r['rate_per_kg']) : null,
+          saleAmt: isDebit ? amount : null,
+          paymentAmt: !isDebit ? amount : null,
+          balance: runningBalance,
+        ));
+        continue;
+      }
+
+      if (sourceType == 'retailer_transfer') {
+        // Retailer to Retailer Transfer — debit: sold to this customer, taken
+        // from transfer_party; credit: bought from this customer, sent to
+        // transfer_party. Doc No is the transfer's RTR- number.
+        final productName = r['transfer_product_name'] as String?;
+        final party = r['transfer_party'] as String?;
+        final what = (productName != null && productName.isNotEmpty) ? '$productName ' : '';
+        final desc = party == null || party.isEmpty
+            ? (description.isEmpty ? 'Customer Transfer' : description)
+            : (isDebit ? '${what}Transfer from $party' : '${what}Transfer to $party');
+        final weightKg = _numOrNull(r['weight_kg']);
+        final hasWeight = weightKg != null && weightKg > 0;
+        out.add(LedgerPrintRow(
+          date: entryDateStr,
+          docNo: docNo,
+          manualDocNo: manualDocNo,
+          refNo: refNumber,
+          type: typeLabel(sourceType),
+          description: withRemarks(desc),
+          product: productName,
+          sourceDate: entryDateStr,
+          sourceDocNo: docNo,
+          sourceManualDocNo: manualDocNo,
           birds: _birdsOrNull(r['birds']),
           kg: hasWeight ? weightKg : null,
           rate: hasWeight ? _numOrNull(r['rate_per_kg']) : null,

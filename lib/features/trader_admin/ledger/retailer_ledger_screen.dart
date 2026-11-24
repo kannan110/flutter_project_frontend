@@ -53,10 +53,34 @@ class _S extends ConsumerState<RetailerLedgerScreen> {
       final reversedIds = List<Map<String,dynamic>>.from(reversedRows)
           .map((r) => r['original_entry_id'] as String).toSet();
 
+      // Retailer to Retailer Transfer: edits/deletes post reversing rows
+      // instead of changing the ledger. Show only the current posting of each
+      // active transfer (with its RTR Doc No), never reversals or the rows
+      // they cancelled — same rule as get_retailer_statement.
+      var transferRows = <Map<String,dynamic>>[];
+      try {
+        transferRows = List<Map<String,dynamic>>.from(await _c.from('retailer_transfers')
+            .select('doc_no,from_ledger_id,to_ledger_id')
+            .eq('status', 'active')
+            .or('from_retailer_id.eq.${widget.retailerId},to_retailer_id.eq.${widget.retailerId}'));
+      } catch (_) {
+        // Transfers not set up on this database yet — nothing to show.
+      }
+      final transferDocNo = <String, String>{
+        for (final t in transferRows) ...{
+          if (t['from_ledger_id'] != null) t['from_ledger_id'] as String: t['doc_no'] as String,
+          if (t['to_ledger_id'] != null) t['to_ledger_id'] as String: t['doc_no'] as String,
+        }
+      };
+
       final entries = rawEntries.where((x) =>
       x['source_type'] != 'payment_reversal' &&
+          x['source_type'] != 'retailer_transfer_reversal' &&
+          !(x['source_type'] == 'retailer_transfer' && !transferDocNo.containsKey(x['id'])) &&
           !(x['entry_type'] == 'credit' && reversedIds.contains(x['id']))
-      ).toList();
+      ).map((x) => x['source_type'] == 'retailer_transfer'
+          ? {...x, 'doc_no': transferDocNo[x['id']]}
+          : x).toList();
 
       // Compute totals from ALL entries (not filtered) for outstanding —
       // this signed debit-credit sum must NOT exclude reversals/originals,

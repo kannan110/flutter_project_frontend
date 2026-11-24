@@ -183,6 +183,8 @@ class SettingsScreen extends ConsumerWidget {
             _item(context, Icons.inventory_2_outlined, 'Crates', R.crates),
             _item(context, Icons.assignment_return_outlined, 'Returns',
                 R.returns),
+            _item(context, Icons.swap_horiz_outlined, 'Retailer Transfer',
+                R.retailerTransfer),
           ]),
 
           const SizedBox(height: 12),
