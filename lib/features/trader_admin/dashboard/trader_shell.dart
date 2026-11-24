@@ -167,6 +167,8 @@ class _MoreSheet extends StatelessWidget {
           R.areaManagement),
       _MoreItem(Icons.assignment_return_rounded, 'Returns', Color(0xFFDC2626),
           R.returns),
+      _MoreItem(Icons.swap_horiz_rounded, 'Retailer Transfer', Color(0xFF7C3AED),
+          R.retailerTransfer),
       _MoreItem(Icons.receipt_long_rounded, 'Invoices', Color(0xFFB45309),
           R.invoices),
       _MoreItem(

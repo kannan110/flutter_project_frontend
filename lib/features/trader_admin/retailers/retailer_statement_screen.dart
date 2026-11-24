@@ -68,6 +68,12 @@ _TxConfig _txConfig(String sourceType, String paymentMode) {
       return const _TxConfig('Return / Credit Note',
           Icons.assignment_return_outlined,
           Color(0xFFF3E5F5), Color(0xFF6A1B9A));
+    case 'retailer_transfer':
+    // Retailer to Retailer Transfer: debit = sold to this customer (Sales
+    // To), credit = bought from this customer (Purchase From).
+      return const _TxConfig('Customer Transfer',
+          Icons.swap_horiz_rounded,
+          Color(0xFFEDE9FE), Color(0xFF6D28D9));
     case 'invoice_cancellation':
     // From cancel_and_reissue_invoice's compensating ledger entry —
     // distinct from the generic 'Adjustment' fallback so a trader can

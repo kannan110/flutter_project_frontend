@@ -35,6 +35,7 @@ import '../../features/trader_admin/orders/orders_screen.dart';
 import '../../features/trader_admin/orders/create_order_screen.dart';
 import '../../features/trader_admin/orders/order_detail_screen.dart';
 import '../../features/trader_admin/orders/in_house_sale_screen.dart';
+import '../../features/trader_admin/transfers/retailer_transfer_screen.dart';
 import '../../features/trader_admin/dispatch/dispatch_screen.dart';
 import '../../features/trader_admin/dispatch/batch_detail_screen.dart';
 import '../../features/trader_admin/dispatch/dispatch_history_screen.dart';
@@ -133,6 +134,7 @@ abstract class R {
   static const orders = '/t/orders';
   static const orderCreate = '/t/orders/create';
   static const inHouseSale = '/t/orders/in-house-sale'; // Phase 2: In-House Stock Point Sale
+  static const retailerTransfer = '/t/orders/retailer-transfer'; // Retailer A → Retailer B through the trader
   static const orderDetail = '/t/orders/:id';
   static const dispatch = '/t/dispatch';
   static const batchDetail = '/t/dispatch/batch/:id';
@@ -398,6 +400,7 @@ final appRouterProvider = Provider<GoRouter>((ref) => GoRouter(
             path: R.dashboard, builder: (_, __) => const DashboardScreen()),
         GoRoute(path: R.orders, builder: (_, __) => const OrdersScreen()),
         GoRoute(path: R.inHouseSale, builder: (_, __) => const InHouseSaleScreen()),
+        GoRoute(path: R.retailerTransfer, builder: (_, __) => const RetailerTransferScreen()),
         GoRoute(
             path: R.orderCreate,
             builder: (_, __) => const CreateOrderScreen()),

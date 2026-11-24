@@ -139,6 +139,12 @@ class TraderNavigation {
               activeIcon: Icons.assignment_return_rounded,
               route:      R.returns,
             ),
+            const NavItem(
+              label:      'Retailer Transfer',
+              icon:       Icons.swap_horiz_outlined,
+              activeIcon: Icons.swap_horiz_rounded,
+              route:      R.retailerTransfer,
+            ),
           ],
         ),
 
